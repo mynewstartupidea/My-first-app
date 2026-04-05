@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lawn Care Quick Quote</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: #f4f8f2;
+      color: #1f2937;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 34px;
+      color: #166534;
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 24px;
+      color: #166534;
+    }
+
+    .subtitle {
+      color: #4b5563;
+      margin-bottom: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      font-size: 15px;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .checkbox-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f9fafb;
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+
+    .checkbox-item input {
+      width: auto;
+    }
+
+    button {
+      border: none;
+      background: #16a34a;
+      color: white;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #15803d;
+    }
+
+    .secondary-btn {
+      background: #2563eb;
+    }
+
+    .secondary-btn:hover {
+      background: #1d4ed8;
+    }
+
+    .result-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 18px;
+      border-radius: 14px;
+      margin-top: 12px;
+    }
+
+    .result-line {
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .price {
+      font-size: 32px;
+      font-weight: bold;
+      color: #166534;
+      margin: 10px 0;
+    }
+
+    .message-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 16px;
+      border-radius: 14px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 700px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .checkbox-group {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Lawn Care Quick Quote</h1>
+      <div class="subtitle">
+        Create a rough service quote, treatment recommendation, and follow-up message in seconds.
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="customerName">Customer Name</label>
+          <input type="text" id="customerName" placeholder="John Smith" />
+        </div>
+
+        <div>
+          <label for="zipCode">ZIP Code</label>
+          <input type="text" id="zipCode" placeholder="32256" />
+        </div>
+
+        <div>
+          <label for="lawnSize">Lawn Size</label>
+          <select id="lawnSize">
+            <option value="small">Small Lawn</option>
+            <option value="medium">Medium Lawn</option>
+            <option value="large">Large Lawn</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="serviceType">Service Type</label>
+          <select id="serviceType">
+            <option value="basic">Basic Treatment</option>
+            <option value="standard">Standard Program</option>
+            <option value="premium">Premium Program</option>
+          </select>
+        </div>
+
+        <div class="full">
+          <label>Lawn Problems</label>
+          <div class="checkbox-group">
+            <label class="checkbox-item"><input type="checkbox" value="weeds" class="problem" /> Weeds</label>
+            <label class="checkbox-item"><input type="checkbox" value="thin" class="problem" /> Thin Grass</label>
+            <label class="checkbox-item"><input type="checkbox" value="patches" class="problem" /> Brown Patches</label>
+            <label class="checkbox-item"><input type="checkbox" value="insects" class="problem" /> Insects</label>
+            <label class="checkbox-item"><input type="checkbox" value="fungus" class="problem" /> Fungus Concern</label>
+            <label class="checkbox-item"><input type="checkbox" value="fireants" class="problem" /> Fire Ants</label>
+          </div>
+        </div>
+
+        <div class="full">
+          <button onclick="generateQuote()">Generate Quote</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Quote Result</h2>
+      <div id="quoteOutput" class="result-box">
+        Fill out the form and click <strong>Generate Quote</strong>.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Follow-Up Message</h2>
+      <div id="messageOutput" class="message-box">
+        Your follow-up message will appear here.
+      </div>
+      <br />
+      <button class="secondary-btn" onclick="copyMessage()">Copy Message</button>
+    </div>
+  </div>
+
+  <script>
+    function generateQuote() {
+      const customerName = document.getElementById("customerName").value.trim() || "there";
+      const zipCode = document.getElementById("zipCode").value.trim() || "your area";
+      const lawnSize = document.getElementById("lawnSize").value;
+      const serviceType = document.getElementById("serviceType").value;
+      const selectedProblems = [...document.querySelectorAll(".problem:checked")].map(el => el.value);
+
+      const sizePrices = {
+        small: 79,
+        medium: 119,
+        large: 169
+      };
+
+      const serviceAddOns = {
+        basic: 0,
+        standard: 30,
+        premium: 65
+      };
+
+      let price = sizePrices[lawnSize] + serviceAddOns[serviceType];
+
+      const problemPricing = {
+        weeds: 15,
+        thin: 10,
+        patches: 20,
+        insects: 25,
+        fungus: 30,
+        fireants: 25
+      };
+
+      selectedProblems.forEach(problem => {
+        price += problemPricing[problem] || 0;
+      });
+
+      let recommendation = "A general lawn treatment plan.";
+      if (selectedProblems.includes("weeds") || selectedProblems.includes("fireants")) {
+        recommendation = "Recommend weed control + pest-focused treatment plan.";
+      }
+      if (selectedProblems.includes("thin") || selectedProblems.includes("patches")) {
+        recommendation = "Recommend fertilization + lawn health booster plan.";
+      }
+      if (selectedProblems.includes("fungus")) {
+        recommendation = "Recommend lawn inspection + fungus treatment add-on.";
+      }
+      if (selectedProblems.length >= 3) {
+        recommendation = "Recommend a full-season treatment program with recurring visits.";
+      }
+
+      const problemsText = selectedProblems.length
+        ? selectedProblems.map(formatProblem).join(", ")
+        : "general lawn improvement";
+
+      document.getElementById("quoteOutput").innerHTML = `
+        <div class="result-line"><strong>Customer:</strong> ${escapeHtml(customerName)}</div>
+        <div class="result-line"><strong>ZIP Code:</strong> ${escapeHtml(zipCode)}</div>
+        <div class="result-line"><strong>Main Issues:</strong> ${escapeHtml(problemsText)}</div>
+        <div class="result-line"><strong>Recommended Plan:</strong> ${escapeHtml(recommendation)}</div>
+        <div class="price">$${price}</div>
+        <div class="result-line"><strong>Note:</strong> This is a rough estimate for quick quoting.</div>
+      `;
+
+      const message = `Hi ${customerName},
+
+Thanks for reaching out about your lawn.
+
+Based on the details you entered, we’d recommend ${recommendation.toLowerCase()} for your property in ${zipCode}.
+
+Your rough starting quote is $${price}.
+
+Main concerns noted: ${problemsText}.
+
+If you’d like, we can schedule your first treatment and get your lawn moving in the right direction.
+
+Reply back and we’ll get you taken care of.`;
+
+      document.getElementById("messageOutput").textContent = message;
+    }
+
+    function formatProblem(problem) {
+      const labels = {
+        weeds: "weeds",
+        thin: "thin grass",
+        patches: "brown patches",
+        insects: "insects",
+        fungus: "fungus concern",
+        fireants: "fire ants"
+      };
+      return labels[problem] || problem;
+    }
+
+    function copyMessage() {
+      const text = document.getElementById("messageOutput").textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Follow-up message copied.");
+      });
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
