@@ -1,4 +1,6 @@
-const SHOPIFY_API_VERSION = '2024-10'
+import crypto from 'crypto'
+
+const SHOPIFY_API_VERSION = '2025-01'
 
 export function getShopifyOAuthUrl(shop: string, state: string): string {
   const apiKey   = process.env.SHOPIFY_API_KEY!
@@ -54,8 +56,8 @@ export async function registerWebhooks(shop: string, token: string, appUrl: stri
 }
 
 export function verifyShopifyWebhook(body: string, hmacHeader: string): boolean {
-  const crypto = require('crypto')
-  const secret = process.env.SHOPIFY_API_SECRET!
-  const hash   = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
-  return hash === hmacHeader
+  const secret = process.env.SHOPIFY_API_SECRET
+  if (!secret) return false
+  const hash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
+  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hmacHeader))
 }

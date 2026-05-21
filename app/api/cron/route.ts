@@ -70,17 +70,17 @@ export async function GET(request: Request) {
 
       // Increment analytics
       const today = now.split('T')[0]
-      await supabase.rpc('increment_analytics', {
+      const { error: rpcErr } = await supabase.rpc('increment_analytics', {
         p_store_id: job.store_id,
         p_date:     today,
         p_field:    'messages_sent',
-      }).catch(() => {
-        // Fallback: upsert analytics row manually
-        supabase.from('analytics_daily').upsert(
-          { store_id: job.store_id, date: today, messages_sent: 1 },
-          { onConflict: 'store_id,date', ignoreDuplicates: false }
-        )
       })
+      if (rpcErr) {
+        await supabase.from('analytics_daily').upsert(
+          { store_id: job.store_id, date: today, messages_sent: 1 },
+          { onConflict: 'store_id,date' }
+        )
+      }
 
       sent++
     } else {

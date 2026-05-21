@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   ShoppingCart, Package, CheckCircle2, Truck,
@@ -66,7 +66,7 @@ export default function AutomationsPage() {
   const [expanded, setExpanded]     = useState<string | null>(null)
   const [edited, setEdited]         = useState<Record<string, Partial<Automation>>>({})
   const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok })

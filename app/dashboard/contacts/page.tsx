@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Users, Loader2, Search, CheckCircle2, XCircle } from 'lucide-react'
 import { formatCurrency, timeAgo } from '@/lib/utils'
@@ -10,7 +10,7 @@ export default function ContactsPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)

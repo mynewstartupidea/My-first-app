@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { MessageSquare, Loader2, RefreshCw, Search } from 'lucide-react'
 import { timeAgo } from '@/lib/utils'
@@ -31,7 +31,7 @@ export default function MessagesPage() {
   const [filter, setFilter]     = useState<Filter>('all')
   const [search, setSearch]     = useState('')
   const [storeId, setStoreId]   = useState<string | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const loadMessages = useCallback(async () => {
     setLoading(true)
