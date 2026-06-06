@@ -47,8 +47,8 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
             <MessageCircle className="w-5 h-5 text-white" />
           </div>
           <div>
-            <span className="text-white font-bold text-lg leading-none">UpsellAI</span>
-            <p className="text-slate-500 text-[10px] mt-0.5">Revenue Recovery</p>
+            <span className="text-white font-bold text-lg leading-none">Wapaci</span>
+            <p className="text-slate-500 text-[10px] mt-0.5">WhatsApp Automation</p>
           </div>
         </Link>
       </div>

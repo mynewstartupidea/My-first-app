@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'UpsellAI – WhatsApp Revenue Recovery',
-  description: 'Recover lost revenue and automate customer communication through WhatsApp for Shopify stores.',
+  title: 'Wapaci – WhatsApp Revenue Automation for Shopify',
+  description: 'Recover abandoned carts, verify COD orders, and automate customer communication on WhatsApp. Built for Indian D2C brands on Shopify.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

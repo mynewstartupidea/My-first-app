@@ -44,8 +44,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-xl mb-4">
             <MessageCircle className="w-9 h-9 text-[#25D366]" />
           </div>
-          <h1 className="text-3xl font-bold text-white">UpsellAI</h1>
-          <p className="text-green-100 mt-1 text-sm">WhatsApp Revenue Recovery for Shopify</p>
+          <h1 className="text-3xl font-bold text-white">Wapaci</h1>
+          <p className="text-green-100 mt-1 text-sm">WhatsApp Revenue Automation for Shopify</p>
         </div>
 
         {/* Card */}
