@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { renderTemplate } from '@/lib/utils'
 
@@ -81,6 +81,12 @@ export async function POST(request: Request) {
       { store_id: store.id, date: today, messages_sent: 1 },
       { onConflict: 'store_id,date' }
     )
+  }
+
+  // Track usage in billing (increment messages_used)
+  if (result.success) {
+    const service = createServiceClient()
+    await service.rpc('increment_messages_used', { p_user_id: user.id }).then(null, () => null)
   }
 
   return NextResponse.json({

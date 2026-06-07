@@ -82,6 +82,13 @@ export async function GET(request: Request) {
         )
       }
 
+      // Increment billing usage for store owner
+      const { data: storeOwner } = await supabase
+        .from('stores').select('user_id').eq('id', job.store_id).maybeSingle()
+      if (storeOwner?.user_id) {
+        await supabase.rpc('increment_messages_used', { p_user_id: storeOwner.user_id }).then(null, () => null)
+      }
+
       sent++
     } else {
       const retryCount = (job.retry_count ?? 0) + 1

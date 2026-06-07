@@ -52,5 +52,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/shopify/webhooks|api/cron).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/shopify/webhooks|api/cron|api/razorpay/webhook).*)'],
 }

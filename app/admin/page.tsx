@@ -7,7 +7,7 @@ import {
   Users, Store, MessageSquare, TrendingUp, Loader2,
   Search, RefreshCw, CheckCircle2, XCircle, Zap,
   Calendar, Phone, Building2, ChevronDown, ChevronUp,
-  LogOut, Shield
+  LogOut, Shield, CreditCard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +36,10 @@ interface AdminUser {
   whatsapp_bsp: string | null
   active_automations: number
   messages_30d: number
+  billing_plan: string | null
+  billing_status: string | null
+  billing_amount: number
+  has_subscription: boolean
 }
 
 interface Stats {
@@ -43,6 +47,9 @@ interface Stats {
   new_this_week: number
   stores_connected: number
   total_messages_30d: number
+  active_subscriptions: number
+  mrr_inr: number
+  organizations: number
 }
 
 type SortKey = 'signed_up_at' | 'messages_30d' | 'active_automations'
@@ -178,11 +185,14 @@ export default function AdminPage() {
         {stats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {[
-              { label: 'Total Signups',     value: stats.total_signups,      icon: Users,        color: 'bg-blue-100 text-blue-600'   },
-              { label: 'New This Week',      value: stats.new_this_week,      icon: TrendingUp,   color: 'bg-green-100 text-green-600' },
-              { label: 'Stores Connected',  value: stats.stores_connected,   icon: Store,        color: 'bg-orange-100 text-orange-600'},
-              { label: 'Messages (30d)',     value: stats.total_messages_30d, icon: MessageSquare,color: 'bg-purple-100 text-purple-600'},
-            ].map(({ label, value, icon: Icon, color }) => (
+              { label: 'Total Users',          value: stats.total_signups,           icon: Users,        color: 'bg-blue-100 text-blue-600',    fmt: (v: number) => String(v) },
+              { label: 'MRR',                  value: stats.mrr_inr,                 icon: TrendingUp,   color: 'bg-green-100 text-green-600',  fmt: (v: number) => `₹${v.toLocaleString('en-IN')}` },
+              { label: 'Active Subscriptions', value: stats.active_subscriptions,    icon: Zap,          color: 'bg-amber-100 text-amber-600',  fmt: (v: number) => String(v) },
+              { label: 'Stores Connected',     value: stats.stores_connected,        icon: Store,        color: 'bg-orange-100 text-orange-600',fmt: (v: number) => String(v) },
+              { label: 'New This Week',         value: stats.new_this_week,           icon: TrendingUp,   color: 'bg-sky-100 text-sky-600',      fmt: (v: number) => String(v) },
+              { label: 'Messages (30d)',        value: stats.total_messages_30d,      icon: MessageSquare,color: 'bg-purple-100 text-purple-600',fmt: (v: number) => String(v) },
+              { label: 'Organizations',         value: stats.organizations,           icon: Building2,    color: 'bg-rose-100 text-rose-600',    fmt: (v: number) => String(v) },
+            ].map(({ label, value, icon: Icon, color, fmt }) => (
               <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <div className="flex items-start justify-between mb-2">
                   <span className="text-slate-500 text-xs font-medium">{label}</span>
@@ -190,7 +200,7 @@ export default function AdminPage() {
                     <Icon className={`w-4 h-4 ${color.split(' ')[1]}`} />
                   </div>
                 </div>
-                <p className="text-2xl font-bold text-slate-900">{value}</p>
+                <p className="text-2xl font-bold text-slate-900">{fmt(value)}</p>
               </div>
             ))}
           </div>
@@ -353,6 +363,16 @@ export default function AdminPage() {
                                   ? new Date(u.store_connected_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                                   : '—'}
                               </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-400 mb-0.5 flex items-center gap-1"><CreditCard className="w-3 h-3" /> Plan</p>
+                              <p className="font-medium text-slate-800 capitalize">{u.billing_plan ?? 'trial'}</p>
+                              {u.billing_status && (
+                                <span className={cn(
+                                  'text-[10px] px-1.5 py-0.5 rounded-full capitalize',
+                                  u.billing_status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+                                )}>{u.billing_status}</span>
+                              )}
                             </div>
                           </div>
                         </td>
