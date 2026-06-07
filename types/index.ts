@@ -7,8 +7,8 @@ export type CampaignAudience = 'all' | 'opted_in' | 'inactive_30' | 'inactive_60
 export interface Store {
   id: string
   user_id: string
-  shopify_domain: string
-  shopify_access_token: string
+  shopify_domain: string | null
+  shopify_access_token: string | null
   shop_name: string | null
   shop_email: string | null
   currency: string

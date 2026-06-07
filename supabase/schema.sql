@@ -1,14 +1,44 @@
 -- ─────────────────────────────────────────
--- UpsellAI  –  Supabase Schema
+-- Wapaci  –  Supabase Schema
 -- Run this in Supabase SQL Editor
 -- ─────────────────────────────────────────
 
+-- Organizations
+CREATE TABLE IF NOT EXISTS organizations (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT NOT NULL,
+  owner_id   UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  plan       TEXT DEFAULT 'starter',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "orgs_own" ON organizations FOR ALL USING (owner_id = auth.uid());
+
+-- Team members
+CREATE TABLE IF NOT EXISTS team_members (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+  user_id         UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  email           TEXT NOT NULL,
+  role            TEXT DEFAULT 'member' CHECK (role IN ('owner','admin','member')),
+  status          TEXT DEFAULT 'pending' CHECK (status IN ('pending','active')),
+  invited_at      TIMESTAMPTZ DEFAULT NOW(),
+  joined_at       TIMESTAMPTZ
+);
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "members_org_own" ON team_members FOR ALL USING (
+  organization_id IN (SELECT id FROM organizations WHERE owner_id = auth.uid())
+  OR user_id = auth.uid()
+);
+
 -- Stores
 CREATE TABLE IF NOT EXISTS stores (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  shopify_domain      TEXT UNIQUE NOT NULL,
-  shopify_access_token TEXT NOT NULL,
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id              UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  organization_id      UUID REFERENCES organizations(id),
+  shopify_domain       TEXT UNIQUE,
+  shopify_access_token TEXT,
   shop_name           TEXT,
   shop_email          TEXT,
   currency            TEXT DEFAULT 'INR',

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   ShoppingCart, Package, CheckCircle2, Truck,
   Loader2, Save, AlertCircle, Info, Zap,
-  Star, RefreshCw, Gift, Plus, X
+  Star, RefreshCw, Gift, Plus, X, Send
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Automation, AutomationType, Store } from '@/types'
@@ -245,6 +245,7 @@ export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>([])
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState<string | null>(null)
+  const [sending, setSending]         = useState<string | null>(null)
   const [expanded, setExpanded]       = useState<string | null>(null)
   const [edited, setEdited]           = useState<Record<string, Partial<Automation>>>({})
   const [toast, setToast]             = useState<{ msg: string; ok: boolean } | null>(null)
@@ -302,6 +303,26 @@ export default function AutomationsPage() {
     setEdited(prev => { const n = { ...prev }; delete n[automation.id]; return n })
     showToast('Changes saved!')
     setExpanded(null)
+  }
+
+  async function sendTestMessage(automationType: string) {
+    setSending(automationType)
+    try {
+      const res = await fetch('/api/test/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ automation_type: automationType }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast(`Test message sent! Preview: "${data.preview?.slice(0, 60)}…"`)
+      } else {
+        showToast(data.error ?? 'Failed to send test message', false)
+      }
+    } catch {
+      showToast('Network error — try again', false)
+    }
+    setSending(null)
   }
 
   function updateField(id: string, field: keyof Automation, value: unknown) {
@@ -420,6 +441,20 @@ export default function AutomationsPage() {
                   </div>
 
                   <div className="flex items-center gap-3 flex-shrink-0">
+                    {auto.is_enabled && (
+                      <button
+                        onClick={() => sendTestMessage(type)}
+                        disabled={sending === type}
+                        title="Send a test message to +911234567890"
+                        className="flex items-center gap-1.5 text-xs text-[#25D366] border border-[#25D366]/30 hover:bg-[#25D366]/5 font-medium transition px-3 py-1.5 rounded-lg disabled:opacity-50"
+                      >
+                        {sending === type
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Send className="w-3 h-3" />
+                        }
+                        {sending === type ? 'Sending…' : 'Send Test'}
+                      </button>
+                    )}
                     <button
                       onClick={() => toggleAutomation(auto)}
                       className={cn(

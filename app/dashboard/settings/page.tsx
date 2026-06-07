@@ -33,9 +33,13 @@ export default function SettingsPage() {
   const [shopifyDomain, setShopifyDomain] = useState('')
   const [connecting, setConnecting]   = useState(false)
   const [savingWA, setSavingWA]       = useState(false)
+  const [savingStore, setSavingStore] = useState(false)
   const [waNumber, setWaNumber]       = useState('')
   const [waBsp, setWaBsp]             = useState('mock')
   const [waApiKey, setWaApiKey]       = useState('')
+  const [storeNameEdit, setStoreNameEdit] = useState('')
+  const [mockStoreName, setMockStoreName] = useState('')
+  const [creatingMock, setCreatingMock]   = useState(false)
   const [toast, setToast]             = useState<{ msg: string; ok: boolean } | null>(null)
   const [userEmail, setUserEmail]     = useState('')
   const [showGuide, setShowGuide]     = useState(false)
@@ -66,6 +70,7 @@ export default function SettingsPage() {
       .from('stores').select('*').eq('user_id', user.id).eq('is_active', true).maybeSingle()
     if (s) {
       setStore(s)
+      setStoreNameEdit(s.shop_name ?? '')
       setWaNumber(s.whatsapp_number ?? '')
       setWaBsp(s.whatsapp_bsp ?? 'mock')
       setWaApiKey(s.whatsapp_api_key ?? '')
@@ -123,10 +128,50 @@ export default function SettingsPage() {
 
   async function disconnectStore() {
     if (!store) return
-    if (!confirm(`Disconnect ${store.shop_name ?? store.shopify_domain}? All automations will stop.`)) return
+    if (!confirm(`Disconnect ${store.shop_name ?? store.shopify_domain ?? 'this store'}? All automations will stop.`)) return
     await supabase.from('stores').update({ is_active: false }).eq('id', store.id)
     setStore(null)
     showToast('Store disconnected')
+  }
+
+  async function saveStoreName() {
+    if (!store || !storeNameEdit.trim()) return
+    setSavingStore(true)
+    const { error } = await supabase
+      .from('stores')
+      .update({ shop_name: storeNameEdit.trim(), updated_at: new Date().toISOString() })
+      .eq('id', store.id)
+    setSavingStore(false)
+    if (error) { showToast('Failed to save store name', false); return }
+    setStore(prev => prev ? { ...prev, shop_name: storeNameEdit.trim() } : prev)
+    showToast('Store name saved!')
+  }
+
+  async function createMockStore() {
+    if (!mockStoreName.trim()) return
+    setCreatingMock(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setCreatingMock(false); return }
+
+    const { data: s, error } = await supabase
+      .from('stores')
+      .insert({
+        user_id:      user.id,
+        shop_name:    mockStoreName.trim(),
+        is_active:    true,
+        whatsapp_bsp: 'mock',
+        plan:         'starter',
+      })
+      .select('*')
+      .single()
+
+    setCreatingMock(false)
+    if (error) { showToast('Failed to create store: ' + error.message, false); return }
+
+    setStore(s)
+    setStoreNameEdit(s.shop_name ?? '')
+    await supabase.rpc('create_default_automations', { p_store_id: s.id })
+    showToast('Store created! Default automations are ready.')
   }
 
   if (loading) return (
@@ -218,23 +263,75 @@ export default function SettingsPage() {
         </h2>
 
         {store ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl">
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold text-green-800">{store.shop_name ?? store.shopify_domain}</p>
-                  <p className="text-green-600 text-sm">{store.shopify_domain}</p>
+                  <p className="font-semibold text-green-800">{store.shop_name ?? store.shopify_domain ?? 'My Store'}</p>
+                  <p className="text-green-600 text-sm">
+                    {store.shopify_domain
+                      ? store.shopify_domain
+                      : <span className="italic text-green-500">Mock store — no Shopify connected</span>
+                    }
+                  </p>
                 </div>
               </div>
-              <a
-                href={`https://${store.shopify_domain}/admin`}
-                target="_blank" rel="noopener noreferrer"
-                className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-100 transition"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
+              {store.shopify_domain && (
+                <a
+                  href={`https://${store.shopify_domain}/admin`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-100 transition"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
             </div>
+
+            {/* Store name edit */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Store display name</label>
+              <div className="flex gap-2">
+                <input
+                  value={storeNameEdit}
+                  onChange={e => setStoreNameEdit(e.target.value)}
+                  placeholder="My Store"
+                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+                <button
+                  onClick={saveStoreName}
+                  disabled={savingStore || !storeNameEdit.trim()}
+                  className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition"
+                >
+                  {savingStore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save
+                </button>
+              </div>
+            </div>
+
+            {/* Connect Shopify if not connected */}
+            {!store.shopify_domain && (
+              <div className="border-t border-slate-100 pt-4">
+                <p className="text-sm font-medium text-slate-700 mb-2">Connect Shopify (optional)</p>
+                <div className="flex gap-2">
+                  <input
+                    value={shopifyDomain}
+                    onChange={e => setShopifyDomain(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleConnectShopify()}
+                    placeholder="yourstore.myshopify.com"
+                    className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                  />
+                  <button
+                    onClick={handleConnectShopify}
+                    disabled={connecting || !shopifyDomain.trim()}
+                    className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
+                  >
+                    {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect Shopify'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={disconnectStore}
               className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition"
@@ -266,13 +363,44 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Divider */}
+            <div className="flex items-center gap-3 text-slate-400 text-xs">
+              <div className="flex-1 h-px bg-slate-200" />
+              or test without Shopify
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+
+            {/* Mock store creation */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Create a test store</label>
+              <div className="flex gap-2">
+                <input
+                  value={mockStoreName}
+                  onChange={e => setMockStoreName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && createMockStore()}
+                  placeholder="My Store"
+                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+                <button
+                  onClick={createMockStore}
+                  disabled={creatingMock || !mockStoreName.trim()}
+                  className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
+                >
+                  {creatingMock ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
+                </button>
+              </div>
+              <p className="text-slate-400 text-xs mt-1.5">
+                Creates a mock store for testing automations. Messages are logged, not sent to real phones.
+              </p>
+            </div>
+
             {/* Setup guide toggle */}
             <button
               onClick={() => setShowGuide(v => !v)}
               className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
             >
               <Info className="w-3.5 h-3.5" />
-              {showGuide ? 'Hide' : 'Show'} setup guide
+              {showGuide ? 'Hide' : 'Show'} Shopify setup guide
               {showGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
 

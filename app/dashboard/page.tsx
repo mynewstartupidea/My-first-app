@@ -14,12 +14,29 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: store } = await supabase
+  let { data: store } = await supabase
     .from('stores')
     .select('*')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .maybeSingle()
+
+  // Auto-provision a mock store on first login if none exists
+  if (!store) {
+    try {
+      const { data: profile } = await supabase
+        .from('user_profiles').select('company_name').eq('id', user.id).maybeSingle()
+      const shopName = profile?.company_name || (user.user_metadata?.company_name as string | undefined) || 'My Store'
+      const { data: newStore } = await supabase
+        .from('stores')
+        .insert({ user_id: user.id, shop_name: shopName, is_active: true, whatsapp_bsp: 'mock', plan: 'starter' })
+        .select('*').single()
+      if (newStore) {
+        store = newStore
+        await supabase.rpc('create_default_automations', { p_store_id: newStore.id })
+      }
+    } catch { /* non-fatal */ }
+  }
 
   // Fetch last 30 days analytics
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
