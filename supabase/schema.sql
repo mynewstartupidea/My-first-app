@@ -86,6 +86,20 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- User profiles (extra signup fields)
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id           UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name    TEXT,
+  company_name TEXT,
+  phone        TEXT,
+  team_size    TEXT,
+  email        TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "profiles_own" ON user_profiles FOR ALL USING (id = auth.uid());
+
 -- Campaigns
 CREATE TABLE IF NOT EXISTS campaigns (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

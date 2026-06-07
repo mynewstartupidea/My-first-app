@@ -52,7 +52,7 @@ export default function CtaSection() {
           className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4"
         >
           <Link
-            href="/login"
+            href="/signup"
             className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-8 py-4 rounded-2xl text-lg transition shadow-2xl shadow-green-500/30 group"
           >
             Start for free

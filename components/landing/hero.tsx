@@ -115,7 +115,7 @@ export default function Hero() {
             className="mt-8 flex flex-col sm:flex-row gap-3"
           >
             <Link
-              href="/login"
+              href="/signup"
               className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-7 py-3.5 rounded-2xl text-base transition shadow-xl shadow-green-500/25 group"
             >
               Start for free
