@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
-const ADMIN_EMAIL = 'vaibhavsingh9574395@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vaibhavsin9574395@gmail.com'
 
 const PLAN_LIMITS: Record<string, number> = {
   trial: 500, starter: 500, growth: 5000, pro: 25000,

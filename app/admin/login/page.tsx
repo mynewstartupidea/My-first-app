@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Shield, Loader2, AlertCircle, MessageCircle, Lock, Mail } from 'lucide-react'
 import { Suspense } from 'react'
-
-const ADMIN_EMAIL = 'vaibhavsingh9574395@gmail.com'
 
 function AdminLoginInner() {
   const [email, setEmail]       = useState('')
@@ -16,7 +14,7 @@ function AdminLoginInner() {
   const router   = useRouter()
   const supabase = createClient()
 
-  // Sign out any existing session on mount so there's no stale session conflict
+  // Sign out any existing session on mount to clear stale cross-subdomain cookies
   useEffect(() => {
     supabase.auth.signOut()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -34,9 +32,11 @@ function AdminLoginInner() {
       return
     }
 
-    if (data.user.email !== ADMIN_EMAIL) {
+    // Verify admin access via server-side check
+    const res = await fetch('/api/admin/users')
+    if (!res.ok) {
       await supabase.auth.signOut()
-      setError(`Access denied. ${data.user.email} is not an admin account.`)
+      setError(`Access denied. ${data.user.email} is not authorised as an admin.`)
       setLoading(false)
       return
     }

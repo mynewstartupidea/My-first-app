@@ -12,8 +12,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const ADMIN_EMAIL = 'vaibhavsingh9574395@gmail.com'
-
 const PLAN_PRICES: Record<string, number> = { starter: 999, growth: 2999, pro: 7999 }
 const PLAN_COLORS: Record<string, string> = {
   trial:   'bg-slate-700 text-slate-300',
@@ -73,15 +71,13 @@ export default function AdminPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || user.email !== ADMIN_EMAIL) { router.replace('/admin/login'); return }
     const res = await fetch('/api/admin/users')
     if (!res.ok) { router.replace('/admin/login'); return }
     const data = await res.json()
     setUsers(data.users ?? [])
     setStats(data.stats ?? null)
     setLoading(false)
-  }, [supabase, router])
+  }, [router])
 
   useEffect(() => { load() }, [load])
 
