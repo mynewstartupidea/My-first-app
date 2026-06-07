@@ -4,9 +4,9 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 const ADMIN_EMAIL = 'vaibhavsingh9574395@gmail.com'
 
 const PLANS_TO_CREATE = [
-  { name: 'starter', amount: 99900,  description: 'Wapaci Starter – 500 messages/month'   },
-  { name: 'growth',  amount: 299900, description: 'Wapaci Growth – 5000 messages/month'   },
-  { name: 'pro',     amount: 799900, description: 'Wapaci Pro – 25000 messages/month'      },
+  { name: 'starter', amount: 99900,  description: 'Wapaci Starter – 500 messages/month'    },
+  { name: 'growth',  amount: 299900, description: 'Wapaci Growth – 5,000 messages/month'   },
+  { name: 'pro',     amount: 799900, description: 'Wapaci Pro – 25,000 messages/month'      },
 ]
 
 function rzAuth() {
@@ -43,7 +43,7 @@ export async function POST() {
       method: 'POST',
       headers: { Authorization: rzAuth(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        period: 'monthly',
+        period:   'monthly',
         interval: 1,
         item: {
           name:        plan.description,
@@ -62,7 +62,7 @@ export async function POST() {
 
     await service.from('razorpay_plans').insert({
       plan_name: plan.name,
-      plan_id:   data.id,
+      plan_id:   data.id as string,
       amount:    plan.amount,
     })
 

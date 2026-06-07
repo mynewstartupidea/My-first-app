@@ -7,8 +7,77 @@ const PLAN_CONFIG: Record<string, { messages_limit: number; amount: number; labe
   pro:     { messages_limit: 25000, amount: 799900, label: 'Pro'     },
 }
 
+const PLANS_TO_CREATE = [
+  { name: 'starter', amount: 99900,  description: 'Wapaci Starter – 500 messages/month'    },
+  { name: 'growth',  amount: 299900, description: 'Wapaci Growth – 5,000 messages/month'   },
+  { name: 'pro',     amount: 799900, description: 'Wapaci Pro – 25,000 messages/month'      },
+]
+
 function rzAuth() {
   return `Basic ${Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64')}`
+}
+
+// Creates all 3 plans in Razorpay and saves to DB if they don't exist.
+// Returns the plan_id for the requested plan.
+async function ensurePlanId(planName: string): Promise<string | null> {
+  const service = createServiceClient()
+
+  // Check if this specific plan already exists
+  const { data: existing } = await service
+    .from('razorpay_plans')
+    .select('plan_id')
+    .eq('plan_name', planName)
+    .maybeSingle()
+
+  if (existing?.plan_id) return existing.plan_id
+
+  // Create all missing plans in Razorpay
+  let targetPlanId: string | null = null
+
+  for (const p of PLANS_TO_CREATE) {
+    // Skip if already in DB
+    const { data: alreadyExists } = await service
+      .from('razorpay_plans')
+      .select('plan_id')
+      .eq('plan_name', p.name)
+      .maybeSingle()
+
+    if (alreadyExists?.plan_id) {
+      if (p.name === planName) targetPlanId = alreadyExists.plan_id
+      continue
+    }
+
+    const res = await fetch('https://api.razorpay.com/v1/plans', {
+      method: 'POST',
+      headers: { Authorization: rzAuth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period:   'monthly',
+        interval: 1,
+        item: {
+          name:        p.description,
+          amount:      p.amount,
+          currency:    'INR',
+          description: p.description,
+        },
+      }),
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      console.error(`[setup-plans] Failed to create ${p.name}:`, data)
+      continue
+    }
+
+    await service.from('razorpay_plans').insert({
+      plan_name: p.name,
+      plan_id:   data.id as string,
+      amount:    p.amount,
+    })
+
+    if (p.name === planName) targetPlanId = data.id as string
+  }
+
+  return targetPlanId
 }
 
 export async function POST(request: Request) {
@@ -17,7 +86,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    return NextResponse.json({ error: 'Razorpay not configured' }, { status: 500 })
+    return NextResponse.json({ error: 'Razorpay not configured — add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Vercel' }, { status: 500 })
   }
 
   const body = await request.json()
@@ -27,17 +96,12 @@ export async function POST(request: Request) {
 
   const service = createServiceClient()
 
-  // Get plan_id from razorpay_plans table
-  const { data: rpPlan } = await service
-    .from('razorpay_plans')
-    .select('plan_id')
-    .eq('plan_name', plan)
-    .maybeSingle()
-
-  if (!rpPlan) {
+  // Auto-initialise plans in Razorpay on first use
+  const razorpayPlanId = await ensurePlanId(plan)
+  if (!razorpayPlanId) {
     return NextResponse.json({
-      error: 'Razorpay plans not initialised. Admin must call POST /api/billing/setup-plans first.',
-    }, { status: 400 })
+      error: 'Failed to create Razorpay plan. Check that RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are correct.',
+    }, { status: 500 })
   }
 
   // Get existing billing record
@@ -47,7 +111,7 @@ export async function POST(request: Request) {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  // Cancel existing subscription if any
+  // Cancel existing subscription immediately so the new one starts now
   if (billing?.razorpay_subscription_id) {
     await fetch(`https://api.razorpay.com/v1/subscriptions/${billing.razorpay_subscription_id}/cancel`, {
       method: 'POST',
@@ -84,7 +148,7 @@ export async function POST(request: Request) {
     method: 'POST',
     headers: { Authorization: rzAuth(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      plan_id:         rpPlan.plan_id,
+      plan_id:         razorpayPlanId,
       customer_id:     customerId,
       quantity:        1,
       total_count:     120,
@@ -115,7 +179,7 @@ export async function POST(request: Request) {
     billing_provider:         'razorpay',
     razorpay_customer_id:     customerId,
     razorpay_subscription_id: subData.id,
-    razorpay_plan_id:         rpPlan.plan_id,
+    razorpay_plan_id:         razorpayPlanId,
     amount_paise:             planConfig.amount,
     messages_limit:           planConfig.messages_limit,
     updated_at:               new Date().toISOString(),
