@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getAppUrl } from '@/lib/get-app-url'
 import {
   MessageCircle, Loader2, AlertCircle, CheckCircle2,
   User, Building2, Phone, Users, Mail, Lock, ArrowRight
@@ -40,7 +41,7 @@ export default function SignupPage() {
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        emailRedirectTo: `${getAppUrl()}/auth/callback?next=/onboarding`,
         data: {
           full_name:    fullName.trim(),
           company_name: companyName.trim(),

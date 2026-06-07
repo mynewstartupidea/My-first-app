@@ -2,6 +2,21 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 export default async function proxy(request: NextRequest) {
+  const host     = request.headers.get('host') ?? ''
+  const { pathname } = request.nextUrl
+
+  // ── Multi-domain routing ────────────────────────────────────────────────────
+  // admin.wapaci.com → redirect root to /admin
+  if (host === 'admin.wapaci.com' && pathname === '/') {
+    return NextResponse.redirect(new URL('/admin', request.url))
+  }
+  // app.wapaci.com → redirect root to /login (proxy handles auth below)
+  if (host === 'app.wapaci.com' && pathname === '/') {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+  // wapaci.com / www.wapaci.com → serve landing as-is, no auto-redirect to dashboard
+
+  // ── Supabase auth session refresh ──────────────────────────────────────────
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -23,15 +38,13 @@ export default async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-
-  // Redirect unauthenticated users away from dashboard
-  if (!user && pathname.startsWith('/dashboard')) {
+  // Redirect unauthenticated users away from protected routes
+  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/onboarding'))) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Redirect authenticated users away from login
-  if (user && pathname === '/login') {
+  // Redirect authenticated users away from login/signup pages
+  if (user && (pathname === '/login' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

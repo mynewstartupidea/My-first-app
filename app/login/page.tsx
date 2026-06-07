@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getAppUrl } from '@/lib/get-app-url'
 import { MessageCircle, Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -28,7 +29,7 @@ export default function LoginPage() {
 
     if (mode === 'forgot') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${getAppUrl()}/auth/callback?next=/dashboard`,
       })
       setLoading(false)
       if (error) { setError(error.message); return }
@@ -39,7 +40,7 @@ export default function LoginPage() {
     if (mode === 'signup') {
       const { error } = await supabase.auth.signUp({
         email, password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding` },
+        options: { emailRedirectTo: `${getAppUrl()}/auth/callback?next=/onboarding` },
       })
       setLoading(false)
       if (error) { setError(error.message); return }
