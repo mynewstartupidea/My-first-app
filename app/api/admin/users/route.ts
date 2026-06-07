@@ -23,7 +23,7 @@ export async function GET() {
   // Get all stores (to show which users connected a store)
   const { data: stores } = await service
     .from('stores')
-    .select('user_id, shopify_domain, shop_name, plan, is_active, created_at, whatsapp_bsp')
+    .select('id, user_id, shopify_domain, shop_name, plan, is_active, created_at, whatsapp_bsp')
 
   // Get automation counts per store
   const { data: automations } = await service
@@ -47,7 +47,7 @@ export async function GET() {
     .from('organizations')
     .select('id', { count: 'exact', head: true })
 
-  type StoreRow = { user_id: string; shopify_domain: string; shop_name: string | null; plan: string | null; is_active: boolean; created_at: string; whatsapp_bsp: string | null }
+  type StoreRow = { id: string; user_id: string; shopify_domain: string; shop_name: string | null; plan: string | null; is_active: boolean; created_at: string; whatsapp_bsp: string | null }
   type BillingRow = { user_id: string; plan_name: string; status: string; amount_paise: number; messages_used: number; messages_limit: number; razorpay_subscription_id: string | null }
 
   // Build a lookup: user_id → store
@@ -92,8 +92,8 @@ export async function GET() {
       store_active:   store?.is_active ?? false,
       store_connected_at: store?.created_at ?? null,
       whatsapp_bsp:   store?.whatsapp_bsp ?? null,
-      active_automations: store ? (autoCountByStore[store.user_id] ?? 0) : 0,
-      messages_30d:   store ? (msgCountByStore[store.user_id] ?? 0) : 0,
+      active_automations: store ? (autoCountByStore[store.id] ?? 0) : 0,
+      messages_30d:   store ? (msgCountByStore[store.id] ?? 0) : 0,
       billing_plan:   billing?.plan_name ?? null,
       billing_status: billing?.status ?? null,
       billing_amount: billing?.amount_paise ?? 0,
@@ -110,7 +110,7 @@ export async function GET() {
     total_signups:       users.length,
     new_this_week:       users.filter(u => u.signed_up_at > weekAgo).length,
     stores_connected:    users.filter(u => u.store_domain).length,
-    total_messages_30d:  Object.values(msgCountByStore).reduce((a, b) => a + b, 0),
+    total_messages_30d:  users.reduce((a, u) => a + u.messages_30d, 0),
     active_subscriptions: activeBilling.length,
     mrr_paise:           mrr,
     mrr_inr:             mrr / 100,

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Zap, MessageSquare, Users,
   Settings, LogOut, MessageCircle, Store, ChevronRight,
-  BarChart2, Megaphone, Plug, UserCheck
+  BarChart2, Megaphone, Plug, UserCheck, FileText
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +16,7 @@ const NAV = [
   { href: '/dashboard/conversations',   icon: MessageSquare,   label: 'Conversations'  },
   { href: '/dashboard/customers',       icon: UserCheck,       label: 'Customers'      },
   { href: '/dashboard/campaigns',       icon: Megaphone,       label: 'Campaigns'      },
+  { href: '/dashboard/templates',       icon: FileText,        label: 'Templates'      },
   { href: '/dashboard/analytics',       icon: BarChart2,       label: 'Analytics'      },
   { href: '/dashboard/integrations',    icon: Plug,            label: 'Integrations'   },
   { href: '/dashboard/settings',        icon: Settings,        label: 'Settings'       },

@@ -31,7 +31,30 @@ export async function GET(request: Request) {
 
   let sent = 0, failed = 0
 
+  // Cache per-user remaining messages to avoid N+1 queries
+  const remainingCache: Record<string, number> = {}
+
   for (const job of jobs ?? []) {
+    // Check usage limits for store owner
+    const { data: storeOwnerRow } = await supabase
+      .from('stores').select('user_id').eq('id', job.store_id).maybeSingle()
+    const ownerId = storeOwnerRow?.user_id
+
+    if (ownerId) {
+      if (remainingCache[ownerId] === undefined) {
+        const { data: rem } = await supabase.rpc('get_messages_remaining', { p_user_id: ownerId })
+        remainingCache[ownerId] = rem ?? 500
+      }
+      if (remainingCache[ownerId] <= 0) {
+        await supabase.from('automation_jobs').update({
+          status: 'failed',
+          error_message: 'Monthly message limit reached. Upgrade your plan.',
+        }).eq('id', job.id)
+        failed++
+        continue
+      }
+    }
+
     // Mark as processing to avoid double-sending
     await supabase
       .from('automation_jobs')
@@ -83,10 +106,9 @@ export async function GET(request: Request) {
       }
 
       // Increment billing usage for store owner
-      const { data: storeOwner } = await supabase
-        .from('stores').select('user_id').eq('id', job.store_id).maybeSingle()
-      if (storeOwner?.user_id) {
-        await supabase.rpc('increment_messages_used', { p_user_id: storeOwner.user_id }).then(null, () => null)
+      if (ownerId) {
+        await supabase.rpc('increment_messages_used', { p_user_id: ownerId }).then(null, () => null)
+        if (remainingCache[ownerId] !== undefined) remainingCache[ownerId]--
       }
 
       sent++

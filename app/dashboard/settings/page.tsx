@@ -38,9 +38,10 @@ interface TeamMember {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BSP_OPTIONS = [
-  { value: 'mock',     label: 'Mock (Testing)',  desc: 'Messages logged — no real sends' },
-  { value: 'interakt', label: 'Interakt',         desc: 'Recommended for India' },
-  { value: 'gupshup',  label: 'Gupshup',          desc: 'Largest BSP in India' },
+  { value: 'mock',     label: 'Mock (Testing)',         desc: 'Messages logged — no real sends' },
+  { value: 'meta',     label: 'Meta Cloud API',         desc: 'Official WhatsApp Business API' },
+  { value: 'interakt', label: 'Interakt',               desc: 'Recommended for India' },
+  { value: 'gupshup',  label: 'Gupshup',                desc: 'Largest BSP in India' },
 ]
 
 const SHOPIFY_ERROR_MESSAGES: Record<string, string> = {
@@ -95,6 +96,13 @@ function SettingsInner() {
   const [creatingMock, setCreatingMock]       = useState(false)
   const [showGuide, setShowGuide]             = useState(false)
 
+  // WhatsApp test message
+  const [testPhone, setTestPhone]             = useState('')
+  const [testMsg, setTestMsg]                 = useState('')
+  const [sendingTest, setSendingTest]         = useState(false)
+  const [waConnected, setWaConnected]         = useState(false)
+  const [waDisplayPhone, setWaDisplayPhone]   = useState('')
+
   // Account
   const [userEmail, setUserEmail]             = useState('')
 
@@ -141,15 +149,42 @@ function SettingsInner() {
       setWaBsp(s.whatsapp_bsp ?? 'mock')
       setWaApiKey(s.whatsapp_api_key ?? '')
     }
+
+    // Load WhatsApp account (for Meta status)
+    const { data: wa } = await supabase
+      .from('whatsapp_accounts')
+      .select('status, display_phone_number')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (wa) {
+      setWaConnected(wa.status === 'connected')
+      setWaDisplayPhone(wa.display_phone_number ?? '')
+    }
+
     setLoading(false)
   }, [supabase])
 
   useEffect(() => { loadData() }, [loadData])
 
+  const urlTab = searchParams.get('tab')
+
   useEffect(() => {
-    if (urlSuccess) showToast('Shopify store connected successfully!')
-    if (urlError)   showToast(SHOPIFY_ERROR_MESSAGES[urlError] ?? 'Something went wrong.', false)
-  }, [urlError, urlSuccess, showToast])
+    if (urlTab === 'whatsapp') setActiveTab('whatsapp')
+  }, [urlTab])
+
+  useEffect(() => {
+    const connected = searchParams.get('connected')
+    const err       = searchParams.get('error')
+    if (connected === 'meta') {
+      showToast('WhatsApp connected via Meta!')
+      setActiveTab('whatsapp')
+      loadData()
+    } else if (urlSuccess) {
+      showToast('Shopify store connected successfully!')
+    }
+    if (urlError) showToast(SHOPIFY_ERROR_MESSAGES[urlError] ?? 'Something went wrong.', false)
+    if (err) showToast(decodeURIComponent(err), false)
+  }, [urlError, urlSuccess, showToast, searchParams, loadData])
 
   // ── Load billing ──────────────────────────────────────────────────────────────
   const loadBilling = useCallback(async () => {
@@ -248,6 +283,39 @@ function SettingsInner() {
     setStoreNameEdit(s.shop_name ?? '')
     await supabase.rpc('create_default_automations', { p_store_id: s.id })
     showToast('Store created! Default automations are ready.')
+  }
+
+  // ── WhatsApp test message ─────────────────────────────────────────────────────
+  async function sendTestWhatsApp() {
+    if (!testPhone.trim()) return
+    setSendingTest(true)
+    const res = await fetch('/api/whatsapp/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: testPhone.trim(), message: testMsg.trim() || undefined }),
+    })
+    const data = await res.json()
+    setSendingTest(false)
+    if (data.success) {
+      showToast(`Message sent! (${data.bsp === 'mock' ? 'Mock — check server logs' : `via ${data.bsp}`})`)
+    } else {
+      showToast(data.error ?? 'Send failed', false)
+    }
+  }
+
+  // ── Disconnect Meta WhatsApp ───────────────────────────────────────────────────
+  async function disconnectMeta() {
+    if (!confirm('Disconnect WhatsApp? Your automations will stop sending real messages.')) return
+    const res = await fetch('/api/meta/disconnect', { method: 'POST' })
+    if (res.ok) {
+      setWaConnected(false)
+      setWaDisplayPhone('')
+      setWaBsp('mock')
+      showToast('WhatsApp disconnected')
+      await loadData()
+    } else {
+      showToast('Failed to disconnect', false)
+    }
   }
 
   // ── Billing actions ───────────────────────────────────────────────────────────
@@ -554,62 +622,169 @@ function SettingsInner() {
       </section>
 
       {/* ── WhatsApp ─────────────────────────────────────────────────────────── */}
-      <section className={cn('bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-5', activeTab !== 'whatsapp' && 'hidden')}>
-        <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
-          <div className="w-7 h-7 bg-[#25D366]/10 rounded-lg flex items-center justify-center">
-            <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
-          </div>
-          WhatsApp Configuration
-        </h2>
-        <p className="text-slate-400 text-xs mb-4 ml-9">Connect your BSP to start sending real messages</p>
+      {activeTab === 'whatsapp' && (
+        <div className="space-y-5">
+          {/* Meta connection status */}
+          {waConnected ? (
+            <section className="bg-white rounded-2xl shadow-sm border border-[#25D366]/30 p-6">
+              <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <div className="w-7 h-7 bg-[#25D366]/10 rounded-lg flex items-center justify-center">
+                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                </div>
+                WhatsApp Connected
+              </h2>
+              <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-green-800">Meta WhatsApp Cloud API</p>
+                    <p className="text-green-600 text-sm">{waDisplayPhone || 'Number connected'}</p>
+                  </div>
+                </div>
+                <span className="flex items-center gap-1 text-[10px] font-medium bg-green-100 text-green-700 px-2.5 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Live
+                </span>
+              </div>
+              <button onClick={disconnectMeta}
+                className="text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition flex items-center gap-2">
+                <XCircle className="w-3.5 h-3.5" /> Disconnect WhatsApp
+              </button>
+            </section>
+          ) : (
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+                <div className="w-7 h-7 bg-[#25D366]/10 rounded-lg flex items-center justify-center">
+                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                </div>
+                Connect WhatsApp Number
+              </h2>
+              <p className="text-slate-400 text-xs mb-5 ml-9">Choose how to connect your WhatsApp Business number</p>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Message Provider (BSP)</label>
-            <div className="grid grid-cols-3 gap-2">
-              {BSP_OPTIONS.map(opt => (
-                <button key={opt.value} onClick={() => setWaBsp(opt.value)}
-                  className={cn('text-left p-3 rounded-xl border-2 transition',
-                    waBsp === opt.value ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
-                  <p className={cn('text-sm font-medium', waBsp === opt.value ? 'text-[#25D366]' : 'text-slate-700')}>{opt.label}</p>
-                  <p className="text-slate-400 text-xs mt-0.5">{opt.desc}</p>
+              {/* Option 1: Meta Cloud API */}
+              <div className="bg-gradient-to-br from-blue-50 to-[#25D366]/5 border border-blue-200 rounded-2xl p-5 mb-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+                    <span className="text-2xl">💬</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800">Meta WhatsApp Cloud API</p>
+                    <p className="text-slate-500 text-xs mt-0.5">Official Meta Business API — direct connection, no third-party required</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Official API</span>
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">✓ One-click setup</span>
+                    </div>
+                  </div>
+                </div>
+                {process.env.NEXT_PUBLIC_META_APP_ID ? (
+                  <a
+                    href={`https://www.facebook.com/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/api/meta/callback` : '')}&scope=whatsapp_business_management,whatsapp_business_messaging&response_type=code`}
+                    className="flex items-center justify-center gap-2 bg-[#1877F2] hover:bg-[#1565D8] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition w-full"
+                  >
+                    <span>Connect via Meta</span>
+                  </a>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2 text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <span>Meta app not configured. Add <code className="bg-amber-100 px-1 rounded">NEXT_PUBLIC_META_APP_ID</code>, <code className="bg-amber-100 px-1 rounded">META_APP_SECRET</code>, and <code className="bg-amber-100 px-1 rounded">META_ACCESS_TOKEN</code> to your environment variables.</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 text-slate-400 text-xs mb-4">
+                <div className="flex-1 h-px bg-slate-200" /> or connect via a BSP <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
+              {/* Option 2: BSP (Interakt/Gupshup) */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Message Provider (BSP)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {BSP_OPTIONS.filter(o => o.value !== 'meta').map(opt => (
+                      <button key={opt.value} onClick={() => setWaBsp(opt.value)}
+                        className={cn('text-left p-3 rounded-xl border-2 transition',
+                          waBsp === opt.value ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
+                        <p className={cn('text-sm font-medium', waBsp === opt.value ? 'text-[#25D366]' : 'text-slate-700')}>{opt.label}</p>
+                        <p className="text-slate-400 text-xs mt-0.5">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">WhatsApp Phone Number</label>
+                  <input value={waNumber} onChange={e => setWaNumber(e.target.value)} placeholder="+91 98765 43210"
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                </div>
+
+                {waBsp !== 'mock' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      {waBsp === 'interakt' ? 'Interakt API Key' : 'Gupshup API Key'}
+                    </label>
+                    <input type="password" value={waApiKey} onChange={e => setWaApiKey(e.target.value)}
+                      placeholder={waBsp === 'interakt' ? 'From Interakt → Settings → Developer' : 'From Gupshup → Partner Portal'}
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                  </div>
+                )}
+
+                {waBsp === 'mock' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                    <Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-amber-700 text-xs">Mock mode — messages are logged but not sent to real phones. Use for testing only.</p>
+                  </div>
+                )}
+
+                <button onClick={saveWhatsApp} disabled={savingWA || !store}
+                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">
+                  {savingWA ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : <><Save className="w-3.5 h-3.5" /> Save Settings</>}
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">WhatsApp Phone Number</label>
-            <input value={waNumber} onChange={e => setWaNumber(e.target.value)} placeholder="+91 98765 43210"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-            <p className="text-slate-400 text-xs mt-1">The number registered with your BSP</p>
-          </div>
-
-          {waBsp !== 'mock' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                {waBsp === 'interakt' ? 'Interakt API Key' : 'Gupshup API Key'}
-              </label>
-              <input type="password" value={waApiKey} onChange={e => setWaApiKey(e.target.value)}
-                placeholder={waBsp === 'interakt' ? 'From Interakt → Settings → Developer' : 'From Gupshup → Partner Portal'}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-            </div>
+                {!store && <p className="text-slate-400 text-xs flex items-center gap-1"><Info className="w-3 h-3" /> Connect your store first.</p>}
+              </div>
+            </section>
           )}
 
-          {waBsp === 'mock' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
-              <Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-              <p className="text-amber-700 text-xs">Mock mode — messages are logged but not sent to real phones. Switch to Interakt or Gupshup when going live.</p>
+          {/* Send Test Message */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+              <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+                <MessageCircle className="w-3.5 h-3.5 text-blue-600" />
+              </div>
+              Send Test Message
+            </h3>
+            <p className="text-slate-400 text-xs mb-4 ml-9">Verify your WhatsApp connection is working</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone Number</label>
+                <input
+                  value={testPhone}
+                  onChange={e => setTestPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Message (optional)</label>
+                <input
+                  value={testMsg}
+                  onChange={e => setTestMsg(e.target.value)}
+                  placeholder="Hello from Wapaci! 👋 Your integration is working."
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+              <button
+                onClick={sendTestWhatsApp}
+                disabled={sendingTest || !testPhone.trim()}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
+              >
+                {sendingTest ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</> : <><MessageCircle className="w-3.5 h-3.5" /> Send Test</>}
+              </button>
             </div>
-          )}
-
-          <button onClick={saveWhatsApp} disabled={savingWA || !store}
-            className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">
-            {savingWA ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : <><Save className="w-3.5 h-3.5" /> Save WhatsApp Settings</>}
-          </button>
-          {!store && <p className="text-slate-400 text-xs flex items-center gap-1"><Info className="w-3 h-3" /> Connect your store first.</p>}
+          </section>
         </div>
-      </section>
+      )}
 
       {/* ── Billing ──────────────────────────────────────────────────────────── */}
       {activeTab === 'billing' && (

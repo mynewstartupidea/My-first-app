@@ -18,16 +18,27 @@ interface DailyRow {
   cod_cancelled: number
 }
 
+interface MessageTypeRow {
+  type: string
+  count: number
+  status: string
+}
+
 const AUTOMATION_META: Record<string, { name: string; color: string }> = {
-  abandoned_cart:    { name: 'Abandoned Cart',       color: 'bg-orange-500' },
-  cod_verification:  { name: 'COD Verification',     color: 'bg-purple-500' },
-  order_confirmation:{ name: 'Order Confirmation',   color: 'bg-green-500'  },
-  shipping_update:   { name: 'Shipping Update',      color: 'bg-blue-500'   },
+  abandoned_cart:      { name: 'Abandoned Cart',       color: 'bg-orange-500' },
+  cod_verification:    { name: 'COD Verification',     color: 'bg-purple-500' },
+  order_confirmation:  { name: 'Order Confirmation',   color: 'bg-green-500'  },
+  shipping_update:     { name: 'Shipping Update',      color: 'bg-blue-500'   },
+  win_back:            { name: 'Win-back Campaign',    color: 'bg-indigo-500' },
+  review_request:      { name: 'Review Request',       color: 'bg-yellow-500' },
+  post_purchase_upsell:{ name: 'Post-Purchase Upsell', color: 'bg-pink-500'   },
+  broadcast:           { name: 'Campaign Broadcast',   color: 'bg-teal-500'   },
 }
 
 export default function AnalyticsPage() {
   const [range, setRange]   = useState<Range>('30d')
   const [rows, setRows]     = useState<DailyRow[]>([])
+  const [typeRows, setTypeRows] = useState<MessageTypeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [hasStore, setHasStore] = useState(true)
   const supabase = useMemo(() => createClient(), [])
@@ -46,14 +57,37 @@ export default function AnalyticsPage() {
     const days = r === '7d' ? 7 : r === '30d' ? 30 : 90
     const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-    const { data } = await supabase
-      .from('analytics_daily')
-      .select('*')
-      .eq('store_id', store.id)
-      .gte('date', fromDate)
-      .order('date', { ascending: true })
+    const [{ data: dailyData }, { data: msgData }] = await Promise.all([
+      supabase
+        .from('analytics_daily')
+        .select('*')
+        .eq('store_id', store.id)
+        .gte('date', fromDate)
+        .order('date', { ascending: true }),
+      supabase
+        .from('messages')
+        .select('type, status')
+        .eq('store_id', store.id)
+        .gte('created_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()),
+    ])
 
-    setRows(data ?? [])
+    setRows(dailyData ?? [])
+
+    // Aggregate messages by type
+    const typeMap: Record<string, { sent: number; delivered: number }> = {}
+    for (const m of msgData ?? []) {
+      if (!typeMap[m.type]) typeMap[m.type] = { sent: 0, delivered: 0 }
+      typeMap[m.type].sent++
+      if (m.status === 'delivered' || m.status === 'read') typeMap[m.type].delivered++
+    }
+    setTypeRows(
+      Object.entries(typeMap).map(([type, v]) => ({
+        type,
+        count: v.sent,
+        status: String(v.delivered),
+      }))
+    )
+
     setLoading(false)
   }, [supabase])
 
@@ -61,11 +95,11 @@ export default function AnalyticsPage() {
 
   const totals = useMemo(() => rows.reduce(
     (acc, r) => ({
-      messages_sent:     acc.messages_sent     + r.messages_sent,
+      messages_sent:      acc.messages_sent      + r.messages_sent,
       messages_delivered: acc.messages_delivered + r.messages_delivered,
-      carts_recovered:   acc.carts_recovered   + r.carts_recovered,
-      revenue_recovered: acc.revenue_recovered + Number(r.revenue_recovered),
-      cod_verified:      acc.cod_verified      + r.cod_verified,
+      carts_recovered:    acc.carts_recovered    + r.carts_recovered,
+      revenue_recovered:  acc.revenue_recovered  + Number(r.revenue_recovered),
+      cod_verified:       acc.cod_verified       + r.cod_verified,
     }),
     { messages_sent: 0, messages_delivered: 0, carts_recovered: 0, revenue_recovered: 0, cod_verified: 0 }
   ), [rows])
@@ -179,14 +213,14 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* Automation performance */}
+          {/* Automation performance — per-type from messages table */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100">
               <h2 className="font-semibold text-slate-800 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#25D366]" /> Automation Performance
               </h2>
             </div>
-            {rows.length === 0 ? (
+            {typeRows.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-slate-400 text-sm">No automation data yet. Enable automations to start seeing results.</p>
                 <Link href="/dashboard/automations" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#25D366] hover:underline">
@@ -205,28 +239,36 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {Object.entries(AUTOMATION_META).map(([key, meta]) => (
-                      <tr key={key} className="hover:bg-slate-50 transition">
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-2.5 h-2.5 rounded-full ${meta.color}`} />
-                            <span className="font-medium text-slate-800">{meta.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-slate-600">{formatNumber(totals.messages_sent)}</td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-slate-100 rounded-full h-1.5 max-w-[80px]">
-                              <div className="bg-[#25D366] h-1.5 rounded-full" style={{ width: `${deliveryRate}%` }} />
-                            </div>
-                            <span className="text-slate-700 font-medium text-xs">{deliveryRate}%</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 font-semibold text-slate-800">
-                          {key === 'abandoned_cart' ? formatCurrency(totals.revenue_recovered) : '—'}
-                        </td>
-                      </tr>
-                    ))}
+                    {typeRows
+                      .sort((a, b) => b.count - a.count)
+                      .map(row => {
+                        const meta = AUTOMATION_META[row.type] ?? { name: row.type, color: 'bg-slate-400' }
+                        const delivered = parseInt(row.status, 10) || 0
+                        const rate = row.count > 0 ? Math.round((delivered / row.count) * 100) : 0
+                        return (
+                          <tr key={row.type} className="hover:bg-slate-50 transition">
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-2.5 h-2.5 rounded-full ${meta.color}`} />
+                                <span className="font-medium text-slate-800">{meta.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-slate-600">{formatNumber(row.count)}</td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 bg-slate-100 rounded-full h-1.5 max-w-[80px]">
+                                  <div className="bg-[#25D366] h-1.5 rounded-full" style={{ width: `${rate}%` }} />
+                                </div>
+                                <span className="text-slate-700 font-medium text-xs">{rate}%</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 font-semibold text-slate-800">
+                              {row.type === 'abandoned_cart' ? formatCurrency(totals.revenue_recovered) : '—'}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    }
                   </tbody>
                 </table>
               </div>

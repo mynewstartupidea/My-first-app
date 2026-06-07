@@ -175,25 +175,72 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
   const phone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '').replace(/\D/g, '')
   if (!phone) return
 
-  const { data: auto } = await supabase
-    .from('automations').select('*')
-    .eq('store_id', store.id).eq('type', 'shipping_update').eq('is_enabled', true).maybeSingle()
-  if (!auto) return
-
   const firstName   = String((order.customer as Record<string, unknown>)?.first_name ?? 'there')
   const orderNumber = String(order.order_number ?? order.name ?? '')
   const fulfillments = (order.fulfillments as Record<string, unknown>[]) ?? []
   const trackingUrl  = String((fulfillments[0]?.tracking_url as string) ?? '')
+  const customerPhone = `+91${phone}`
 
-  const msg = renderTemplate(auto.template, {
-    name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
-    tracking_url: trackingUrl,
-  })
+  // Shipping update
+  const { data: shipAuto } = await supabase
+    .from('automations').select('*')
+    .eq('store_id', store.id).eq('type', 'shipping_update').eq('is_enabled', true).maybeSingle()
 
-  await supabase.from('automation_jobs').insert({
-    store_id: store.id, automation_id: auto.id, type: 'shipping_update',
-    customer_phone: `+91${phone}`, customer_name: firstName, message: msg,
-    context: { order_id: order.id, tracking_url: trackingUrl },
-    status: 'pending', scheduled_at: new Date().toISOString(),
-  })
+  if (shipAuto) {
+    const msg = renderTemplate(shipAuto.template, {
+      name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
+      tracking_url: trackingUrl,
+    })
+    await supabase.from('automation_jobs').insert({
+      store_id: store.id, automation_id: shipAuto.id, type: 'shipping_update',
+      customer_phone: customerPhone, customer_name: firstName, message: msg,
+      context: { order_id: order.id, tracking_url: trackingUrl },
+      status: 'pending', scheduled_at: new Date().toISOString(),
+    })
+  }
+
+  // Post-purchase upsell — schedule 24h after fulfillment
+  const { data: upsellAuto } = await supabase
+    .from('automations').select('*')
+    .eq('store_id', store.id).eq('type', 'post_purchase_upsell').eq('is_enabled', true).maybeSingle()
+
+  if (upsellAuto) {
+    const delay = (upsellAuto.delay_minutes ?? 1440) * 60 * 1000
+    const msg = renderTemplate(upsellAuto.template ?? DEFAULT_UPSELL_TEMPLATE, {
+      name: firstName, shop_name: store.shop_name ?? 'our store',
+      order_number: orderNumber,
+    })
+    await supabase.from('automation_jobs').insert({
+      store_id: store.id, automation_id: upsellAuto.id, type: 'post_purchase_upsell',
+      customer_phone: customerPhone, customer_name: firstName, message: msg,
+      context: { order_id: order.id },
+      status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
+    })
+  }
+
+  // Review request — schedule 5 days after fulfillment
+  const { data: reviewAuto } = await supabase
+    .from('automations').select('*')
+    .eq('store_id', store.id).eq('type', 'review_request').eq('is_enabled', true).maybeSingle()
+
+  if (reviewAuto) {
+    const delay = (reviewAuto.delay_minutes ?? 7200) * 60 * 1000
+    const msg = renderTemplate(reviewAuto.template ?? DEFAULT_REVIEW_TEMPLATE, {
+      name: firstName, shop_name: store.shop_name ?? 'our store',
+    })
+    await supabase.from('automation_jobs').insert({
+      store_id: store.id, automation_id: reviewAuto.id, type: 'review_request',
+      customer_phone: customerPhone, customer_name: firstName, message: msg,
+      context: { order_id: order.id },
+      status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
+    })
+  }
 }
+
+// ─── Win-back: triggered by cron, not a webhook event ────────────────────────
+// Win-back jobs are created by the nightly cron scanning for inactive customers.
+// See /api/cron for implementation.
+
+const DEFAULT_UPSELL_TEMPLATE = 'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved these picks — check them out!\n\nUse code THANKYOU10 for 10% off your next order!'
+
+const DEFAULT_REVIEW_TEMPLATE = 'Hi {{name}}! Hope you\'re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot and takes just 2 minutes!\n\nThank you!'
