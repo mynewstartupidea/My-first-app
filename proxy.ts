@@ -1,20 +1,33 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+const ADMIN_EMAIL = 'vaibhavsingh9574395@gmail.com'
+
 export default async function proxy(request: NextRequest) {
-  const host     = request.headers.get('host') ?? ''
+  const host       = request.headers.get('host') ?? ''
   const { pathname } = request.nextUrl
 
-  // ── Multi-domain routing ────────────────────────────────────────────────────
-  // admin.wapaci.com → redirect root to /admin
-  if (host === 'admin.wapaci.com' && pathname === '/') {
-    return NextResponse.redirect(new URL('/admin', request.url))
+  // ── Admin domain — route EVERYTHING to /admin/* ────────────────────────────
+  if (host === 'admin.wapaci.com') {
+    // Public: admin login page
+    if (pathname === '/login' || pathname === '/admin/login') {
+      return NextResponse.rewrite(new URL('/admin/login', request.url))
+    }
+    // Root → /admin
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
+    // Anything not already under /admin → prefix it
+    if (!pathname.startsWith('/admin')) {
+      return NextResponse.rewrite(new URL(`/admin${pathname}`, request.url))
+    }
+    // Falls through to auth check below
   }
-  // app.wapaci.com → redirect root to /login (proxy handles auth below)
+
+  // ── App domain — redirect root to /login ──────────────────────────────────
   if (host === 'app.wapaci.com' && pathname === '/') {
     return NextResponse.redirect(new URL('/login', request.url))
   }
-  // wapaci.com / www.wapaci.com → serve landing as-is, no auto-redirect to dashboard
 
   // ── Supabase auth session refresh ──────────────────────────────────────────
   let supabaseResponse = NextResponse.next({ request })
@@ -38,12 +51,22 @@ export default async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Redirect unauthenticated users away from protected routes
-  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/onboarding'))) {
+  // ── Admin routes: require admin email ─────────────────────────────────────
+  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
+    if (user.email !== ADMIN_EMAIL) {
+      return NextResponse.redirect(new URL('/admin/login?error=forbidden', request.url))
+    }
+  }
+
+  // ── App routes: require any authenticated user ─────────────────────────────
+  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding'))) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Redirect authenticated users away from login/signup pages
+  // ── Redirect logged-in users away from login/signup ───────────────────────
   if (user && (pathname === '/login' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
@@ -52,5 +75,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/shopify/webhooks|api/cron|api/razorpay/webhook).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/shopify/webhooks|api/cron|api/razorpay/webhook|api/meta/webhook).*)'],
 }

@@ -10,14 +10,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: store } = await supabase
     .from('stores')
-    .select('shop_name, plan')
+    .select('shop_name, plan, shopify_domain')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .maybeSingle()
 
+  // Only show store name when a real Shopify store is connected.
+  // Mock stores (no shopify_domain) show "Connect Your Store" in sidebar.
+  const displayName = store?.shopify_domain ? store.shop_name : null
+
   return (
     <div className="flex min-h-screen bg-[#f1f5f9]">
-      <Sidebar storeName={store?.shop_name} plan={store?.plan} />
+      <Sidebar storeName={displayName} plan={store?.plan} />
       <main className="flex-1 ml-[240px] min-h-screen">
         {children}
       </main>

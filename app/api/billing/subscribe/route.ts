@@ -170,18 +170,16 @@ export async function POST(request: Request) {
     .eq('is_active', true)
     .maybeSingle()
 
-  // Upsert billing record
+  // Save subscription IDs only — DO NOT change plan_name or status yet.
+  // The webhook (subscription.activated) will update those after payment succeeds.
+  // This prevents showing the wrong plan if the user dismisses the checkout.
   await service.from('billing').upsert({
     user_id:                  user.id,
     store_id:                 store?.id ?? null,
-    plan_name:                plan,
-    status:                   'trialing',
     billing_provider:         'razorpay',
     razorpay_customer_id:     customerId,
     razorpay_subscription_id: subData.id,
     razorpay_plan_id:         razorpayPlanId,
-    amount_paise:             planConfig.amount,
-    messages_limit:           planConfig.messages_limit,
     updated_at:               new Date().toISOString(),
   }, { onConflict: 'user_id' })
 

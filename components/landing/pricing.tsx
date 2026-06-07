@@ -1,20 +1,19 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { useInView } from 'framer-motion'
+import { motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, ArrowRight, Zap } from 'lucide-react'
+import { CheckCircle2, ArrowRight, Zap, Star } from 'lucide-react'
 
 const plans = [
   {
+    key: 'starter',
     name: 'Starter',
-    price: 'Free',
-    period: 'forever',
+    price: '₹999',
+    period: '/ month',
     desc: 'Perfect for new stores getting started with WhatsApp.',
     highlight: false,
-    cta: 'Get started free',
-    ctaHref: '/login',
+    cta: 'Get started',
     messages: '500 messages / month',
     features: [
       'Abandoned cart recovery',
@@ -26,14 +25,14 @@ const plans = [
     ],
   },
   {
+    key: 'growth',
     name: 'Growth',
-    price: '₹1,999',
+    price: '₹2,999',
     period: '/ month',
-    desc: 'For growing brands ready to unlock full WhatsApp automation.',
+    desc: 'For growing brands ready to unlock full automation.',
     highlight: true,
     badge: 'Most popular',
-    cta: 'Start free trial',
-    ctaHref: '/login',
+    cta: 'Get started',
     messages: '5,000 messages / month',
     features: [
       'Everything in Starter',
@@ -41,35 +40,35 @@ const plans = [
       'Post-purchase upsell',
       'Review request automation',
       'Broadcast campaigns',
-      'Advanced analytics + date filters',
+      'Advanced analytics',
       'Priority email support',
       'Custom message templates',
     ],
   },
   {
-    name: 'Scale',
-    price: '₹4,999',
+    key: 'pro',
+    name: 'Pro',
+    price: '₹7,999',
     period: '/ month',
-    desc: 'For high-volume brands that need unlimited scale.',
+    desc: 'For high-volume brands that need maximum scale.',
     highlight: false,
-    cta: 'Talk to sales',
-    ctaHref: 'mailto:sales@wapaci.com',
-    messages: 'Unlimited messages',
+    cta: 'Get started',
+    messages: '25,000 messages / month',
     features: [
       'Everything in Growth',
       'Up to 3 stores',
-      'Repeat purchase reminders',
       'Customer segmentation',
       'Dedicated onboarding',
       'WhatsApp API consultation',
-      'Slack / phone support',
-      'Custom integrations on request',
+      'Priority phone support',
+      'Custom integrations',
+      'SLA guarantee',
     ],
   },
 ]
 
 export default function Pricing() {
-  const ref = useRef(null)
+  const ref    = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
   return (
@@ -90,7 +89,7 @@ export default function Pricing() {
             Simple, transparent pricing
           </h2>
           <p className="mt-4 text-slate-400 max-w-xl mx-auto text-base">
-            Start free. Upgrade when you grow. No long-term contracts, no hidden fees.
+            No free tier. No hidden fees. 7-day trial on all plans. Cancel anytime.
           </p>
         </motion.div>
 
@@ -108,9 +107,8 @@ export default function Pricing() {
               }`}
             >
               {plan.highlight && plan.badge && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-white text-[#128C7E] text-xs font-bold px-4 py-1.5 rounded-full shadow-lg whitespace-nowrap">
-                  <Zap className="inline w-3 h-3 mr-1" />
-                  {plan.badge}
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-white text-[#128C7E] text-xs font-bold px-4 py-1.5 rounded-full shadow-lg whitespace-nowrap flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-[#128C7E]" /> {plan.badge}
                 </div>
               )}
 
@@ -119,28 +117,21 @@ export default function Pricing() {
                   {plan.name}
                 </p>
                 <div className="flex items-baseline gap-1.5">
-                  <span className={`text-4xl font-extrabold ${plan.highlight ? 'text-white' : 'text-white'}`}>
-                    {plan.price}
-                  </span>
-                  {plan.period && (
-                    <span className={`text-sm ${plan.highlight ? 'text-green-100' : 'text-slate-500'}`}>
-                      {plan.period}
-                    </span>
-                  )}
+                  <span className="text-4xl font-extrabold text-white">{plan.price}</span>
+                  <span className={`text-sm ${plan.highlight ? 'text-green-100' : 'text-slate-500'}`}>{plan.period}</span>
                 </div>
                 <p className={`text-sm mt-2 leading-relaxed ${plan.highlight ? 'text-green-100' : 'text-slate-400'}`}>
                   {plan.desc}
                 </p>
               </div>
 
-              {/* Message allowance */}
-              <div className={`rounded-xl px-4 py-2.5 text-sm font-semibold mb-6 ${
+              <div className={`rounded-xl px-4 py-2.5 text-sm font-semibold mb-6 flex items-center gap-2 ${
                 plan.highlight ? 'bg-white/15 text-white' : 'bg-white/5 text-slate-300'
               }`}>
+                <Zap className="w-3.5 h-3.5 flex-shrink-0" />
                 {plan.messages}
               </div>
 
-              {/* Features */}
               <ul className="space-y-3 flex-1 mb-7">
                 {plan.features.map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm">
@@ -150,9 +141,8 @@ export default function Pricing() {
                 ))}
               </ul>
 
-              {/* CTA */}
               <Link
-                href={plan.ctaHref}
+                href={`/signup?plan=${plan.key}`}
                 className={`w-full flex items-center justify-center gap-2 font-bold py-3.5 rounded-2xl text-sm transition group ${
                   plan.highlight
                     ? 'bg-white text-[#128C7E] hover:bg-green-50 shadow-lg'
@@ -166,16 +156,17 @@ export default function Pricing() {
           ))}
         </div>
 
-        {/* Bottom note */}
-        <motion.p
+        <motion.div
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : {}}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="text-center text-slate-500 text-sm mt-10"
+          className="text-center mt-10 space-y-2"
         >
-          All plans include a free trial. No credit card required to start.
-          Questions? <a href="mailto:sales@wapaci.com" className="text-[#25D366] hover:underline">Chat with us →</a>
-        </motion.p>
+          <p className="text-slate-500 text-sm">All plans include a 7-day free trial. No credit card required to start.</p>
+          <p className="text-slate-600 text-xs">
+            Questions? <a href="mailto:sales@wapaci.com" className="text-[#25D366] hover:underline">Chat with us →</a>
+          </p>
+        </motion.div>
       </div>
     </section>
   )
