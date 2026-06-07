@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const ADMIN_EMAIL = 'vaibhavsingh9574395@gmail.com'
-
 export default async function proxy(request: NextRequest) {
   const host       = request.headers.get('host') ?? ''
   const { pathname } = request.nextUrl
@@ -51,13 +49,10 @@ export default async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // ── Admin routes: require admin email ─────────────────────────────────────
+  // ── Admin routes: require login only — admin page checks email itself ─────
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
     if (!user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
-    }
-    if (user.email !== ADMIN_EMAIL) {
-      return NextResponse.redirect(new URL('/admin/login?error=forbidden', request.url))
     }
   }
 

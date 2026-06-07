@@ -13,15 +13,14 @@ function AdminLoginInner() {
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
-  const router     = useRouter()
-  const params     = useSearchParams()
-  const supabase   = createClient()
+  const router   = useRouter()
+  const supabase = createClient()
 
+  // Sign out any existing session on mount so there's no stale session conflict
   useEffect(() => {
-    if (params.get('error') === 'forbidden') {
-      setError('Access denied. This panel is restricted to administrators only.')
-    }
-  }, [params])
+    supabase.auth.signOut()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -37,7 +36,7 @@ function AdminLoginInner() {
 
     if (data.user.email !== ADMIN_EMAIL) {
       await supabase.auth.signOut()
-      setError('Access denied. This panel is restricted to administrators only.')
+      setError(`Access denied. ${data.user.email} is not an admin account.`)
       setLoading(false)
       return
     }
