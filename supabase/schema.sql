@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS stores (
 CREATE TABLE IF NOT EXISTS automations (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   store_id         UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
-  type             TEXT NOT NULL CHECK (type IN ('abandoned_cart','cod_verification','order_confirmation','shipping_update')),
+  type             TEXT NOT NULL CHECK (type IN ('abandoned_cart','cod_verification','order_confirmation','shipping_update','post_purchase_upsell','win_back','review_request','repeat_purchase')),
   is_enabled       BOOLEAN DEFAULT false,
   delay_minutes    INTEGER DEFAULT 30,
   template         TEXT NOT NULL,
@@ -86,6 +86,22 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Campaigns
+CREATE TABLE IF NOT EXISTS campaigns (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id        UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  name            TEXT NOT NULL,
+  message         TEXT NOT NULL DEFAULT '',
+  audience        TEXT NOT NULL DEFAULT 'opted_in' CHECK (audience IN ('all','opted_in','inactive_30','inactive_60','inactive_90')),
+  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','scheduled','running','completed','failed')),
+  scheduled_at    TIMESTAMPTZ,
+  sent_count      INTEGER DEFAULT 0,
+  delivered_count INTEGER DEFAULT 0,
+  failed_count    INTEGER DEFAULT 0,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Daily analytics
 CREATE TABLE IF NOT EXISTS analytics_daily (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -108,6 +124,7 @@ ALTER TABLE customers        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE automation_jobs  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analytics_daily  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaigns        ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "stores_own"      ON stores           FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "automations_own" ON automations      FOR ALL USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
@@ -115,6 +132,7 @@ CREATE POLICY "customers_own"   ON customers        FOR ALL USING (store_id IN (
 CREATE POLICY "jobs_own"        ON automation_jobs  FOR ALL USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
 CREATE POLICY "messages_own"    ON messages         FOR ALL USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
 CREATE POLICY "analytics_own"   ON analytics_daily  FOR ALL USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "campaigns_own"   ON campaigns        FOR ALL USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
 
 -- Service role bypass for cron/webhooks (no RLS needed when using service_role key)
 

@@ -15,7 +15,7 @@ export default function Footer() {
               <span className="text-white font-bold text-xl">Wapaci</span>
             </Link>
             <p className="text-slate-500 text-sm max-w-xs leading-relaxed">
-              WhatsApp revenue automation for Indian Shopify brands. Recover carts, verify COD, update customers — all on autopilot.
+              WhatsApp revenue automation for ecommerce brands. Recover carts, verify COD, update customers — all on autopilot.
             </p>
           </div>
 
@@ -28,7 +28,8 @@ export default function Footer() {
                 { href: '#how-it-works', label: 'How it works' },
                 { href: '#use-cases', label: 'Use Cases' },
                 { href: '#faq', label: 'FAQ' },
-                { href: '/login', label: 'Dashboard' },
+                { href: '/contact', label: 'Book Demo' },
+                { href: '/login', label: 'Login / Dashboard' },
               ].map(({ href, label }) => (
                 <div key={label}>
                   <a href={href} className="text-slate-500 hover:text-white text-sm transition block">{label}</a>
@@ -41,9 +42,14 @@ export default function Footer() {
           <div>
             <p className="text-white font-semibold text-sm mb-4">Company</p>
             <div className="space-y-2.5">
-              {['Privacy Policy', 'Terms of Service', 'Refund Policy', 'Contact Us'].map(label => (
+              {[
+                { href: '/contact', label: 'Contact Us' },
+                { href: '/privacy-policy', label: 'Privacy Policy' },
+                { href: '/terms', label: 'Terms of Service' },
+                { href: '/refund-policy', label: 'Refund Policy' },
+              ].map(({ href, label }) => (
                 <div key={label}>
-                  <a href="#" className="text-slate-500 hover:text-white text-sm transition block">{label}</a>
+                  <Link href={href} className="text-slate-500 hover:text-white text-sm transition block">{label}</Link>
                 </div>
               ))}
             </div>

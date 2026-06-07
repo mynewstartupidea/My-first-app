@@ -5,16 +5,20 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Zap, MessageSquare, Users,
-  Settings, LogOut, MessageCircle, Store, ChevronRight
+  Settings, LogOut, MessageCircle, Store, ChevronRight,
+  BarChart2, Megaphone, Plug, UserCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
-  { href: '/dashboard',              icon: LayoutDashboard, label: 'Overview'    },
-  { href: '/dashboard/automations',  icon: Zap,             label: 'Automations' },
-  { href: '/dashboard/messages',     icon: MessageSquare,   label: 'Messages'    },
-  { href: '/dashboard/contacts',     icon: Users,           label: 'Contacts'    },
-  { href: '/dashboard/settings',     icon: Settings,        label: 'Settings'    },
+  { href: '/dashboard',                 icon: LayoutDashboard, label: 'Dashboard'      },
+  { href: '/dashboard/automations',     icon: Zap,             label: 'Automations'    },
+  { href: '/dashboard/conversations',   icon: MessageSquare,   label: 'Conversations'  },
+  { href: '/dashboard/customers',       icon: UserCheck,       label: 'Customers'      },
+  { href: '/dashboard/campaigns',       icon: Megaphone,       label: 'Campaigns'      },
+  { href: '/dashboard/analytics',       icon: BarChart2,       label: 'Analytics'      },
+  { href: '/dashboard/integrations',    icon: Plug,            label: 'Integrations'   },
+  { href: '/dashboard/settings',        icon: Settings,        label: 'Settings'       },
 ]
 
 interface SidebarProps {
@@ -54,7 +58,7 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {NAV.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
@@ -68,7 +72,7 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               )}
             >
-              <Icon className="w-4.5 h-4.5 flex-shrink-0" size={18} />
+              <Icon className="flex-shrink-0" size={18} />
               <span>{label}</span>
               {active && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-70" />}
             </Link>
@@ -92,11 +96,11 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
           </div>
         ) : (
           <Link
-            href="/dashboard/settings"
+            href="/dashboard/integrations"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 hover:bg-[#25D366]/20 transition"
           >
             <Store className="w-4 h-4 text-[#25D366]" />
-            <span className="text-[#25D366] text-xs font-medium">Connect Shopify Store</span>
+            <span className="text-[#25D366] text-xs font-medium">Connect Your Store</span>
           </Link>
         )}
         <button

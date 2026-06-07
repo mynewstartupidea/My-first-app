@@ -15,7 +15,8 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(new URL('/login', request.url))
 
-  const state = Buffer.from(JSON.stringify({ userId: user.id, shop })).toString('base64')
+  const returnTo = searchParams.get('returnTo') ?? '/dashboard'
+  const state = Buffer.from(JSON.stringify({ userId: user.id, shop, returnTo })).toString('base64')
   const oauthUrl = getShopifyOAuthUrl(shop, state)
 
   return NextResponse.redirect(oauthUrl)

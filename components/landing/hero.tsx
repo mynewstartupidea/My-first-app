@@ -59,7 +59,7 @@ export default function Hero() {
             className="inline-flex items-center gap-2 bg-[#25D366]/10 border border-[#25D366]/20 rounded-full px-4 py-1.5 mb-6"
           >
             <Zap className="w-3.5 h-3.5 text-[#25D366]" />
-            <span className="text-[#25D366] text-xs font-semibold tracking-wide uppercase">WhatsApp Automation for Shopify</span>
+            <span className="text-[#25D366] text-xs font-semibold tracking-wide uppercase">WhatsApp Automation for Ecommerce Brands</span>
           </motion.div>
 
           <motion.h1
@@ -87,7 +87,7 @@ export default function Hero() {
             transition={{ duration: 0.6, delay: 0.25 }}
             className="mt-5 text-lg text-slate-400 leading-relaxed max-w-lg"
           >
-            Send automated cart recovery, COD verification, shipping updates and upsells via WhatsApp. Built for Indian D2C brands — connects to Shopify in 2 minutes.
+            Send automated cart recovery, COD verification, shipping updates and upsells via WhatsApp. Built for ecommerce brands — connects to your store in 2 minutes.
           </motion.p>
 
           <motion.div

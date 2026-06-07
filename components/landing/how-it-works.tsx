@@ -9,8 +9,8 @@ const steps = [
   {
     icon: Store,
     step: '01',
-    title: 'Connect your Shopify store',
-    desc: 'Install the Wapaci app from Shopify and authorize with one click. No code, no developer needed.',
+    title: 'Connect your ecommerce store',
+    desc: 'Connect your store (Shopify, WooCommerce, or other platforms) and authorize with one click. No code, no developer needed.',
     detail: 'Takes ~2 minutes',
     color: 'bg-blue-500/10 border-blue-500/30',
     accent: 'text-blue-400',

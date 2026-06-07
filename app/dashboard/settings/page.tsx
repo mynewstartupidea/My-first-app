@@ -164,13 +164,13 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* ── Shopify Store ───────────────────────── */}
+      {/* ── Ecommerce Store ─────────────────────── */}
       <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-5">
         <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
           <div className="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center">
             <Store className="w-3.5 h-3.5 text-green-600" />
           </div>
-          Shopify Store
+          Ecommerce Store
         </h2>
 
         {store ? (

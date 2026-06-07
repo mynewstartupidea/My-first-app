@@ -8,7 +8,7 @@ import { ChevronDown } from 'lucide-react'
 const faqs = [
   {
     q: 'Do I need a WhatsApp Business API account?',
-    a: 'No. Wapaci handles the WhatsApp Business API setup for you. We work with leading BSPs (Business Solution Providers) in India — just connect your Shopify store and you\'re ready to go.',
+    a: 'No. Wapaci handles the WhatsApp Business API setup for you. We work with leading BSPs (Business Solution Providers) — just connect your ecommerce store and you\'re ready to go.',
   },
   {
     q: 'Will my customers receive spam?',
@@ -19,12 +19,12 @@ const faqs = [
     a: 'You pay per message sent, with a low base platform fee. There are no hidden costs, no setup fees, and no long-term contracts. Start free and scale as you grow.',
   },
   {
-    q: 'Which Shopify plans does Wapaci work with?',
-    a: 'Wapaci works with all Shopify plans — Basic, Shopify, Advanced, and Plus. All you need is a live Shopify store.',
+    q: 'Which ecommerce platforms does Wapaci work with?',
+    a: 'Wapaci works with all major ecommerce platforms — Shopify (all plans including Basic, Advanced, and Plus), WooCommerce, and more integrations coming soon. All you need is a live online store.',
   },
   {
     q: 'How long does setup take?',
-    a: 'Most brands go live in under 10 minutes. Connect your Shopify store, enable the automations you want, and Wapaci handles the rest. No developer required.',
+    a: 'Most brands go live in under 10 minutes. Connect your ecommerce store, enable the automations you want, and Wapaci handles the rest. No developer required.',
   },
   {
     q: 'Can I customise the message templates?',

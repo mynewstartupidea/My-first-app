@@ -138,10 +138,10 @@ export default async function DashboardPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-8 flex items-start gap-4">
           <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-semibold text-amber-800">Connect your Shopify store to get started</p>
+            <p className="font-semibold text-amber-800">Connect your ecommerce store to get started</p>
             <p className="text-amber-700 text-sm mt-0.5">Once connected, automations will start running and recovering lost revenue.</p>
             <Link
-              href="/dashboard/settings"
+              href="/dashboard/integrations"
               className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-amber-700 hover:text-amber-900"
             >
               <Store className="w-3.5 h-3.5" /> Connect Store <ArrowRight className="w-3.5 h-3.5" />
@@ -172,7 +172,7 @@ export default async function DashboardPage() {
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <h2 className="font-semibold text-slate-800">Recent Messages</h2>
-            <Link href="/dashboard/messages" className="text-[#25D366] text-sm font-medium flex items-center gap-1 hover:underline">
+            <Link href="/dashboard/conversations" className="text-[#25D366] text-sm font-medium flex items-center gap-1 hover:underline">
               View all <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>

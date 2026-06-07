@@ -13,9 +13,11 @@ export async function GET(request: Request) {
   }
 
   let userId: string
+  let returnTo = '/dashboard'
   try {
     const decoded = JSON.parse(Buffer.from(state, 'base64').toString())
     userId = decoded.userId
+    if (decoded.returnTo) returnTo = decoded.returnTo
   } catch {
     return NextResponse.redirect(`${origin}/dashboard/settings?error=invalid_state`)
   }
@@ -48,7 +50,8 @@ export async function GET(request: Request) {
     // Create default automations
     await supabase.rpc('create_default_automations', { p_store_id: store.id })
 
-    return NextResponse.redirect(`${origin}/dashboard?connected=1`)
+    const dest = returnTo.startsWith('/') ? `${origin}${returnTo}` : `${origin}/dashboard`
+    return NextResponse.redirect(`${dest}?connected=1`)
   } catch (err) {
     console.error('Shopify OAuth error:', err)
     return NextResponse.redirect(`${origin}/dashboard/settings?error=oauth_failed`)

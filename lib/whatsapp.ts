@@ -68,7 +68,7 @@ async function sendViaGupshup({ to, message, apiKey }: SendMessageParams): Promi
     source: phoneId,
     destination: phone,
     message: JSON.stringify({ type: 'text', text: message }),
-    'src.name': 'UpsellAI',
+    'src.name': 'Wapaci',
   })
 
   try {

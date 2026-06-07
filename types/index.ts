@@ -1,6 +1,8 @@
-export type AutomationType = 'abandoned_cart' | 'cod_verification' | 'order_confirmation' | 'shipping_update'
-export type JobStatus     = 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled'
-export type Plan          = 'starter' | 'growth' | 'scale'
+export type AutomationType = 'abandoned_cart' | 'cod_verification' | 'order_confirmation' | 'shipping_update' | 'post_purchase_upsell' | 'win_back' | 'review_request' | 'repeat_purchase'
+export type JobStatus      = 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled'
+export type Plan           = 'starter' | 'growth' | 'scale'
+export type CampaignStatus = 'draft' | 'scheduled' | 'running' | 'completed' | 'failed'
+export type CampaignAudience = 'all' | 'opted_in' | 'inactive_30' | 'inactive_60' | 'inactive_90'
 
 export interface Store {
   id: string
@@ -96,4 +98,19 @@ export interface DashboardStats {
   carts_recovered: number
   cod_verified: number
   recovery_rate: number
+}
+
+export interface Campaign {
+  id: string
+  store_id: string
+  name: string
+  message: string
+  audience: CampaignAudience
+  status: CampaignStatus
+  scheduled_at: string | null
+  sent_count: number
+  delivered_count: number
+  failed_count: number
+  created_at: string
+  updated_at: string
 }
