@@ -88,6 +88,7 @@ function SettingsInner() {
   const [connecting, setConnecting]           = useState(false)
   const [savingWA, setSavingWA]               = useState(false)
   const [savingStore, setSavingStore]         = useState(false)
+  const [syncingProducts, setSyncingProducts] = useState(false)
   const [waNumber, setWaNumber]               = useState('')
   const [waBsp, setWaBsp]                     = useState('mock')
   const [waApiKey, setWaApiKey]               = useState('')
@@ -179,8 +180,9 @@ function SettingsInner() {
       showToast('WhatsApp connected via Meta!')
       setActiveTab('whatsapp')
       loadData()
-    } else if (urlSuccess) {
+    } else if (connected === 'connected' || urlSuccess) {
       showToast('Shopify store connected successfully!')
+      loadData()
     }
     if (urlError) showToast(SHOPIFY_ERROR_MESSAGES[urlError] ?? 'Something went wrong.', false)
     if (err) showToast(decodeURIComponent(err), false)
@@ -266,6 +268,20 @@ function SettingsInner() {
     await supabase.from('stores').update({ is_active: false }).eq('id', store.id)
     setStore(null)
     showToast('Store disconnected')
+  }
+
+  async function syncProducts() {
+    if (!store?.shopify_domain) return
+    setSyncingProducts(true)
+    const res  = await fetch('/api/shopify/sync-products', { method: 'POST' })
+    const data = await res.json() as { count?: number; error?: string }
+    setSyncingProducts(false)
+    if (res.ok && data.count !== undefined) {
+      showToast(`${data.count} product${data.count !== 1 ? 's' : ''} found in your store`)
+      setStore(prev => prev ? { ...prev, product_count: data.count! } : prev)
+    } else {
+      showToast(data.error ?? 'Sync failed', false)
+    }
   }
 
   async function createMockStore() {
@@ -509,6 +525,19 @@ function SettingsInner() {
                       ? store.shopify_domain
                       : <span className="italic text-green-500">Mock store — no Shopify connected</span>}
                   </p>
+                  {store.platform && (
+                    <span className="inline-block mt-1 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium capitalize">
+                      🛍️ {store.platform}
+                    </span>
+                  )}
+                  {store.connected_at && (
+                    <p className="text-green-500 text-xs mt-0.5">
+                      Connected {new Date(store.connected_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  )}
+                  {(store.product_count ?? 0) > 0 && (
+                    <p className="text-green-500 text-xs mt-0.5">{store.product_count} products synced</p>
+                  )}
                 </div>
               </div>
               {store.shopify_domain && (
@@ -547,10 +576,20 @@ function SettingsInner() {
               </div>
             )}
 
-            <button onClick={disconnectStore}
-              className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition">
-              <Trash2 className="w-3.5 h-3.5" /> Disconnect store
-            </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              {store.shopify_domain && (
+                <button onClick={syncProducts} disabled={syncingProducts}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-xl transition border border-blue-200">
+                  {syncingProducts
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Syncing…</>
+                    : <><RefreshCw className="w-3.5 h-3.5" /> Sync Products</>}
+                </button>
+              )}
+              <button onClick={disconnectStore}
+                className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition">
+                <Trash2 className="w-3.5 h-3.5" /> Disconnect store
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

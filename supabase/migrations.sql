@@ -168,11 +168,13 @@ ALTER TABLE team_members
   ADD CONSTRAINT team_members_role_check
   CHECK (role IN ('owner','admin','manager','support','member'));
 
--- ─── Store: add platform column ───────────────────────────────────────────────
+-- ─── Store: add platform, connected_at, product_count columns ────────────────
 
 ALTER TABLE stores
-  ADD COLUMN IF NOT EXISTS platform TEXT DEFAULT 'shopify' CHECK (platform IN ('shopify','woocommerce','magento','custom')),
-  ADD COLUMN IF NOT EXISTS store_domain TEXT;
+  ADD COLUMN IF NOT EXISTS platform      TEXT DEFAULT 'shopify' CHECK (platform IN ('shopify','woocommerce','magento','custom')),
+  ADD COLUMN IF NOT EXISTS store_domain  TEXT,
+  ADD COLUMN IF NOT EXISTS connected_at  TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS product_count INTEGER DEFAULT 0;
 
 -- ─── WhatsApp accounts: UNIQUE constraint on user_id ─────────────────────────
 -- Required for upsert with onConflict: 'user_id' in the Meta OAuth callback.
