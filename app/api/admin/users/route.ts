@@ -8,7 +8,10 @@ export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || user.email !== ADMIN_EMAIL) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({
+      error: 'Forbidden',
+      debug: { logged_in_as: user?.email ?? 'not logged in', expected: ADMIN_EMAIL }
+    }, { status: 403 })
   }
 
   // Use service client to bypass RLS

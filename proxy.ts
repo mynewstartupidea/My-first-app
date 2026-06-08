@@ -15,8 +15,8 @@ export default async function proxy(request: NextRequest) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/admin', request.url))
     }
-    // Anything not already under /admin → prefix it
-    if (!pathname.startsWith('/admin')) {
+    // API routes must not be prefixed — they live at /api/* on all domains
+    if (!pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
       return NextResponse.rewrite(new URL(`/admin${pathname}`, request.url))
     }
     // Falls through to auth check below

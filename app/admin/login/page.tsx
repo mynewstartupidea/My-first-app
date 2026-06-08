@@ -35,8 +35,12 @@ function AdminLoginInner() {
     // Verify admin access via server-side check
     const res = await fetch('/api/admin/users')
     if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
       await supabase.auth.signOut()
-      setError(`Access denied. ${data.user.email} is not authorised as an admin.`)
+      const detail = body?.debug
+        ? `Logged in as: ${body.debug.logged_in_as} — expected: ${body.debug.expected}`
+        : `Status ${res.status}`
+      setError(`Access denied. ${detail}`)
       setLoading(false)
       return
     }
