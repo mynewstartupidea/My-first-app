@@ -66,6 +66,13 @@ export default function SignupPage() {
     }
 
     setLoading(false)
+
+    // If Supabase auto-confirmed the account (email confirmation disabled),
+    // go straight to onboarding. Otherwise show the "check your inbox" screen.
+    if (data.session) {
+      router.push('/onboarding')
+      return
+    }
     setDone(true)
   }
 

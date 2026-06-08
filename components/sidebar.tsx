@@ -97,11 +97,14 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
           </div>
         ) : (
           <Link
-            href="/dashboard/integrations"
+            href="/dashboard/integrations#shopify"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 hover:bg-[#25D366]/20 transition"
           >
             <Store className="w-4 h-4 text-[#25D366]" />
-            <span className="text-[#25D366] text-xs font-medium">Connect Your Store</span>
+            <div>
+              <span className="text-[#25D366] text-xs font-medium block">Connect Your Store</span>
+              <span className="text-[#25D366]/60 text-[10px]">Tap to set up Shopify</span>
+            </div>
           </Link>
         )}
         <button

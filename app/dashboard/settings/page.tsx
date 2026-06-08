@@ -878,7 +878,7 @@ function SettingsInner() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {(Object.entries(PLAN_META).filter(([k]) => k !== 'trial') as [PlanKey, typeof PLAN_META[PlanKey]][]).map(([key, plan]) => {
-                    const isCurrent = key === currentPlan && billing?.status === 'active'
+                    const isCurrent = key === currentPlan && currentPlan !== 'trial'
                     const isLoading = subscribing === key
                     return (
                       <div key={key} className={cn(

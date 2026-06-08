@@ -28,11 +28,16 @@ export default function Footer() {
                 { href: '#how-it-works', label: 'How it works' },
                 { href: '#use-cases', label: 'Use Cases' },
                 { href: '#faq', label: 'FAQ' },
-                { href: '/contact', label: 'Book Demo' },
+                { href: 'https://cal.com/wapaci/demo', label: 'Book Demo' },
                 { href: '/login', label: 'Login / Dashboard' },
               ].map(({ href, label }) => (
                 <div key={label}>
-                  <a href={href} className="text-slate-500 hover:text-white text-sm transition block">{label}</a>
+                  <a
+                    href={href}
+                    target={href.startsWith('http') ? '_blank' : undefined}
+                    rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                    className="text-slate-500 hover:text-white text-sm transition block"
+                  >{label}</a>
                 </div>
               ))}
             </div>

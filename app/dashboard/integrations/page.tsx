@@ -1,4 +1,7 @@
-import { Plug, CheckCircle2, ArrowRight, Store, MessageCircle, Zap, AlertCircle } from 'lucide-react'
+'use client'
+
+import { useState } from 'react'
+import { Plug, CheckCircle2, ArrowRight, Store, MessageCircle, Zap, AlertCircle, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +14,7 @@ const integrations = [
     logo: '🛍️',
     status: 'available',
     category: 'Ecommerce',
-    href: '/dashboard/settings',
+    isShopify: true,
   },
   {
     id: 'woocommerce',
@@ -20,34 +23,15 @@ const integrations = [
     logo: '🛒',
     status: 'coming_soon',
     category: 'Ecommerce',
-    href: null,
   },
   {
     id: 'whatsapp',
-    name: 'WhatsApp Business API',
-    desc: 'Send automated messages via Interakt, Gupshup, or other BSPs.',
+    name: 'WhatsApp Business API (Meta)',
+    desc: 'Connect your own WhatsApp Business number via Meta directly.',
     logo: '💬',
     status: 'available',
     category: 'Messaging',
-    href: '/dashboard/settings',
-  },
-  {
-    id: 'interakt',
-    name: 'Interakt',
-    desc: 'Premium WhatsApp Business Solution Provider with template management.',
-    logo: '⚡',
-    status: 'available',
-    category: 'BSP',
-    href: '/dashboard/settings',
-  },
-  {
-    id: 'gupshup',
-    name: 'Gupshup',
-    desc: 'Enterprise-grade WhatsApp messaging with advanced analytics.',
-    logo: '📡',
-    status: 'available',
-    category: 'BSP',
-    href: '/dashboard/settings',
+    href: '/dashboard/settings?tab=whatsapp',
   },
   {
     id: 'razorpay',
@@ -56,7 +40,6 @@ const integrations = [
     logo: '💳',
     status: 'coming_soon',
     category: 'Payments',
-    href: null,
   },
   {
     id: 'shiprocket',
@@ -65,7 +48,6 @@ const integrations = [
     logo: '🚚',
     status: 'coming_soon',
     category: 'Logistics',
-    href: null,
   },
   {
     id: 'delhivery',
@@ -74,19 +56,57 @@ const integrations = [
     logo: '📦',
     status: 'coming_soon',
     category: 'Logistics',
-    href: null,
   },
 ]
 
 const statusConfig = {
-  available:   { label: 'Available', style: 'bg-green-100 text-green-700' },
-  connected:   { label: 'Connected', style: 'bg-[#25D366]/10 text-[#25D366]' },
+  available:   { label: 'Available',   style: 'bg-green-100 text-green-700' },
+  connected:   { label: 'Connected',   style: 'bg-[#25D366]/10 text-[#25D366]' },
   coming_soon: { label: 'Coming Soon', style: 'bg-slate-100 text-slate-500' },
 }
 
-const categories = ['All', 'Ecommerce', 'Messaging', 'BSP', 'Payments', 'Logistics']
+const categories = ['All', 'Ecommerce', 'Messaging', 'Payments', 'Logistics']
+
+function ShopifyConnectForm() {
+  const [domain, setDomain]       = useState('')
+  const [connecting, setConnecting] = useState(false)
+
+  async function handleConnect(e: React.FormEvent) {
+    e.preventDefault()
+    if (!domain.trim()) return
+    setConnecting(true)
+    let shop = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
+    if (!shop.includes('.myshopify.com')) shop = `${shop}.myshopify.com`
+    window.location.href = `/api/shopify/install?shop=${shop}`
+  }
+
+  return (
+    <form onSubmit={handleConnect} className="mt-4 flex gap-2">
+      <input
+        value={domain}
+        onChange={e => setDomain(e.target.value)}
+        placeholder="yourstore.myshopify.com"
+        className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] text-slate-800 placeholder:text-slate-400"
+      />
+      <button
+        type="submit"
+        disabled={connecting || !domain.trim()}
+        className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition whitespace-nowrap"
+      >
+        {connecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plug className="w-3.5 h-3.5" />}
+        {connecting ? 'Connecting…' : 'Connect'}
+      </button>
+    </form>
+  )
+}
 
 export default function IntegrationsPage() {
+  const [activeCategory, setActiveCategory] = useState('All')
+
+  const filtered = integrations.filter(i =>
+    activeCategory === 'All' || i.category === activeCategory
+  )
+
   return (
     <div className="p-6 lg:p-8">
       <div className="flex items-center justify-between mb-8">
@@ -96,29 +116,31 @@ export default function IntegrationsPage() {
         </div>
       </div>
 
-      {/* Quick setup banner */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-8 flex items-start gap-4">
-        <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="font-semibold text-amber-800">Connect your store to get started</p>
-          <p className="text-amber-700 text-sm mt-0.5">
-            Wapaci needs to be connected to your ecommerce store and WhatsApp BSP before automations can run.
-          </p>
-          <Link
-            href="/dashboard/settings"
-            className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:text-amber-900"
-          >
-            <Store className="w-3.5 h-3.5" /> Go to Settings <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+      {/* Shopify quick connect banner */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-8">
+        <div className="flex items-start gap-4">
+          <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold text-amber-800">Connect your Shopify store to get started</p>
+            <p className="text-amber-700 text-sm mt-0.5">
+              Enter your Shopify store URL below and we&apos;ll handle the rest — takes under 2 minutes.
+            </p>
+            <ShopifyConnectForm />
+          </div>
         </div>
       </div>
 
       {/* Category filter */}
       <div className="flex flex-wrap gap-2 mb-6">
-        {categories.map((cat, i) => (
+        {categories.map(cat => (
           <button
             key={cat}
-            className={`px-4 py-1.5 rounded-xl text-sm font-medium transition ${i === 0 ? 'bg-[#25D366] text-white' : 'text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+            onClick={() => setActiveCategory(cat)}
+            className={`px-4 py-1.5 rounded-xl text-sm font-medium transition ${
+              activeCategory === cat
+                ? 'bg-[#25D366] text-white'
+                : 'text-slate-500 border border-slate-200 hover:bg-slate-50'
+            }`}
           >
             {cat}
           </button>
@@ -127,7 +149,7 @@ export default function IntegrationsPage() {
 
       {/* Integration grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {integrations.map(intg => {
+        {filtered.map(intg => {
           const status = statusConfig[intg.status as keyof typeof statusConfig]
           return (
             <div key={intg.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col">
@@ -149,21 +171,20 @@ export default function IntegrationsPage() {
               <p className="text-slate-500 text-sm leading-relaxed flex-1">{intg.desc}</p>
 
               <div className="mt-4">
-                {intg.status === 'available' && intg.href ? (
+                {intg.status === 'coming_soon' ? (
+                  <button disabled className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-400 text-sm font-medium px-4 py-2.5 rounded-xl cursor-not-allowed">
+                    Coming Soon
+                  </button>
+                ) : intg.isShopify ? (
+                  <ShopifyConnectForm />
+                ) : intg.href ? (
                   <Link
                     href={intg.href}
                     className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
                   >
                     <Plug className="w-4 h-4" /> Connect
                   </Link>
-                ) : (
-                  <button
-                    disabled
-                    className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-400 text-sm font-medium px-4 py-2.5 rounded-xl cursor-not-allowed"
-                  >
-                    Coming Soon
-                  </button>
-                )}
+                ) : null}
               </div>
             </div>
           )

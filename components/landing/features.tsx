@@ -101,7 +101,7 @@ export default function Features() {
               animate={inView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.5, delay: 0.05 * i }}
               className={`
-                group relative rounded-2xl border p-6 cursor-pointer
+                group relative rounded-2xl border p-6
                 bg-gradient-to-b ${f.color} ${f.border}
                 hover:scale-[1.02] hover:shadow-xl transition-all duration-200
               `}

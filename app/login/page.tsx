@@ -157,9 +157,9 @@ export default function LoginPage() {
           {mode === 'signin' && (
             <p className="text-center text-sm text-slate-500 mt-6">
               Don&apos;t have an account?{' '}
-              <button onClick={() => { setMode('signup'); reset() }} className="text-[#25D366] font-medium hover:underline">
+              <Link href="/signup" className="text-[#25D366] font-medium hover:underline">
                 Sign up free
-              </button>
+              </Link>
             </p>
           )}
           {mode === 'signup' && (
