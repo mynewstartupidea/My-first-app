@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   if (!org) {
     const [{ data: store }, { data: profile }] = await Promise.all([
-      supabase.from('stores').select('shop_name').eq('user_id', user.id).eq('is_active', true).maybeSingle(),
+      supabase.from('stores').select('shop_name').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle(),
       supabase.from('user_profiles').select('company_name').eq('id', user.id).maybeSingle(),
     ])
     const orgName = profile?.company_name ?? store?.shop_name ?? 'My Organization'

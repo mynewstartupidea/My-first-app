@@ -263,7 +263,7 @@ export default function AutomationsPage() {
     if (!user) return
 
     const { data: storeData } = await supabase
-      .from('stores').select('*').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+      .from('stores').select('*').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
     setStore(storeData)
 
     if (storeData) {

@@ -95,7 +95,17 @@ export async function GET(request: Request) {
       }
     }
 
-    // 5. Ensure default automations exist
+    // 5. Deactivate any duplicate stores for this user (e.g. orphaned mock stores)
+    //    Keeps exactly one active store — the Shopify one we just saved.
+    await supabase
+      .from('stores')
+      .update({ is_active: false, updated_at: now })
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .neq('id', storeId)
+    console.log('[Shopify OAuth] duplicate stores deactivated')
+
+    // 6. Ensure default automations exist
     await supabase.rpc('create_default_automations', { p_store_id: storeId })
 
     // 6. Redirect with success flag

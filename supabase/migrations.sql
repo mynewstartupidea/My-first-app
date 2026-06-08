@@ -176,6 +176,21 @@ ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS connected_at  TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS product_count INTEGER DEFAULT 0;
 
+-- ─── One-time cleanup: deactivate orphaned mock stores ───────────────────────
+-- If a user has both a mock store (shopify_domain IS NULL) and a real Shopify
+-- store (shopify_domain IS NOT NULL), deactivate the mock store so UI queries
+-- return the correct connected store.
+
+WITH shopify_users AS (
+  SELECT DISTINCT user_id FROM stores
+  WHERE shopify_domain IS NOT NULL AND is_active = true
+)
+UPDATE stores
+SET is_active = false, updated_at = NOW()
+WHERE is_active = true
+  AND shopify_domain IS NULL
+  AND user_id IN (SELECT user_id FROM shopify_users);
+
 -- ─── WhatsApp accounts: UNIQUE constraint on user_id ─────────────────────────
 -- Required for upsert with onConflict: 'user_id' in the Meta OAuth callback.
 -- Without this the upsert silently inserts duplicates instead of updating.

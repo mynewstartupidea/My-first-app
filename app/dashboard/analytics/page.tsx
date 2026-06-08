@@ -49,7 +49,7 @@ export default function AnalyticsPage() {
     if (!user) return
 
     const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
 
     if (!store) { setHasStore(false); setLoading(false); return }
     setHasStore(true)

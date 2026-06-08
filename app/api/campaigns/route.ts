@@ -8,7 +8,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: store } = await supabase
-    .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+    .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
   if (!store) return NextResponse.json({ campaigns: [] })
 
   const { data, error } = await supabase
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: store } = await supabase
-    .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+    .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
   if (!store) return NextResponse.json({ error: 'No active store' }, { status: 400 })
 
   const body = await req.json()

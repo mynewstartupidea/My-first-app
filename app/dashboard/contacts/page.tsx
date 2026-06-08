@@ -17,7 +17,7 @@ export default function ContactsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
     if (!store) { setLoading(false); return }
     const { data } = await supabase
       .from('customers').select('*').eq('store_id', store.id).order('created_at', { ascending: false }).limit(200)

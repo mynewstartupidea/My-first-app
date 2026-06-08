@@ -38,8 +38,10 @@ export default function MessagesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+    const { data: storeRows } = await supabase
+      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true)
+      .order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1)
+    const store = storeRows?.[0] ?? null
 
     if (!store) { setLoading(false); return }
     setStoreId(store.id)

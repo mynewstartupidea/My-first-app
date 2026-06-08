@@ -14,12 +14,14 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  let { data: store } = await supabase
+  const { data: storeRows } = await supabase
     .from('stores')
     .select('*')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .maybeSingle()
+    .order('shopify_domain', { ascending: true, nullsFirst: false })
+    .limit(1)
+  let store = storeRows?.[0] ?? null
 
   // Auto-provision a mock store on first login if none exists
   if (!store) {

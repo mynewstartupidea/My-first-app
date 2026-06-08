@@ -141,8 +141,10 @@ function SettingsInner() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     setUserEmail(user.email ?? '')
-    const { data: s } = await supabase
-      .from('stores').select('*').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+    const { data: sRows } = await supabase
+      .from('stores').select('*').eq('user_id', user.id).eq('is_active', true)
+      .order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1)
+    const s = sRows?.[0] ?? null
     if (s) {
       setStore(s)
       setStoreNameEdit(s.shop_name ?? '')

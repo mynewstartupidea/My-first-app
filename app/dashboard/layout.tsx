@@ -8,12 +8,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: store } = await supabase
+  const { data: storeRows } = await supabase
     .from('stores')
     .select('shop_name, plan, shopify_domain')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .maybeSingle()
+    .order('shopify_domain', { ascending: true, nullsFirst: false })
+    .limit(1)
+  const store = storeRows?.[0] ?? null
 
   // Only show store name when a real Shopify store is connected.
   // Mock stores (no shopify_domain) show "Connect Your Store" in sidebar.

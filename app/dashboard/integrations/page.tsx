@@ -90,7 +90,7 @@ function IntegrationsInner() {
       .select('*')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .order('created_at', { ascending: true })
+      .order('shopify_domain', { ascending: true, nullsFirst: false })
       .limit(1)
     setStore(data?.[0] ?? null)
     setLoadingStore(false)
