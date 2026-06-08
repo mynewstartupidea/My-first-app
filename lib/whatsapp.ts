@@ -62,11 +62,19 @@ async function sendViaMeta({ to, message, apiKey, phoneNumberId }: SendMessagePa
       }
     )
 
-    const data = await res.json() as { messages?: { id: string }[]; error?: { message: string } }
+    const data = await res.json() as { messages?: { id: string }[]; error?: { message: string; code?: number; error_data?: { details: string } } }
     if (res.ok && data.messages?.[0]?.id) {
       return { success: true, messageId: data.messages[0].id }
     }
-    return { success: false, error: data.error?.message ?? 'Meta API error' }
+    const code = data.error?.code
+    const humanError =
+      code === 131026 ? `${phone} is not registered on WhatsApp` :
+      code === 131047 ? 'Customer needs to message you first (24hr session expired)' :
+      code === 130429 ? 'WhatsApp rate limit reached — will retry' :
+      code === 131021 ? `Invalid phone number format: ${phone}` :
+      code === 131000 ? 'WhatsApp service error — will retry' :
+      data.error?.message ?? `Meta API error (code ${code ?? 'unknown'})`
+    return { success: false, error: humanError }
   } catch (e) {
     return { success: false, error: String(e) }
   }
@@ -132,12 +140,24 @@ async function sendViaGupshup({ to, message, apiKey, phoneNumberId }: SendMessag
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Returns E.164 format with + prefix required by Meta API.
+// Handles Indian numbers (10-digit or 91-prefixed), international numbers,
+// and numbers already in E.164 format.
 function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  // Ensure E.164 format with country code
-  if (digits.startsWith('91') && digits.length === 12) return digits
-  if (digits.length === 10) return `91${digits}`
-  return digits
+  const trimmed = phone.trim()
+  const digits  = trimmed.replace(/\D/g, '')
+
+  // Already has + → trust the caller's country code
+  if (trimmed.startsWith('+')) return `+${digits}`
+
+  // 10-digit Indian mobile (no country code)
+  if (digits.length === 10 && !digits.startsWith('0')) return `+91${digits}`
+
+  // 12-digit with 91 prefix (Indian with country code, no +)
+  if (digits.startsWith('91') && digits.length === 12) return `+${digits}`
+
+  // Anything else: assume the caller supplied the full country code
+  return `+${digits}`
 }
 
 // ─── Meta Embedded Signup — token exchange ────────────────────────────────────

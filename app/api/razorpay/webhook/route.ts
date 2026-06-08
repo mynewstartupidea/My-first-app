@@ -21,9 +21,14 @@ function verifySignature(body: string, signature: string, secret: string): boole
 export async function POST(request: Request) {
   const body = await request.text()
   const signature = request.headers.get('x-razorpay-signature') ?? ''
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET ?? ''
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET
 
-  if (secret && !verifySignature(body, signature, secret)) {
+  if (!secret) {
+    console.error('[Razorpay webhook] RAZORPAY_WEBHOOK_SECRET is not set — rejecting request')
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
+  }
+
+  if (!verifySignature(body, signature, secret)) {
     console.error('[Razorpay webhook] Invalid signature')
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }

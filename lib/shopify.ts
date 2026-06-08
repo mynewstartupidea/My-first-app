@@ -39,7 +39,6 @@ export async function registerWebhooks(shop: string, token: string, appUrl: stri
     { topic: 'checkouts/create',  address: `${appUrl}/api/shopify/webhooks` },
     { topic: 'checkouts/update',  address: `${appUrl}/api/shopify/webhooks` },
     { topic: 'orders/create',     address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'orders/updated',    address: `${appUrl}/api/shopify/webhooks` },
     { topic: 'orders/fulfilled',  address: `${appUrl}/api/shopify/webhooks` },
   ]
 

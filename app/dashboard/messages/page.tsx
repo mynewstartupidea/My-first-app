@@ -136,7 +136,12 @@ export default function MessagesPage() {
                     <p className="text-sm font-medium text-slate-800">{msg.customer_name ?? '—'}</p>
                     <p className="text-xs text-slate-400">{msg.customer_phone}</p>
                   </div>
-                  <p className="text-sm text-slate-500 truncate pr-4">{msg.message.slice(0, 70)}…</p>
+                  <div className="pr-4">
+                    <p className="text-sm text-slate-500 truncate">{msg.message.slice(0, 70)}…</p>
+                    {msg.status === 'failed' && !!msg.metadata?.error && (
+                      <p className="text-xs text-red-500 mt-0.5 truncate">{String(msg.metadata.error)}</p>
+                    )}
+                  </div>
                   <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-lg font-medium">
                     {TYPE_LABELS[msg.type] ?? msg.type}
                   </span>

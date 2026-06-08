@@ -173,3 +173,10 @@ ALTER TABLE team_members
 ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS platform TEXT DEFAULT 'shopify' CHECK (platform IN ('shopify','woocommerce','magento','custom')),
   ADD COLUMN IF NOT EXISTS store_domain TEXT;
+
+-- ─── WhatsApp accounts: UNIQUE constraint on user_id ─────────────────────────
+-- Required for upsert with onConflict: 'user_id' in the Meta OAuth callback.
+-- Without this the upsert silently inserts duplicates instead of updating.
+
+ALTER TABLE whatsapp_accounts
+  ADD CONSTRAINT IF NOT EXISTS whatsapp_accounts_user_id_unique UNIQUE (user_id);

@@ -114,15 +114,30 @@ export async function GET(request: Request) {
       sent++
     } else {
       const retryCount = (job.retry_count ?? 0) + 1
+      const permanentlyFailed = retryCount >= 3
       await supabase
         .from('automation_jobs')
         .update({
-          status:        retryCount >= 3 ? 'failed' : 'pending',
+          status:        permanentlyFailed ? 'failed' : 'pending',
           retry_count:   retryCount,
           error_message: result.error ?? 'Unknown error',
           scheduled_at:  new Date(Date.now() + 5 * 60 * 1000).toISOString(),
         })
         .eq('id', job.id)
+
+      if (permanentlyFailed) {
+        await supabase.from('messages').insert({
+          store_id:       job.store_id,
+          job_id:         job.id,
+          customer_phone: job.customer_phone,
+          customer_name:  job.customer_name,
+          type:           job.type,
+          message:        job.message,
+          status:         'failed',
+          bsp_message_id: null,
+          metadata:       { ...(job.context ?? {}), error: result.error ?? 'Unknown error' },
+        })
+      }
 
       failed++
     }
