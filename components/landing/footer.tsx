@@ -52,6 +52,7 @@ export default function Footer() {
                 { href: '/privacy-policy', label: 'Privacy Policy' },
                 { href: '/terms', label: 'Terms of Service' },
                 { href: '/refund-policy', label: 'Refund Policy' },
+                { href: '/data-deletion', label: 'Data Deletion' },
               ].map(({ href, label }) => (
                 <div key={label}>
                   <Link href={href} className="text-slate-500 hover:text-white text-sm transition block">{label}</Link>
