@@ -197,3 +197,13 @@ WHERE is_active = true
 
 ALTER TABLE whatsapp_accounts
   ADD CONSTRAINT IF NOT EXISTS whatsapp_accounts_user_id_unique UNIQUE (user_id);
+
+-- ─── WhatsApp accounts: token_type column ─────────────────────────────────────
+-- Tracks whether this merchant's send token is a 60-day user access token
+-- (default from Embedded Signup) or a permanent System User access token.
+-- system_user_token = META_SYSTEM_USER_ACCESS_TOKEN env var was set and the
+-- platform System User was successfully assigned to the merchant's WABA.
+
+ALTER TABLE whatsapp_accounts
+  ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'user_token'
+    CHECK (token_type IN ('user_token', 'system_user_token'));

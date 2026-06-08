@@ -170,6 +170,62 @@ export interface MetaWABAInfo {
   accessToken: string
 }
 
+// Assign Wapaci's platform System User to a merchant's WABA.
+// Requires META_SYSTEM_USER_ID env var (numeric ID from Meta Business Manager).
+// Uses the merchant's short-lived user token to authorize the assignment.
+// On success, Wapaci's System User token can be used to send on behalf of this WABA permanently.
+export async function assignSystemUserToWABA(wabaId: string, userToken: string): Promise<boolean> {
+  const systemUserId = process.env.META_SYSTEM_USER_ID
+  if (!systemUserId) return false
+
+  try {
+    // Meta Graph API requires access_token as a query param for this endpoint —
+    // it does NOT parse it from the JSON body.
+    const url = new URL(`https://graph.facebook.com/v20.0/${wabaId}/assigned_users`)
+    url.searchParams.set('access_token', userToken)
+
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user:  systemUserId,
+        // MANAGE + DEVELOP + MESSAGING covers: full WABA management, testing, and message sending
+        tasks: ['MANAGE', 'DEVELOP', 'MESSAGING'],
+      }),
+    })
+    const data = await res.json() as { success?: boolean; error?: { message: string } }
+    if (!res.ok) {
+      console.error('[Meta] assignSystemUser failed:', data.error?.message)
+      return false
+    }
+    return data.success === true
+  } catch (e) {
+    console.error('[Meta] assignSystemUser exception:', e)
+    return false
+  }
+}
+
+// Subscribe the Wapaci app to receive webhook events (delivery receipts, inbound messages)
+// for a specific merchant WABA. Must be called once per merchant during Embedded Signup.
+export async function subscribeWABAWebhooks(wabaId: string, token: string): Promise<boolean> {
+  try {
+    // No body required for basic subscription — uses app's registered webhook URL.
+    const res = await fetch(`https://graph.facebook.com/v20.0/${wabaId}/subscribed_apps`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json() as { success?: boolean; error?: { message: string } }
+    if (!res.ok) {
+      console.error('[Meta] subscribeWebhooks failed:', data.error?.message)
+      return false
+    }
+    return data.success === true
+  } catch (e) {
+    console.error('[Meta] subscribeWebhooks exception:', e)
+    return false
+  }
+}
+
 export async function exchangeMetaCode(code: string): Promise<MetaWABAInfo | null> {
   const appId     = process.env.META_APP_ID
   const appSecret = process.env.META_APP_SECRET

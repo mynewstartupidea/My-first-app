@@ -34,6 +34,10 @@ export async function GET(request: Request) {
   // Cache per-user remaining messages to avoid N+1 queries
   const remainingCache: Record<string, number> = {}
 
+  // Cache per-store WhatsApp account data (phone_number_id + token) for Meta sends.
+  // Using store_id as key; value is null when no whatsapp_accounts row found.
+  const waCache: Record<string, { phone_number_id: string | null; access_token: string | null } | null> = {}
+
   for (const job of jobs ?? []) {
     // Check usage limits for store owner
     const { data: storeOwnerRow } = await supabase
@@ -64,11 +68,32 @@ export async function GET(request: Request) {
 
     const store = job.stores as { shop_name: string; whatsapp_bsp: string; whatsapp_api_key: string }
 
+    // For Meta BSP: look up phone_number_id (required by Cloud API) and prefer
+    // system user token (permanent) over the stored user token (expires ~60 days).
+    let apiKeyOverride: string | undefined = store?.whatsapp_api_key ?? undefined
+    let phoneNumberIdOverride: string | undefined = undefined
+
+    if (store?.whatsapp_bsp === 'meta') {
+      if (!(job.store_id in waCache)) {
+        const { data: wa } = await supabase
+          .from('whatsapp_accounts')
+          .select('phone_number_id, access_token')
+          .eq('store_id', job.store_id)
+          .maybeSingle()
+        waCache[job.store_id] = wa
+      }
+      const wa = waCache[job.store_id]
+      const systemToken = process.env.META_SYSTEM_USER_ACCESS_TOKEN
+      apiKeyOverride        = systemToken ?? wa?.access_token ?? undefined
+      phoneNumberIdOverride = wa?.phone_number_id ?? undefined
+    }
+
     const result = await sendWhatsAppMessage({
-      to:      job.customer_phone,
-      message: job.message,
-      bsp:     store?.whatsapp_bsp,
-      apiKey:  store?.whatsapp_api_key,
+      to:            job.customer_phone,
+      message:       job.message,
+      bsp:           store?.whatsapp_bsp,
+      apiKey:        apiKeyOverride,
+      phoneNumberId: phoneNumberIdOverride,
     })
 
     const now = new Date().toISOString()

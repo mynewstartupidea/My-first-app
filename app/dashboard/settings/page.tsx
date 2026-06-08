@@ -103,6 +103,8 @@ function SettingsInner() {
   const [sendingTest, setSendingTest]         = useState(false)
   const [waConnected, setWaConnected]         = useState(false)
   const [waDisplayPhone, setWaDisplayPhone]   = useState('')
+  const [waTokenType, setWaTokenType]         = useState<'user_token' | 'system_user_token' | null>(null)
+  const [showSysUserGuide, setShowSysUserGuide] = useState(false)
 
   // Account
   const [userEmail, setUserEmail]             = useState('')
@@ -153,15 +155,16 @@ function SettingsInner() {
       setWaApiKey(s.whatsapp_api_key ?? '')
     }
 
-    // Load WhatsApp account (for Meta status)
+    // Load WhatsApp account (for Meta status + token type)
     const { data: wa } = await supabase
       .from('whatsapp_accounts')
-      .select('status, display_phone_number')
+      .select('status, display_phone_number, token_type')
       .eq('user_id', user.id)
       .maybeSingle()
     if (wa) {
       setWaConnected(wa.status === 'connected')
       setWaDisplayPhone(wa.display_phone_number ?? '')
+      setWaTokenType((wa.token_type as 'user_token' | 'system_user_token') ?? 'user_token')
     }
 
     setLoading(false)
@@ -328,6 +331,8 @@ function SettingsInner() {
     if (res.ok) {
       setWaConnected(false)
       setWaDisplayPhone('')
+      setWaTokenType(null)
+      setShowSysUserGuide(false)
       setWaBsp('mock')
       showToast('WhatsApp disconnected')
       await loadData()
@@ -674,18 +679,99 @@ function SettingsInner() {
                 </div>
                 WhatsApp Connected
               </h2>
+
+              {/* Connected number row */}
               <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
                   <div>
                     <p className="font-semibold text-green-800">Meta WhatsApp Cloud API</p>
                     <p className="text-green-600 text-sm">{waDisplayPhone || 'Number connected'}</p>
+                    {waTokenType === 'system_user_token' && (
+                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Permanent system token
+                      </span>
+                    )}
                   </div>
                 </div>
                 <span className="flex items-center gap-1 text-[10px] font-medium bg-green-100 text-green-700 px-2.5 py-1 rounded-full">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Live
                 </span>
               </div>
+
+              {/* Token expiry warning — shown only when using temporary user token */}
+              {waTokenType === 'user_token' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-amber-800 font-semibold text-sm">Temporary token — expires in ~60 days</p>
+                      <p className="text-amber-700 text-xs mt-0.5">
+                        Your WhatsApp connection uses a User Access Token which expires. After expiry,
+                        all message sending will silently fail. Set up a System User token to fix this permanently.
+                      </p>
+                      <button
+                        onClick={() => setShowSysUserGuide(v => !v)}
+                        className="mt-2 text-amber-800 text-xs font-semibold underline underline-offset-2 flex items-center gap-1"
+                      >
+                        {showSysUserGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        {showSysUserGuide ? 'Hide' : 'Show'} System User setup (5 min)
+                      </button>
+
+                      {showSysUserGuide && (
+                        <div className="mt-3 bg-white border border-amber-200 rounded-xl p-4 space-y-4 text-xs">
+                          <p className="font-semibold text-slate-800 text-sm">Set up a permanent System User token</p>
+
+                          {[
+                            {
+                              step: '1',
+                              title: 'Open Meta Business Manager',
+                              desc: 'Go to business.facebook.com → Business Settings → Users → System Users.',
+                            },
+                            {
+                              step: '2',
+                              title: 'Create a System User',
+                              desc: 'Click Add → name it "Wapaci Platform" → set role to Admin → click Create System User.',
+                            },
+                            {
+                              step: '3',
+                              title: 'Copy the System User numeric ID',
+                              desc: 'In System Users list, click on your new user. Copy the numeric ID from the URL (e.g. business.facebook.com/settings/system-users/1234567890). This is your META_SYSTEM_USER_ID.',
+                            },
+                            {
+                              step: '4',
+                              title: 'Generate a System User Access Token',
+                              desc: 'From the System User page, click Generate New Token → select your Wapaci app → tick whatsapp_business_management and whatsapp_business_messaging → click Generate Token. Copy it — this is META_SYSTEM_USER_ACCESS_TOKEN.',
+                            },
+                            {
+                              step: '5',
+                              title: 'Add both to Vercel & reconnect',
+                              desc: 'In Vercel → Settings → Environment Variables, add:',
+                              vars: ['META_SYSTEM_USER_ID', 'META_SYSTEM_USER_ACCESS_TOKEN'],
+                              note: 'Trigger a Vercel redeploy, then click Disconnect WhatsApp below and reconnect. The next Embedded Signup will assign the System User to each merchant WABA and record token_type = system_user_token.',
+                            },
+                          ].map(({ step, title, desc, vars, note }) => (
+                            <div key={step} className="flex gap-3">
+                              <div className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                                {step}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-slate-800">{title}</p>
+                                <p className="text-slate-500 mt-0.5">{desc}</p>
+                                {vars?.map(v => (
+                                  <code key={v} className="block mt-1 text-[10px] bg-slate-100 px-2 py-1 rounded font-mono">{v}</code>
+                                ))}
+                                {note && <p className="text-slate-400 mt-1.5 italic">{note}</p>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <button onClick={disconnectMeta}
                 className="text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition flex items-center gap-2">
                 <XCircle className="w-3.5 h-3.5" /> Disconnect WhatsApp
