@@ -226,53 +226,106 @@ export async function subscribeWABAWebhooks(wabaId: string, token: string): Prom
   }
 }
 
-export async function exchangeMetaCode(code: string): Promise<MetaWABAInfo | null> {
+// ─── Typed result for exchangeMetaCode ───────────────────────────────────────
+
+export type MetaExchangeResult =
+  | { ok: true;  info: MetaWABAInfo }
+  | { ok: false; error: string; step: 'config' | 'token_exchange' | 'business_lookup' | 'waba_lookup' | 'phone_lookup' }
+
+// Exchange an OAuth/Embedded-Signup code for a WABA + phone number.
+// redirectUri: include for redirect-based OAuth; omit for FB JS SDK popup flow.
+export async function exchangeMetaCode(code: string, redirectUri?: string): Promise<MetaExchangeResult> {
   const appId     = process.env.META_APP_ID
   const appSecret = process.env.META_APP_SECRET
 
-  if (!appId || !appSecret) return null
+  if (!appId || !appSecret) {
+    console.error('[Meta] META_APP_ID or META_APP_SECRET not set')
+    return { ok: false, error: 'META_APP_ID or META_APP_SECRET not configured', step: 'config' }
+  }
 
-  try {
-    // Exchange code for user access token
-    const tokenRes = await fetch(
-      `https://graph.facebook.com/v20.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}`
-    )
-    const tokenData = await tokenRes.json() as { access_token?: string; error?: { message: string } }
-    if (!tokenData.access_token) return null
+  // ── Step 1: exchange code for user access token ───────────────────────────
+  const tokenParams = new URLSearchParams({ client_id: appId, client_secret: appSecret, code })
+  if (redirectUri) tokenParams.set('redirect_uri', redirectUri)
 
-    const userToken = tokenData.access_token
+  const tokenRes  = await fetch(`https://graph.facebook.com/v20.0/oauth/access_token?${tokenParams}`)
+  const tokenData = await tokenRes.json() as { access_token?: string; error?: { message: string; code?: number; type?: string } }
 
-    // Get WABAs (WhatsApp Business Accounts)
-    const wabaRes = await fetch(
-      `https://graph.facebook.com/v20.0/me/businesses?fields=owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number}}&access_token=${userToken}`
+  console.log('[Meta] token exchange status:', tokenRes.status, tokenData.error ?? 'OK')
+
+  if (!tokenData.access_token) {
+    const msg = tokenData.error?.message ?? 'Unknown error'
+    console.error('[Meta] token exchange failed:', tokenData.error)
+    return { ok: false, error: `OAuth token exchange failed: ${msg}`, step: 'token_exchange' }
+  }
+
+  const userToken = tokenData.access_token
+
+  // ── Step 2: get business portfolios ──────────────────────────────────────
+  const bizRes  = await fetch(`https://graph.facebook.com/v20.0/me/businesses?fields=id,name&access_token=${userToken}`)
+  const bizData = await bizRes.json() as { data?: { id: string; name: string }[]; error?: { message: string } }
+
+  console.log('[Meta] /me/businesses status:', bizRes.status, `count=${bizData.data?.length ?? 0}`, bizData.error ?? '')
+
+  if (!bizData.data?.length) {
+    const msg = bizData.error?.message
+      ? `Graph API error: ${bizData.error.message}`
+      : 'No Business Portfolio found on this Facebook account. Create one at business.facebook.com first.'
+    return { ok: false, error: msg, step: 'business_lookup' }
+  }
+
+  // ── Step 3: find WABA across all business portfolios ─────────────────────
+  for (const biz of bizData.data) {
+    // Use whatsapp_business_accounts (correct for Embedded Signup + standard)
+    const wabaRes  = await fetch(
+      `https://graph.facebook.com/v20.0/${biz.id}/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}&access_token=${userToken}`
     )
     const wabaData = await wabaRes.json() as {
-      data?: {
-        owned_whatsapp_business_accounts?: {
-          data?: {
-            id: string
-            name: string
-            phone_numbers?: { data?: { id: string; display_phone_number: string }[] }
-          }[]
-        }
-        id: string
-      }[]
+      data?: { id: string; name: string; phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }[]
+      error?: { message: string }
     }
 
-    const business = wabaData.data?.[0]
-    const waba     = business?.owned_whatsapp_business_accounts?.data?.[0]
-    const phone    = waba?.phone_numbers?.data?.[0]
+    console.log(`[Meta] business ${biz.id} (${biz.name}) whatsapp_business_accounts:`, wabaRes.status, `count=${wabaData.data?.length ?? 0}`, wabaData.error ?? '')
 
-    if (!business || !waba || !phone) return null
+    if (!wabaData.data?.length) continue
+
+    const waba  = wabaData.data[0]
+    const phone = waba.phone_numbers?.data?.[0]
+
+    console.log(`[Meta] WABA ${waba.id} phone_numbers count=${waba.phone_numbers?.data?.length ?? 0}`)
+
+    if (!phone) {
+      // Found WABA but no phone — log and continue looking
+      console.warn(`[Meta] WABA ${waba.id} has no phone numbers`)
+      continue
+    }
+
+    console.log(`[Meta] resolved → bizId=${biz.id} wabaId=${waba.id} phoneId=${phone.id} number=${phone.display_phone_number}`)
 
     return {
-      wabaId:             waba.id,
-      phoneNumberId:      phone.id,
-      displayPhoneNumber: phone.display_phone_number,
-      businessId:         business.id,
-      accessToken:        userToken,
+      ok: true,
+      info: {
+        wabaId:             waba.id,
+        phoneNumberId:      phone.id,
+        displayPhoneNumber: phone.display_phone_number,
+        businessId:         biz.id,
+        accessToken:        userToken,
+      },
     }
-  } catch {
-    return null
   }
+
+  // Went through all businesses and found WABAs but no phone numbers
+  const anyWaba = await (async () => {
+    for (const biz of bizData.data ?? []) {
+      const r = await fetch(`https://graph.facebook.com/v20.0/${biz.id}/whatsapp_business_accounts?access_token=${userToken}`)
+      const d = await r.json() as { data?: unknown[] }
+      if (d.data?.length) return true
+    }
+    return false
+  })()
+
+  if (anyWaba) {
+    return { ok: false, error: 'WhatsApp Business Account found but no phone number is registered. Add a phone number in Meta Business Manager → WhatsApp → Phone Numbers.', step: 'phone_lookup' }
+  }
+
+  return { ok: false, error: 'No WhatsApp Business Account found. Complete WhatsApp setup in Meta Business Manager → WhatsApp Manager.', step: 'waba_lookup' }
 }

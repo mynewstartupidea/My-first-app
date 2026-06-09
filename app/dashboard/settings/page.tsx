@@ -105,6 +105,8 @@ function SettingsInner() {
   const [waDisplayPhone, setWaDisplayPhone]   = useState('')
   const [waTokenType, setWaTokenType]         = useState<'user_token' | 'system_user_token' | null>(null)
   const [showSysUserGuide, setShowSysUserGuide] = useState(false)
+  const [fbReady, setFbReady]                 = useState(false)
+  const [connectingMeta, setConnectingMeta]   = useState(false)
 
   // Account
   const [userEmail, setUserEmail]             = useState('')
@@ -171,6 +173,30 @@ function SettingsInner() {
   }, [supabase])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // ── Load Facebook JS SDK for Embedded Signup ──────────────────────────────
+  useEffect(() => {
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID
+    if (!appId || typeof window === 'undefined') return
+
+    const w = window as unknown as { FB?: { init: (o: object) => void }; fbAsyncInit?: () => void }
+    if (w.FB) { setFbReady(true); return }
+
+    w.fbAsyncInit = function () {
+      w.FB!.init({ appId, version: 'v22.0', xfbml: false, status: false })
+      setFbReady(true)
+    }
+
+    if (!document.getElementById('fb-jssdk')) {
+      const s = document.createElement('script')
+      s.id    = 'fb-jssdk'
+      s.src   = 'https://connect.facebook.net/en_US/sdk.js'
+      s.async = true
+      s.defer = true
+      ;(s as HTMLScriptElement & { crossOrigin: string }).crossOrigin = 'anonymous'
+      document.head.appendChild(s)
+    }
+  }, [])
 
   const urlTab = searchParams.get('tab')
 
@@ -322,6 +348,54 @@ function SettingsInner() {
     } else {
       showToast(data.error ?? 'Send failed', false)
     }
+  }
+
+  // ── Meta Embedded Signup — launch FB.login() popup ───────────────────────────
+  async function launchEmbeddedSignup() {
+    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
+    const appId    = process.env.NEXT_PUBLIC_META_APP_ID
+
+    if (!appId) { showToast('META_APP_ID not configured', false); return }
+
+    const w  = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string }; status?: string }) => void, opts: object) => void } }
+    const FB = w.FB
+
+    if (!FB) { showToast('Facebook SDK not loaded — try refreshing the page.', false); return }
+
+    if (!configId) {
+      showToast('Embedded Signup not configured. Add NEXT_PUBLIC_META_CONFIG_ID to your environment variables.', false)
+      return
+    }
+
+    setConnectingMeta(true)
+
+    FB.login(async (response) => {
+      if (!response.authResponse?.code) {
+        setConnectingMeta(false)
+        if (response.status !== 'unknown') showToast('Meta authorization was cancelled.', false)
+        return
+      }
+
+      const res  = await fetch('/api/meta/callback', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ code: response.authResponse.code }),
+      })
+      const data = await res.json() as { ok: boolean; phone?: string; error?: string }
+      setConnectingMeta(false)
+
+      if (data.ok) {
+        showToast(`WhatsApp connected! ${data.phone ? `Number: ${data.phone}` : ''}`)
+        await loadData()
+      } else {
+        showToast(data.error ?? 'Could not connect WhatsApp', false)
+      }
+    }, {
+      config_id:                    configId,
+      response_type:                'code',
+      override_default_response_type: true,
+      extras:                       { sessionInfoVersion: 2 },
+    })
   }
 
   // ── Disconnect Meta WhatsApp ───────────────────────────────────────────────────
@@ -802,20 +876,33 @@ function SettingsInner() {
                     </div>
                   </div>
                 </div>
-                {process.env.NEXT_PUBLIC_META_APP_ID ? (
-                  <a
-                    href={`https://www.facebook.com/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/api/meta/callback` : '')}&scope=whatsapp_business_management,whatsapp_business_messaging&response_type=code`}
-                    className="flex items-center justify-center gap-2 bg-[#1877F2] hover:bg-[#1565D8] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition w-full"
-                  >
-                    <span>Connect via Meta</span>
-                  </a>
-                ) : (
+                {!process.env.NEXT_PUBLIC_META_APP_ID ? (
+                  <div className="flex items-start gap-2 text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <span>Meta app not configured. Add <code className="bg-amber-100 px-1 rounded">NEXT_PUBLIC_META_APP_ID</code> and <code className="bg-amber-100 px-1 rounded">META_APP_SECRET</code> to your Vercel environment variables.</span>
+                  </div>
+                ) : !process.env.NEXT_PUBLIC_META_CONFIG_ID ? (
                   <div className="space-y-2">
                     <div className="flex items-start gap-2 text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-xl p-3">
                       <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                      <span>Meta app not configured. Add <code className="bg-amber-100 px-1 rounded">NEXT_PUBLIC_META_APP_ID</code>, <code className="bg-amber-100 px-1 rounded">META_APP_SECRET</code>, and <code className="bg-amber-100 px-1 rounded">META_ACCESS_TOKEN</code> to your environment variables.</span>
+                      <div>
+                        <p className="font-semibold mb-1">Embedded Signup not configured. <code className="bg-amber-100 px-1 rounded">NEXT_PUBLIC_META_CONFIG_ID</code> is missing.</p>
+                        <p>In Meta Developer Console → Your App → WhatsApp → Configuration → Embedded Signup → Create a configuration. Copy the config_id and add it to Vercel.</p>
+                      </div>
                     </div>
                   </div>
+                ) : (
+                  <button
+                    onClick={launchEmbeddedSignup}
+                    disabled={connectingMeta || !fbReady}
+                    className="flex items-center justify-center gap-2 bg-[#1877F2] hover:bg-[#1565D8] disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition w-full"
+                  >
+                    {connectingMeta
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</>
+                      : !fbReady
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Loading SDK…</>
+                        : <span>Connect via Meta</span>}
+                  </button>
                 )}
               </div>
 

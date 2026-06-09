@@ -1,73 +1,56 @@
-// Meta Embedded Signup — OAuth callback
-// Called after user completes Meta Business verification flow.
-// Exchanges code for access token, retrieves WABA + phone number, saves to DB.
-// Also: assigns platform System User to merchant WABA (for permanent token),
-// and subscribes app to WABA webhooks (for delivery receipts + inbound messages).
+// Meta WhatsApp Embedded Signup — callback handler
+// POST: called by client after FB JS SDK popup returns a code (no redirect_uri needed)
+// GET:  called by Meta redirect-based OAuth (redirect_uri must match)
 
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { assignSystemUserToWABA, exchangeMetaCode, subscribeWABAWebhooks } from '@/lib/whatsapp'
 
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
-  const code  = searchParams.get('code')
-  const error = searchParams.get('error')
+// ─── Shared processing ────────────────────────────────────────────────────────
 
-  if (error || !code) {
-    const desc = searchParams.get('error_description') ?? 'Meta authorization failed'
-    return NextResponse.redirect(`${origin}/dashboard/settings?tab=whatsapp&error=${encodeURIComponent(desc)}`)
+async function processMetaCode(
+  code: string,
+  redirectUri: string | undefined,
+  userId: string,
+): Promise<{ ok: true; phone: string } | { ok: false; error: string }> {
+  console.log(`[Meta callback] processing code, redirectUri=${redirectUri ?? 'none (SDK flow)'}`)
+
+  const result = await exchangeMetaCode(code, redirectUri)
+
+  if (!result.ok) {
+    console.error(`[Meta callback] exchangeMetaCode failed at step="${result.step}": ${result.error}`)
+    return { ok: false, error: result.error }
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.redirect(`${origin}/login`)
-  }
+  const { info } = result
+  console.log(`[Meta callback] exchange OK — wabaId=${info.wabaId} phone=${info.displayPhoneNumber} biz=${info.businessId}`)
 
-  const info = await exchangeMetaCode(code)
-  console.log(`[Meta callback] exchangeMetaCode: ${info ? 'OK' : 'FAILED'}`)
-
-  if (!info) {
-    return NextResponse.redirect(
-      `${origin}/dashboard/settings?tab=whatsapp&error=${encodeURIComponent('Could not retrieve WhatsApp account. Check Meta app configuration.')}`
-    )
-  }
-
-  // Try to assign platform System User to merchant's WABA and subscribe webhooks.
-  // Both are best-effort — failure does not block the connection.
-  // System user token (META_SYSTEM_USER_ACCESS_TOKEN) is used for webhook subscription
-  // if set, otherwise the merchant's user token is used.
   const systemUserToken = process.env.META_SYSTEM_USER_ACCESS_TOKEN
   const [assignedSystemUser, webhooksSubscribed] = await Promise.all([
     assignSystemUserToWABA(info.wabaId, info.accessToken),
     subscribeWABAWebhooks(info.wabaId, systemUserToken ?? info.accessToken),
   ])
 
-  console.log(`[Meta callback] system user assigned: ${assignedSystemUser}, webhooks subscribed: ${webhooksSubscribed}`)
+  console.log(`[Meta callback] systemUser=${assignedSystemUser} webhooks=${webhooksSubscribed}`)
 
-  // token_type = 'system_user_token' only when:
-  //   1. META_SYSTEM_USER_ACCESS_TOKEN is configured in env, AND
-  //   2. System user was successfully assigned to this merchant's WABA.
-  // Otherwise we fall back to the merchant's user token (~60-day expiry).
   const tokenType: 'user_token' | 'system_user_token' =
     systemUserToken && assignedSystemUser ? 'system_user_token' : 'user_token'
 
-  const service = createServiceClient()
+  const service    = createServiceClient()
+  const authClient = await createClient()
 
-  // Get active store for this user
-  const { data: storeRows } = await supabase
+  const { data: storeRows } = await authClient
     .from('stores')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('is_active', true)
     .order('shopify_domain', { ascending: true, nullsFirst: false })
     .limit(1)
   const store = storeRows?.[0] ?? null
 
-  // Upsert WhatsApp account — one per user (UNIQUE constraint on user_id)
-  await service.from('whatsapp_accounts').upsert({
-    user_id:              user.id,
+  const { error: upsertErr } = await service.from('whatsapp_accounts').upsert({
+    user_id:              userId,
     store_id:             store?.id ?? null,
     business_id:          info.businessId,
     waba_id:              info.wabaId,
@@ -80,9 +63,11 @@ export async function GET(request: Request) {
     updated_at:           new Date().toISOString(),
   }, { onConflict: 'user_id' })
 
-  console.log(`[Meta callback] whatsapp_accounts upserted — token_type: ${tokenType}`)
+  if (upsertErr) {
+    console.error('[Meta callback] DB upsert failed:', upsertErr.message)
+    return { ok: false, error: `Database error: ${upsertErr.message}` }
+  }
 
-  // Also update store with meta BSP details so the cron can pick up bsp='meta'
   if (store) {
     await service.from('stores').update({
       whatsapp_number:  info.displayPhoneNumber,
@@ -90,6 +75,53 @@ export async function GET(request: Request) {
       whatsapp_api_key: info.accessToken,
       updated_at:       new Date().toISOString(),
     }).eq('id', store.id)
+  }
+
+  console.log(`[Meta callback] done — token_type=${tokenType} storeUpdated=${!!store}`)
+  return { ok: true, phone: info.displayPhoneNumber }
+}
+
+// ─── POST — FB JS SDK Embedded Signup flow ────────────────────────────────────
+// Client POSTs { code } after FB.login() completes. No redirect_uri needed.
+
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json().catch(() => ({})) as { code?: string }
+  if (!body.code) return NextResponse.json({ ok: false, error: 'Missing code' }, { status: 400 })
+
+  const result = await processMetaCode(body.code, undefined, user.id)
+  return NextResponse.json(result)
+}
+
+// ─── GET — redirect-based OAuth fallback ─────────────────────────────────────
+// Meta redirects here with ?code= after standard OAuth dialog.
+// Passes redirect_uri so the token exchange can validate it.
+
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url)
+  const code  = searchParams.get('code')
+  const error = searchParams.get('error')
+
+  if (error || !code) {
+    const desc = searchParams.get('error_description') ?? 'Meta authorization failed'
+    console.error('[Meta callback GET] Meta returned error:', desc)
+    return NextResponse.redirect(`${origin}/dashboard/settings?tab=whatsapp&error=${encodeURIComponent(desc)}`)
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.redirect(`${origin}/login`)
+
+  const redirectUri = `${origin}/api/meta/callback`
+  const result      = await processMetaCode(code, redirectUri, user.id)
+
+  if (!result.ok) {
+    return NextResponse.redirect(
+      `${origin}/dashboard/settings?tab=whatsapp&error=${encodeURIComponent(result.error)}`
+    )
   }
 
   return NextResponse.redirect(`${origin}/dashboard/settings?tab=whatsapp&connected=meta`)
