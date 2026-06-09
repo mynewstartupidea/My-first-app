@@ -10,5 +10,5 @@ export function getAppUrl(): string {
   if (typeof window !== 'undefined') {
     return window.location.origin
   }
-  return 'https://app.wapaci.com'
+  return 'https://www.wapaci.com'
 }
