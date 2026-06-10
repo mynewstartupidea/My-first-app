@@ -351,50 +351,78 @@ function SettingsInner() {
   }
 
   // ── Meta Embedded Signup — launch FB.login() popup ───────────────────────────
-  async function launchEmbeddedSignup() {
+  function launchEmbeddedSignup() {
     const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
     const appId    = process.env.NEXT_PUBLIC_META_APP_ID
 
     if (!appId) { showToast('META_APP_ID not configured', false); return }
 
-    const w  = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string }; status?: string }) => void, opts: object) => void } }
+    const w  = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string } | null; status?: string }) => void, opts: object) => void } }
     const FB = w.FB
 
-    if (!FB) { showToast('Facebook SDK not loaded — try refreshing the page.', false); return }
+    if (!FB) { showToast('Facebook SDK not loaded — refresh and try again.', false); return }
 
     if (!configId) {
-      showToast('Embedded Signup not configured. Add NEXT_PUBLIC_META_CONFIG_ID to your environment variables.', false)
+      showToast('Embedded Signup not configured. NEXT_PUBLIC_META_CONFIG_ID is missing.', false)
       return
     }
 
+    console.log('[Wapaci] launching Embedded Signup config_id:', configId)
     setConnectingMeta(true)
 
-    FB.login(async (response) => {
-      if (!response.authResponse?.code) {
+    // Safety timeout — reset spinner if FB never fires the callback (popup blocked, SDK error)
+    const timeoutId = setTimeout(() => {
+      console.warn('[Wapaci] FB.login timeout — resetting state')
+      setConnectingMeta(false)
+      showToast('Connection timed out. Please try again.', false)
+    }, 5 * 60 * 1000)
+
+    FB.login((response) => {
+      console.log('[Wapaci] FB.login response:', JSON.stringify(response))
+      clearTimeout(timeoutId)
+
+      const code = response.authResponse?.code
+
+      // No code = user cancelled, closed popup, or Meta returned an error
+      if (!code) {
         setConnectingMeta(false)
-        if (response.status !== 'unknown') showToast('Meta authorization was cancelled.', false)
+        const status = response.status ?? ''
+        // 'unknown' = user closed without completing; don't show an error for that
+        if (status !== 'unknown' && status !== '') {
+          showToast(`Meta sign-in cancelled (status: ${status})`, false)
+        }
         return
       }
 
-      const res  = await fetch('/api/meta/callback', {
+      // Got a code — exchange it server-side
+      console.log('[Wapaci] received code, posting to /api/meta/callback')
+      fetch('/api/meta/callback', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ code: response.authResponse.code }),
+        body:    JSON.stringify({ code }),
       })
-      const data = await res.json() as { ok: boolean; phone?: string; error?: string }
-      setConnectingMeta(false)
-
-      if (data.ok) {
-        showToast(`WhatsApp connected! ${data.phone ? `Number: ${data.phone}` : ''}`)
-        await loadData()
-      } else {
-        showToast(data.error ?? 'Could not connect WhatsApp', false)
-      }
+        .then(r => r.json())
+        .then((data: { ok: boolean; phone?: string; error?: string }) => {
+          console.log('[Wapaci] callback response:', data)
+          if (data.ok) {
+            showToast(`WhatsApp connected! ${data.phone ? `Number: ${data.phone}` : ''}`)
+            loadData()
+          } else {
+            showToast(data.error ?? 'Could not connect WhatsApp', false)
+          }
+        })
+        .catch((err: unknown) => {
+          console.error('[Wapaci] callback fetch error:', err)
+          showToast('Connection failed — server error. Please try again.', false)
+        })
+        .finally(() => {
+          setConnectingMeta(false)
+        })
     }, {
-      config_id:                    configId,
-      response_type:                'code',
+      config_id:                      configId,
+      response_type:                  'code',
       override_default_response_type: true,
-      extras:                       { sessionInfoVersion: 2 },
+      extras:                         { sessionInfoVersion: 2 },
     })
   }
 
