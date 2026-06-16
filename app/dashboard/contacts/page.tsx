@@ -2,110 +2,259 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Loader2, Search, CheckCircle2, XCircle } from 'lucide-react'
-import { formatCurrency, timeAgo } from '@/lib/utils'
-import type { Customer } from '@/types'
+import {
+  Users, Search, Filter, Download, Tag, Plus,
+  Loader2, ShoppingBag, Phone, TrendingUp, Check,
+  Star, RefreshCw, MoreVertical
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
+
+interface Customer {
+  id: string
+  phone: string
+  name: string | null
+  email: string | null
+  total_orders: number
+  total_spent: number
+  last_order_at: string | null
+  whatsapp_opt_in: boolean
+  created_at: string
+}
+
+const SEGMENTS = [
+  { id: 'all',       label: 'All Contacts',   filter: (_c: Customer) => true },
+  { id: 'opted_in',  label: 'WhatsApp Opt-in', filter: (c: Customer) => c.whatsapp_opt_in },
+  { id: 'vip',       label: 'VIP (₹5k+)',      filter: (c: Customer) => c.total_spent >= 5000 },
+  { id: 'repeat',    label: 'Repeat Buyers',   filter: (c: Customer) => c.total_orders >= 2 },
+  { id: 'inactive',  label: 'Inactive 30d',    filter: (c: Customer) => {
+    if (!c.last_order_at) return true
+    return Date.now() - new Date(c.last_order_at).getTime() > 30 * 86400000
+  }},
+  { id: 'new',       label: 'First-time',      filter: (c: Customer) => c.total_orders <= 1 },
+]
+
+function avatarColor(phone: string) {
+  const colors = ['bg-violet-100 text-violet-600','bg-blue-100 text-blue-600',
+    'bg-emerald-100 text-emerald-600','bg-orange-100 text-orange-600',
+    'bg-pink-100 text-pink-600','bg-cyan-100 text-cyan-600']
+  return colors[phone.charCodeAt(phone.length - 1) % colors.length]
+}
 
 export default function ContactsPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
+  const [segment, setSegment]     = useState('all')
+  const [selected, setSelected]   = useState<Set<string>>(new Set())
   const supabase = useMemo(() => createClient(), [])
 
-  const loadCustomers = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
+      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true)
+      .order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
     if (!store) { setLoading(false); return }
-    const { data } = await supabase
-      .from('customers').select('*').eq('store_id', store.id).order('created_at', { ascending: false }).limit(200)
+    const { data } = await supabase.from('customers').select('*').eq('store_id', store.id)
+      .order('total_spent', { ascending: false }).limit(500)
     setCustomers(data ?? [])
     setLoading(false)
   }, [supabase])
 
-  useEffect(() => { loadCustomers() }, [loadCustomers])
+  useEffect(() => { load() }, [load])
 
-  const filtered = customers.filter(c => {
+  const seg = SEGMENTS.find(s => s.id === segment) ?? SEGMENTS[0]
+  const displayed = customers.filter(c => {
+    if (!seg.filter(c)) return false
     if (!search) return true
     const s = search.toLowerCase()
-    return c.phone.includes(s) || (c.name?.toLowerCase().includes(s)) || (c.email?.toLowerCase().includes(s))
+    return c.phone.includes(s) || c.name?.toLowerCase().includes(s) || c.email?.toLowerCase().includes(s)
   })
 
-  const optedIn = customers.filter(c => c.whatsapp_opt_in).length
+  const stats = useMemo(() => ({
+    total:   customers.length,
+    optIn:   customers.filter(c => c.whatsapp_opt_in).length,
+    vip:     customers.filter(c => c.total_spent >= 5000).length,
+    revenue: customers.reduce((s, c) => s + c.total_spent, 0),
+  }), [customers])
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  function exportCSV() {
+    const rows = [['Name','Phone','Email','Orders','Spent','WhatsApp']]
+    displayed.forEach(c => rows.push([c.name??'',c.phone,c.email??'',
+      String(c.total_orders),String(c.total_spent),c.whatsapp_opt_in?'Yes':'No']))
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = 'wapaci-contacts.csv'; a.click()
+  }
 
   return (
-    <div className="p-6 lg:p-8 animate-fade-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Contacts</h1>
-        <p className="text-slate-500 text-sm mt-1">Customers synced from your Shopify store</p>
+    <div className="p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Contacts</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{stats.total.toLocaleString()} contacts · {stats.optIn.toLocaleString()} WhatsApp opt-in</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
+            <RefreshCw size={13} /> Refresh
+          </button>
+          <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
+            <Download size={13} /> Export CSV
+          </button>
+          <button className="flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-3 py-2 rounded-xl hover:bg-[#1aad54] transition">
+            <Plus size={14} /> Add Contact
+          </button>
+        </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Contacts',  value: customers.length, sub: 'Synced from Shopify' },
-          { label: 'WhatsApp Opt-in', value: optedIn,          sub: 'Can receive messages' },
-          { label: 'Opt-in Rate',     value: customers.length ? `${Math.round((optedIn / customers.length) * 100)}%` : '—', sub: 'Consent rate' },
+          { label: 'Total Contacts',  value: stats.total.toLocaleString(),    icon: Users,       cls: 'text-blue-600 bg-blue-50' },
+          { label: 'WhatsApp Opt-in', value: stats.optIn.toLocaleString(),    icon: Check,       cls: 'text-emerald-600 bg-emerald-50' },
+          { label: 'VIP Customers',   value: stats.vip.toLocaleString(),      icon: Star,        cls: 'text-amber-600 bg-amber-50' },
+          { label: 'Total Revenue',   value: formatCurrency(stats.revenue),   icon: TrendingUp,  cls: 'text-purple-600 bg-purple-50' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-            <p className="text-2xl font-bold text-slate-900">{s.value}</p>
-            <p className="text-sm font-medium text-slate-600 mt-0.5">{s.label}</p>
-            <p className="text-xs text-slate-400">{s.sub}</p>
+          <div key={s.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-slate-500 text-xs font-medium">{s.label}</p>
+              <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center', s.cls.split(' ')[1])}>
+                <s.icon size={13} className={s.cls.split(' ')[0]} />
+              </div>
+            </div>
+            <p className="text-xl font-bold text-slate-900">{s.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm mb-5 max-w-sm">
-        <Search className="w-4 h-4 text-slate-400" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name, phone or email…"
-          className="text-sm text-slate-700 outline-none w-full placeholder:text-slate-400"
-        />
-      </div>
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-5">
+        {/* Segment tabs */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 overflow-x-auto">
+          <Filter size={13} className="text-slate-400 flex-shrink-0" />
+          {SEGMENTS.map(s => (
+            <button key={s.id} onClick={() => setSegment(s.id)}
+              className={cn('flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition whitespace-nowrap',
+                segment === s.id ? 'bg-[#25D366] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
+              {s.label}
+              <span className={cn('ml-1.5', segment === s.id ? 'opacity-70' : 'text-slate-400')}>
+                {customers.filter(s.filter).length}
+              </span>
+            </button>
+          ))}
+        </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-5 h-5 animate-spin text-[#25D366]" />
+        {/* Search + bulk actions */}
+        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 bg-slate-50/50">
+          <div className="relative flex-1 max-w-xs">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts…"
+              className="w-full pl-7 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 bg-white" />
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-            <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
-              <Users className="w-6 h-6 text-slate-400" />
+          {selected.size > 0 && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-slate-500">{selected.size} selected</span>
+              <button className="flex items-center gap-1 text-xs font-medium bg-[#25D366] text-white px-2.5 py-1.5 rounded-lg">
+                <Tag size={11} /> Tag
+              </button>
+              <button className="flex items-center gap-1 text-xs font-medium bg-blue-600 text-white px-2.5 py-1.5 rounded-lg">
+                Campaign
+              </button>
             </div>
-            <p className="font-medium text-slate-700">No contacts yet</p>
-            <p className="text-slate-400 text-sm mt-1">Customers sync automatically when your Shopify store is connected</p>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-40"><Loader2 size={20} className="animate-spin text-[#25D366]" /></div>
+        ) : displayed.length === 0 ? (
+          <div className="py-16 text-center">
+            <Users size={32} className="text-slate-200 mx-auto mb-2" />
+            <p className="text-slate-400 text-sm">No contacts found</p>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-[1.5fr,1fr,1fr,80px,80px,100px] text-xs font-semibold text-slate-400 uppercase tracking-wide px-6 py-3 border-b border-slate-100 bg-slate-50">
-              <span>Name</span><span>Phone</span><span>Email</span>
-              <span>Orders</span><span>Spent</span><span>WhatsApp</span>
+            {/* Column headers */}
+            <div className="hidden lg:grid grid-cols-[auto_1fr_150px_80px_100px_80px_40px] gap-4 px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+              <div className="w-4" />
+              <div>Contact</div><div>Phone</div><div>Orders</div><div>Revenue</div><div>WhatsApp</div><div />
             </div>
             <div className="divide-y divide-slate-50">
-              {filtered.map(c => (
-                <div key={c.id} className="grid grid-cols-[1.5fr,1fr,1fr,80px,80px,100px] items-center px-6 py-3.5 hover:bg-slate-50 transition">
-                  <p className="text-sm font-medium text-slate-800 truncate">{c.name ?? '—'}</p>
-                  <p className="text-sm text-slate-500">{c.phone}</p>
-                  <p className="text-sm text-slate-400 truncate">{c.email ?? '—'}</p>
-                  <p className="text-sm text-slate-600">{c.total_orders}</p>
-                  <p className="text-sm text-slate-600">{formatCurrency(c.total_spent)}</p>
-                  <div className="flex items-center gap-1">
-                    {c.whatsapp_opt_in
-                      ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /><span className="text-xs text-green-600">Opted in</span></>
-                      : <><XCircle className="w-3.5 h-3.5 text-slate-400" /><span className="text-xs text-slate-400">Opted out</span></>
-                    }
+              {displayed.slice(0, 100).map(c => (
+                <div key={c.id}
+                  className={cn('flex lg:grid lg:grid-cols-[auto_1fr_150px_80px_100px_80px_40px] items-center gap-4 px-4 py-3 hover:bg-slate-50/70 transition',
+                    selected.has(c.id) ? 'bg-[#25D366]/5' : '')}>
+                  <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
+                    className="rounded border-slate-300 text-[#25D366] focus:ring-[#25D366]" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', avatarColor(c.phone))}>
+                      {(c.name ?? c.phone).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{c.name ?? '—'}</p>
+                      <p className="text-xs text-slate-400 truncate">{c.email ?? ''}</p>
+                    </div>
                   </div>
+                  <div className="hidden lg:flex items-center gap-1 text-xs text-slate-600">
+                    <Phone size={11} className="text-slate-400 flex-shrink-0" />
+                    <span className="truncate">{c.phone}</span>
+                  </div>
+                  <div className="hidden lg:flex items-center gap-1 text-sm font-semibold text-slate-700">
+                    <ShoppingBag size={12} className="text-slate-400" /> {c.total_orders}
+                  </div>
+                  <div className="hidden lg:block text-sm font-semibold text-emerald-600">{formatCurrency(c.total_spent)}</div>
+                  <div className="hidden lg:block">
+                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full',
+                      c.whatsapp_opt_in ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500')}>
+                      {c.whatsapp_opt_in ? 'Opted in' : 'Opted out'}
+                    </span>
+                  </div>
+                  <button className="hidden lg:block text-slate-400 hover:text-slate-600 transition">
+                    <MoreVertical size={14} />
+                  </button>
                 </div>
               ))}
             </div>
+            {displayed.length > 100 && (
+              <div className="px-4 py-3 border-t border-slate-100 text-center">
+                <p className="text-xs text-slate-400">Showing 100 of {displayed.length}</p>
+              </div>
+            )}
           </>
         )}
+      </div>
+
+      {/* Smart segments */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-slate-800 flex items-center gap-2">
+            <Filter size={14} className="text-[#25D366]" /> Smart Segments
+          </h2>
+          <button className="flex items-center gap-1.5 text-xs font-medium text-[#25D366] hover:underline">
+            <Plus size={12} /> Create Segment
+          </button>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          {SEGMENTS.slice(1).map(s => {
+            const count = customers.filter(s.filter).length
+            return (
+              <div key={s.id} className="p-4 rounded-xl border border-slate-100 hover:border-[#25D366]/30 transition">
+                <p className="text-xl font-bold text-slate-900">{count.toLocaleString()}</p>
+                <p className="text-xs text-slate-500 mt-0.5 mb-3">{s.label}</p>
+                <button onClick={() => setSegment(s.id)}
+                  className="text-[11px] font-medium text-[#25D366] hover:underline flex items-center gap-1">
+                  View segment →
+                </button>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
