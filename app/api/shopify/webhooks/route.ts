@@ -105,6 +105,44 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
   }, { onConflict: 'store_id,phone', ignoreDuplicates: false })
 }
 
+async function attributeRevenue(
+  supabase: ReturnType<typeof createServiceClient>,
+  storeId: string,
+  customerPhone: string,
+  orderValue: number,
+  orderId: unknown,
+) {
+  // Find the most recent WhatsApp message sent to this phone in the last 24h
+  const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentMsg } = await supabase
+    .from('messages')
+    .select('id, type, job_id')
+    .eq('store_id', storeId)
+    .eq('customer_phone', customerPhone)
+    .gte('created_at', windowStart)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!recentMsg) return
+
+  // Update message revenue attribution
+  await supabase.from('messages')
+    .update({ revenue_attributed: orderValue, metadata: { attributed_order_id: String(orderId) } })
+    .eq('id', recentMsg.id)
+
+  // Update analytics_daily revenue_recovered
+  const today = new Date().toISOString().split('T')[0]
+  await supabase.from('analytics_daily').upsert(
+    { store_id: storeId, date: today, revenue_recovered: orderValue, carts_recovered: recentMsg.type === 'abandoned_cart' ? 1 : 0 },
+    { onConflict: 'store_id,date' }
+  ).then(async () => {
+    // Add to existing rather than replace — use increment
+    await supabase.rpc('increment_analytics', { p_store_id: storeId, p_date: today, p_field: 'carts_recovered' })
+      .then(null, () => null)
+  })
+}
+
 async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
   const phone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '').replace(/\D/g, '')
   if (!phone) return
@@ -161,6 +199,12 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
         status: 'pending', scheduled_at: scheduledAt,
       })
     }
+  }
+
+  // Revenue attribution — attribute order value to last WhatsApp message within 24h
+  const orderValue = parseFloat(String(order.total_price ?? '0'))
+  if (orderValue > 0) {
+    await attributeRevenue(supabase, store.id, `+91${phone}`, orderValue, order.id).catch(() => null)
   }
 
   // Update customer stats

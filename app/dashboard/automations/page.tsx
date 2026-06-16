@@ -3,630 +3,382 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  ShoppingCart, Package, CheckCircle2, Truck,
-  Loader2, Save, AlertCircle, Info, Zap,
-  Star, RefreshCw, Gift, Plus, X, Send
+  ShoppingCart, Package, CheckCircle2, Truck, Loader2, Save,
+  AlertCircle, Zap, RefreshCw, Gift, X, Send, Star, Repeat,
+  MessageSquare, Clock, TrendingUp, ArrowRight, Plus, Tag
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Automation, AutomationType, Store } from '@/types'
 
 type LiveType = 'abandoned_cart' | 'cod_verification' | 'order_confirmation' | 'shipping_update'
+  | 'post_purchase_upsell' | 'win_back' | 'review_request' | 'repeat_purchase'
 
-// ─── Live automations backed by DB ────────────────────────────────────────────
+interface Automation {
+  id: string
+  store_id: string
+  type: LiveType
+  is_enabled: boolean
+  delay_minutes: number
+  template: string
+  discount_enabled: boolean
+  discount_value: number
+}
 
-const LIVE_AUTOMATION_META: Record<LiveType, {
-  icon: React.ElementType
-  label: string
-  description: string
-  color: string
-  bg: string
-  whenText: string
+const LIVE_TYPES: Record<LiveType, {
+  icon: React.ElementType; label: string; description: string; impact: string;
+  color: string; bg: string; trigger: string; defaultDelay: number; defaultTemplate: string;
 }> = {
   abandoned_cart: {
-    icon: ShoppingCart,
-    label: 'Abandoned Cart Recovery',
-    description: 'Send a WhatsApp reminder when a customer adds items to cart but doesn\'t complete checkout.',
-    color: 'text-orange-600',
-    bg: 'bg-orange-100',
-    whenText: 'Triggers X minutes after cart is abandoned',
+    icon: ShoppingCart, label: 'Abandoned Cart Recovery',
+    description: 'Send a reminder when a customer adds to cart but doesn\'t complete checkout.',
+    impact: 'Recovers 15–25% of abandoned carts',
+    color: 'text-orange-600', bg: 'bg-orange-50',
+    trigger: 'checkouts/create',
+    defaultDelay: 30,
+    defaultTemplate: 'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}.\n\nYour items are waiting! Complete your purchase here:\n{{cart_url}}\n\nHurry — items may sell out!',
   },
   cod_verification: {
-    icon: Package,
-    label: 'COD Confirmation',
-    description: 'Ask customers to confirm their COD order via WhatsApp before dispatch — reduces RTO by up to 40%.',
-    color: 'text-purple-600',
-    bg: 'bg-purple-100',
-    whenText: 'Triggers when a COD order is placed',
+    icon: Package, label: 'COD Verification',
+    description: 'Ask customers to confirm COD orders before dispatch to reduce RTO.',
+    impact: 'Reduces RTO by up to 40%',
+    color: 'text-purple-600', bg: 'bg-purple-50',
+    trigger: 'orders/create (COD)',
+    defaultDelay: 5,
+    defaultTemplate: 'Hi {{name}}! 🛍️ Your COD order #{{order_number}} for ₹{{amount}} at {{shop_name}} is confirmed.\n\nPlease reply *YES* to confirm or *NO* to cancel before dispatch.\n\nThank you!',
   },
   order_confirmation: {
-    icon: CheckCircle2,
-    label: 'Order Status Notification',
-    description: 'Send an instant WhatsApp confirmation when a customer places an order.',
-    color: 'text-green-600',
-    bg: 'bg-green-100',
-    whenText: 'Triggers immediately on order placement',
+    icon: CheckCircle2, label: 'Order Confirmation',
+    description: 'Send an instant WhatsApp confirmation when an order is placed.',
+    impact: 'Reduces customer support queries',
+    color: 'text-emerald-600', bg: 'bg-emerald-50',
+    trigger: 'orders/create',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}.\n\nWe\'ll send you shipping details soon. Track your order:\n{{order_url}}\n\nThank you for shopping with us!',
   },
   shipping_update: {
-    icon: Truck,
-    label: 'Shipping Update',
-    description: 'Notify customers via WhatsApp when their order has been shipped with tracking details.',
-    color: 'text-blue-600',
-    bg: 'bg-blue-100',
-    whenText: 'Triggers when order is marked as shipped',
+    icon: Truck, label: 'Shipping Update',
+    description: 'Notify customers via WhatsApp when their order is shipped with tracking.',
+    impact: 'Reduces WISMO queries by 60%',
+    color: 'text-blue-600', bg: 'bg-blue-50',
+    trigger: 'orders/fulfilled',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped!\n\nTrack your delivery:\n{{tracking_url}}\n\nExpected delivery in 3–5 business days.',
+  },
+  post_purchase_upsell: {
+    icon: TrendingUp, label: 'Post-Purchase Upsell',
+    description: 'Send a personalized product recommendation 24h after order delivery.',
+    impact: 'Increases repeat purchase by 20%',
+    color: 'text-pink-600', bg: 'bg-pink-50',
+    trigger: 'orders/fulfilled + 24h delay',
+    defaultDelay: 1440,
+    defaultTemplate: 'Hi {{name}}! ❤️ Thank you for your order at {{shop_name}}!\n\nCustomers who bought this also loved these products. Check them out:\n[PRODUCT_LINK]\n\nUse code THANKYOU10 for 10% off your next order!',
+  },
+  win_back: {
+    icon: Repeat, label: 'Win-back Campaign',
+    description: 'Re-engage customers who haven\'t ordered in 45+ days with a special offer.',
+    impact: 'Recovers 12% of inactive customers',
+    color: 'text-red-600', bg: 'bg-red-50',
+    trigger: 'Nightly scan (inactive 45+ days)',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! 👋 We miss you at {{shop_name}}!\n\nIt\'s been a while since your last order. Here\'s a special gift — 15% off just for you:\n\nCode: COMEBACK15\nShop now: [SHOP_LINK]\n\nValid for 48 hours only!',
+  },
+  review_request: {
+    icon: Star, label: 'Review Request',
+    description: 'Ask customers for a review 5 days after their order is delivered.',
+    impact: 'Boosts social proof & conversions',
+    color: 'text-amber-600', bg: 'bg-amber-50',
+    trigger: 'orders/fulfilled + 5d delay',
+    defaultDelay: 7200,
+    defaultTemplate: 'Hi {{name}}! 😊 Hope you\'re loving your purchase from {{shop_name}}!\n\nWould you mind leaving us a quick review? It takes just 2 minutes and really helps us:\n[REVIEW_LINK]\n\nThank you so much!',
+  },
+  repeat_purchase: {
+    icon: Gift, label: 'Repeat Purchase Reminder',
+    description: 'Remind customers to reorder based on average order cycle.',
+    impact: 'Increases LTV by 30%',
+    color: 'text-indigo-600', bg: 'bg-indigo-50',
+    trigger: 'Scheduled based on order history',
+    defaultDelay: 43200,
+    defaultTemplate: 'Hi {{name}}! 🔁 Running low on your favourites from {{shop_name}}?\n\nTime to restock! Shop your previous items:\n[SHOP_LINK]\n\nUse code REPEAT10 for 10% off!',
   },
 }
 
-// ─── Preview/upcoming automations (UI only, not yet in DB) ────────────────────
-
-const PREVIEW_AUTOMATIONS: {
-  key: string
-  icon: React.ElementType
-  label: string
-  description: string
-  color: string
-  bg: string
-  comingSoon?: boolean
-}[] = [
-  {
-    key: 'post_purchase_upsell',
-    icon: Gift,
-    label: 'Post-Purchase Upsell',
-    description: 'Automatically send a personalised upsell offer to customers after they receive their order — the perfect moment to cross-sell.',
-    color: 'text-pink-600',
-    bg: 'bg-pink-100',
-  },
-  {
-    key: 'win_back',
-    icon: RefreshCw,
-    label: 'Win-Back Campaign',
-    description: 'Re-engage customers who haven\'t ordered in 60+ days with a personalised discount offer.',
-    color: 'text-indigo-600',
-    bg: 'bg-indigo-100',
-  },
-  {
-    key: 'review_request',
-    icon: Star,
-    label: 'Review Request',
-    description: 'Ask satisfied customers for a product review a few days after delivery — boost your store rating automatically.',
-    color: 'text-yellow-600',
-    bg: 'bg-yellow-100',
-  },
-  {
-    key: 'repeat_purchase',
-    icon: Zap,
-    label: 'Repeat Purchase Reminder',
-    description: 'Remind customers when it\'s time to reorder a consumable product based on their purchase history.',
-    color: 'text-teal-600',
-    bg: 'bg-teal-100',
-    comingSoon: true,
-  },
+const COMING_SOON = [
+  { icon: Tag,          label: 'Browse Abandonment',    desc: 'Send when customer browses but doesn\'t add to cart',         soon: 'Q3 2025' },
+  { icon: TrendingUp,   label: 'Price Drop Alert',       desc: 'Notify wishlist customers when product price drops',          soon: 'Q3 2025' },
+  { icon: Package,      label: 'Back in Stock Alert',    desc: 'Alert customers when out-of-stock product is available',      soon: 'Q3 2025' },
+  { icon: MessageSquare,label: 'Welcome Series',         desc: 'Multi-message welcome flow for new customers',               soon: 'Q3 2025' },
+  { icon: Clock,        label: 'Replenishment Reminder', desc: 'Remind customers to reorder consumable products',             soon: 'Q4 2025' },
+  { icon: Star,         label: 'VIP Milestone',          desc: 'Celebrate customer milestones and reward loyalty',            soon: 'Q4 2025' },
+  { icon: Repeat,       label: 'Cross-sell Campaign',    desc: 'Suggest complementary products after purchase',               soon: 'Q4 2025' },
 ]
 
-const TEMPLATE_VARS: Record<LiveType, string[]> = {
-  abandoned_cart:    ['{{name}}', '{{shop_name}}', '{{cart_url}}', '{{discount_code}}', '{{discount_value}}'],
-  cod_verification:  ['{{name}}', '{{order_number}}', '{{amount}}', '{{shop_name}}'],
-  order_confirmation:['{{name}}', '{{order_number}}', '{{shop_name}}', '{{order_url}}'],
-  shipping_update:   ['{{name}}', '{{order_number}}', '{{shop_name}}', '{{tracking_url}}'],
-}
-
-const DEFAULT_TEMPLATES: Record<string, string> = {
-  abandoned_cart:     'Hi {{name}}! You left something behind 🛒\n\nYour cart at {{shop_name}} is waiting for you. Complete your order now → {{cart_url}}',
-  cod_verification:   'Hi {{name}}! Please confirm your COD order #{{order_number}} for ₹{{amount}} at {{shop_name}}.\n\nReply YES to confirm or NO to cancel.',
-  order_confirmation: 'Hi {{name}}! Your order #{{order_number}} has been confirmed at {{shop_name}} ✅\n\nTrack your order → {{order_url}}',
-  shipping_update:    'Hi {{name}}! Your order #{{order_number}} from {{shop_name}} has been shipped 🚚\n\nTrack it here → {{tracking_url}}',
-  post_purchase_upsell: 'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved — [PRODUCT_LINK]\n\nUse code THANKYOU10 for 10% off your next order!',
-  win_back:           'Hi {{name}}! We miss you at {{shop_name}} 💚\n\nIt\'s been a while since your last visit. Here\'s 15% off your next order → [SHOP_LINK]\n\nCode: COMEBACK15 (48 hrs only)',
-  review_request:     'Hi {{name}}! Hope you\'re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot → [REVIEW_LINK]',
-  repeat_purchase:    'Hi {{name}}! Time to restock? 🔄\n\nBased on your purchase history, your supply from {{shop_name}} might be running low. Order now → [SHOP_LINK]',
-}
-
-// ─── Create Automation modal ───────────────────────────────────────────────────
-
-function CreateAutomationModal({ storeId, onClose, onCreated }: {
-  storeId: string | null
-  onClose: () => void
-  onCreated: () => void
+function AutomationCard({
+  type, meta, automation, onSave,
+}: {
+  type: LiveType
+  meta: typeof LIVE_TYPES[LiveType]
+  automation: Automation | null
+  onSave: (data: Partial<Automation> & { type: LiveType }) => Promise<void>
 }) {
-  const [selected, setSelected] = useState<string | null>(null)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const supabase = useMemo(() => createClient(), [])
+  const [expanded, setExpanded]           = useState(false)
+  const [enabled, setEnabled]             = useState(automation?.is_enabled ?? false)
+  const [delay, setDelay]                 = useState(automation?.delay_minutes ?? meta.defaultDelay)
+  const [template, setTemplate]           = useState(automation?.template ?? meta.defaultTemplate)
+  const [discountEnabled, setDiscountEnabled] = useState(automation?.discount_enabled ?? false)
+  const [discountValue, setDiscountValue] = useState(automation?.discount_value ?? 10)
+  const [saving, setSaving]               = useState(false)
+  const [saved, setSaved]                 = useState(false)
 
-  const options = [
-    ...Object.entries(LIVE_AUTOMATION_META).map(([key, meta]) => ({ key, ...meta })),
-    ...PREVIEW_AUTOMATIONS,
-  ]
-
-  const isLiveType = (key: string): key is AutomationType =>
-    key in LIVE_AUTOMATION_META
-
-  async function handleCreate() {
-    if (!selected || !storeId) return
-    setLoading(true)
-    setError('')
-
-    const { error: err } = await supabase.from('automations').upsert({
-      store_id:         storeId,
-      type:             selected,
-      is_enabled:       true,
-      template:         DEFAULT_TEMPLATES[selected] ?? '',
-      delay_minutes:    selected === 'abandoned_cart' ? 30 : selected === 'cod_verification' ? 5 : 0,
-      discount_enabled: false,
-      discount_value:   10,
-    }, { onConflict: 'store_id,type' })
-
-    setLoading(false)
-    if (err) { setError(err.message); return }
-    onCreated()
-    onClose()
+  async function save() {
+    setSaving(true)
+    await onSave({ type, is_enabled: enabled, delay_minutes: delay, template, discount_enabled: discountEnabled, discount_value: discountValue })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
+  const Icon = meta.icon
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Create Automation</h2>
-            <p className="text-slate-500 text-sm mt-0.5">Choose an automation type to get started</p>
+    <div className={cn('bg-white rounded-2xl border-2 shadow-sm transition-all',
+      enabled ? 'border-[#25D366]/30' : 'border-slate-100')}>
+      {/* Card header */}
+      <div className="flex items-center gap-4 p-5">
+        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', meta.bg)}>
+          <Icon size={18} className={meta.color} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-slate-800 text-sm">{meta.label}</p>
+            {enabled && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Live
+              </span>
+            )}
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition">
-            <X className="w-4 h-4" />
-          </button>
+          <p className="text-xs text-slate-400 mt-0.5 truncate">{meta.description}</p>
+          <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+            <Clock size={10} /> {meta.trigger}
+          </p>
         </div>
-
-        <div className="p-6 space-y-3">
-          {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-            </div>
-          )}
-
-          {options.map(opt => {
-            const Icon = opt.icon
-            const isSel = selected === opt.key
-            const isComing = (opt as { comingSoon?: boolean }).comingSoon
-            return (
-              <button
-                key={opt.key}
-                onClick={() => !isComing && setSelected(opt.key)}
-                disabled={!!isComing}
-                className={cn(
-                  'w-full flex items-start gap-4 p-4 rounded-2xl border-2 text-left transition',
-                  isComing ? 'opacity-50 cursor-not-allowed border-transparent bg-slate-50' :
-                  isSel ? 'border-[#25D366] bg-[#25D366]/5' :
-                  'border-transparent bg-slate-50 hover:bg-slate-100'
-                )}
-              >
-                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', opt.bg)}>
-                  <Icon className={cn('w-5 h-5', opt.color)} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
-                    {isComing && (
-                      <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full">Coming soon</span>
-                    )}
-                    {!isComing && !isLiveType(opt.key) && (
-                      <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">Available</span>
-                    )}
-                    {isSel && (
-                      <CheckCircle2 className="w-4 h-4 text-[#25D366] ml-auto flex-shrink-0" />
-                    )}
-                  </div>
-                  <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">{opt.description}</p>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition">
-            Cancel
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg font-medium">
+            <TrendingUp size={11} /> {meta.impact}
+          </div>
+          {/* Toggle */}
+          <button onClick={() => setEnabled(v => !v)}
+            className={cn('relative h-6 w-11 rounded-full transition-colors flex-shrink-0', enabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
+            <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all', enabled ? 'left-6' : 'left-1')} />
           </button>
-          <button
-            onClick={handleCreate}
-            disabled={!selected || loading || !storeId}
-            className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl transition"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            {loading ? 'Creating…' : 'Create & Enable'}
+          <button onClick={() => setExpanded(v => !v)}
+            className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100">
+            {expanded ? <X size={15} /> : <Plus size={15} />}
           </button>
         </div>
       </div>
+
+      {/* Expanded config */}
+      {expanded && (
+        <div className="border-t border-slate-100 p-5 space-y-4">
+          {/* Delay */}
+          {meta.defaultDelay > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Send Delay</label>
+              <div className="flex items-center gap-2">
+                <input type="number" value={delay} min={0} onChange={e => setDelay(Number(e.target.value))}
+                  className="w-24 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
+                <span className="text-sm text-slate-500">minutes</span>
+                <span className="text-xs text-slate-400">({delay >= 60 ? `${Math.round(delay / 60)}h` : `${delay}m`} after trigger)</span>
+              </div>
+            </div>
+          )}
+
+          {/* Discount */}
+          {type === 'abandoned_cart' && (
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 cursor-pointer">
+                <input type="checkbox" checked={discountEnabled} onChange={e => setDiscountEnabled(e.target.checked)}
+                  className="rounded border-slate-300 text-[#25D366] focus:ring-[#25D366]" />
+                Include discount code
+              </label>
+              {discountEnabled && (
+                <div className="flex items-center gap-2 mt-1">
+                  <input type="number" value={discountValue} min={1} max={100} onChange={e => setDiscountValue(Number(e.target.value))}
+                    className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
+                  <span className="text-sm text-slate-500">% off</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Template */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700">Message Template</label>
+              <button onClick={() => setTemplate(meta.defaultTemplate)}
+                className="text-[11px] text-[#25D366] hover:underline">Reset to default</button>
+            </div>
+            <textarea rows={5} value={template} onChange={e => setTemplate(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 resize-none font-mono leading-relaxed" />
+            <p className="text-[10px] text-slate-400 mt-1">
+              Variables: {'{{name}}'} {'{{shop_name}}'} {'{{order_number}}'} {'{{cart_url}}'} {'{{tracking_url}}'}
+            </p>
+          </div>
+
+          {/* Preview */}
+          <div className="bg-[#e5ddd5] rounded-xl p-3">
+            <p className="text-[10px] font-semibold text-slate-500 mb-2 uppercase tracking-wide">Preview</p>
+            <div className="bg-[#DCF8C6] rounded-2xl rounded-tl-sm px-3 py-2.5 max-w-[85%] shadow-sm">
+              <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">
+                {template.replace(/\{\{name\}\}/g, 'Priya').replace(/\{\{shop_name\}\}/g, 'Your Store')
+                  .replace(/\{\{order_number\}\}/g, '#1234').replace(/\{\{amount\}\}/g, '₹1,299')
+                  .replace(/\{\{cart_url\}\}/g, 'yourstore.com/cart').replace(/\{\{tracking_url\}\}/g, 'track.link/xyz')}
+              </p>
+            </div>
+          </div>
+
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Save size={14} />}
+            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────────
-
 export default function AutomationsPage() {
-  const [store, setStore]             = useState<Store | null>(null)
   const [automations, setAutomations] = useState<Automation[]>([])
   const [loading, setLoading]         = useState(true)
-  const [saving, setSaving]           = useState<string | null>(null)
-  const [sending, setSending]         = useState<string | null>(null)
-  const [expanded, setExpanded]       = useState<string | null>(null)
-  const [edited, setEdited]           = useState<Record<string, Partial<Automation>>>({})
+  const [hasStore, setHasStore]       = useState(true)
+  const [storeId, setStoreId]         = useState<string | null>(null)
   const [toast, setToast]             = useState<{ msg: string; ok: boolean } | null>(null)
-  const [showCreate, setShowCreate]   = useState(false)
   const supabase = useMemo(() => createClient(), [])
 
-  const showToast = (msg: string, ok = true) => {
-    setToast({ msg, ok })
-    setTimeout(() => setToast(null), 3000)
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok }); setTimeout(() => setToast(null), 3000)
   }
 
-  const loadData = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
-    const { data: storeData } = await supabase
-      .from('stores').select('*').eq('user_id', user.id).eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
-    setStore(storeData)
-
-    if (storeData) {
-      const { data: autos } = await supabase
-        .from('automations').select('*').eq('store_id', storeData.id)
-      setAutomations(autos ?? [])
-    }
+    const { data: store } = await supabase.from('stores').select('id').eq('user_id', user.id)
+      .eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
+    if (!store) { setHasStore(false); setLoading(false); return }
+    setStoreId(store.id); setHasStore(true)
+    const { data } = await supabase.from('automations').select('*').eq('store_id', store.id)
+    setAutomations(data ?? [])
     setLoading(false)
   }, [supabase])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { load() }, [load])
 
-  async function toggleAutomation(automation: Automation) {
-    const newVal = !automation.is_enabled
-    setAutomations(prev => prev.map(a => a.id === automation.id ? { ...a, is_enabled: newVal } : a))
-    const { error } = await supabase
-      .from('automations').update({ is_enabled: newVal, updated_at: new Date().toISOString() }).eq('id', automation.id)
-    if (error) {
-      setAutomations(prev => prev.map(a => a.id === automation.id ? { ...a, is_enabled: !newVal } : a))
-      showToast('Failed to update automation', false)
+  async function handleSave(data: Partial<Automation> & { type: LiveType }) {
+    if (!storeId) return
+    const existing = automations.find(a => a.type === data.type)
+    let error: unknown = null
+    if (existing) {
+      const res = await supabase.from('automations').update(data).eq('id', existing.id)
+      error = res.error
     } else {
-      showToast(newVal ? 'Automation enabled!' : 'Automation disabled')
+      const res = await supabase.from('automations').insert({ ...data, store_id: storeId, template: data.template ?? '' })
+      error = res.error
     }
+    if (error) { showToast('Failed to save', false); return }
+    showToast('Saved successfully!')
+    await load()
   }
 
-  async function saveAutomation(automation: Automation) {
-    const changes = edited[automation.id]
-    if (!changes) return
-    setSaving(automation.id)
-    const { error } = await supabase
-      .from('automations')
-      .update({ ...changes, updated_at: new Date().toISOString() })
-      .eq('id', automation.id)
-    setSaving(null)
-    if (error) { showToast('Failed to save changes', false); return }
-    setAutomations(prev => prev.map(a => a.id === automation.id ? { ...a, ...changes } : a))
-    setEdited(prev => { const n = { ...prev }; delete n[automation.id]; return n })
-    showToast('Changes saved!')
-    setExpanded(null)
-  }
-
-  async function sendTestMessage(automationType: string) {
-    setSending(automationType)
-    try {
-      const res = await fetch('/api/test/send-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ automation_type: automationType }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        showToast(`Test message sent! Preview: "${data.preview?.slice(0, 60)}…"`)
-      } else {
-        showToast(data.error ?? 'Failed to send test message', false)
-      }
-    } catch {
-      showToast('Network error — try again', false)
-    }
-    setSending(null)
-  }
-
-  function updateField(id: string, field: keyof Automation, value: unknown) {
-    setEdited(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }))
-  }
-
-  function getVal<K extends keyof Automation>(id: string, field: K, fallback: Automation[K]): Automation[K] {
-    return (edited[id]?.[field] as Automation[K]) ?? fallback
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-[#25D366]" />
-      </div>
-    )
-  }
+  const activeCount = automations.filter(a => a.is_enabled).length
 
   return (
-    <div className="p-6 lg:p-8 animate-fade-in">
-      {/* Create automation modal */}
-      {showCreate && (
-        <CreateAutomationModal
-          storeId={store?.id ?? null}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => { loadData(); showToast('Automation created and enabled!') }}
-        />
-      )}
-
-      {/* Toast */}
+    <div className="p-6 lg:p-8">
       {toast && (
-        <div className={cn(
-          'fixed top-5 right-5 z-40 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium',
-          toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white'
-        )}>
-          {toast.ok ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-          {toast.msg}
+        <div className={cn('fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold transition',
+          toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white')}>
+          {toast.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />} {toast.msg}
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Automations</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Enable WhatsApp automations to recover revenue and improve customer experience automatically.
+          <p className="text-slate-500 text-sm mt-0.5">
+            {activeCount > 0
+              ? `${activeCount} automation${activeCount > 1 ? 's' : ''} running — recovering revenue 24/7`
+              : 'Set up automations to start recovering revenue automatically'}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-lg shadow-green-500/20"
-        >
-          <Plus className="w-4 h-4" /> Create Automation
+        <button onClick={load} className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
+          <RefreshCw size={13} /> Refresh
         </button>
       </div>
 
-      {!store && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-amber-800">Connect your store first</p>
-            <p className="text-amber-700 text-sm mt-0.5">Go to Settings or Integrations to connect your ecommerce store and enable automations.</p>
+      {/* Revenue impact banner */}
+      {activeCount === 0 && (
+        <div className="bg-gradient-to-r from-[#075E54] to-[#25D366] rounded-2xl p-5 mb-6 flex items-center gap-4">
+          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Zap size={18} className="text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-white">Enable automations to recover revenue while you sleep</p>
+            <p className="text-green-100 text-sm mt-0.5">Merchants with 3+ automations see avg. ₹25,000/month in recovered revenue.</p>
           </div>
         </div>
       )}
 
-      {automations.length === 0 && store && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-6 flex items-start gap-3">
-          <Info className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-          <p className="text-blue-800 text-sm">Default automations are being created for your store. Refresh in a moment.</p>
+      {loading ? (
+        <div className="flex items-center justify-center h-40"><Loader2 size={20} className="animate-spin text-[#25D366]" /></div>
+      ) : !hasStore ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center">
+          <AlertCircle size={32} className="text-amber-400 mx-auto mb-3" />
+          <p className="font-semibold text-amber-800">Connect your Shopify store first</p>
+          <p className="text-amber-600 text-sm mt-1">Automations trigger from Shopify webhooks.</p>
         </div>
+      ) : (
+        <>
+          {/* Live automations */}
+          <div className="mb-6">
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full" /> Live Automations
+            </h2>
+            <div className="space-y-3">
+              {(Object.keys(LIVE_TYPES) as LiveType[]).map(type => (
+                <AutomationCard
+                  key={type}
+                  type={type}
+                  meta={LIVE_TYPES[type]}
+                  automation={automations.find(a => a.type === type) ?? null}
+                  onSave={handleSave}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Coming soon */}
+          <div>
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Clock size={13} className="text-slate-400" /> Coming Soon
+            </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {COMING_SOON.map(cs => (
+                <div key={cs.label} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3 opacity-70">
+                  <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <cs.icon size={16} className="text-slate-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-700">{cs.label}</p>
+                    <p className="text-xs text-slate-400 truncate">{cs.desc}</p>
+                  </div>
+                  <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 px-2 py-1 rounded-full flex-shrink-0">{cs.soon}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
-
-      {/* ── Live automations ────────────────────────────────────── */}
-      <div className="mb-8">
-        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Live Automations</h2>
-        <div className="space-y-4">
-          {(Object.keys(LIVE_AUTOMATION_META) as LiveType[]).map(type => {
-            const meta  = LIVE_AUTOMATION_META[type]
-            const auto  = automations.find(a => a.type === type)
-            const isExp = expanded === type
-            const Icon  = meta.icon
-
-            if (!auto) {
-              return (
-                <div key={type} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 opacity-50">
-                  <div className="flex items-center gap-4">
-                    <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0', meta.bg)}>
-                      <Icon className={cn('w-5 h-5', meta.color)} />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800">{meta.label}</p>
-                      <p className="text-slate-400 text-xs">Connect your store to enable</p>
-                    </div>
-                  </div>
-                </div>
-              )
-            }
-
-            return (
-              <div key={type} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-4 p-5">
-                  <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0', auto.is_enabled ? meta.bg : 'bg-slate-100')}>
-                    <Icon className={cn('w-5 h-5', auto.is_enabled ? meta.color : 'text-slate-400')} />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-slate-800">{meta.label}</p>
-                      {auto.is_enabled && (
-                        <span className="flex items-center gap-1 text-[10px] font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> LIVE
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-slate-500 text-sm mt-0.5 leading-snug">{meta.description}</p>
-                  </div>
-
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    {auto.is_enabled && (
-                      <button
-                        onClick={() => sendTestMessage(type)}
-                        disabled={sending === type}
-                        title="Send a test message to +911234567890"
-                        className="flex items-center gap-1.5 text-xs text-[#25D366] border border-[#25D366]/30 hover:bg-[#25D366]/5 font-medium transition px-3 py-1.5 rounded-lg disabled:opacity-50"
-                      >
-                        {sending === type
-                          ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : <Send className="w-3 h-3" />
-                        }
-                        {sending === type ? 'Sending…' : 'Send Test'}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => toggleAutomation(auto)}
-                      className={cn(
-                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
-                        auto.is_enabled ? 'bg-[#25D366]' : 'bg-slate-200'
-                      )}
-                      aria-label="Toggle automation"
-                    >
-                      <span className={cn(
-                        'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform',
-                        auto.is_enabled ? 'translate-x-6' : 'translate-x-1'
-                      )} />
-                    </button>
-                    <button
-                      onClick={() => setExpanded(isExp ? null : type)}
-                      className="text-sm text-slate-500 hover:text-[#25D366] font-medium transition px-3 py-1.5 rounded-lg hover:bg-slate-50"
-                    >
-                      {isExp ? 'Close' : 'Configure'}
-                    </button>
-                  </div>
-                </div>
-
-                {isExp && (
-                  <div className="border-t border-slate-100 bg-slate-50 p-5 space-y-5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {(type === 'abandoned_cart' || type === 'cod_verification') && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                            Delay after trigger (minutes)
-                          </label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={1440}
-                            value={getVal(auto.id, 'delay_minutes', auto.delay_minutes)}
-                            onChange={e => updateField(auto.id, 'delay_minutes', parseInt(e.target.value))}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white"
-                          />
-                          <p className="text-slate-400 text-xs mt-1">{meta.whenText}</p>
-                        </div>
-                      )}
-                      {type === 'abandoned_cart' && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1.5">Discount incentive</label>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => updateField(auto.id, 'discount_enabled', !getVal(auto.id, 'discount_enabled', auto.discount_enabled))}
-                              className={cn(
-                                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                                getVal(auto.id, 'discount_enabled', auto.discount_enabled) ? 'bg-[#25D366]' : 'bg-slate-200'
-                              )}
-                            >
-                              <span className={cn(
-                                'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform',
-                                getVal(auto.id, 'discount_enabled', auto.discount_enabled) ? 'translate-x-6' : 'translate-x-1'
-                              )} />
-                            </button>
-                            <span className="text-sm text-slate-600">Include discount code</span>
-                          </div>
-                          {getVal(auto.id, 'discount_enabled', auto.discount_enabled) && (
-                            <div className="mt-2 flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={1}
-                                max={100}
-                                value={getVal(auto.id, 'discount_value', auto.discount_value)}
-                                onChange={e => updateField(auto.id, 'discount_value', parseInt(e.target.value))}
-                                className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white"
-                              />
-                              <span className="text-slate-600 text-sm">% off</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-sm font-medium text-slate-700">Message Template</label>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {TEMPLATE_VARS[type].map(v => (
-                            <span key={v} className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{v}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <textarea
-                        rows={4}
-                        value={getVal(auto.id, 'template', auto.template) as string}
-                        onChange={e => updateField(auto.id, 'template', e.target.value)}
-                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white resize-none font-mono"
-                      />
-                      <p className="text-slate-400 text-xs mt-1">Use variable tags in your message — they will be replaced automatically.</p>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3">
-                      <button
-                        onClick={() => { setExpanded(null); setEdited(prev => { const n = { ...prev }; delete n[auto.id]; return n }) }}
-                        className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-100 transition"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => saveAutomation(auto)}
-                        disabled={saving === auto.id || !edited[auto.id]}
-                        className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition"
-                      >
-                        {saving === auto.id
-                          ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
-                          : <><Save className="w-3.5 h-3.5" /> Save Changes</>
-                        }
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ── Upcoming automations ────────────────────────────────── */}
-      <div className="mb-8">
-        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">More Automation Flows</h2>
-        <div className="space-y-3">
-          {PREVIEW_AUTOMATIONS.map(auto => {
-            const Icon = auto.icon
-            return (
-              <div key={auto.key} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <div className="flex items-center gap-4">
-                  <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0', auto.bg)}>
-                    <Icon className={cn('w-5 h-5', auto.color)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-slate-800">{auto.label}</p>
-                      {auto.comingSoon ? (
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Coming soon</span>
-                      ) : (
-                        <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">Available</span>
-                      )}
-                    </div>
-                    <p className="text-slate-500 text-sm mt-0.5 leading-snug">{auto.description}</p>
-                  </div>
-                  <button
-                    onClick={() => !auto.comingSoon && setShowCreate(true)}
-                    disabled={!!auto.comingSoon}
-                    className={cn(
-                      'text-sm font-medium transition px-3 py-1.5 rounded-lg flex-shrink-0',
-                      auto.comingSoon
-                        ? 'text-slate-300 cursor-not-allowed'
-                        : 'text-[#25D366] hover:bg-green-50'
-                    )}
-                  >
-                    {auto.comingSoon ? 'Soon' : 'Enable'}
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Info banner */}
-      <div className="bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl p-5 flex items-start gap-4">
-        <Zap className="w-5 h-5 text-[#25D366] mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="font-semibold text-green-800">Pro tip: Start with COD Confirmation</p>
-          <p className="text-green-700 text-sm mt-1">
-            Stores lose ₹150–400 per RTO. A single WhatsApp confirmation before dispatch can reduce your RTO rate by 30–40%, paying for itself immediately.
-          </p>
-        </div>
-      </div>
     </div>
   )
 }
