@@ -132,11 +132,12 @@ export default function TestWhatsAppPage() {
               </pre>
             </div>
 
-            {!result.ok && result.body && typeof result.body === 'object' && (result.body as Record<string, unknown>).error && (
+            {!result.ok && !!result.body && typeof result.body === 'object' &&
+              'error' in (result.body as object) && (
               <div className="bg-red-950 border border-red-700 rounded-lg p-4">
                 <p className="text-red-300 text-sm font-semibold mb-2">Meta error detail</p>
                 <pre className="text-red-400 text-xs font-mono whitespace-pre-wrap break-all">
-                  {JSON.stringify((result.body as Record<string, unknown>).error, null, 2)}
+                  {JSON.stringify((result.body as Record<string, unknown>)['error'], null, 2)}
                 </pre>
               </div>
             )}
