@@ -367,7 +367,24 @@ function SettingsInner() {
       return
     }
 
-    console.log('[Wapaci] launching Embedded Signup config_id:', configId)
+    // ── Debug: print full SDK config before launching ──────────────────────────
+    const fbLoginOpts = {
+      config_id:                      configId,
+      response_type:                  'code',
+      override_default_response_type: true,
+      extras:                         { sessionInfoVersion: 2 },
+    }
+    console.group('[Wapaci] Meta Embedded Signup — debug info')
+    console.log('APP_ID (NEXT_PUBLIC_META_APP_ID):', appId)
+    console.log('CONFIG_ID (NEXT_PUBLIC_META_CONFIG_ID):', configId)
+    console.log('Flow type: FB JS SDK popup (no redirect_uri — code POSTed to /api/meta/callback)')
+    console.log('Scopes: defined in Meta config_id, not in client code')
+    console.log('FB.login() options:', JSON.stringify(fbLoginOpts, null, 2))
+    console.log('SDK version: v22.0 | status: false | xfbml: false')
+    console.log('Origin:', window.location.origin)
+    console.groupEnd()
+    // ── End debug ──────────────────────────────────────────────────────────────
+
     setConnectingMeta(true)
 
     // Safety timeout — reset spinner if FB never fires the callback (popup blocked, SDK error)
@@ -378,7 +395,7 @@ function SettingsInner() {
     }, 5 * 60 * 1000)
 
     FB.login((response) => {
-      console.log('[Wapaci] FB.login response:', JSON.stringify(response))
+      console.log('[Wapaci] FB.login raw response:', JSON.stringify(response, null, 2))
       clearTimeout(timeoutId)
 
       const code = response.authResponse?.code
@@ -418,12 +435,7 @@ function SettingsInner() {
         .finally(() => {
           setConnectingMeta(false)
         })
-    }, {
-      config_id:                      configId,
-      response_type:                  'code',
-      override_default_response_type: true,
-      extras:                         { sessionInfoVersion: 2 },
-    })
+    }, fbLoginOpts)
   }
 
   // ── Disconnect Meta WhatsApp ───────────────────────────────────────────────────
