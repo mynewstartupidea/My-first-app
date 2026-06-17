@@ -24,8 +24,8 @@ export async function POST(request: Request) {
   const payload = {
     messaging_product: 'whatsapp',
     to,
-    type: 'text',
-    text: { body: '🚀 Wapaci test message from Meta Cloud API' },
+    type: 'template',
+    template: { name: 'hello_world', language: { code: 'en_US' } },
   }
 
   const metaRes  = await fetch(url, {

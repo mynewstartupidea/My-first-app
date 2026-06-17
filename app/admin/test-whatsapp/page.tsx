@@ -56,7 +56,8 @@ export default function TestWhatsAppPage() {
           <p className="text-sm text-gray-400 mt-1">
             Uses <code className="bg-gray-800 px-1 rounded">META_ACCESS_TOKEN</code> +{' '}
             <code className="bg-gray-800 px-1 rounded">META_PHONE_NUMBER_ID</code> from Vercel env.
-            No merchant account involved.
+            Sends the <code className="bg-gray-800 px-1 rounded">hello_world</code> template
+            (required for test numbers — free-form text needs an active 24h conversation window).
           </p>
         </div>
 
