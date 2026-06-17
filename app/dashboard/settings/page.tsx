@@ -889,6 +889,26 @@ function SettingsInner() {
               </h2>
               <p className="text-slate-400 text-xs mb-5 ml-9">Choose how to connect your WhatsApp Business number</p>
 
+              {/* Development mode notice */}
+              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">WhatsApp API onboarding requires Meta approval</p>
+                  <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                    Real accounts cannot connect until all four steps are completed with Meta:
+                  </p>
+                  <ol className="mt-2 space-y-1 text-xs text-amber-700">
+                    <li className="flex items-start gap-1.5"><span className="font-bold flex-shrink-0">1.</span> Meta Business Verification (verify your company)</li>
+                    <li className="flex items-start gap-1.5"><span className="font-bold flex-shrink-0">2.</span> Tech Provider onboarding (register as a WhatsApp Solution Partner)</li>
+                    <li className="flex items-start gap-1.5"><span className="font-bold flex-shrink-0">3.</span> App Review — approve <code className="bg-amber-100 px-1 rounded font-mono">whatsapp_business_management</code> + <code className="bg-amber-100 px-1 rounded font-mono">whatsapp_business_messaging</code></li>
+                    <li className="flex items-start gap-1.5"><span className="font-bold flex-shrink-0">4.</span> Embedded Signup configuration approved in Meta Business Manager</li>
+                  </ol>
+                  <p className="text-amber-600 text-xs mt-2">
+                    The error <em>"Couldn&apos;t share WhatsApp Business account with partners"</em> is expected until these are complete. Your OAuth code is correct — this is enforced by Meta.
+                  </p>
+                </div>
+              </div>
+
               {/* Option 1: Meta Cloud API */}
               <div className="bg-gradient-to-br from-blue-50 to-[#25D366]/5 border border-blue-200 rounded-2xl p-5 mb-4">
                 <div className="flex items-start gap-3 mb-4">
