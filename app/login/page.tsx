@@ -149,8 +149,9 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {btn}
+              {loading
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> {mode === 'forgot' ? 'Sending link…' : 'Please wait…'}</>
+                : btn}
             </button>
           </form>
 

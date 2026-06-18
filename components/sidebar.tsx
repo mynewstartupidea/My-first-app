@@ -10,6 +10,8 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { UserRole } from '@/lib/get-user-role'
+import { canAccess } from '@/lib/get-user-role'
 
 const NAV = [
   { href: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard'   },
@@ -31,9 +33,10 @@ const NAV_BOTTOM = [
 interface SidebarProps {
   storeName?: string | null
   plan?: string
+  role?: UserRole
 }
 
-export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
+export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }: SidebarProps) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
@@ -56,6 +59,9 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
     return pathname.startsWith(href)
   }
 
+  const visibleNav       = NAV.filter(item => canAccess(role, item.href))
+  const visibleNavBottom = NAV_BOTTOM.filter(item => canAccess(role, item.href))
+
   return (
     <aside className="w-[220px] min-h-screen bg-[#0a0f1e] flex flex-col fixed left-0 top-0 z-30 border-r border-white/[0.05]">
       {/* Logo */}
@@ -73,7 +79,7 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
 
       {/* Main nav */}
       <nav className="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ href, icon: Icon, label, badge: itemBadge }) => {
+        {visibleNav.map(({ href, icon: Icon, label, badge: itemBadge }) => {
           const active = isActive(href)
           return (
             <Link key={href} href={href}
@@ -95,9 +101,9 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
           )
         })}
 
-        <div className="my-2 border-t border-white/[0.05]" />
+        {visibleNavBottom.length > 0 && <div className="my-2 border-t border-white/[0.05]" />}
 
-        {NAV_BOTTOM.map(({ href, icon: Icon, label }) => {
+        {visibleNavBottom.map(({ href, icon: Icon, label }) => {
           const active = isActive(href)
           return (
             <Link key={href} href={href}
@@ -117,6 +123,14 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-2.5 border-t border-white/[0.05] space-y-1">
+        {/* Role badge for non-owners */}
+        {role !== 'owner' && role !== 'admin' && (
+          <div className="px-3 py-1.5 rounded-lg bg-white/[0.04] flex items-center gap-2">
+            <span className="text-slate-400 text-[11px]">Role:</span>
+            <span className="text-[11px] font-semibold capitalize text-white">{role}</span>
+          </div>
+        )}
+
         {storeName ? (
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.04]">
             <div className="w-6 h-6 bg-[#25D366]/20 rounded-md flex items-center justify-center flex-shrink-0">
@@ -130,11 +144,13 @@ export default function Sidebar({ storeName, plan = 'starter' }: SidebarProps) {
             </div>
           </div>
         ) : (
-          <Link href="/dashboard/shopify"
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 hover:bg-[#25D366]/15 transition">
-            <Store size={13} className="text-[#25D366]" />
-            <span className="text-[#25D366] text-[12px] font-medium">Connect Shopify</span>
-          </Link>
+          canAccess(role, '/dashboard/shopify') ? (
+            <Link href="/dashboard/shopify"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 hover:bg-[#25D366]/15 transition">
+              <Store size={13} className="text-[#25D366]" />
+              <span className="text-[#25D366] text-[12px] font-medium">Connect Shopify</span>
+            </Link>
+          ) : null
         )}
         <button onClick={handleSignOut}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/[0.06] text-[13px] transition">

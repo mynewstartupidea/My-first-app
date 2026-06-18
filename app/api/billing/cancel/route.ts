@@ -5,12 +5,24 @@ function rzAuth() {
   return `Basic ${Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64')}`
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const body = await request.json().catch(() => ({})) as { reason?: string; detail?: string }
+
   const service = createServiceClient()
+
+  // Save churn feedback (best-effort)
+  if (body.reason) {
+    await service.from('cancellation_feedback').insert({
+      user_id: user.id,
+      reason:  body.reason,
+      detail:  body.detail ?? null,
+    }).then(null, () => null)
+  }
+
   const { data: billing } = await service
     .from('billing')
     .select('razorpay_subscription_id, status')

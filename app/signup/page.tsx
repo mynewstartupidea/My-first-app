@@ -45,6 +45,8 @@ export default function SignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!teamSize) { setError('Please select your team size.'); return }
+    const digits = phone.replace(/\D/g, '')
+    if (digits.length < 10) { setError('Enter a valid phone number with at least 10 digits.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
     setLoading(true)
     setError('')

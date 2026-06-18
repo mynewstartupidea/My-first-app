@@ -1,9 +1,10 @@
 export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { CreditCard, Zap, Check, ArrowRight, IndianRupee, AlertCircle, TrendingUp } from 'lucide-react'
+import { CreditCard, Check, ArrowRight, AlertCircle, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
+import CancelSubscriptionButton from '@/components/cancel-subscription-button'
 
 const PLANS = [
   {
@@ -132,7 +133,7 @@ export default async function BillingPage() {
       </div>
 
       {/* Revenue context */}
-      <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-6 text-white">
+      <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-6 text-white" suppressHydrationWarning>
         <TrendingUp size={20} className="mb-3 opacity-80" />
         <p className="font-bold text-lg">Every message is an investment</p>
         <p className="text-green-100 text-sm mt-1 mb-4">
@@ -152,6 +153,8 @@ export default async function BillingPage() {
           ))}
         </div>
       </div>
+
+      {status !== 'cancelled' && <CancelSubscriptionButton />}
     </div>
   )
 }

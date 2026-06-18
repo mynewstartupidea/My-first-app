@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/sidebar'
+import { getUserRole } from '@/lib/get-user-role'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -17,13 +18,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .limit(1)
   const store = storeRows?.[0] ?? null
 
-  // Only show store name when a real Shopify store is connected.
-  // Mock stores (no shopify_domain) show "Connect Your Store" in sidebar.
   const displayName = store?.shopify_domain ? store.shop_name : null
+  const role        = await getUserRole(user.id, user.email ?? '')
 
   return (
     <div className="flex min-h-screen bg-[#f1f5f9]">
-      <Sidebar storeName={displayName} plan={store?.plan} />
+      <Sidebar storeName={displayName} plan={store?.plan} role={role} />
       <main className="flex-1 ml-[220px] min-h-screen">
         {children}
       </main>

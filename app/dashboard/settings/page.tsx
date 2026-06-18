@@ -503,7 +503,11 @@ function SettingsInner() {
     setSendingInvite(false)
     if (!res.ok) { showToast(data.error ?? 'Failed to send invite', false); return }
     setInviteEmail('')
-    showToast(`Invite recorded for ${data.invite.email}`)
+    if (data.warning) {
+      showToast(data.warning, false)
+    } else {
+      showToast(`Invite email sent to ${data.invite.email}`)
+    }
     await loadMembers()
   }
 
