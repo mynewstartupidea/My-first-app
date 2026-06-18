@@ -17,6 +17,18 @@ const TEAM_SIZES = [
   { value: '20_plus',  label: '20+ people' },
 ]
 
+function passwordStrength(pw: string): { label: string; color: string; width: string } {
+  if (pw.length === 0)  return { label: '',        color: 'bg-slate-200',  width: 'w-0'   }
+  if (pw.length < 6)    return { label: 'Too short', color: 'bg-red-400',   width: 'w-1/4' }
+  const hasUpper  = /[A-Z]/.test(pw)
+  const hasNumber = /[0-9]/.test(pw)
+  const hasSymbol = /[^A-Za-z0-9]/.test(pw)
+  const score = [pw.length >= 10, hasUpper, hasNumber, hasSymbol].filter(Boolean).length
+  if (score <= 1) return { label: 'Weak',   color: 'bg-orange-400', width: 'w-2/4' }
+  if (score <= 2) return { label: 'Medium', color: 'bg-yellow-400', width: 'w-3/4' }
+  return               { label: 'Strong',  color: 'bg-green-500',  width: 'w-full' }
+}
+
 export default function SignupPage() {
   const [fullName, setFullName]       = useState('')
   const [companyName, setCompanyName] = useState('')
@@ -33,6 +45,7 @@ export default function SignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!teamSize) { setError('Please select your team size.'); return }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
     setLoading(true)
     setError('')
 
@@ -212,12 +225,27 @@ export default function SignupPage() {
               <input
                 required
                 type="password"
-                minLength={8}
+                minLength={6}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
+                placeholder="Min. 6 characters"
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
               />
+              {password.length > 0 && (() => {
+                const s = passwordStrength(password)
+                return (
+                  <div className="mt-2 space-y-1">
+                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-300 ${s.color} ${s.width}`} />
+                    </div>
+                    <p className={`text-xs font-medium ${
+                      s.label === 'Strong' ? 'text-green-600'
+                      : s.label === 'Medium' ? 'text-yellow-600'
+                      : 'text-red-500'
+                    }`}>{s.label}</p>
+                  </div>
+                )
+              })()}
             </div>
 
             <button
