@@ -98,15 +98,22 @@ export default function AdminPage() {
   const [actionError, setActionError] = useState('')
   const [sortBy,      setSortBy]      = useState<'signed_up_at' | 'messages_30d' | 'billing_amount'>('signed_up_at')
   const [sortAsc,     setSortAsc]     = useState(false)
+  const [fetchError,  setFetchError]  = useState<string | null>(null)
 
   const router   = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
   const load = useCallback(async () => {
     setLoading(true)
-    const res = await fetch('/api/admin/users')
-    if (!res.ok) { router.replace('/admin/login'); return }
+    setFetchError(null)
+    const res  = await fetch('/api/admin/users')
     const data = await res.json()
+    if (!res.ok) {
+      if (res.status === 403) { router.replace('/admin/login'); return }
+      setFetchError(data.detail ?? data.error ?? `HTTP ${res.status}`)
+      setLoading(false)
+      return
+    }
     setUsers(data.users ?? [])
     setStats(data.stats ?? null)
     setLoading(false)
@@ -171,6 +178,24 @@ export default function AdminPage() {
   if (loading) return (
     <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
       <Loader2 className="w-6 h-6 animate-spin text-[#25D366]" />
+    </div>
+  )
+
+  if (fetchError) return (
+    <div className="min-h-screen bg-[#0d1117] flex items-center justify-center p-8">
+      <div className="bg-red-900/20 border border-red-500/30 rounded-2xl p-8 max-w-lg w-full text-center">
+        <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-4" />
+        <h2 className="text-white font-bold text-lg mb-2">Failed to load users</h2>
+        <p className="text-red-300 text-sm mb-4 font-mono bg-black/30 rounded-xl px-4 py-3">{fetchError}</p>
+        <p className="text-slate-400 text-sm mb-6">
+          Most likely cause: <span className="text-amber-300 font-semibold">SUPABASE_SERVICE_ROLE_KEY</span> is missing or incorrect in your Vercel environment variables.
+          <br /><br />
+          Go to <span className="text-white font-mono">Vercel → Project → Settings → Environment Variables</span> and confirm <code className="bg-white/10 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> is set, then redeploy.
+        </p>
+        <button onClick={load} className="bg-[#25D366] hover:bg-[#128C7E] text-white px-6 py-2.5 rounded-xl text-sm font-medium transition">
+          Retry
+        </button>
+      </div>
     </div>
   )
 
