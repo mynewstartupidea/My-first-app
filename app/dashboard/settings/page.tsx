@@ -37,12 +37,6 @@ interface TeamMember {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BSP_OPTIONS = [
-  { value: 'mock',     label: 'Mock (Testing)',         desc: 'Messages logged — no real sends' },
-  { value: 'meta',     label: 'Meta Cloud API',         desc: 'Official WhatsApp Business API' },
-  { value: 'interakt', label: 'Interakt',               desc: 'Recommended for India' },
-  { value: 'gupshup',  label: 'Gupshup',                desc: 'Largest BSP in India' },
-]
 
 const SHOPIFY_ERROR_MESSAGES: Record<string, string> = {
   invalid_callback: 'OAuth callback was invalid. Please try connecting again.',
@@ -90,11 +84,8 @@ function SettingsInner() {
   const [savingStore, setSavingStore]         = useState(false)
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [waNumber, setWaNumber]               = useState('')
-  const [waBsp, setWaBsp]                     = useState('mock')
   const [waApiKey, setWaApiKey]               = useState('')
   const [storeNameEdit, setStoreNameEdit]     = useState('')
-  const [mockStoreName, setMockStoreName]     = useState('')
-  const [creatingMock, setCreatingMock]       = useState(false)
   const [showGuide, setShowGuide]             = useState(false)
 
   // WhatsApp test message
@@ -153,7 +144,6 @@ function SettingsInner() {
       setStore(s)
       setStoreNameEdit(s.shop_name ?? '')
       setWaNumber(s.whatsapp_number ?? '')
-      setWaBsp(s.whatsapp_bsp ?? 'mock')
       setWaApiKey(s.whatsapp_api_key ?? '')
     }
 
@@ -273,7 +263,7 @@ function SettingsInner() {
     setSavingWA(true)
     const { error } = await supabase
       .from('stores')
-      .update({ whatsapp_number: waNumber || null, whatsapp_bsp: waBsp, whatsapp_api_key: waApiKey || null, updated_at: new Date().toISOString() })
+      .update({ whatsapp_number: waNumber || null, whatsapp_bsp: 'meta', whatsapp_api_key: waApiKey || null, updated_at: new Date().toISOString() })
       .eq('id', store.id)
     setSavingWA(false)
     if (error) { showToast('Failed to save settings', false); return }
@@ -315,24 +305,7 @@ function SettingsInner() {
     }
   }
 
-  async function createMockStore() {
-    if (!mockStoreName.trim()) return
-    setCreatingMock(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setCreatingMock(false); return }
-    const { data: s, error } = await supabase
-      .from('stores')
-      .insert({ user_id: user.id, shop_name: mockStoreName.trim(), is_active: true, whatsapp_bsp: 'mock', plan: 'starter' })
-      .select('*').single()
-    setCreatingMock(false)
-    if (error) { showToast('Failed to create store: ' + error.message, false); return }
-    setStore(s)
-    setStoreNameEdit(s.shop_name ?? '')
-    await supabase.rpc('create_default_automations', { p_store_id: s.id })
-    showToast('Store created! Default automations are ready.')
-  }
-
-  // ── WhatsApp test message ─────────────────────────────────────────────────────
+// ── WhatsApp test message ─────────────────────────────────────────────────────
   async function sendTestWhatsApp() {
     if (!testPhone.trim()) return
     setSendingTest(true)
@@ -447,7 +420,6 @@ function SettingsInner() {
       setWaDisplayPhone('')
       setWaTokenType(null)
       setShowSysUserGuide(false)
-      setWaBsp('mock')
       showToast('WhatsApp disconnected')
       await loadData()
     } else {
@@ -728,25 +700,6 @@ function SettingsInner() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 text-slate-400 text-xs">
-              <div className="flex-1 h-px bg-slate-200" /> or test without Shopify <div className="flex-1 h-px bg-slate-200" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Create a test store</label>
-              <div className="flex gap-2">
-                <input value={mockStoreName} onChange={e => setMockStoreName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && createMockStore()}
-                  placeholder="My Store"
-                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-                <button onClick={createMockStore} disabled={creatingMock || !mockStoreName.trim()}
-                  className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">
-                  {creatingMock ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
-                </button>
-              </div>
-              <p className="text-slate-400 text-xs mt-1.5">Messages are logged, not sent to real phones.</p>
-            </div>
-
             <button onClick={() => setShowGuide(v => !v)}
               className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
               <Info className="w-3.5 h-3.5" />
@@ -966,57 +919,6 @@ function SettingsInner() {
                 )}
               </div>
 
-              {/* Divider */}
-              <div className="flex items-center gap-3 text-slate-400 text-xs mb-4">
-                <div className="flex-1 h-px bg-slate-200" /> or connect via a BSP <div className="flex-1 h-px bg-slate-200" />
-              </div>
-
-              {/* Option 2: BSP (Interakt/Gupshup) */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Message Provider (BSP)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {BSP_OPTIONS.filter(o => o.value !== 'meta').map(opt => (
-                      <button key={opt.value} onClick={() => setWaBsp(opt.value)}
-                        className={cn('text-left p-3 rounded-xl border-2 transition',
-                          waBsp === opt.value ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
-                        <p className={cn('text-sm font-medium', waBsp === opt.value ? 'text-[#25D366]' : 'text-slate-700')}>{opt.label}</p>
-                        <p className="text-slate-400 text-xs mt-0.5">{opt.desc}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">WhatsApp Phone Number</label>
-                  <input value={waNumber} onChange={e => setWaNumber(e.target.value)} placeholder="+91 98765 43210"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-                </div>
-
-                {waBsp !== 'mock' && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      {waBsp === 'interakt' ? 'Interakt API Key' : 'Gupshup API Key'}
-                    </label>
-                    <input type="password" value={waApiKey} onChange={e => setWaApiKey(e.target.value)}
-                      placeholder={waBsp === 'interakt' ? 'From Interakt → Settings → Developer' : 'From Gupshup → Partner Portal'}
-                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-                  </div>
-                )}
-
-                {waBsp === 'mock' && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
-                    <Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-amber-700 text-xs">Mock mode — messages are logged but not sent to real phones. Use for testing only.</p>
-                  </div>
-                )}
-
-                <button onClick={saveWhatsApp} disabled={savingWA || !store}
-                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">
-                  {savingWA ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : <><Save className="w-3.5 h-3.5" /> Save Settings</>}
-                </button>
-                {!store && <p className="text-slate-400 text-xs flex items-center gap-1"><Info className="w-3 h-3" /> Connect your store first.</p>}
-              </div>
             </section>
           )}
 

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
   FileText, ShoppingBag, BarChart2, UserCheck, Code2,
-  CreditCard, Settings, LogOut, MessageCircle, Store,
+  Settings, LogOut, MessageCircle, Store,
   ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,7 +25,6 @@ const NAV = [
 const NAV_BOTTOM = [
   { href: '/dashboard/team',        icon: UserCheck,       label: 'Team'        },
   { href: '/dashboard/developer',   icon: Code2,           label: 'Developer'   },
-  { href: '/dashboard/billing',     icon: CreditCard,      label: 'Billing'     },
   { href: '/dashboard/settings',    icon: Settings,        label: 'Settings'    },
 ]
 
