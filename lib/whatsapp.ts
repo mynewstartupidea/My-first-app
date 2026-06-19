@@ -231,9 +231,20 @@ export async function subscribeWABAWebhooks(wabaId: string, token: string): Prom
 
 // ─── Typed result for exchangeMetaCode ───────────────────────────────────────
 
+export interface MetaDebugInfo {
+  granted_scopes:                   string[]
+  has_business_management:          boolean
+  has_whatsapp_business_management: boolean
+  has_whatsapp_business_messaging:  boolean
+  businesses_returned:              number
+  business_ids:                     string[]
+  waba_counts:                      Record<string, number>   // bizId → waba count
+  config_id_env:                    string | undefined
+}
+
 export type MetaExchangeResult =
-  | { ok: true;  info: MetaWABAInfo }
-  | { ok: false; error: string; step: 'config' | 'token_exchange' | 'business_lookup' | 'waba_lookup' | 'phone_lookup' }
+  | { ok: true;  info: MetaWABAInfo; debug: MetaDebugInfo }
+  | { ok: false; error: string; step: 'config' | 'token_exchange' | 'business_lookup' | 'waba_lookup' | 'phone_lookup'; debug?: MetaDebugInfo }
 
 // Exchange an OAuth/Embedded-Signup code for a WABA + phone number.
 // redirectUri: include for redirect-based OAuth; omit for FB JS SDK popup flow.
@@ -263,41 +274,80 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
 
   const userToken = tokenData.access_token
 
-  // ── Step 1b: verify granted scopes ───────────────────────────────────────
-  // This tells us exactly what permissions Meta gave the token so we can
-  // catch missing whatsapp_business_management before making downstream calls.
+  // ── Step 1b: verify ALL required scopes ──────────────────────────────────
+  // business_management is required for /me/businesses.
+  // Without it Meta returns {"data":[]} silently — no error, just empty.
+  // whatsapp_business_management + whatsapp_business_messaging required for WABA calls.
   const permRes  = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${userToken}`)
   const permData = await permRes.json() as { data?: { permission: string; status: string }[] }
-  const granted  = (permData.data ?? []).filter(p => p.status === 'granted').map(p => p.permission)
-  console.log('[Meta] granted scopes:', granted.join(', ') || '(none)')
+  const allPerms = permData.data ?? []
+  const granted  = allPerms.filter(p => p.status === 'granted').map(p => p.permission)
+  const declined = allPerms.filter(p => p.status === 'declined').map(p => p.permission)
 
-  const needsWaBizMgmt = granted.length > 0 && !granted.includes('whatsapp_business_management')
-  const needsWaMsg     = granted.length > 0 && !granted.includes('whatsapp_business_messaging')
-  if (needsWaBizMgmt || needsWaMsg) {
-    const missing = [needsWaBizMgmt && 'whatsapp_business_management', needsWaMsg && 'whatsapp_business_messaging'].filter(Boolean).join(', ')
-    console.error('[Meta] missing required scopes:', missing)
-    return {
-      ok: false,
-      error: `Missing required permissions: ${missing}. Your Meta app's Embedded Signup config_id must include these scopes. Check Meta App Dashboard → WhatsApp → Embedded Signup → Edit configuration.`,
-      step: 'token_exchange',
+  console.log('[Meta] granted scopes:', granted.join(', ') || '(none)')
+  console.log('[Meta] declined scopes:', declined.join(', ') || '(none)')
+  console.log('[Meta] NEXT_PUBLIC_META_CONFIG_ID:', process.env.NEXT_PUBLIC_META_CONFIG_ID ?? '(not set)')
+
+  const hasBizMgmt   = granted.includes('business_management')
+  const hasWaBizMgmt = granted.includes('whatsapp_business_management')
+  const hasWaMsg     = granted.includes('whatsapp_business_messaging')
+
+  const debug: MetaDebugInfo = {
+    granted_scopes:                   granted,
+    has_business_management:          hasBizMgmt,
+    has_whatsapp_business_management: hasWaBizMgmt,
+    has_whatsapp_business_messaging:  hasWaMsg,
+    businesses_returned:              0,
+    business_ids:                     [],
+    waba_counts:                      {},
+    config_id_env:                    process.env.NEXT_PUBLIC_META_CONFIG_ID,
+  }
+
+  // Fail fast if scopes are missing — give a precise diagnosis
+  if (granted.length > 0) {
+    const missing: string[] = []
+    if (!hasBizMgmt)   missing.push('business_management')
+    if (!hasWaBizMgmt) missing.push('whatsapp_business_management')
+    if (!hasWaMsg)     missing.push('whatsapp_business_messaging')
+
+    if (missing.length > 0) {
+      console.error('[Meta] missing required scopes:', missing.join(', '))
+      const fix = missing.includes('business_management')
+        ? 'The config_id is missing the "business_management" scope — this is why /me/businesses returns empty even when the Facebook account has Business Portfolios. Go to Meta App Dashboard → WhatsApp → Embedded Signup → Edit your configuration and add: business_management, whatsapp_business_management, whatsapp_business_messaging.'
+        : `Missing: ${missing.join(', ')}. Go to Meta App Dashboard → WhatsApp → Embedded Signup → Edit configuration and add the missing scopes.`
+      return { ok: false, error: fix, step: 'token_exchange', debug }
     }
   }
 
   // ── Step 2: get business portfolios ──────────────────────────────────────
   const bizRes  = await fetch(`https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`)
-  const bizData = await bizRes.json() as { data?: { id: string; name: string }[]; error?: { message: string } }
+  const bizData = await bizRes.json() as { data?: { id: string; name: string }[]; error?: { message: string; code?: number } }
+  const businesses = bizData.data ?? []
 
-  console.log('[Meta] /me/businesses status:', bizRes.status, `count=${bizData.data?.length ?? 0}`, bizData.error ?? '')
+  debug.businesses_returned = businesses.length
+  debug.business_ids        = businesses.map(b => b.id)
 
-  if (!bizData.data?.length) {
-    const msg = bizData.error?.message
-      ? `Graph API error: ${bizData.error.message}`
-      : 'No Business Portfolio found on this Facebook account. Create one at business.facebook.com first.'
-    return { ok: false, error: msg, step: 'business_lookup' }
+  console.log('[Meta] /me/businesses status:', bizRes.status,
+    `count=${businesses.length}`,
+    businesses.map(b => `${b.id}(${b.name})`).join(', ') || '(empty)',
+    bizData.error ?? '')
+
+  if (!businesses.length) {
+    // Diagnose WHY — distinguish missing scope from truly no business
+    let reason: string
+    if (bizData.error) {
+      reason = `Meta API error (code ${bizData.error.code ?? '?'}): ${bizData.error.message}`
+    } else if (!hasBizMgmt) {
+      reason = 'Token is missing the "business_management" scope. Meta returns empty data silently when this scope is absent — even if the Facebook account has Business Portfolios. Fix: add "business_management" to your Embedded Signup config_id in Meta App Dashboard → WhatsApp → Embedded Signup.'
+    } else {
+      reason = 'Token has business_management scope but Meta returned 0 businesses. The Facebook account may not be an admin of any Business Portfolio, or the Business Portfolio may be restricted. Check business.facebook.com.'
+    }
+    console.error('[Meta] /me/businesses empty —', reason)
+    return { ok: false, error: reason, step: 'business_lookup', debug }
   }
 
   // ── Step 3: find WABA across all business portfolios ─────────────────────
-  for (const biz of bizData.data) {
+  for (const biz of businesses) {
     const wabaRes  = await fetch(
       `https://graph.facebook.com/v21.0/${biz.id}/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}&access_token=${userToken}`
     )
@@ -305,48 +355,50 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
       data?: { id: string; name: string; phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }[]
       error?: { message: string }
     }
+    const wabas = wabaData.data ?? []
+    debug.waba_counts[biz.id] = wabas.length
 
-    console.log(`[Meta] business ${biz.id} (${biz.name}) whatsapp_business_accounts:`, wabaRes.status, `count=${wabaData.data?.length ?? 0}`, wabaData.error ?? '')
+    console.log(`[Meta] business ${biz.id} (${biz.name}) → whatsapp_business_accounts: HTTP ${wabaRes.status} count=${wabas.length}`, wabaData.error ?? '')
 
-    if (!wabaData.data?.length) continue
+    for (const waba of wabas) {
+      const phone = waba.phone_numbers?.data?.[0]
+      console.log(`[Meta] WABA ${waba.id} (${waba.name}) phone_numbers count=${waba.phone_numbers?.data?.length ?? 0}`)
 
-    const waba  = wabaData.data[0]
-    const phone = waba.phone_numbers?.data?.[0]
+      if (!phone) {
+        console.warn(`[Meta] WABA ${waba.id} has no phone numbers — skipping`)
+        continue
+      }
 
-    console.log(`[Meta] WABA ${waba.id} phone_numbers count=${waba.phone_numbers?.data?.length ?? 0}`)
-
-    if (!phone) {
-      console.warn(`[Meta] WABA ${waba.id} has no phone numbers`)
-      continue
+      console.log(`[Meta] resolved → bizId=${biz.id} wabaId=${waba.id} phoneId=${phone.id} number=${phone.display_phone_number}`)
+      return {
+        ok: true,
+        info: {
+          wabaId:             waba.id,
+          phoneNumberId:      phone.id,
+          displayPhoneNumber: phone.display_phone_number,
+          businessId:         biz.id,
+          accessToken:        userToken,
+        },
+        debug,
+      }
     }
+  }
 
-    console.log(`[Meta] resolved → bizId=${biz.id} wabaId=${waba.id} phoneId=${phone.id} number=${phone.display_phone_number}`)
-
+  // Went through all businesses — WABAs found but no phone numbers
+  const totalWabas = Object.values(debug.waba_counts).reduce((a, b) => a + b, 0)
+  if (totalWabas > 0) {
     return {
-      ok: true,
-      info: {
-        wabaId:             waba.id,
-        phoneNumberId:      phone.id,
-        displayPhoneNumber: phone.display_phone_number,
-        businessId:         biz.id,
-        accessToken:        userToken,
-      },
+      ok:    false,
+      error: `WhatsApp Business Account found (${totalWabas} WABA across ${businesses.length} portfolio(s)) but no phone number is registered. Add a phone number in Meta Business Manager → WhatsApp → Phone Numbers.`,
+      step:  'phone_lookup',
+      debug,
     }
   }
 
-  // Went through all businesses — found WABAs but no phone numbers
-  const anyWaba = await (async () => {
-    for (const biz of bizData.data ?? []) {
-      const r = await fetch(`https://graph.facebook.com/v21.0/${biz.id}/whatsapp_business_accounts?access_token=${userToken}`)
-      const d = await r.json() as { data?: unknown[] }
-      if (d.data?.length) return true
-    }
-    return false
-  })()
-
-  if (anyWaba) {
-    return { ok: false, error: 'WhatsApp Business Account found but no phone number is registered. Add a phone number in Meta Business Manager → WhatsApp → Phone Numbers.', step: 'phone_lookup' }
+  return {
+    ok:    false,
+    error: `No WhatsApp Business Account found across ${businesses.length} Business Portfolio(s) (IDs: ${debug.business_ids.join(', ')}). Complete WhatsApp setup in Meta Business Manager → WhatsApp Manager.`,
+    step:  'waba_lookup',
+    debug,
   }
-
-  return { ok: false, error: 'No WhatsApp Business Account found. Complete WhatsApp setup in Meta Business Manager → WhatsApp Manager.', step: 'waba_lookup' }
 }

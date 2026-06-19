@@ -392,8 +392,24 @@ function SettingsInner() {
         body:    JSON.stringify({ code }),
       })
         .then(r => r.json())
-        .then((data: { ok: boolean; phone?: string; error?: string }) => {
-          console.log('[Wapaci] callback response:', data)
+        .then((data: { ok: boolean; phone?: string; error?: string; debug?: Record<string, unknown> }) => {
+          // Always log the full debug payload so it's visible in browser console
+          console.group('[Wapaci] Meta callback result')
+          console.log('ok:', data.ok)
+          console.log('phone:', data.phone ?? '(none)')
+          console.log('error:', data.error ?? '(none)')
+          if (data.debug) {
+            console.log('granted_scopes:', data.debug.granted_scopes)
+            console.log('has_business_management:', data.debug.has_business_management)
+            console.log('has_whatsapp_business_management:', data.debug.has_whatsapp_business_management)
+            console.log('has_whatsapp_business_messaging:', data.debug.has_whatsapp_business_messaging)
+            console.log('businesses_returned:', data.debug.businesses_returned)
+            console.log('business_ids:', data.debug.business_ids)
+            console.log('waba_counts:', data.debug.waba_counts)
+            console.log('config_id_env:', data.debug.config_id_env)
+          }
+          console.groupEnd()
+
           if (data.ok) {
             showToast(`WhatsApp connected! ${data.phone ? `Number: ${data.phone}` : ''}`)
             loadData()

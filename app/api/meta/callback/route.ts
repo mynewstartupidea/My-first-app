@@ -6,21 +6,27 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { assignSystemUserToWABA, exchangeMetaCode, subscribeWABAWebhooks } from '@/lib/whatsapp'
+import type { MetaDebugInfo } from '@/lib/whatsapp'
 
 // ─── Shared processing ────────────────────────────────────────────────────────
+
+type ProcessResult =
+  | { ok: true;  phone: string; debug: MetaDebugInfo }
+  | { ok: false; error: string; debug?: MetaDebugInfo }
 
 async function processMetaCode(
   code: string,
   redirectUri: string | undefined,
   userId: string,
-): Promise<{ ok: true; phone: string } | { ok: false; error: string }> {
+): Promise<ProcessResult> {
   console.log(`[Meta callback] processing code, redirectUri=${redirectUri ?? 'none (SDK flow)'}`)
 
   const result = await exchangeMetaCode(code, redirectUri)
 
   if (!result.ok) {
     console.error(`[Meta callback] exchangeMetaCode failed at step="${result.step}": ${result.error}`)
-    return { ok: false, error: result.error }
+    console.error('[Meta callback] debug:', JSON.stringify(result.debug ?? {}))
+    return { ok: false, error: result.error, debug: result.debug }
   }
 
   const { info } = result
@@ -78,7 +84,7 @@ async function processMetaCode(
   }
 
   console.log(`[Meta callback] done — token_type=${tokenType} storeUpdated=${!!store}`)
-  return { ok: true, phone: info.displayPhoneNumber }
+  return { ok: true, phone: info.displayPhoneNumber, debug: result.debug }
 }
 
 // ─── POST — FB JS SDK Embedded Signup flow ────────────────────────────────────
