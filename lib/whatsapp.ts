@@ -359,49 +359,88 @@ export async function exchangeMetaCode(
     }
   }
 
-  console.log('[Meta] no sessionInfo — falling back to /me/businesses lookup')
+  console.log('[Meta] no sessionInfo — falling back to API lookup')
 
-  // Fail fast if scopes are missing in the fallback path
-  if (granted.length > 0) {
-    const missing: string[] = []
-    if (!hasBizMgmt)   missing.push('business_management')
-    if (!hasWaBizMgmt) missing.push('whatsapp_business_management')
-    if (!hasWaMsg)     missing.push('whatsapp_business_messaging')
-
-    if (missing.length > 0) {
-      console.error('[Meta] missing required scopes:', missing.join(', '))
-      const fix = missing.includes('business_management')
-        ? 'business_management scope is missing. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → reconnect to get a fresh token.'
-        : `Missing scopes: ${missing.join(', ')}. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → reconnect to get a fresh token.`
-      return { ok: false, error: fix, step: 'token_exchange', debug }
+  // Only fail fast on the two scopes actually needed for WhatsApp messaging.
+  // business_management is NOT a hard requirement here — we try /me/businesses
+  // opportunistically and fall back to /me/owned_whatsapp_business_accounts.
+  if (granted.length > 0 && (!hasWaBizMgmt || !hasWaMsg)) {
+    const missing = [
+      !hasWaBizMgmt && 'whatsapp_business_management',
+      !hasWaMsg     && 'whatsapp_business_messaging',
+    ].filter(Boolean) as string[]
+    console.error('[Meta] missing core WA scopes:', missing.join(', '))
+    return {
+      ok:    false,
+      error: `WhatsApp permissions not granted: ${missing.join(', ')}. Make sure your Embedded Signup configuration includes all three scopes and try connecting again.`,
+      step:  'token_exchange',
+      debug,
     }
   }
 
-  // ── Step 2: get business portfolios (fallback when sessionInfo absent) ────
+  // ── Step 2a: try /me/businesses (works when business_management is granted) ─
   const bizRes     = await fetch(`https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`)
   const bizRawJson = await bizRes.text()
   console.log('[Meta] /me/businesses HTTP:', bizRes.status)
-  console.log('[Meta] /me/businesses raw:', bizRawJson)   // full unfiltered response
+  console.log('[Meta] /me/businesses raw:', bizRawJson)
 
   let bizData: { data?: { id: string; name: string }[]; error?: { message: string; code?: number } } = {}
   try { bizData = JSON.parse(bizRawJson) } catch { /* leave empty */ }
-  const businesses = bizData.data ?? []
+  let businesses = bizData.data ?? []
 
   debug.businesses_returned = businesses.length
   debug.business_ids        = businesses.map(b => b.id)
 
   console.log('[Meta] /me/businesses count:', businesses.length, '— IDs:', businesses.map(b => b.id).join(', ') || '(none)')
 
+  // ── Step 2b: if /me/businesses empty (business_management missing), try owned WABAs ─
+  // /me/owned_whatsapp_business_accounts only needs whatsapp_business_management
+  if (!businesses.length && !bizData.error) {
+    console.log('[Meta] /me/businesses empty — trying /me/owned_whatsapp_business_accounts')
+    const ownedRes  = await fetch(
+      `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}&access_token=${userToken}`
+    )
+    const ownedRaw  = await ownedRes.text()
+    console.log('[Meta] /me/owned_whatsapp_business_accounts HTTP:', ownedRes.status)
+    console.log('[Meta] /me/owned_whatsapp_business_accounts raw:', ownedRaw)
+
+    let ownedData: { data?: { id: string; name: string; phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }[] } = {}
+    try { ownedData = JSON.parse(ownedRaw) } catch { /* leave empty */ }
+
+    if (ownedData.data?.length) {
+      // Normalise to the same shape as the businesses path: each owned WABA is directly a WABA
+      for (const waba of ownedData.data) {
+        const phone = waba.phone_numbers?.data?.[0]
+        if (!phone) continue
+        console.log(`[Meta] owned_waba fast path → wabaId=${waba.id} phoneId=${phone.id} number=${phone.display_phone_number}`)
+        debug.businesses_returned = 1
+        debug.business_ids        = [waba.id]
+        debug.waba_counts         = { [waba.id]: 1 }
+        return {
+          ok:   true,
+          info: {
+            wabaId:             waba.id,
+            phoneNumberId:      phone.id,
+            displayPhoneNumber: phone.display_phone_number,
+            businessId:         waba.id,   // best we have without business_management
+            accessToken:        userToken,
+          },
+          debug,
+        }
+      }
+    }
+  }
+
   if (!businesses.length) {
     let reason: string
     if (bizData.error) {
       reason = `Meta API error (code ${bizData.error.code ?? '?'}): ${bizData.error.message}`
     } else if (!hasBizMgmt) {
-      reason = 'business_management scope missing — Meta returns empty {"data":[]} silently without it. Facebook cached your previous authorization; go to facebook.com → Settings → Business Integrations → Remove the Wapaci app, then reconnect.'
+      reason = 'Could not find your WhatsApp Business Account. The connection completed on Meta\'s side but our app could not retrieve your WABA. Please disconnect and reconnect — if the issue persists, try a different browser or check that your Facebook account is an admin of the Business Portfolio.'
     } else {
-      reason = `Token has business_management scope but Meta returned 0 businesses (raw: ${bizRawJson}). The logged-in Facebook account may not be an admin of any Business Portfolio, or the portfolio is restricted. Check business.facebook.com.`
+      reason = `No Business Portfolio found. The Facebook account used during signup may not be an admin of any Business Portfolio. Check business.facebook.com with the same account.`
     }
-    console.error('[Meta] /me/businesses empty —', reason)
+    console.error('[Meta] could not find WABA —', reason)
     return { ok: false, error: reason, step: 'business_lookup', debug }
   }
 

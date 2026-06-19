@@ -434,17 +434,12 @@ function SettingsInner() {
           console.groupEnd()
 
           if (data.ok) {
+            setScopeError(null)
             showToast(`WhatsApp connected! ${data.phone ? `Number: ${data.phone}` : ''}`)
             loadData()
           } else {
             const errMsg = data.error ?? 'Could not connect WhatsApp'
-            // Stale OAuth grant: business_management scope was added to config after first auth.
-            // Facebook reuses cached grants — user must revoke the app and re-authorize.
-            if (errMsg.toLowerCase().includes('business_management') || errMsg.toLowerCase().includes('business portfolio')) {
-              setScopeError(errMsg)
-            } else {
-              showToast(errMsg, false)
-            }
+            setScopeError(errMsg)
           }
         })
         .catch((err: unknown) => {
@@ -938,24 +933,14 @@ function SettingsInner() {
                   <div className="space-y-3">
                     {scopeError && (
                       <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm">
-                        <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
                           <div className="flex items-center gap-1.5">
                             <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                            <p className="font-semibold text-red-800">Permission missing: business_management</p>
+                            <p className="font-semibold text-red-800">Connection failed</p>
                           </div>
                           <button onClick={() => setScopeError(null)} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">Dismiss</button>
                         </div>
-                        <p className="text-red-700 text-xs leading-relaxed mb-3">
-                          Facebook cached your previous authorization (before this scope was added). Simply reconnecting won&apos;t fix it — you must revoke the app first so Facebook re-asks for all permissions.
-                        </p>
-                        <div className="bg-white border border-red-200 rounded-lg p-3 space-y-1.5 text-xs text-red-800">
-                          <p className="font-semibold">Steps to fix:</p>
-                          <ol className="list-decimal list-inside space-y-1 text-red-700">
-                            <li>Go to <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-red-900">facebook.com → Settings → Business Integrations</a></li>
-                            <li>Find <strong>Wapaci</strong> (or your Meta app name) → click <strong>Remove</strong></li>
-                            <li>Come back here and click <strong>Connect via Meta</strong> — Facebook will now show the full permission dialog</li>
-                          </ol>
-                        </div>
+                        <p className="text-red-700 text-xs leading-relaxed">{scopeError}</p>
                       </div>
                     )}
                     <button
