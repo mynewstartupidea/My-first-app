@@ -45,7 +45,7 @@ async function sendViaMeta({ to, message, apiKey, phoneNumberId }: SendMessagePa
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+      `https://graph.facebook.com/v21.0/${phoneId}/messages`,
       {
         method: 'POST',
         headers: {
@@ -176,12 +176,15 @@ export interface MetaWABAInfo {
 // On success, Wapaci's System User token can be used to send on behalf of this WABA permanently.
 export async function assignSystemUserToWABA(wabaId: string, userToken: string): Promise<boolean> {
   const systemUserId = process.env.META_SYSTEM_USER_ID
-  if (!systemUserId) return false
+  if (!systemUserId) {
+    console.warn('[Meta] META_SYSTEM_USER_ID not set — skipping system user assignment. Merchant token will expire in 60 days. Set this env var to use permanent system user tokens.')
+    return false
+  }
 
   try {
     // Meta Graph API requires access_token as a query param for this endpoint —
     // it does NOT parse it from the JSON body.
-    const url = new URL(`https://graph.facebook.com/v20.0/${wabaId}/assigned_users`)
+    const url = new URL(`https://graph.facebook.com/v21.0/${wabaId}/assigned_users`)
     url.searchParams.set('access_token', userToken)
 
     const res = await fetch(url.toString(), {
@@ -210,7 +213,7 @@ export async function assignSystemUserToWABA(wabaId: string, userToken: string):
 export async function subscribeWABAWebhooks(wabaId: string, token: string): Promise<boolean> {
   try {
     // No body required for basic subscription — uses app's registered webhook URL.
-    const res = await fetch(`https://graph.facebook.com/v20.0/${wabaId}/subscribed_apps`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -247,7 +250,7 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
   const tokenParams = new URLSearchParams({ client_id: appId, client_secret: appSecret, code })
   if (redirectUri) tokenParams.set('redirect_uri', redirectUri)
 
-  const tokenRes  = await fetch(`https://graph.facebook.com/v20.0/oauth/access_token?${tokenParams}`)
+  const tokenRes  = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?${tokenParams}`)
   const tokenData = await tokenRes.json() as { access_token?: string; error?: { message: string; code?: number; type?: string } }
 
   console.log('[Meta] token exchange status:', tokenRes.status, tokenData.error ?? 'OK')
@@ -260,8 +263,28 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
 
   const userToken = tokenData.access_token
 
+  // ── Step 1b: verify granted scopes ───────────────────────────────────────
+  // This tells us exactly what permissions Meta gave the token so we can
+  // catch missing whatsapp_business_management before making downstream calls.
+  const permRes  = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${userToken}`)
+  const permData = await permRes.json() as { data?: { permission: string; status: string }[] }
+  const granted  = (permData.data ?? []).filter(p => p.status === 'granted').map(p => p.permission)
+  console.log('[Meta] granted scopes:', granted.join(', ') || '(none)')
+
+  const needsWaBizMgmt = granted.length > 0 && !granted.includes('whatsapp_business_management')
+  const needsWaMsg     = granted.length > 0 && !granted.includes('whatsapp_business_messaging')
+  if (needsWaBizMgmt || needsWaMsg) {
+    const missing = [needsWaBizMgmt && 'whatsapp_business_management', needsWaMsg && 'whatsapp_business_messaging'].filter(Boolean).join(', ')
+    console.error('[Meta] missing required scopes:', missing)
+    return {
+      ok: false,
+      error: `Missing required permissions: ${missing}. Your Meta app's Embedded Signup config_id must include these scopes. Check Meta App Dashboard → WhatsApp → Embedded Signup → Edit configuration.`,
+      step: 'token_exchange',
+    }
+  }
+
   // ── Step 2: get business portfolios ──────────────────────────────────────
-  const bizRes  = await fetch(`https://graph.facebook.com/v20.0/me/businesses?fields=id,name&access_token=${userToken}`)
+  const bizRes  = await fetch(`https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`)
   const bizData = await bizRes.json() as { data?: { id: string; name: string }[]; error?: { message: string } }
 
   console.log('[Meta] /me/businesses status:', bizRes.status, `count=${bizData.data?.length ?? 0}`, bizData.error ?? '')
@@ -275,9 +298,8 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
 
   // ── Step 3: find WABA across all business portfolios ─────────────────────
   for (const biz of bizData.data) {
-    // Use whatsapp_business_accounts (correct for Embedded Signup + standard)
     const wabaRes  = await fetch(
-      `https://graph.facebook.com/v20.0/${biz.id}/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}&access_token=${userToken}`
+      `https://graph.facebook.com/v21.0/${biz.id}/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}&access_token=${userToken}`
     )
     const wabaData = await wabaRes.json() as {
       data?: { id: string; name: string; phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }[]
@@ -294,7 +316,6 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
     console.log(`[Meta] WABA ${waba.id} phone_numbers count=${waba.phone_numbers?.data?.length ?? 0}`)
 
     if (!phone) {
-      // Found WABA but no phone — log and continue looking
       console.warn(`[Meta] WABA ${waba.id} has no phone numbers`)
       continue
     }
@@ -313,10 +334,10 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
     }
   }
 
-  // Went through all businesses and found WABAs but no phone numbers
+  // Went through all businesses — found WABAs but no phone numbers
   const anyWaba = await (async () => {
     for (const biz of bizData.data ?? []) {
-      const r = await fetch(`https://graph.facebook.com/v20.0/${biz.id}/whatsapp_business_accounts?access_token=${userToken}`)
+      const r = await fetch(`https://graph.facebook.com/v21.0/${biz.id}/whatsapp_business_accounts?access_token=${userToken}`)
       const d = await r.json() as { data?: unknown[] }
       if (d.data?.length) return true
     }
