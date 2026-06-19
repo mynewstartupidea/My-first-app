@@ -104,6 +104,7 @@ function SettingsInner() {
   const [manualPhoneId, setManualPhoneId]     = useState('')
   const [manualToken, setManualToken]         = useState('')
   const [savingManual, setSavingManual]       = useState(false)
+  const [connectDebug, setConnectDebug]       = useState<Record<string, unknown> | null>(null)
 
   // Account
   const [userEmail, setUserEmail]             = useState('')
@@ -442,31 +443,30 @@ function SettingsInner() {
         }),
       })
         .then(r => r.json())
-        .then((data: { ok: boolean; phone?: string; error?: string; debug?: Record<string, unknown> }) => {
-          // Always log the full debug payload so it's visible in browser console
+        .then((data: { ok: boolean; phone?: string; error?: string; debug?: Record<string, unknown>; rawAuthResponseKeys?: string[]; rawAuthResponse?: Record<string, unknown> }) => {
           console.group('[Wapaci] Meta callback result')
           console.log('ok:', data.ok)
-          console.log('phone:', data.phone ?? '(none)')
           console.log('error:', data.error ?? '(none)')
-          if (data.debug) {
-            console.log('granted_scopes:', data.debug.granted_scopes)
-            console.log('has_business_management:', data.debug.has_business_management)
-            console.log('has_whatsapp_business_management:', data.debug.has_whatsapp_business_management)
-            console.log('has_whatsapp_business_messaging:', data.debug.has_whatsapp_business_messaging)
-            console.log('businesses_returned:', data.debug.businesses_returned)
-            console.log('business_ids:', data.debug.business_ids)
-            console.log('waba_counts:', data.debug.waba_counts)
-            console.log('config_id_env:', data.debug.config_id_env)
-          }
+          console.log('rawAuthResponseKeys:', data.rawAuthResponseKeys)
+          console.log('rawAuthResponse:', data.rawAuthResponse)
+          console.log('debug:', data.debug)
           console.groupEnd()
 
           if (data.ok) {
             setScopeError(null)
+            setConnectDebug(null)
             showToast(`WhatsApp connected! ${data.phone ? `Number: ${data.phone}` : ''}`)
             loadData()
           } else {
             const errMsg = data.error ?? 'Could not connect WhatsApp'
             setScopeError(errMsg)
+            setConnectDebug({
+              rawAuthResponseKeys: data.rawAuthResponseKeys ?? [],
+              rawAuthResponse:     data.rawAuthResponse ?? {},
+              granted_scopes:      data.debug?.granted_scopes ?? [],
+              businesses_returned: data.debug?.businesses_returned ?? 0,
+              sessionInfo_sent:    !!(sessionInfo),
+            })
           }
         })
         .catch((err: unknown) => {
@@ -986,9 +986,19 @@ function SettingsInner() {
                             <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
                             <p className="font-semibold text-red-800">Auto-connect failed</p>
                           </div>
-                          <button onClick={() => { setScopeError(null); setShowManual(false) }} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">Dismiss</button>
+                          <button onClick={() => { setScopeError(null); setShowManual(false); setConnectDebug(null) }} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">Dismiss</button>
                         </div>
                         <p className="text-red-700 text-xs leading-relaxed">{scopeError}</p>
+
+                        {connectDebug && (
+                          <details className="text-[10px] text-slate-500">
+                            <summary className="cursor-pointer text-slate-400 hover:text-slate-600 select-none">Show debug info (share this screenshot if asked)</summary>
+                            <pre className="mt-2 bg-white border border-slate-200 rounded-lg p-2 overflow-x-auto text-[9px] leading-relaxed whitespace-pre-wrap break-all">
+                              {JSON.stringify(connectDebug, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+
                         <button
                           onClick={() => setShowManual(v => !v)}
                           className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"

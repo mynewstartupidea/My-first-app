@@ -12,13 +12,15 @@ import type { MetaDebugInfo, MetaSessionInfo } from '@/lib/whatsapp'
 
 type ProcessResult =
   | { ok: true;  phone: string; debug: MetaDebugInfo }
-  | { ok: false; error: string; debug?: MetaDebugInfo }
+  | { ok: false; error: string; debug?: MetaDebugInfo; rawAuthResponseKeys?: string[]; rawAuthResponse?: Record<string, unknown> }
 
 async function processMetaCode(
   code: string,
   redirectUri: string | undefined,
   userId: string,
   sessionInfo?: MetaSessionInfo,
+  rawAuthResponseKeys?: string[],
+  rawAuthResponse?: Record<string, unknown>,
 ): Promise<ProcessResult> {
   console.log(`[Meta callback] processing code, redirectUri=${redirectUri ?? 'none (SDK flow)'}, sessionInfo=${sessionInfo?.wabaID ? `wabaID=${sessionInfo.wabaID}` : 'absent'}`)
 
@@ -27,7 +29,13 @@ async function processMetaCode(
   if (!result.ok) {
     console.error(`[Meta callback] exchangeMetaCode failed at step="${result.step}": ${result.error}`)
     console.error('[Meta callback] debug:', JSON.stringify(result.debug ?? {}))
-    return { ok: false, error: result.error, debug: result.debug }
+    return {
+      ok:    false,
+      error: result.error,
+      debug: result.debug,
+      rawAuthResponseKeys,
+      rawAuthResponse,
+    }
   }
 
   const { info } = result
@@ -109,7 +117,7 @@ export async function POST(request: Request) {
   console.log('[Meta callback] rawAuthResponse:', JSON.stringify(body.rawAuthResponse ?? {}))
   console.log('[Meta callback] sessionInfo received:', JSON.stringify(body.sessionInfo ?? null))
 
-  const result = await processMetaCode(body.code, undefined, user.id, body.sessionInfo)
+  const result = await processMetaCode(body.code, undefined, user.id, body.sessionInfo, body.rawAuthResponseKeys, body.rawAuthResponse)
   return NextResponse.json(result)
 }
 
