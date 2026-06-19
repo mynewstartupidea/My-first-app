@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import Link from 'next/link'
+import WhatsAppStatusBanner from '@/components/whatsapp-status-banner'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -38,6 +39,19 @@ export default async function DashboardPage() {
       }
     } catch { /* non-fatal */ }
   }
+
+  // WhatsApp connection status
+  const { data: waAccount } = await supabase
+    .from('whatsapp_accounts')
+    .select('display_phone_number, token_type, status')
+    .eq('user_id', user.id)
+    .eq('status', 'connected')
+    .maybeSingle()
+
+  const waConnected = !!waAccount
+  const waPhone     = waAccount?.display_phone_number ?? store?.whatsapp_number ?? null
+  // Also consider store.whatsapp_bsp as a fallback for older records
+  const waFallback  = !waConnected && store?.whatsapp_bsp === 'meta' && !!store?.whatsapp_number
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
@@ -140,6 +154,13 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* WhatsApp connection banner */}
+      <WhatsAppStatusBanner
+        connected={waConnected || waFallback}
+        phone={waPhone}
+        tokenType={waAccount?.token_type ?? null}
+      />
 
       {/* Revenue KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
