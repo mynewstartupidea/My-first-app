@@ -275,18 +275,21 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
   const userToken = tokenData.access_token
 
   // ── Step 1b: verify ALL required scopes ──────────────────────────────────
-  // business_management is required for /me/businesses.
-  // Without it Meta returns {"data":[]} silently — no error, just empty.
-  // whatsapp_business_management + whatsapp_business_messaging required for WABA calls.
-  const permRes  = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${userToken}`)
-  const permData = await permRes.json() as { data?: { permission: string; status: string }[] }
+  const permRes     = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${userToken}`)
+  const permRawJson = await permRes.text()
+  console.log('[Meta] /me/permissions HTTP:', permRes.status)
+  console.log('[Meta] /me/permissions raw:', permRawJson)
+
+  let permData: { data?: { permission: string; status: string }[] } = {}
+  try { permData = JSON.parse(permRawJson) } catch { /* leave empty */ }
+
   const allPerms = permData.data ?? []
   const granted  = allPerms.filter(p => p.status === 'granted').map(p => p.permission)
   const declined = allPerms.filter(p => p.status === 'declined').map(p => p.permission)
 
-  console.log('[Meta] granted scopes:', granted.join(', ') || '(none)')
+  console.log('[Meta] granted scopes:', granted.join(', ') || '(none — check raw above)')
   console.log('[Meta] declined scopes:', declined.join(', ') || '(none)')
-  console.log('[Meta] NEXT_PUBLIC_META_CONFIG_ID:', process.env.NEXT_PUBLIC_META_CONFIG_ID ?? '(not set)')
+  console.log('[Meta] config_id (NEXT_PUBLIC_META_CONFIG_ID):', process.env.NEXT_PUBLIC_META_CONFIG_ID ?? '(NOT SET)')
 
   const hasBizMgmt   = granted.includes('business_management')
   const hasWaBizMgmt = granted.includes('whatsapp_business_management')
@@ -320,27 +323,28 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
   }
 
   // ── Step 2: get business portfolios ──────────────────────────────────────
-  const bizRes  = await fetch(`https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`)
-  const bizData = await bizRes.json() as { data?: { id: string; name: string }[]; error?: { message: string; code?: number } }
+  const bizRes     = await fetch(`https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`)
+  const bizRawJson = await bizRes.text()
+  console.log('[Meta] /me/businesses HTTP:', bizRes.status)
+  console.log('[Meta] /me/businesses raw:', bizRawJson)   // full unfiltered response
+
+  let bizData: { data?: { id: string; name: string }[]; error?: { message: string; code?: number } } = {}
+  try { bizData = JSON.parse(bizRawJson) } catch { /* leave empty */ }
   const businesses = bizData.data ?? []
 
   debug.businesses_returned = businesses.length
   debug.business_ids        = businesses.map(b => b.id)
 
-  console.log('[Meta] /me/businesses status:', bizRes.status,
-    `count=${businesses.length}`,
-    businesses.map(b => `${b.id}(${b.name})`).join(', ') || '(empty)',
-    bizData.error ?? '')
+  console.log('[Meta] /me/businesses count:', businesses.length, '— IDs:', businesses.map(b => b.id).join(', ') || '(none)')
 
   if (!businesses.length) {
-    // Diagnose WHY — distinguish missing scope from truly no business
     let reason: string
     if (bizData.error) {
       reason = `Meta API error (code ${bizData.error.code ?? '?'}): ${bizData.error.message}`
     } else if (!hasBizMgmt) {
-      reason = 'Token is missing the "business_management" scope. Meta returns empty data silently when this scope is absent — even if the Facebook account has Business Portfolios. Fix: add "business_management" to your Embedded Signup config_id in Meta App Dashboard → WhatsApp → Embedded Signup.'
+      reason = 'Token is missing the "business_management" scope. Meta returns {"data":[]} silently when this scope is absent — even if the Facebook account has Business Portfolios. Fix: add "business_management" to your Embedded Signup config_id.'
     } else {
-      reason = 'Token has business_management scope but Meta returned 0 businesses. The Facebook account may not be an admin of any Business Portfolio, or the Business Portfolio may be restricted. Check business.facebook.com.'
+      reason = `Token has business_management scope but Meta returned 0 businesses (raw: ${bizRawJson}). The logged-in Facebook account may not be an admin of any Business Portfolio, or the portfolio is restricted. Check business.facebook.com.`
     }
     console.error('[Meta] /me/businesses empty —', reason)
     return { ok: false, error: reason, step: 'business_lookup', debug }
