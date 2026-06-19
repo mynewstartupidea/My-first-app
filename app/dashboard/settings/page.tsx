@@ -99,6 +99,11 @@ function SettingsInner() {
   const [fbReady, setFbReady]                 = useState(false)
   const [connectingMeta, setConnectingMeta]   = useState(false)
   const [scopeError, setScopeError]           = useState<string | null>(null)
+  const [showManual, setShowManual]           = useState(false)
+  const [manualWabaId, setManualWabaId]       = useState('')
+  const [manualPhoneId, setManualPhoneId]     = useState('')
+  const [manualToken, setManualToken]         = useState('')
+  const [savingManual, setSavingManual]       = useState(false)
 
   // Account
   const [userEmail, setUserEmail]             = useState('')
@@ -342,14 +347,10 @@ function SettingsInner() {
     }
 
     // ── Debug: print full SDK config before launching ──────────────────────────
-    // auth_type: 'rerequest' forces Facebook to re-show the permission dialog even if the
-    // user previously authorized the app. Without this, Facebook reuses the cached grant
-    // and new scopes added to config_id are silently skipped.
     const fbLoginOpts = {
       config_id:                      configId,
       response_type:                  'code',
       override_default_response_type: true,
-      auth_type:                      'rerequest',
       extras:                         { sessionInfoVersion: 2 },
     }
     console.group('[Wapaci] Meta Embedded Signup — debug info')
@@ -450,6 +451,27 @@ function SettingsInner() {
           setConnectingMeta(false)
         })
     }, fbLoginOpts)
+  }
+
+  // ── Manual Meta connect fallback ─────────────────────────────────────────────
+  async function saveManualConnect() {
+    if (!manualWabaId.trim() || !manualPhoneId.trim() || !manualToken.trim()) return
+    setSavingManual(true)
+    const res  = await fetch('/api/meta/manual-connect', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ wabaId: manualWabaId.trim(), phoneNumberId: manualPhoneId.trim(), accessToken: manualToken.trim() }),
+    })
+    const data = await res.json() as { ok: boolean; phone?: string; error?: string }
+    setSavingManual(false)
+    if (data.ok) {
+      setScopeError(null)
+      setShowManual(false)
+      showToast(`WhatsApp connected! Number: ${data.phone ?? ''}`)
+      loadData()
+    } else {
+      showToast(data.error ?? 'Manual connect failed', false)
+    }
   }
 
   // ── Disconnect Meta WhatsApp ───────────────────────────────────────────────────
@@ -932,17 +954,62 @@ function SettingsInner() {
                 ) : (
                   <div className="space-y-3">
                     {scopeError && (
-                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm">
-                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm space-y-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                            <p className="font-semibold text-red-800">Connection failed</p>
+                            <p className="font-semibold text-red-800">Auto-connect failed</p>
                           </div>
-                          <button onClick={() => setScopeError(null)} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">Dismiss</button>
+                          <button onClick={() => { setScopeError(null); setShowManual(false) }} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">Dismiss</button>
                         </div>
                         <p className="text-red-700 text-xs leading-relaxed">{scopeError}</p>
+                        <button
+                          onClick={() => setShowManual(v => !v)}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
+                        >
+                          {showManual ? 'Hide manual setup' : 'Try manual setup instead →'}
+                        </button>
                       </div>
                     )}
+
+                    {showManual && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 mb-0.5">Manual WhatsApp Setup</p>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Go to <a href="https://business.facebook.com/wa/manage/home/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">business.facebook.com → WhatsApp Manager</a>. Your WABA ID and Phone Number ID are visible in the URL and on the account page.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">WABA ID <span className="text-slate-400">(WhatsApp Business Account ID)</span></label>
+                          <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)}
+                            placeholder="e.g. 123456789012345"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Phone Number ID</label>
+                          <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)}
+                            placeholder="e.g. 987654321098765"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Permanent Access Token <span className="text-slate-400">(from Meta System User)</span></label>
+                          <input value={manualToken} onChange={e => setManualToken(e.target.value)}
+                            type="password"
+                            placeholder="EAAxxxxxxx…"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                          <p className="text-[10px] text-slate-400 mt-1">Get a permanent token: Meta Business Manager → System Users → Generate Token → select your WABA</p>
+                        </div>
+                        <button
+                          onClick={saveManualConnect}
+                          disabled={savingManual || !manualWabaId.trim() || !manualPhoneId.trim() || !manualToken.trim()}
+                          className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                        >
+                          {savingManual ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</> : 'Connect manually'}
+                        </button>
+                      </div>
+                    )}
+
                     <button
                       onClick={launchEmbeddedSignup}
                       disabled={connectingMeta || !fbReady}
@@ -952,7 +1019,7 @@ function SettingsInner() {
                         ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</>
                         : !fbReady
                           ? <><Loader2 className="w-4 h-4 animate-spin" /> Loading SDK…</>
-                          : <span>{scopeError ? 'Retry Connect via Meta' : 'Connect via Meta'}</span>}
+                          : <span>{scopeError ? 'Retry auto-connect' : 'Connect via Meta'}</span>}
                     </button>
                   </div>
                 )}
