@@ -393,42 +393,66 @@ export async function exchangeMetaCode(
 
   console.log('[Meta] /me/businesses count:', businesses.length, '— IDs:', businesses.map(b => b.id).join(', ') || '(none)')
 
-  // ── Step 2b: if /me/businesses empty (business_management missing), try owned WABAs ─
-  // /me/owned_whatsapp_business_accounts only needs whatsapp_business_management
+  // Helper: extract first WABA with a phone from any of these endpoints
+  type WabaList = { data?: { id: string; name: string; phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }[] }
+  async function tryWabaEndpoint(label: string, url: string): Promise<MetaExchangeResult | null> {
+    const res  = await fetch(url)
+    const raw  = await res.text()
+    console.log(`[Meta] ${label} HTTP:`, res.status)
+    console.log(`[Meta] ${label} raw:`, raw)
+    let data: WabaList = {}
+    try { data = JSON.parse(raw) } catch { /* empty */ }
+    for (const waba of data.data ?? []) {
+      const phone = waba.phone_numbers?.data?.[0]
+      if (!phone) continue
+      console.log(`[Meta] ${label} → wabaId=${waba.id} phoneId=${phone.id} number=${phone.display_phone_number}`)
+      debug.businesses_returned = 1
+      debug.business_ids        = [waba.id]
+      debug.waba_counts         = { [waba.id]: 1 }
+      return {
+        ok:   true,
+        info: { wabaId: waba.id, phoneNumberId: phone.id, displayPhoneNumber: phone.display_phone_number, businessId: waba.id, accessToken: userToken },
+        debug,
+      }
+    }
+    return null
+  }
+
+  // ── Steps 2b-2d: progressively try every WABA discovery endpoint ─────────
   if (!businesses.length && !bizData.error) {
-    console.log('[Meta] /me/businesses empty — trying /me/owned_whatsapp_business_accounts')
-    const ownedRes  = await fetch(
-      `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}&access_token=${userToken}`
-    )
-    const ownedRaw  = await ownedRes.text()
-    console.log('[Meta] /me/owned_whatsapp_business_accounts HTTP:', ownedRes.status)
-    console.log('[Meta] /me/owned_whatsapp_business_accounts raw:', ownedRaw)
+    const G = `https://graph.facebook.com/v21.0`
+    const F = `fields=id,name,phone_numbers{id,display_phone_number}`
+    const T = `access_token=${userToken}`
 
-    let ownedData: { data?: { id: string; name: string; phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }[] } = {}
-    try { ownedData = JSON.parse(ownedRaw) } catch { /* leave empty */ }
+    // 2b: WABAs owned by this user account
+    const r2b = await tryWabaEndpoint('owned_whatsapp_business_accounts', `${G}/me/owned_whatsapp_business_accounts?${F}&${T}`)
+    if (r2b) return r2b
 
-    if (ownedData.data?.length) {
-      // Normalise to the same shape as the businesses path: each owned WABA is directly a WABA
-      for (const waba of ownedData.data) {
+    // 2c: WABAs assigned to this user (employee role in a business)
+    const r2c = await tryWabaEndpoint('assigned_whatsapp_business_accounts', `${G}/me/assigned_whatsapp_business_accounts?${F}&${T}`)
+    if (r2c) return r2c
+
+    // 2d: WABAs via the /me object field (some SDK versions expose this)
+    const meWabaRes = await fetch(`${G}/me?fields=whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number}}&${T}`)
+    const meWabaRaw = await meWabaRes.text()
+    console.log('[Meta] /me?fields=whatsapp_business_accounts HTTP:', meWabaRes.status)
+    console.log('[Meta] /me?fields=whatsapp_business_accounts raw:', meWabaRaw)
+    try {
+      const meWabaData = JSON.parse(meWabaRaw) as { whatsapp_business_accounts?: WabaList }
+      const wabas = meWabaData.whatsapp_business_accounts?.data ?? []
+      for (const waba of wabas) {
         const phone = waba.phone_numbers?.data?.[0]
         if (!phone) continue
-        console.log(`[Meta] owned_waba fast path → wabaId=${waba.id} phoneId=${phone.id} number=${phone.display_phone_number}`)
+        console.log(`[Meta] /me waba field → wabaId=${waba.id} phoneId=${phone.id}`)
         debug.businesses_returned = 1
         debug.business_ids        = [waba.id]
-        debug.waba_counts         = { [waba.id]: 1 }
         return {
           ok:   true,
-          info: {
-            wabaId:             waba.id,
-            phoneNumberId:      phone.id,
-            displayPhoneNumber: phone.display_phone_number,
-            businessId:         waba.id,   // best we have without business_management
-            accessToken:        userToken,
-          },
+          info: { wabaId: waba.id, phoneNumberId: phone.id, displayPhoneNumber: phone.display_phone_number, businessId: waba.id, accessToken: userToken },
           debug,
         }
       }
-    }
+    } catch { /* empty */ }
   }
 
   if (!businesses.length) {
