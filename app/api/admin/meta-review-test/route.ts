@@ -19,14 +19,14 @@ interface StepResult {
 }
 
 async function callMeta(step: string, url: string, token: string): Promise<StepResult> {
-  const start = Date.now()
+  const start   = Date.now()
   const fullUrl = `${url}${url.includes('?') ? '&' : '?'}access_token=${token}`
   console.log(`[Meta Review Test] → ${step}: GET ${url.split('?')[0]}`)
   try {
     const res  = await fetch(fullUrl)
     const body = await res.json()
     const ms   = Date.now() - start
-    console.log(`[Meta Review Test] ← ${step}: HTTP ${res.status} (${ms}ms)`, JSON.stringify(body).slice(0, 300))
+    console.log(`[Meta Review Test] ← ${step}: HTTP ${res.status} (${ms}ms)`, JSON.stringify(body).slice(0, 400))
     return { step, url: url.split('?')[0], status: res.status, ok: res.ok, body, durationMs: ms }
   } catch (e) {
     const ms = Date.now() - start
@@ -45,67 +45,108 @@ export async function GET() {
 
   const service = createServiceClient()
 
-  // ── Resolve token: prefer Embedded Signup user token stored in whatsapp_accounts
-  // That is the token Meta App Review needs to see being exercised.
-  // Fall back to META_ACCESS_TOKEN only if no Embedded Signup token exists.
-  const { data: waRows } = await service
+  // ── Query whatsapp_accounts — capture error explicitly ────────────────────
+  const { data: waRows, error: waError } = await service
     .from('whatsapp_accounts')
-    .select('access_token, waba_id, phone_number_id, display_phone_number, user_id, token_type')
+    .select('access_token, waba_id, phone_number_id, display_phone_number, user_id, token_type, status, updated_at')
     .order('updated_at', { ascending: false })
-    .limit(5)
+    .limit(10)
 
-  const waWithToken = (waRows ?? []).find(r => r.access_token)
+  // Build a full debug picture before deciding what token to use
+  const rowCount      = waRows?.length ?? 0
+  const rowsWithToken = (waRows ?? []).filter(r => r.access_token)
+  const latestRow     = waRows?.[0] ?? null
+  const waWithToken   = rowsWithToken[0] ?? null
+
+  // Determine exact fallback reason
+  let fallbackReason: string | null = null
+  if (waError) {
+    fallbackReason = `whatsapp_accounts query failed: ${waError.message} (code: ${waError.code})`
+  } else if (rowCount === 0) {
+    fallbackReason = 'whatsapp_accounts table is empty — no Embedded Signup has been completed yet'
+  } else if (rowsWithToken.length === 0) {
+    fallbackReason = `Found ${rowCount} row(s) in whatsapp_accounts but access_token is null on all of them`
+  }
+
   const token       = waWithToken?.access_token ?? process.env.META_ACCESS_TOKEN ?? ''
   const tokenSource = waWithToken
     ? `whatsapp_accounts (user_id=${waWithToken.user_id}, token_type=${waWithToken.token_type})`
-    : 'META_ACCESS_TOKEN env var (static — not from OAuth flow)'
+    : fallbackReason
+      ? `META_ACCESS_TOKEN env var — FALLBACK REASON: ${fallbackReason}`
+      : 'META_ACCESS_TOKEN env var (static)'
 
-  console.log(`[Meta Review Test] using token from: ${tokenSource}`)
+  console.log(`[Meta Review Test] whatsapp_accounts: rowCount=${rowCount} error=${waError?.message ?? 'none'} rowsWithToken=${rowsWithToken.length}`)
+  console.log(`[Meta Review Test] token source: ${tokenSource}`)
   console.log(`[Meta Review Test] token present: ${!!token}, length: ${token.length}`)
+  if (fallbackReason) console.warn(`[Meta Review Test] fallback reason: ${fallbackReason}`)
+
+  // Debug block returned in every response
+  const debug = {
+    whatsapp_accounts: {
+      query_error:       waError ? { message: waError.message, code: waError.code } : null,
+      row_count:         rowCount,
+      rows_with_token:   rowsWithToken.length,
+      fallback_reason:   fallbackReason,
+      latest_row: latestRow ? {
+        user_id:            latestRow.user_id,
+        status:             latestRow.status,
+        token_type:         latestRow.token_type,
+        has_access_token:   !!latestRow.access_token,
+        has_waba_id:        !!latestRow.waba_id,
+        has_phone_number_id: !!latestRow.phone_number_id,
+        has_business_id:    false, // business_id is not stored in whatsapp_accounts (only waba_id)
+        display_phone:      latestRow.display_phone_number ?? null,
+        updated_at:         latestRow.updated_at ?? null,
+      } : null,
+      all_rows_summary: (waRows ?? []).map(r => ({
+        user_id:          r.user_id,
+        status:           r.status,
+        has_access_token: !!r.access_token,
+        has_waba_id:      !!r.waba_id,
+        updated_at:       r.updated_at,
+      })),
+    },
+    env_vars: {
+      META_ACCESS_TOKEN_present:    !!process.env.META_ACCESS_TOKEN,
+      META_ACCESS_TOKEN_length:     process.env.META_ACCESS_TOKEN?.length ?? 0,
+      META_SYSTEM_USER_ID_present:  !!process.env.META_SYSTEM_USER_ID,
+      META_APP_ID_present:          !!process.env.META_APP_ID,
+    },
+  }
 
   if (!token) {
     return NextResponse.json({
-      error: 'No token available. Either complete an Embedded Signup flow first (so a token is stored in whatsapp_accounts), or set META_ACCESS_TOKEN in Vercel env vars.',
+      error:        'No token available — whatsapp_accounts is empty AND META_ACCESS_TOKEN env var is not set.',
       token_source: tokenSource,
+      debug,
     }, { status: 400 })
   }
 
   const results: StepResult[] = []
 
   // ── Step 1: GET /me/permissions ─────────────────────────────────────────────
-  const permStep = await callMeta(
-    'GET /me/permissions',
-    `${GRAPH}/me/permissions`,
-    token,
-  )
+  const permStep = await callMeta('GET /me/permissions', `${GRAPH}/me/permissions`, token)
   results.push(permStep)
 
-  // Extract granted scopes for the log
   type PermRow = { permission: string; status: string }
   const permBody = permStep.body as { data?: PermRow[] } | null
   const granted  = (permBody?.data ?? []).filter((p: PermRow) => p.status === 'granted').map((p: PermRow) => p.permission)
   console.log(`[Meta Review Test] granted scopes: ${granted.join(', ') || '(none returned)'}`)
 
   // ── Step 2: GET /me/businesses ──────────────────────────────────────────────
-  const bizStep = await callMeta(
-    'GET /me/businesses',
-    `${GRAPH}/me/businesses?fields=id,name`,
-    token,
-  )
+  const bizStep = await callMeta('GET /me/businesses', `${GRAPH}/me/businesses?fields=id,name`, token)
   results.push(bizStep)
   console.log(`[Meta Review Test] /me/businesses status: ${bizStep.status}`)
 
   type BizRow = { id: string; name: string }
-  const bizBody     = bizStep.body as { data?: BizRow[] } | null
-  const businesses  = bizBody?.data ?? []
-  const firstBizId  = businesses[0]?.id ?? null
+  const bizBody    = bizStep.body as { data?: BizRow[] } | null
+  const firstBizId = bizBody?.data?.[0]?.id ?? null
 
   // ── Step 3: GET /{business_id}/whatsapp_business_accounts ──────────────────
-  let wabaStep: StepResult | null = null
-  let firstWabaId: string | null  = null
+  let firstWabaId: string | null = null
 
   if (firstBizId) {
-    wabaStep = await callMeta(
+    const wabaStep = await callMeta(
       `GET /${firstBizId}/whatsapp_business_accounts`,
       `${GRAPH}/${firstBizId}/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating}`,
       token,
@@ -113,22 +154,22 @@ export async function GET() {
     results.push(wabaStep)
     console.log(`[Meta Review Test] /${firstBizId}/whatsapp_business_accounts status: ${wabaStep.status}`)
 
-    type WabaRow = { id: string; name: string }
+    type WabaRow = { id: string }
     const wabaBody = wabaStep.body as { data?: WabaRow[] } | null
     firstWabaId    = wabaBody?.data?.[0]?.id ?? waWithToken?.waba_id ?? null
   } else {
-    console.warn('[Meta Review Test] no business_id returned — skipping whatsapp_business_accounts call')
-    // Still attempt with the stored waba_id if we have one
+    // No business_id from /me/businesses — try stored waba_id directly
     firstWabaId = waWithToken?.waba_id ?? null
     results.push({
-      step:       `GET /{business_id}/whatsapp_business_accounts`,
-      url:        `${GRAPH}/(no business_id)`,
+      step:       'GET /{business_id}/whatsapp_business_accounts',
+      url:        `${GRAPH}/(skipped — no business_id)`,
       status:     null,
       ok:         false,
       body:       null,
-      error:      '/me/businesses returned no data — cannot determine business_id',
+      error:      `/me/businesses returned no data. This usually means the token lacks 'business_management' scope or the account has no Business Portfolio.`,
       durationMs: 0,
     })
+    console.warn('[Meta Review Test] /me/businesses returned no business_id — skipping WABA call')
   }
 
   // ── Step 4: GET /{waba_id}/phone_numbers ────────────────────────────────────
@@ -141,30 +182,32 @@ export async function GET() {
     results.push(phoneStep)
     console.log(`[Meta Review Test] /${firstWabaId}/phone_numbers status: ${phoneStep.status}`)
   } else {
-    console.warn('[Meta Review Test] no waba_id available — skipping phone_numbers call')
     results.push({
       step:       'GET /{waba_id}/phone_numbers',
-      url:        `${GRAPH}/(no waba_id)`,
+      url:        `${GRAPH}/(skipped — no waba_id)`,
       status:     null,
       ok:         false,
       body:       null,
-      error:      'No WABA ID found from /whatsapp_business_accounts or stored in DB',
+      error:      'No WABA ID available from /whatsapp_business_accounts or whatsapp_accounts table.',
       durationMs: 0,
     })
+    console.warn('[Meta Review Test] no waba_id — skipping phone_numbers call')
   }
 
-  console.log(`[Meta Review Test] complete — ${results.filter(r => r.ok).length}/${results.length} calls succeeded`)
+  console.log(`[Meta Review Test] complete — ${results.filter(r => r.ok).length}/${results.length} succeeded`)
 
   return NextResponse.json({
-    token_source:  tokenSource,
+    token_source:   tokenSource,
+    fallback_reason: fallbackReason,
     granted_scopes: granted,
-    has_wba_mgmt:  granted.includes('whatsapp_business_management'),
-    has_wa_msg:    granted.includes('whatsapp_business_messaging'),
+    has_wba_mgmt:   granted.includes('whatsapp_business_management'),
+    has_wa_msg:     granted.includes('whatsapp_business_messaging'),
+    debug,
     results,
     summary: {
-      total:    results.length,
-      ok:       results.filter(r => r.ok).length,
-      failed:   results.filter(r => !r.ok).length,
+      total:  results.length,
+      ok:     results.filter(r => r.ok).length,
+      failed: results.filter(r => !r.ok).length,
     },
   })
 }
