@@ -10,8 +10,8 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { UserRole } from '@/lib/get-user-role'
-import { canAccess } from '@/lib/get-user-role'
+import type { UserRole } from '@/lib/user-role'
+import { canAccess } from '@/lib/user-role'
 
 const NAV = [
   { href: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard'   },
