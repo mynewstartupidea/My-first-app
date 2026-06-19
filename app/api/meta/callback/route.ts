@@ -96,8 +96,18 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json().catch(() => ({})) as { code?: string; sessionInfo?: MetaSessionInfo }
+  const body = await request.json().catch(() => ({})) as {
+    code?:                string
+    sessionInfo?:         MetaSessionInfo
+    rawAuthResponseKeys?: string[]
+    rawAuthResponse?:     Record<string, unknown>
+  }
   if (!body.code) return NextResponse.json({ ok: false, error: 'Missing code' }, { status: 400 })
+
+  // Log the full raw authResponse from the client so we can see exactly what Meta returned
+  console.log('[Meta callback] rawAuthResponseKeys:', JSON.stringify(body.rawAuthResponseKeys ?? []))
+  console.log('[Meta callback] rawAuthResponse:', JSON.stringify(body.rawAuthResponse ?? {}))
+  console.log('[Meta callback] sessionInfo received:', JSON.stringify(body.sessionInfo ?? null))
 
   const result = await processMetaCode(body.code, undefined, user.id, body.sessionInfo)
   return NextResponse.json(result)

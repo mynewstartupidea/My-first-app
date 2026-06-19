@@ -377,24 +377,46 @@ function SettingsInner() {
       console.log('[Wapaci] FB.login raw response:', JSON.stringify(response, null, 2))
       clearTimeout(timeoutId)
 
-      const authResponse = response.authResponse as unknown as {
-        code?: string
-        sessionInfo?: {
-          sessionInfoVersion?: number
-          source?: string
-          businessID?: string
-          businessName?: string
-          wabaID?: string
-          wabaName?: string
-          phoneNumberID?: string
-          displayPhoneNumber?: string
+      // Cast to any so we can probe all possible locations Meta may put sessionInfo
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = response as any
+
+      const code = raw?.authResponse?.code as string | undefined
+
+      // Meta has placed sessionInfo in different locations across SDK versions:
+      // check every known location and take the first that has wabaID
+      const candidateInfo =
+        raw?.authResponse?.sessionInfo ??
+        raw?.authResponse?.session_info ??
+        raw?.sessionInfo ??
+        raw?.session_info ??
+        null
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function hasWabaFields(x: any): boolean {
+        return !!(x?.wabaID || x?.waba_id || x?.phoneNumberID || x?.phone_number_id)
+      }
+
+      // Normalise field names (Meta uses camelCase in docs, but real responses vary)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function normaliseSessionInfo(x: any) {
+        if (!x) return null
+        return {
+          businessID:         x.businessID         ?? x.business_id         ?? undefined,
+          businessName:       x.businessName        ?? x.business_name       ?? undefined,
+          wabaID:             x.wabaID              ?? x.waba_id             ?? undefined,
+          wabaName:           x.wabaName            ?? x.waba_name           ?? undefined,
+          phoneNumberID:      x.phoneNumberID       ?? x.phone_number_id     ?? undefined,
+          displayPhoneNumber: x.displayPhoneNumber  ?? x.display_phone_number ?? undefined,
         }
-      } | null
+      }
 
-      const code        = authResponse?.code
-      const sessionInfo = authResponse?.sessionInfo
+      const sessionInfo = hasWabaFields(candidateInfo) ? normaliseSessionInfo(candidateInfo) : null
 
-      console.log('[Wapaci] sessionInfo from Embedded Signup:', JSON.stringify(sessionInfo ?? null, null, 2))
+      // Log the full raw authResponse so we can debug what Meta actually returned
+      console.log('[Wapaci] FB.login() authResponse keys:', Object.keys(raw?.authResponse ?? {}))
+      console.log('[Wapaci] sessionInfo candidate:', JSON.stringify(candidateInfo, null, 2))
+      console.log('[Wapaci] normalised sessionInfo:', JSON.stringify(sessionInfo, null, 2))
 
       // No code = user cancelled, closed popup, or Meta returned an error
       if (!code) {
@@ -407,13 +429,17 @@ function SettingsInner() {
         return
       }
 
-      // Got a code — exchange it server-side, pass sessionInfo so server can
-      // skip /me/businesses entirely (sessionInfo already has WABA + phone IDs)
-      console.log('[Wapaci] received code, posting to /api/meta/callback, sessionInfo present:', !!sessionInfo)
+      console.log('[Wapaci] received code, sessionInfo present:', !!sessionInfo, '— posting to /api/meta/callback')
       fetch('/api/meta/callback', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ code, sessionInfo }),
+        body:    JSON.stringify({
+          code,
+          sessionInfo,
+          // send the full raw authResponse so the server can log it for debugging
+          rawAuthResponseKeys: Object.keys(raw?.authResponse ?? {}),
+          rawAuthResponse:     raw?.authResponse,
+        }),
       })
         .then(r => r.json())
         .then((data: { ok: boolean; phone?: string; error?: string; debug?: Record<string, unknown> }) => {

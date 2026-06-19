@@ -432,13 +432,49 @@ export async function exchangeMetaCode(
   }
 
   if (!businesses.length) {
+    // ── Step 2c: system user token fallback ──────────────────────────────────
+    // If the user token can't find any businesses/WABAs, try the app's system
+    // user token which has broad access and can see all connected WABAs.
+    const sysToken = process.env.META_SYSTEM_USER_ACCESS_TOKEN
+    if (sysToken) {
+      console.log('[Meta] user token found no WABAs — trying system user token')
+      const sysWabaRes = await fetch(
+        `https://graph.facebook.com/v21.0/me/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}&access_token=${sysToken}`
+      )
+      const sysWabaRaw = await sysWabaRes.text()
+      console.log('[Meta] system user /me/whatsapp_business_accounts HTTP:', sysWabaRes.status)
+      console.log('[Meta] system user /me/whatsapp_business_accounts raw:', sysWabaRaw)
+      let sysWabaData: { data?: { id: string; name: string; phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }[] } = {}
+      try { sysWabaData = JSON.parse(sysWabaRaw) } catch { /* leave empty */ }
+      if (sysWabaData.data?.length) {
+        // Take the most recently added WABA (last in list)
+        const waba  = sysWabaData.data[sysWabaData.data.length - 1]
+        const phone = waba.phone_numbers?.data?.[0]
+        if (phone) {
+          console.log(`[Meta] system user fallback → wabaId=${waba.id} phoneId=${phone.id} number=${phone.display_phone_number}`)
+          debug.businesses_returned = 1
+          debug.business_ids        = [waba.id]
+          debug.waba_counts         = { [waba.id]: 1 }
+          return {
+            ok:   true,
+            info: {
+              wabaId:             waba.id,
+              phoneNumberId:      phone.id,
+              displayPhoneNumber: phone.display_phone_number,
+              businessId:         waba.id,
+              accessToken:        userToken,
+            },
+            debug,
+          }
+        }
+      }
+    }
+
     let reason: string
     if (bizData.error) {
       reason = `Meta API error (code ${bizData.error.code ?? '?'}): ${bizData.error.message}`
-    } else if (!hasBizMgmt) {
-      reason = 'Could not find your WhatsApp Business Account. The connection completed on Meta\'s side but our app could not retrieve your WABA. Please disconnect and reconnect — if the issue persists, try a different browser or check that your Facebook account is an admin of the Business Portfolio.'
     } else {
-      reason = `No Business Portfolio found. The Facebook account used during signup may not be an admin of any Business Portfolio. Check business.facebook.com with the same account.`
+      reason = 'Connection completed on Meta\'s side but we could not find your WhatsApp Business Account automatically. Please use the manual setup option below.'
     }
     console.error('[Meta] could not find WABA —', reason)
     return { ok: false, error: reason, step: 'business_lookup', debug }
