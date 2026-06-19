@@ -33,7 +33,7 @@ export async function GET() {
     env:           envCheck,
     listUsers: {
       error:       listError ? { message: listError.message, status: (listError as { status?: number }).status } : null,
-      total:       listData?.total ?? null,
+      total:       (listData as { total?: number } | null)?.total ?? null,
       returned:    listData?.users?.length ?? 0,
       sample:      listData?.users?.slice(0, 3).map(u => ({ id: u.id, email: u.email, created_at: u.created_at })) ?? [],
     },

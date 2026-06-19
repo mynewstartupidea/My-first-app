@@ -309,15 +309,15 @@ function SettingsInner() {
   async function sendTestWhatsApp() {
     if (!testPhone.trim()) return
     setSendingTest(true)
-    const res = await fetch('/api/whatsapp/test', {
-      method: 'POST',
+    const res  = await fetch('/api/whatsapp/test', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: testPhone.trim(), message: testMsg.trim() || undefined }),
+      body:    JSON.stringify({ phone: testPhone.trim() }),
     })
-    const data = await res.json()
+    const data = await res.json() as { success: boolean; messageId?: string; error?: string; phone?: string }
     setSendingTest(false)
     if (data.success) {
-      showToast(`Message sent! (${data.bsp === 'mock' ? 'Mock — check server logs' : `via ${data.bsp}`})`)
+      showToast(`✓ Message sent to ${data.phone ?? testPhone.trim()}${data.messageId ? ` (ID: ${data.messageId.slice(0, 16)}…)` : ''}`)
     } else {
       showToast(data.error ?? 'Send failed', false)
     }
