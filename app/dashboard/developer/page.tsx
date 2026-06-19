@@ -4,10 +4,9 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Code2, Key, Webhook, Copy, Eye, EyeOff, CheckCircle2,
-  Plus, Trash2, ExternalLink, AlertCircle, RefreshCw
+  Plus, AlertCircle, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { timeAgo } from '@/lib/utils'
 
 const WEBHOOK_DOCS = [
   { event: 'message.sent',      desc: 'Fired when a WhatsApp message is sent' },
@@ -22,7 +21,7 @@ const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https
 export default function DeveloperPage() {
   const [showKey, setShowKey]     = useState(false)
   const [copied, setCopied]       = useState<string | null>(null)
-  const [apiKey]                  = useState(`wap_live_${Math.random().toString(36).slice(2, 18)}`)
+  const [apiKey, setApiKey]       = useState('')
   const [storeId, setStoreId]     = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
@@ -31,7 +30,10 @@ export default function DeveloperPage() {
     if (!user) return
     const { data: store } = await supabase
       .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+    const id = store?.id ?? user.id
     setStoreId(store?.id ?? null)
+    // Derive a stable key from the store/user ID — same ID always produces the same key
+    setApiKey(`wap_live_${id.replace(/-/g, '').slice(0, 24)}`)
   }, [supabase])
 
   useEffect(() => { load() }, [load])

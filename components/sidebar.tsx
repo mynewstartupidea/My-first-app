@@ -7,7 +7,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
   FileText, ShoppingBag, BarChart2, UserCheck, Code2,
   Settings, LogOut, MessageCircle, Store,
-  ChevronRight
+  ChevronRight, LifeBuoy
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/user-role'
@@ -27,6 +27,7 @@ const NAV = [
 const NAV_BOTTOM = [
   { href: '/dashboard/team',        icon: UserCheck,       label: 'Team'        },
   { href: '/dashboard/developer',   icon: Code2,           label: 'Developer'   },
+  { href: '/dashboard/support',     icon: LifeBuoy,        label: 'Support'     },
   { href: '/dashboard/settings',    icon: Settings,        label: 'Settings'    },
 ]
 

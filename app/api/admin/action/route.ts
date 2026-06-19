@@ -45,11 +45,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, plan })
   }
 
+  if (action === 'cancel_subscription') {
+    const { data: billing } = await service
+      .from('billing')
+      .select('razorpay_subscription_id, status')
+      .eq('user_id', user_id)
+      .maybeSingle()
+
+    if (billing?.razorpay_subscription_id) {
+      const rzAuth = `Basic ${Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64')}`
+      const rzRes  = await fetch(
+        `https://api.razorpay.com/v1/subscriptions/${billing.razorpay_subscription_id}/cancel`,
+        { method: 'POST', headers: { Authorization: rzAuth, 'Content-Type': 'application/json' }, body: JSON.stringify({ cancel_at_cycle_end: 1 }) }
+      )
+      const rzData = await rzRes.json()
+      if (!rzRes.ok) return NextResponse.json({ error: rzData.error?.description ?? 'Razorpay cancel failed' }, { status: 500 })
+    }
+
+    await service.from('billing').update({
+      status:       'cancelled',
+      cancelled_at: new Date().toISOString(),
+      updated_at:   new Date().toISOString(),
+    }).eq('user_id', user_id)
+
+    return NextResponse.json({ success: true })
+  }
+
   if (action === 'remove_user') {
-    // Soft delete: deactivate store + mark billing cancelled
     await service.from('stores').update({ is_active: false }).eq('user_id', user_id)
     await service.from('billing').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('user_id', user_id)
-    // Note: full account deletion requires Supabase admin API — we do soft delete here
     return NextResponse.json({ success: true })
   }
 

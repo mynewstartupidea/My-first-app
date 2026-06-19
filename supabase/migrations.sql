@@ -207,3 +207,34 @@ ALTER TABLE whatsapp_accounts
 ALTER TABLE whatsapp_accounts
   ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'user_token'
     CHECK (token_type IN ('user_token', 'system_user_token'));
+
+-- ─── Support Tickets ──────────────────────────────────────────────────────────
+-- User-submitted help / support queries accessible in the admin panel.
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  user_email  TEXT NOT NULL,
+  subject     TEXT NOT NULL,
+  category    TEXT NOT NULL DEFAULT 'general'
+                CHECK (category IN ('general','billing','whatsapp','campaigns','shopify','bug','other')),
+  message     TEXT NOT NULL,
+  priority    TEXT NOT NULL DEFAULT 'normal'
+                CHECK (priority IN ('low','normal','high','urgent')),
+  status      TEXT NOT NULL DEFAULT 'open'
+                CHECK (status IN ('open','in_progress','resolved','closed')),
+  admin_notes TEXT,
+  resolved_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE support_tickets ENABLE ROW LEVEL SECURITY;
+
+-- Users can read/insert their own tickets only
+CREATE POLICY "support_tickets_own_read"   ON support_tickets FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "support_tickets_own_insert" ON support_tickets FOR INSERT WITH CHECK (user_id = auth.uid());
+
+CREATE INDEX IF NOT EXISTS support_tickets_user_id_idx  ON support_tickets(user_id);
+CREATE INDEX IF NOT EXISTS support_tickets_status_idx   ON support_tickets(status);
+CREATE INDEX IF NOT EXISTS support_tickets_created_idx  ON support_tickets(created_at DESC);

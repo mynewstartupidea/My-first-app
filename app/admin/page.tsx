@@ -9,7 +9,8 @@ import {
   ChevronDown, ChevronUp, LogOut, Shield, CreditCard,
   MessageSquare, Store, Crown, AlertTriangle, Ban,
   ArrowUpRight, Activity, DollarSign, UserMinus, Edit2,
-  X, Copy, Mail, Calendar, CheckCheck, AlertCircle,
+  X, Copy, Mail, CheckCheck, AlertCircle, LifeBuoy,
+  Tag, Clock, ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -79,7 +80,21 @@ function fmtDate(d: string | null) {
 
 function copy(text: string) { navigator.clipboard.writeText(text).catch(() => null) }
 
-type Tab = 'overview' | 'users' | 'revenue'
+interface SupportTicket {
+  id: string
+  user_id: string
+  user_email: string
+  subject: string
+  category: string
+  message: string
+  status: string
+  priority: string
+  admin_notes: string | null
+  created_at: string
+  resolved_at: string | null
+}
+
+type Tab = 'overview' | 'users' | 'revenue' | 'support'
 type ActionType = 'plan' | 'cancel' | 'remove' | null
 
 export default function AdminPage() {
@@ -99,6 +114,10 @@ export default function AdminPage() {
   const [sortBy,      setSortBy]      = useState<'signed_up_at' | 'messages_30d' | 'billing_amount'>('signed_up_at')
   const [sortAsc,     setSortAsc]     = useState(false)
   const [fetchError,  setFetchError]  = useState<string | null>(null)
+  const [tickets,     setTickets]     = useState<SupportTicket[]>([])
+  const [ticketExp,   setTicketExp]   = useState<string | null>(null)
+  const [ticketNotes, setTicketNotes] = useState<Record<string, string>>({})
+  const [savingNote,  setSavingNote]  = useState<string | null>(null)
 
   const router   = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -106,16 +125,23 @@ export default function AdminPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setFetchError(null)
-    const res  = await fetch('/api/admin/users')
-    const data = await res.json()
-    if (!res.ok) {
-      if (res.status === 403) { router.replace('/admin/login'); return }
-      setFetchError(data.detail ?? data.error ?? `HTTP ${res.status}`)
+    const [usersRes, ticketsRes] = await Promise.all([
+      fetch('/api/admin/users'),
+      fetch('/api/support'),
+    ])
+    const usersData = await usersRes.json()
+    if (!usersRes.ok) {
+      if (usersRes.status === 403) { router.replace('/admin/login'); return }
+      setFetchError(usersData.detail ?? usersData.error ?? `HTTP ${usersRes.status}`)
       setLoading(false)
       return
     }
-    setUsers(data.users ?? [])
-    setStats(data.stats ?? null)
+    setUsers(usersData.users ?? [])
+    setStats(usersData.stats ?? null)
+    if (ticketsRes.ok) {
+      const ticketsData = await ticketsRes.json()
+      setTickets(ticketsData.tickets ?? [])
+    }
     setLoading(false)
   }, [router])
 
@@ -175,6 +201,18 @@ export default function AdminPage() {
     await load()
   }
 
+  async function updateTicket(id: string, status: string) {
+    const notes = ticketNotes[id] ?? ''
+    setSavingNote(id)
+    await fetch(`/api/support/${id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ status, admin_notes: notes || undefined }),
+    })
+    await load()
+    setSavingNote(null)
+  }
+
   if (loading) return (
     <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
       <Loader2 className="w-6 h-6 animate-spin text-[#25D366]" />
@@ -231,11 +269,17 @@ export default function AdminPage() {
 
         {/* Tab nav */}
         <div className="flex items-center gap-1 bg-white/5 rounded-2xl p-1 mb-8 w-fit">
-          {(['overview', 'users', 'revenue'] as Tab[]).map(t => (
+          {(['overview', 'users', 'revenue', 'support'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={cn('px-5 py-2 rounded-xl text-sm font-medium transition capitalize',
+              className={cn('px-5 py-2 rounded-xl text-sm font-medium transition capitalize flex items-center gap-1.5',
                 tab === t ? 'bg-[#25D366] text-white shadow' : 'text-slate-400 hover:text-white')}>
+              {t === 'support' && <LifeBuoy className="w-3.5 h-3.5" />}
               {t}
+              {t === 'support' && tickets.filter(tk => tk.status === 'open').length > 0 && (
+                <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                  {tickets.filter(tk => tk.status === 'open').length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -643,6 +687,125 @@ export default function AdminPage() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── SUPPORT ──────────────────────────────────────────────────────────── */}
+        {tab === 'support' && (
+          <div className="space-y-4">
+            {/* Stats row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-2">
+              {[
+                { label: 'Open',        count: tickets.filter(t => t.status === 'open').length,        color: 'text-blue-400',    bg: 'bg-blue-500/10'    },
+                { label: 'In Progress', count: tickets.filter(t => t.status === 'in_progress').length, color: 'text-amber-400',   bg: 'bg-amber-500/10'   },
+                { label: 'Resolved',    count: tickets.filter(t => t.status === 'resolved').length,    color: 'text-green-400',   bg: 'bg-green-500/10'   },
+                { label: 'Total',       count: tickets.length,                                          color: 'text-slate-300',   bg: 'bg-white/5'        },
+              ].map(s => (
+                <div key={s.label} className={cn('rounded-2xl border border-white/8 p-4', s.bg)}>
+                  <p className="text-slate-500 text-xs mb-1">{s.label}</p>
+                  <p className={cn('text-2xl font-bold', s.color)}>{s.count}</p>
+                </div>
+              ))}
+            </div>
+
+            {tickets.length === 0 ? (
+              <div className="bg-white/3 border border-white/8 rounded-2xl p-12 text-center">
+                <LifeBuoy className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 text-sm">No support tickets yet</p>
+              </div>
+            ) : (
+              <div className="bg-white/3 border border-white/8 rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between">
+                  <h3 className="font-semibold text-white flex items-center gap-2">
+                    <LifeBuoy className="w-4 h-4 text-[#25D366]" /> Support Tickets
+                  </h3>
+                  <span className="text-xs text-slate-500">{tickets.length} total</span>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {tickets.map(t => {
+                    const isExp = ticketExp === t.id
+                    const priorityColors: Record<string, string> = {
+                      low: 'text-slate-400 bg-slate-700/50', normal: 'text-blue-400 bg-blue-900/30',
+                      high: 'text-amber-400 bg-amber-900/30', urgent: 'text-red-400 bg-red-900/30',
+                    }
+                    const statusColors: Record<string, string> = {
+                      open: 'text-blue-400 bg-blue-900/30', in_progress: 'text-amber-400 bg-amber-900/30',
+                      resolved: 'text-green-400 bg-green-900/30', closed: 'text-slate-400 bg-slate-700/50',
+                    }
+                    return (
+                      <div key={t.id}>
+                        <button
+                          onClick={() => setTicketExp(isExp ? null : t.id)}
+                          className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/3 transition text-left">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-white text-sm font-medium truncate">{t.subject}</p>
+                              <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0', priorityColors[t.priority] ?? priorityColors.normal)}>
+                                {t.priority}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-slate-500 text-xs">{t.user_email}</span>
+                              <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', statusColors[t.status] ?? statusColors.open)}>
+                                {t.status.replace('_', ' ')}
+                              </span>
+                              <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                                <Tag className="w-3 h-3" /> {t.category}
+                              </span>
+                              <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                                <Clock className="w-3 h-3" /> {timeAgo(t.created_at)}
+                              </span>
+                            </div>
+                          </div>
+                          {isExp
+                            ? <ChevronUp className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                            : <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" />}
+                        </button>
+
+                        {isExp && (
+                          <div className="px-5 pb-5 bg-white/2 border-t border-white/5">
+                            {/* Ticket message */}
+                            <p className="text-slate-300 text-sm leading-relaxed mt-4 whitespace-pre-wrap bg-white/3 rounded-xl p-4">
+                              {t.message}
+                            </p>
+
+                            {/* Admin response */}
+                            <div className="mt-4">
+                              <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-2">Admin Notes / Response</label>
+                              <textarea
+                                value={ticketNotes[t.id] ?? t.admin_notes ?? ''}
+                                onChange={e => setTicketNotes(prev => ({ ...prev, [t.id]: e.target.value }))}
+                                placeholder="Add a response or internal note…"
+                                rows={3}
+                                className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600 resize-none"
+                              />
+                              <div className="flex items-center gap-2 mt-3">
+                                {(['open','in_progress','resolved','closed'] as const).map(s => (
+                                  <button
+                                    key={s}
+                                    onClick={() => updateTicket(t.id, s)}
+                                    disabled={savingNote === t.id}
+                                    className={cn(
+                                      'text-xs px-3 py-1.5 rounded-lg font-medium transition disabled:opacity-50 capitalize',
+                                      t.status === s
+                                        ? 'bg-[#25D366] text-white'
+                                        : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                                    )}>
+                                    {savingNote === t.id && t.status === s
+                                      ? <Loader2 className="w-3 h-3 animate-spin inline" />
+                                      : s.replace('_', ' ')}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
