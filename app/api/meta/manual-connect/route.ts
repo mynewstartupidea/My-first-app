@@ -52,7 +52,9 @@ export async function POST(request: Request) {
     .limit(1)
   const store = storeRows?.[0] ?? null
 
-  const { error: upsertErr } = await service.from('whatsapp_accounts').upsert({
+  await service.from('whatsapp_accounts').delete().eq('user_id', user.id)
+
+  const { error: insertErr } = await service.from('whatsapp_accounts').insert({
     user_id:              user.id,
     store_id:             store?.id ?? null,
     business_id:          businessId?.trim() ?? wabaId.trim(),
@@ -64,11 +66,11 @@ export async function POST(request: Request) {
     status:               'connected',
     provider:             'meta',
     updated_at:           new Date().toISOString(),
-  }, { onConflict: 'user_id' })
+  })
 
-  if (upsertErr) {
-    console.error('[Meta manual] DB upsert failed:', upsertErr.message)
-    return NextResponse.json({ ok: false, error: `Database error: ${upsertErr.message}` })
+  if (insertErr) {
+    console.error('[Meta manual] DB insert failed:', insertErr.message)
+    return NextResponse.json({ ok: false, error: `Database error: ${insertErr.message}` })
   }
 
   if (store) {

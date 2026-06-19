@@ -64,7 +64,10 @@ async function processMetaCode(
     .limit(1)
   const store = storeRows?.[0] ?? null
 
-  const { error: upsertErr } = await service.from('whatsapp_accounts').upsert({
+  // Delete any existing row first — avoids needing a unique constraint on user_id
+  await service.from('whatsapp_accounts').delete().eq('user_id', userId)
+
+  const { error: insertErr } = await service.from('whatsapp_accounts').insert({
     user_id:              userId,
     store_id:             store?.id ?? null,
     business_id:          info.businessId,
@@ -76,11 +79,11 @@ async function processMetaCode(
     status:               'connected',
     provider:             'meta',
     updated_at:           new Date().toISOString(),
-  }, { onConflict: 'user_id' })
+  })
 
-  if (upsertErr) {
-    console.error('[Meta callback] DB upsert failed:', upsertErr.message)
-    return { ok: false, error: `Database error: ${upsertErr.message}` }
+  if (insertErr) {
+    console.error('[Meta callback] DB insert failed:', insertErr.message)
+    return { ok: false, error: `Database error: ${insertErr.message}` }
   }
 
   if (store) {
