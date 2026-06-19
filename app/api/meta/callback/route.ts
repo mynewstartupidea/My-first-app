@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { assignSystemUserToWABA, exchangeMetaCode, subscribeWABAWebhooks } from '@/lib/whatsapp'
-import type { MetaDebugInfo } from '@/lib/whatsapp'
+import type { MetaDebugInfo, MetaSessionInfo } from '@/lib/whatsapp'
 
 // ─── Shared processing ────────────────────────────────────────────────────────
 
@@ -18,10 +18,11 @@ async function processMetaCode(
   code: string,
   redirectUri: string | undefined,
   userId: string,
+  sessionInfo?: MetaSessionInfo,
 ): Promise<ProcessResult> {
-  console.log(`[Meta callback] processing code, redirectUri=${redirectUri ?? 'none (SDK flow)'}`)
+  console.log(`[Meta callback] processing code, redirectUri=${redirectUri ?? 'none (SDK flow)'}, sessionInfo=${sessionInfo?.wabaID ? `wabaID=${sessionInfo.wabaID}` : 'absent'}`)
 
-  const result = await exchangeMetaCode(code, redirectUri)
+  const result = await exchangeMetaCode(code, redirectUri, sessionInfo)
 
   if (!result.ok) {
     console.error(`[Meta callback] exchangeMetaCode failed at step="${result.step}": ${result.error}`)
@@ -95,10 +96,10 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json().catch(() => ({})) as { code?: string }
+  const body = await request.json().catch(() => ({})) as { code?: string; sessionInfo?: MetaSessionInfo }
   if (!body.code) return NextResponse.json({ ok: false, error: 'Missing code' }, { status: 400 })
 
-  const result = await processMetaCode(body.code, undefined, user.id)
+  const result = await processMetaCode(body.code, undefined, user.id, body.sessionInfo)
   return NextResponse.json(result)
 }
 

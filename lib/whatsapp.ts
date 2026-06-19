@@ -242,13 +242,31 @@ export interface MetaDebugInfo {
   config_id_env:                    string | undefined
 }
 
+// Populated by FB JS SDK Embedded Signup when extras.sessionInfoVersion = 2.
+// Contains WABA + phone info directly — no /me/businesses lookup needed.
+export interface MetaSessionInfo {
+  sessionInfoVersion?: number
+  source?:             string
+  businessID?:         string
+  businessName?:       string
+  wabaID?:             string
+  wabaName?:           string
+  phoneNumberID?:      string
+  displayPhoneNumber?: string
+}
+
 export type MetaExchangeResult =
   | { ok: true;  info: MetaWABAInfo; debug: MetaDebugInfo }
   | { ok: false; error: string; step: 'config' | 'token_exchange' | 'business_lookup' | 'waba_lookup' | 'phone_lookup'; debug?: MetaDebugInfo }
 
 // Exchange an OAuth/Embedded-Signup code for a WABA + phone number.
+// sessionInfo: provided by FB JS SDK Embedded Signup (sessionInfoVersion 2) — skips /me/businesses entirely.
 // redirectUri: include for redirect-based OAuth; omit for FB JS SDK popup flow.
-export async function exchangeMetaCode(code: string, redirectUri?: string): Promise<MetaExchangeResult> {
+export async function exchangeMetaCode(
+  code: string,
+  redirectUri?: string,
+  sessionInfo?: MetaSessionInfo,
+): Promise<MetaExchangeResult> {
   const appId     = process.env.META_APP_ID
   const appSecret = process.env.META_APP_SECRET
 
@@ -306,7 +324,44 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
     config_id_env:                    process.env.NEXT_PUBLIC_META_CONFIG_ID,
   }
 
-  // Fail fast if scopes are missing — give a precise diagnosis
+  // ── Fast path: sessionInfo from Embedded Signup ──────────────────────────
+  // When the FB JS SDK Embedded Signup flow completes, the authResponse includes
+  // sessionInfo with the exact WABA ID, phone number ID, and business ID the user
+  // selected — no /me/businesses or WABA lookup needed.
+  // business_management scope is not required in this path.
+  if (sessionInfo?.wabaID && sessionInfo?.phoneNumberID && sessionInfo?.businessID) {
+    console.log('[Meta] sessionInfo fast path — wabaID:', sessionInfo.wabaID, 'phoneID:', sessionInfo.phoneNumberID, 'bizID:', sessionInfo.businessID)
+
+    // Still check the two WA-specific scopes (not business_management)
+    if (granted.length > 0 && (!hasWaBizMgmt || !hasWaMsg)) {
+      const missing = [
+        !hasWaBizMgmt && 'whatsapp_business_management',
+        !hasWaMsg     && 'whatsapp_business_messaging',
+      ].filter(Boolean) as string[]
+      console.error('[Meta] sessionInfo path — missing WA scopes:', missing.join(', '))
+      return { ok: false, error: `Missing WhatsApp scopes: ${missing.join(', ')}. Check your Embedded Signup configuration.`, step: 'token_exchange', debug }
+    }
+
+    debug.businesses_returned = 1
+    debug.business_ids        = [sessionInfo.businessID]
+    debug.waba_counts         = { [sessionInfo.businessID]: 1 }
+
+    return {
+      ok:   true,
+      info: {
+        wabaId:             sessionInfo.wabaID,
+        phoneNumberId:      sessionInfo.phoneNumberID,
+        displayPhoneNumber: sessionInfo.displayPhoneNumber ?? '',
+        businessId:         sessionInfo.businessID,
+        accessToken:        userToken,
+      },
+      debug,
+    }
+  }
+
+  console.log('[Meta] no sessionInfo — falling back to /me/businesses lookup')
+
+  // Fail fast if scopes are missing in the fallback path
   if (granted.length > 0) {
     const missing: string[] = []
     if (!hasBizMgmt)   missing.push('business_management')
@@ -315,20 +370,14 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
 
     if (missing.length > 0) {
       console.error('[Meta] missing required scopes:', missing.join(', '))
-      // This almost always means a stale OAuth grant — Facebook cached the user's
-      // authorization from before this scope was added to the config_id. The token
-      // includes only the scopes that were requested at the time of first authorization.
-      // auth_type: 'rerequest' on FB.login() may fix it automatically; if not, the user
-      // must go to facebook.com → Settings → Business Integrations → Remove the app,
-      // then redo Embedded Signup to get a fresh grant with all current scopes.
       const fix = missing.includes('business_management')
-        ? 'business_management scope is missing from this token. Facebook cached your previous authorization before this scope was added. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → then reconnect here to get a fresh token with all required permissions.'
-        : `Missing scopes: ${missing.join(', ')}. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → then reconnect to get a fresh token.`
+        ? 'business_management scope is missing. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → reconnect to get a fresh token.'
+        : `Missing scopes: ${missing.join(', ')}. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → reconnect to get a fresh token.`
       return { ok: false, error: fix, step: 'token_exchange', debug }
     }
   }
 
-  // ── Step 2: get business portfolios ──────────────────────────────────────
+  // ── Step 2: get business portfolios (fallback when sessionInfo absent) ────
   const bizRes     = await fetch(`https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`)
   const bizRawJson = await bizRes.text()
   console.log('[Meta] /me/businesses HTTP:', bizRes.status)

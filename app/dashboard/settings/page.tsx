@@ -376,7 +376,24 @@ function SettingsInner() {
       console.log('[Wapaci] FB.login raw response:', JSON.stringify(response, null, 2))
       clearTimeout(timeoutId)
 
-      const code = response.authResponse?.code
+      const authResponse = response.authResponse as unknown as {
+        code?: string
+        sessionInfo?: {
+          sessionInfoVersion?: number
+          source?: string
+          businessID?: string
+          businessName?: string
+          wabaID?: string
+          wabaName?: string
+          phoneNumberID?: string
+          displayPhoneNumber?: string
+        }
+      } | null
+
+      const code        = authResponse?.code
+      const sessionInfo = authResponse?.sessionInfo
+
+      console.log('[Wapaci] sessionInfo from Embedded Signup:', JSON.stringify(sessionInfo ?? null, null, 2))
 
       // No code = user cancelled, closed popup, or Meta returned an error
       if (!code) {
@@ -389,12 +406,13 @@ function SettingsInner() {
         return
       }
 
-      // Got a code — exchange it server-side
-      console.log('[Wapaci] received code, posting to /api/meta/callback')
+      // Got a code — exchange it server-side, pass sessionInfo so server can
+      // skip /me/businesses entirely (sessionInfo already has WABA + phone IDs)
+      console.log('[Wapaci] received code, posting to /api/meta/callback, sessionInfo present:', !!sessionInfo)
       fetch('/api/meta/callback', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ code }),
+        body:    JSON.stringify({ code, sessionInfo }),
       })
         .then(r => r.json())
         .then((data: { ok: boolean; phone?: string; error?: string; debug?: Record<string, unknown> }) => {
