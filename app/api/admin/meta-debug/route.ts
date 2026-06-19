@@ -84,10 +84,15 @@ export async function GET(request: Request) {
   // ── Diagnosis ────────────────────────────────────────────────────────────
   let diagnosis = 'OK — all scopes present and businesses returned.'
   if (missingScopes.length > 0) {
-    diagnosis = `MISSING SCOPES: ${missingScopes.join(', ')}. ` +
-      (missingScopes.includes('business_management')
-        ? 'business_management is required for /me/businesses — without it Meta returns {"data":[]} silently. Add it to your Embedded Signup config_id.'
-        : 'Add missing scopes to your Embedded Signup config_id in Meta App Dashboard → WhatsApp → Embedded Signup.')
+    if (missingScopes.includes('business_management')) {
+      diagnosis = `STALE OAUTH GRANT — business_management scope is missing. ` +
+        `This almost always means the token was issued before this scope was added to the Embedded Signup config_id. ` +
+        `Facebook caches authorizations per app; adding new scopes to config_id does NOT update existing grants. ` +
+        `Fix: go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → redo Embedded Signup. ` +
+        `Also confirm NEXT_PUBLIC_META_CONFIG_ID in Vercel matches the config that lists all 3 scopes.`
+    } else {
+      diagnosis = `MISSING SCOPES: ${missingScopes.join(', ')}. Add them to your Embedded Signup config_id in Meta App Dashboard → WhatsApp → Embedded Signup, then revoke and re-authorize as above.`
+    }
   } else if (businesses.length === 0) {
     diagnosis = 'All scopes present but /me/businesses returned empty. The Facebook account logged in during Embedded Signup is not an admin of any Business Portfolio. Check business.facebook.com with the same account.'
   }

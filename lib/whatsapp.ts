@@ -315,9 +315,15 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
 
     if (missing.length > 0) {
       console.error('[Meta] missing required scopes:', missing.join(', '))
+      // This almost always means a stale OAuth grant — Facebook cached the user's
+      // authorization from before this scope was added to the config_id. The token
+      // includes only the scopes that were requested at the time of first authorization.
+      // auth_type: 'rerequest' on FB.login() may fix it automatically; if not, the user
+      // must go to facebook.com → Settings → Business Integrations → Remove the app,
+      // then redo Embedded Signup to get a fresh grant with all current scopes.
       const fix = missing.includes('business_management')
-        ? 'The config_id is missing the "business_management" scope — this is why /me/businesses returns empty even when the Facebook account has Business Portfolios. Go to Meta App Dashboard → WhatsApp → Embedded Signup → Edit your configuration and add: business_management, whatsapp_business_management, whatsapp_business_messaging.'
-        : `Missing: ${missing.join(', ')}. Go to Meta App Dashboard → WhatsApp → Embedded Signup → Edit configuration and add the missing scopes.`
+        ? 'business_management scope is missing from this token. Facebook cached your previous authorization before this scope was added. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → then reconnect here to get a fresh token with all required permissions.'
+        : `Missing scopes: ${missing.join(', ')}. Go to facebook.com → Settings → Business Integrations → Remove the Wapaci app → then reconnect to get a fresh token.`
       return { ok: false, error: fix, step: 'token_exchange', debug }
     }
   }
@@ -342,7 +348,7 @@ export async function exchangeMetaCode(code: string, redirectUri?: string): Prom
     if (bizData.error) {
       reason = `Meta API error (code ${bizData.error.code ?? '?'}): ${bizData.error.message}`
     } else if (!hasBizMgmt) {
-      reason = 'Token is missing the "business_management" scope. Meta returns {"data":[]} silently when this scope is absent — even if the Facebook account has Business Portfolios. Fix: add "business_management" to your Embedded Signup config_id.'
+      reason = 'business_management scope missing — Meta returns empty {"data":[]} silently without it. Facebook cached your previous authorization; go to facebook.com → Settings → Business Integrations → Remove the Wapaci app, then reconnect.'
     } else {
       reason = `Token has business_management scope but Meta returned 0 businesses (raw: ${bizRawJson}). The logged-in Facebook account may not be an admin of any Business Portfolio, or the portfolio is restricted. Check business.facebook.com.`
     }
