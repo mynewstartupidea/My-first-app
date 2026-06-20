@@ -13,7 +13,10 @@ export async function GET() {
   const service = createServiceClient()
 
   // ── Fetch ALL auth users (not just those with a profile row) ─────────────
-  const authUsers: { id: string; email: string; created_at: string; email_confirmed_at: string | null }[] = []
+  const authUsers: {
+    id: string; email: string; created_at: string; email_confirmed_at: string | null
+    meta_phone: string | null; meta_full_name: string | null; meta_company: string | null
+  }[] = []
   let page = 1
   while (true) {
     const { data, error } = await service.auth.admin.listUsers({ page, perPage: 1000 })
@@ -28,11 +31,15 @@ export async function GET() {
     }
     if (!data?.users?.length) break
     for (const u of data.users) {
+      const meta = (u.user_metadata ?? {}) as Record<string, string>
       authUsers.push({
         id:                 u.id,
         email:              u.email ?? '',
         created_at:         u.created_at,
         email_confirmed_at: u.email_confirmed_at ?? null,
+        meta_phone:         meta.phone        ?? null,
+        meta_full_name:     meta.full_name    ?? null,
+        meta_company:       meta.company_name ?? null,
       })
     }
     if (data.users.length < 1000) break
@@ -86,9 +93,9 @@ export async function GET() {
       email:                 au.email,
       email_confirmed:       !!au.email_confirmed_at,
       signed_up_at:          au.created_at,
-      full_name:             p?.full_name  ?? null,
-      company_name:          p?.company_name ?? null,
-      phone:                 p?.phone ?? null,
+      full_name:             p?.full_name    ?? au.meta_full_name ?? null,
+      company_name:          p?.company_name ?? au.meta_company   ?? null,
+      phone:                 p?.phone        ?? au.meta_phone     ?? null,
       team_size:             p?.team_size ?? null,
       store_domain:          store?.shopify_domain ?? null,
       store_name:            store?.shop_name ?? null,
