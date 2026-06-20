@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><title>Wapaci Ad — ROI Machine</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#overlay{position:fixed;inset:0;z-index:999;background:#060a10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .4s}
+#overlay.hide{opacity:0;pointer-events:none}
+.ov-logo img{height:64px;filter:drop-shadow(0 0 20px rgba(37,211,102,.5))}
+.ov-btns{display:flex;flex-direction:column;align-items:center;gap:10px}
+.btn-play{display:flex;align-items:center;gap:9px;background:rgba(37,211,102,.13);border:1.5px solid rgba(37,211,102,.45);color:#25D366;font-size:15px;font-weight:700;border-radius:50px;padding:12px 28px;cursor:pointer;font-family:inherit}
+.btn-dl{display:flex;align-items:center;gap:9px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.4);color:#f87171;font-size:15px;font-weight:700;border-radius:50px;padding:12px 28px;cursor:pointer;font-family:inherit}
+.ov-note{color:#334155;font-size:11px;text-align:center;max-width:300px;line-height:1.5}
+#C{position:relative;width:1080px;height:1080px;background:#060d06;overflow:hidden;transform-origin:center center}
+.blob{position:absolute;border-radius:50%;filter:blur(140px);opacity:0}
+.b1{width:800px;height:800px;background:rgba(37,211,102,.08);top:-200px;left:-200px}
+.b2{width:600px;height:600px;background:rgba(18,140,126,.06);bottom:-200px;right:-200px}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(37,211,102,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(37,211,102,.015) 1px,transparent 1px);background-size:80px 80px}
+.started .b1{animation:bIn 1.2s ease .1s forwards}
+.started .b2{animation:bIn 1.2s ease .5s forwards}
+@keyframes bIn{to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:scale(.72)}to{opacity:1;transform:scale(1)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideL{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scOut{to{opacity:0;transform:scale(.93);pointer-events:none}}
+@keyframes scOutU{to{opacity:0;transform:translateY(-30px);pointer-events:none}}
+@keyframes scIn{to{opacity:1;transform:none}}
+@keyframes glow{0%,100%{text-shadow:0 0 30px rgba(37,211,102,.6),0 0 60px rgba(37,211,102,.3)}50%{text-shadow:0 0 60px rgba(37,211,102,.9),0 0 100px rgba(37,211,102,.5)}}
+@keyframes countUp{from{opacity:0;transform:translateY(20px) scale(.9)}to{opacity:1;transform:none}}
+@keyframes barGrow{from{width:0%}to{width:var(--w)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes fillBar{to{width:100%}}
+@keyframes moneyGlow{0%,100%{box-shadow:0 0 40px rgba(37,211,102,.3)}50%{box-shadow:0 0 80px rgba(37,211,102,.6),0 0 120px rgba(37,211,102,.2)}}
+/* S1: Hook - "What you're missing" */
+#s1{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px}
+.started #s1{animation:scOut .5s ease 5s forwards}
+.s1tag{display:flex;align-items:center;gap:10px;background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.25);border-radius:40px;padding:10px 26px;opacity:0}
+.started .s1tag{animation:popIn .5s cubic-bezier(.34,1.56,.64,1) .2s forwards}
+.s1tag span{color:#25D366;font-size:16px;font-weight:700;letter-spacing:.05em}
+.s1miss{text-align:center;opacity:0}
+.started .s1miss{animation:slideUp .6s cubic-bezier(.34,1.56,.64,1) .6s forwards}
+.s1miss p{color:#64748b;font-size:30px;font-weight:600}
+.s1miss .miss-amt{font-size:120px;font-weight:900;color:#fff;line-height:1;letter-spacing:-5px;margin-top:10px}
+.s1miss .miss-amt em{color:#ef4444;font-style:normal}
+.s1miss .miss-lbl{font-size:28px;color:#94a3b8;margin-top:8px}
+.s1counter{text-align:center;opacity:0}
+.started .s1counter{animation:slideUp .6s cubic-bezier(.34,1.56,.64,1) 1.4s forwards}
+.s1counter p{color:#64748b;font-size:22px}
+.counter-num{font-size:80px;font-weight:900;color:#25D366;letter-spacing:-3px;line-height:1.1;animation:glow 2s infinite 2s}
+.started .counter-num{animation:countUp .4s ease 1.6s both, glow 2s infinite 2s}
+/* S2: The shift - ROI reveal */
+#s2{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:48px}
+.started #s2{animation:scIn .55s ease 5.2s forwards,scOutU .5s ease 10s forwards}
+.s2logo{opacity:0}
+.started .s2logo{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 5.5s forwards}
+.s2logo img{height:80px;filter:drop-shadow(0 0 28px rgba(37,211,102,.55))}
+.s2hl{text-align:center;opacity:0}
+.started .s2hl{animation:slideUp .6s cubic-bezier(.34,1.56,.64,1) 6s forwards}
+.s2hl h2{font-size:54px;font-weight:900;color:#fff;line-height:1.15;letter-spacing:-2px}
+.s2hl h2 em{color:#25D366;font-style:normal}
+.s2hl p{font-size:24px;color:#64748b;margin-top:10px}
+/* S3: ROI Calculator visual */
+#s3{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;align-items:center;justify-content:center;gap:64px}
+.started #s3{animation:scIn .55s ease 10.2s forwards,scOutU .5s ease 20s forwards}
+.roi-left{display:flex;flex-direction:column;gap:28px;opacity:0}
+.started .roi-left{animation:slideUp .7s ease 10.5s forwards}
+.roi-title{color:#fff;font-size:36px;font-weight:900;letter-spacing:-1px}
+.roi-title em{color:#25D366;font-style:normal}
+.roi-row{display:flex;align-items:center;justify-content:space-between;gap:40px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:20px 28px}
+.roi-row .lbl{color:#64748b;font-size:16px;font-weight:600}
+.roi-row .val{font-size:32px;font-weight:900;color:#fff}
+.roi-row .val.r{color:#ef4444}
+.roi-row .val.g{color:#25D366}
+.roi-arrow{color:#25D366;font-size:48px;font-weight:900;text-align:center;opacity:0}
+.started .roi-arrow{animation:popIn .4s ease 13s forwards}
+.roi-result{opacity:0}
+.started .roi-result{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 13.5s forwards}
+.roi-box{background:linear-gradient(135deg,rgba(37,211,102,.15),rgba(18,140,126,.1));border:2px solid rgba(37,211,102,.4);border-radius:24px;padding:32px 40px;text-align:center;animation:moneyGlow 2s infinite 14s}
+.roi-box .r-lbl{color:#94a3b8;font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.1em}
+.roi-box .r-num{font-size:80px;font-weight:900;color:#25D366;letter-spacing:-4px;line-height:1;margin-top:8px}
+.roi-box .r-sub{color:#64748b;font-size:18px;margin-top:8px}
+.roi-box .r-mult{font-size:32px;font-weight:900;color:#fbbf24;margin-top:12px}
+/* S4: Month comparison */
+#s4{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:44px}
+.started #s4{animation:scIn .55s ease 20.2s forwards,scOutU .5s ease 26s forwards}
+.s4title{text-align:center;opacity:0}
+.started .s4title{animation:slideUp .6s ease 20.5s forwards}
+.s4title .tag{color:#25D366;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+.s4title h2{font-size:48px;font-weight:900;color:#fff;letter-spacing:-1.5px;margin-top:8px}
+.months{display:flex;gap:24px;opacity:0}
+.started .months{animation:fadeIn .7s ease 21s forwards}
+.month-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:24px 28px;text-align:center;min-width:220px}
+.month-card .mo{color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.month-card .before{color:#ef4444;font-size:42px;font-weight:900;margin-top:8px}
+.month-card .arrow-col{color:#25D366;font-size:28px;margin:8px 0}
+.month-card .after{color:#25D366;font-size:52px;font-weight:900}
+.month-card .diff{color:#25D366;font-size:14px;font-weight:700;margin-top:6px;background:rgba(37,211,102,.1);border-radius:20px;padding:4px 12px;display:inline-block}
+/* S5: CTA */
+#s5{position:absolute;inset:0;opacity:0;transform:scale(.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px}
+.started #s5{animation:scIn .7s cubic-bezier(.34,1.56,.64,1) 26.2s forwards}
+.s5logo{opacity:0}
+.started .s5logo{animation:popIn .7s cubic-bezier(.34,1.56,.64,1) 26.4s forwards}
+.s5logo img{height:100px;filter:drop-shadow(0 0 35px rgba(37,211,102,.65)) drop-shadow(0 0 70px rgba(37,211,102,.3))}
+.s5tag{text-align:center;opacity:0}
+.started .s5tag{animation:slideUp .6s ease 26.8s forwards}
+.s5tag h2{font-size:44px;font-weight:900;color:#fff;line-height:1.2;letter-spacing:-1px}
+.s5tag h2 em{color:#25D366;font-style:normal}
+.s5tag p{color:#64748b;font-size:22px;margin-top:10px}
+.s5url{background:rgba(37,211,102,.1);border:1.5px solid rgba(37,211,102,.45);border-radius:50px;padding:15px 44px;opacity:0}
+.started .s5url{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 27.5s forwards}
+.s5url span{color:#25D366;font-size:30px;font-weight:800;letter-spacing:.02em}
+#bar{position:absolute;bottom:0;left:0;height:5px;background:linear-gradient(90deg,#25D366,#fbbf24,#25D366);width:0%;border-radius:0 2px 2px 0}
+.started #bar{animation:fillBar 30s linear forwards}
+#rply{position:fixed;bottom:20px;right:24px;z-index:100;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.35);color:#25D366;font-size:14px;font-weight:700;border-radius:22px;padding:10px 22px;cursor:pointer;opacity:0;transition:opacity .4s;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="overlay">
+  <div class="ov-logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+  <div class="ov-btns">
+    <button class="btn-play" onclick="startAd()"><svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366"><polygon points="5,3 19,12 5,21"/></svg>Preview Ad</button>
+    <button class="btn-dl" onclick="recordAd()"><svg width="12" height="12" viewBox="0 0 24 24" fill="#f87171"><circle cx="12" cy="12" r="8"/></svg>Record &amp; Download MP4</button>
+  </div>
+  <div class="ov-note">For audio: Select <strong>Chrome Tab</strong> → tick <strong>Share tab audio</strong></div>
+</div>
+<div id="C">
+  <div class="blob b1"></div><div class="blob b2"></div><div class="grid"></div>
+  <!-- S1 -->
+  <div id="s1">
+    <div class="s1tag"><span>💸 Revenue You're Missing Right Now</span></div>
+    <div class="s1miss"><p>From abandoned carts alone, you're losing</p><div class="miss-amt"><em>₹0</em></div><div class="miss-lbl">in potential monthly revenue</div></div>
+    <div class="s1counter"><p>Other Wapaci stores recovered this month:</p><div class="counter-num">₹2,10,000</div></div>
+  </div>
+  <!-- S2 -->
+  <div id="s2">
+    <div class="s2logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+    <div class="s2hl"><h2>Turn missed carts into<br/><em>guaranteed WhatsApp revenue</em></h2><p>No ad spend. No cold outreach. Pure recovery.</p></div>
+  </div>
+  <!-- S3 ROI -->
+  <div id="s3">
+    <div class="roi-left">
+      <div class="roi-title">Your <em>ROI with Wapaci</em></div>
+      <div class="roi-row"><span class="lbl">Monthly abandoned cart value</span><span class="val r">₹5,00,000</span></div>
+      <div class="roi-row"><span class="lbl">Wapaci recovery rate</span><span class="val g">28%</span></div>
+      <div class="roi-row"><span class="lbl">Platform cost/month</span><span class="val">₹2,999</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:16px">
+      <div class="roi-arrow">→</div>
+      <div class="roi-result">
+        <div class="roi-box">
+          <div class="r-lbl">You recover every month</div>
+          <div class="r-num">₹1.4L</div>
+          <div class="r-sub">for ₹2,999 spent</div>
+          <div class="r-mult">47× ROI 🚀</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- S4 Month comparison -->
+  <div id="s4">
+    <div class="s4title"><div class="tag">Before vs After Wapaci</div><h2>Real store results in 3 months</h2></div>
+    <div class="months">
+      <div class="month-card">
+        <div class="mo">Before Wapaci</div>
+        <div class="before">₹0</div>
+        <div class="arrow-col">↓</div>
+        <div style="color:#64748b;font-size:14px">Lost to abandoned carts</div>
+      </div>
+      <div style="display:flex;align-items:center;font-size:48px;color:#25D366;font-weight:900">→</div>
+      <div class="month-card">
+        <div class="mo">Month 1</div>
+        <div class="after">₹68K</div>
+        <div class="diff">+₹68,000 recovered</div>
+      </div>
+      <div class="month-card" style="border-color:rgba(37,211,102,.3)">
+        <div class="mo" style="color:#25D366">Month 3</div>
+        <div class="after">₹2.1L</div>
+        <div class="diff">+₹2,10,000 recovered</div>
+      </div>
+    </div>
+  </div>
+  <!-- S5 CTA -->
+  <div id="s5">
+    <div class="s5logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+    <div class="s5tag"><h2>Your first ₹1 lakh recovered<br/><em>is just 10 minutes away.</em></h2><p>Free to start · No credit card · Instant Shopify sync</p></div>
+    <div class="s5url"><span>wapaci.com</span></div>
+  </div>
+  <div id="bar"></div>
+</div>
+<button id="rply" onclick="restart()">↺ Replay</button>
+<script>
+const C=document.getElementById('C'),sh=C.innerHTML
+function sz(){const s=Math.min(window.innerWidth/1080,window.innerHeight/1080)*.95;C.style.transform=`scale(${s})`}
+sz();window.addEventListener('resize',sz)
+let ax=null
+function gCtx(){if(!ax||ax.state==='closed')ax=new(window.AudioContext||window.webkitAudioContext)();if(ax.state==='suspended')ax.resume();return ax}
+function bRv(ctx,d,dc){const sr=ctx.sampleRate,l=Math.ceil(sr*d),b=ctx.createBuffer(2,l,sr);for(let c=0;c<2;c++){const a=b.getChannelData(c);for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,dc)}const n=ctx.createConvolver();n.buffer=b;return n}
+function mk(ctx){const m=ctx.createGain();m.gain.value=.82;const d=ctx.createGain();d.gain.value=1;const w=ctx.createGain();w.gain.value=.35;const r=bRv(ctx,1.4,3.5);d.connect(m);r.connect(w);w.connect(m);m.connect(ctx.destination);return{d,r,m}}
+function nt(ctx,ch,at,f,du,v,tp,fe){try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ch.d);g.connect(ch.r);o.type=tp||'sine';o.frequency.setValueAtTime(f,at);if(fe)o.frequency.exponentialRampToValueAtTime(fe,at+du*.8);g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.006);g.gain.exponentialRampToValueAtTime(.0001,at+du);o.start(at);o.stop(at+du+.1)}catch(e){}}
+function ns(ctx,ch,at,du,v,f1,f2){try{const sr=ctx.sampleRate,b=ctx.createBuffer(1,Math.ceil(sr*du),sr),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=ctx.createBufferSource();s.buffer=b;const f=ctx.createBiquadFilter();f.type='bandpass';f.Q.value=.6;f.frequency.setValueAtTime(f1||400,at);if(f2)f.frequency.exponentialRampToValueAtTime(f2,at+du*.65);const g=ctx.createGain();g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.06);g.gain.exponentialRampToValueAtTime(.0001,at+du);s.connect(f);f.connect(g);g.connect(ch.d);g.connect(ch.r);s.start(at);s.stop(at+du+.1)}catch(e){}}
+function pad(ctx,ch,s,e){[131,165,196,262].forEach(f=>{try{const o=ctx.createOscillator();o.type='triangle';const g=ctx.createGain();o.connect(g);g.connect(ch.r);o.frequency.setValueAtTime(f,s);g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(.045,s+1.2);g.gain.setValueAtTime(.045,e-1.8);g.gain.linearRampToValueAtTime(0,e);o.start(s);o.stop(e+.2)}catch(e){}})}
+function nt2(c,ch,at,f,du,v){nt(c,ch,at,f,du,v,'sine')}
+function whoosh(c,ch,at){ns(c,ch,at,.5,.6,300,4000);nt(c,ch,at+.05,180,.4,.18,'sine',900)}
+function sting(c,ch,at){nt2(c,ch,at,523,.25,.52);nt2(c,ch,at+.18,659,.28,.5);nt2(c,ch,at+.36,784,.4,.55);nt2(c,ch,at+.36,1568,.25,.2)}
+function tick(c,ch,at){nt2(c,ch,at,1000,.05,.45);nt(c,ch,at,500,.05,.2,'triangle')}
+function coin(c,ch,at){nt(c,ch,at,1400,.09,.5,'sine',700);nt(c,ch,at+.09,1100,.12,.42,'sine',550)}
+function cash(c,ch,at){nt(c,ch,at,260,.09,.65,'triangle');nt(c,ch,at,130,.12,.55,'triangle');nt2(c,ch,at+.07,1200,.6,.58);nt2(c,ch,at+.07,1800,.3,.35);nt2(c,ch,at+.1,2400,.1,.25);nt2(c,ch,at+.23,2000,.1,.22);ns(c,ch,at,.09,.5,200,800)}
+function succ(c,ch,at){[523,659,784,1047].forEach((f,i)=>nt2(c,ch,at+i*.17,f,.55,.5))}
+function riseTone(c,ch,at){// Rising money counter feel
+  for(let i=0;i<8;i++){nt2(c,ch,at+i*.15,261+i*40,.12+i*.02,.2+i*.04)}}
+function triumph(c,ch,at){[261,329,392,523,659].forEach(f=>nt(c,ch,at,f,2.5,.22,'triangle'));ns(c,ch,at,.4,.3,300,2000);nt2(c,ch,at+.1,1047,1.8,.15);nt2(c,ch,at+.2,1319,1.5,.12)}
+function ding(c,ch,at){nt2(c,ch,at,1047,.8,.52);nt2(c,ch,at,.8,.35);nt2(c,ch,at+.1,1568,.6,.25)}
+function sched(ctx){
+  const ch=mk(ctx),t=ctx.currentTime+.05
+  pad(ctx,ch,t+4.8,t+29.5)
+  // S1: missing money reveal
+  tick(ctx,ch,t+.25);tick(ctx,ch,t+.8)
+  riseTone(ctx,ch,t+1.5)
+  coin(ctx,ch,t+3.5)
+  // S2: brand
+  whoosh(ctx,ch,t+5.25);sting(ctx,ch,t+5.55)
+  // S3: ROI calc
+  whoosh(ctx,ch,t+10.25)
+  tick(ctx,ch,t+10.55);tick(ctx,ch,t+11.3);tick(ctx,ch,t+12.05)
+  whoosh(ctx,ch,t+13.05)
+  cash(ctx,ch,t+13.6);succ(ctx,ch,t+14.2)
+  // S4: months
+  whoosh(ctx,ch,t+20.25)
+  coin(ctx,ch,t+21.1);coin(ctx,ch,t+22.5);succ(ctx,ch,t+24)
+  // S5: CTA
+  whoosh(ctx,ch,t+26.25);triumph(ctx,ch,t+26.6);ding(ctx,ch,t+27.5)
+}
+function startAd(){
+  document.getElementById('overlay').classList.add('hide')
+  setTimeout(()=>document.getElementById('overlay').style.display='none',450)
+  const ctx=gCtx();sched(ctx);C.classList.add('started')
+  setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)
+}
+async function recordAd(){
+  const ov=document.getElementById('overlay')
+  const mime=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm'
+  let stream
+  try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60},audio:true,preferCurrentTab:true})}
+  catch(e){alert('Cancelled. Try again.');return}
+  ov.classList.add('hide')
+  const chunks=[],rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000})
+  rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)}
+  rec.onstop=()=>{
+    stream.getTracks().forEach(t=>t.stop())
+    const blob=new Blob(chunks,{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a')
+    a.href=url;a.download='wapaci-roi-machine.'+(mime.includes('mp4')?'mp4':'webm')
+    document.body.appendChild(a);a.click();document.body.removeChild(a)
+    setTimeout(()=>URL.revokeObjectURL(url),5000)
+    document.getElementById('rply').style.opacity='1'
+  }
+  setTimeout(()=>{ov.style.display='none';rec.start(100);const ctx=gCtx();sched(ctx);C.classList.add('started');setTimeout(()=>rec.stop(),31500)},480)
+}
+function restart(){
+  document.getElementById('rply').style.opacity='0'
+  C.classList.remove('started');C.innerHTML=sh
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{const ctx=gCtx();sched(ctx);C.classList.add('started');setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)}))
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><title>Wapaci Ad — Channel Wars</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#overlay{position:fixed;inset:0;z-index:999;background:#060a10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .4s}
+#overlay.hide{opacity:0;pointer-events:none}
+.ov-logo img{height:64px;filter:drop-shadow(0 0 20px rgba(37,211,102,.5))}
+.ov-btns{display:flex;flex-direction:column;align-items:center;gap:10px}
+.btn-play{display:flex;align-items:center;gap:9px;background:rgba(37,211,102,.13);border:1.5px solid rgba(37,211,102,.45);color:#25D366;font-size:15px;font-weight:700;border-radius:50px;padding:12px 28px;cursor:pointer;font-family:inherit}
+.btn-dl{display:flex;align-items:center;gap:9px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.4);color:#f87171;font-size:15px;font-weight:700;border-radius:50px;padding:12px 28px;cursor:pointer;font-family:inherit}
+.ov-note{color:#334155;font-size:11px;text-align:center;max-width:300px;line-height:1.5}
+#C{position:relative;width:1080px;height:1080px;background:#0a0a14;overflow:hidden;transform-origin:center center}
+.blob{position:absolute;border-radius:50%;filter:blur(130px);opacity:0}
+.b1{width:600px;height:600px;background:rgba(59,130,246,.06);top:-100px;left:-100px}
+.b2{width:600px;height:600px;background:rgba(37,211,102,.07);bottom:-100px;right:-100px}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:80px 80px}
+.started .b1{animation:bIn 1.2s ease .1s forwards}
+.started .b2{animation:bIn 1.2s ease .5s forwards}
+@keyframes bIn{to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:scale(.72)}to{opacity:1;transform:scale(1)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scOut{to{opacity:0;transform:scale(.93);pointer-events:none}}
+@keyframes scOutU{to{opacity:0;transform:translateY(-30px);pointer-events:none}}
+@keyframes scIn{to{opacity:1;transform:none}}
+@keyframes barFill{from{height:0%;opacity:0}to{opacity:1}}
+@keyframes numCount{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}
+@keyframes winner{0%,100%{box-shadow:0 0 30px rgba(37,211,102,.4)}50%{box-shadow:0 0 60px rgba(37,211,102,.8),0 0 100px rgba(37,211,102,.3)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes fillBar{to{width:100%}}
+@keyframes glow{0%,100%{box-shadow:0 0 40px rgba(37,211,102,.5),0 0 80px rgba(37,211,102,.15)}50%{box-shadow:0 0 80px rgba(37,211,102,.9),0 0 160px rgba(37,211,102,.35)}}
+/* S1: Question hook */
+#s1{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px}
+.started #s1{animation:scOut .5s ease 5.2s forwards}
+.s1q{text-align:center;opacity:0}
+.started .s1q{animation:slideUp .6s cubic-bezier(.34,1.56,.64,1) .3s forwards}
+.s1q .pre{color:#64748b;font-size:26px;font-weight:500}
+.s1q h1{font-size:68px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-3px;margin-top:8px}
+.s1q h1 em{color:#25D366;font-style:normal}
+.s1channels{display:flex;gap:20px;opacity:0}
+.started .s1channels{animation:fadeIn .6s ease 1.2s forwards}
+.s1ch{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px 24px}
+.s1ch .ico{font-size:32px}
+.s1ch .nm{color:#fff;font-size:18px;font-weight:700}
+.s1ch .rt{font-size:14px;font-weight:600;margin-top:2px}
+.s1ch.email .rt{color:#3b82f6}
+.s1ch.sms .rt{color:#f59e0b}
+.s1ch.wa .rt{color:#25D366}
+.s1ch.wa{border-color:rgba(37,211,102,.35);background:rgba(37,211,102,.06)}
+.s1sub{text-align:center;opacity:0}
+.started .s1sub{animation:slideUp .5s ease 2.2s forwards}
+.s1sub p{color:#64748b;font-size:22px}
+/* S2: Side-by-side comparison bars */
+#s2{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:52px}
+.started #s2{animation:scIn .55s ease 5.4s forwards,scOutU .5s ease 17s forwards}
+.s2title{text-align:center;opacity:0}
+.started .s2title{animation:slideUp .6s ease 5.7s forwards}
+.s2title .tag{color:#fff;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.5}
+.s2title h2{font-size:52px;font-weight:900;color:#fff;letter-spacing:-1.5px;margin-top:8px}
+.bars-area{display:flex;align-items:flex-end;gap:60px;height:420px}
+.bar-col{display:flex;flex-direction:column;align-items:center;gap:16px}
+.bar-wrap{width:160px;height:380px;display:flex;align-items:flex-end;background:rgba(255,255,255,.04);border-radius:16px 16px 0 0;overflow:hidden}
+.bar-fill{width:100%;border-radius:12px 12px 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:12px;font-size:28px;font-weight:900;color:#fff}
+.bar-fill.email{background:linear-gradient(180deg,#3b82f6,#1d4ed8);height:0%;animation:none}
+.bar-fill.sms{background:linear-gradient(180deg,#f59e0b,#d97706);height:0%;animation:none}
+.bar-fill.wa{background:linear-gradient(180deg,#25D366,#128C7E);height:0%;animation:winner 2s infinite}
+.started .bar-fill.email{animation:barFill .8s cubic-bezier(.34,1.56,.64,1) 6.5s forwards;height:7.1%}
+.started .bar-fill.sms  {animation:barFill .8s cubic-bezier(.34,1.56,.64,1) 7.3s forwards;height:17.8%}
+.started .bar-fill.wa   {animation:barFill 1s cubic-bezier(.34,1.56,.64,1) 8.2s forwards;height:100%}
+/* Override: set heights via animation */
+.bar-fill{height:0%}
+@keyframes emailGrow{from{height:0%}to{height:7.1%}}
+@keyframes smsGrow{from{height:0%}to{height:17.8%}}
+@keyframes waGrow{from{height:0%}to{height:100%}}
+.started .bar-fill.email{animation:emailGrow .8s cubic-bezier(.34,1.56,.64,1) 6.5s forwards,barFill 0s 0s forwards}
+.started .bar-fill.sms{animation:smsGrow .8s cubic-bezier(.34,1.56,.64,1) 7.3s forwards}
+.started .bar-fill.wa{animation:waGrow 1s cubic-bezier(.34,1.56,.64,1) 8.2s forwards,winner 2s infinite 8.8s}
+.bar-pct{font-size:42px;font-weight:900;opacity:0}
+.bar-lbl{font-size:18px;font-weight:700;text-align:center}
+.bar-sublbl{font-size:13px;font-weight:600;text-align:center;margin-top:4px}
+.started .pct-email{animation:numCount .4s ease 7.3s forwards;color:#3b82f6}
+.started .pct-sms  {animation:numCount .4s ease 8.1s forwards;color:#f59e0b}
+.started .pct-wa   {animation:numCount .5s cubic-bezier(.34,1.56,.64,1) 9.2s forwards;color:#25D366}
+.bar-lbl.email{color:#3b82f6}
+.bar-lbl.sms{color:#f59e0b}
+.bar-lbl.wa{color:#25D366;font-size:22px}
+.bar-sublbl.email{color:#475569}
+.bar-sublbl.sms{color:#475569}
+.bar-sublbl.wa{color:#25D366}
+.winner-badge{background:rgba(37,211,102,.15);border:1px solid rgba(37,211,102,.4);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;color:#25D366;opacity:0}
+.started .winner-badge{animation:popIn .5s ease 9.5s forwards}
+/* S3: Why WhatsApp wins */
+#s3{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:48px}
+.started #s3{animation:scIn .55s ease 17.2s forwards,scOutU .5s ease 24s forwards}
+.s3title{text-align:center;opacity:0}
+.started .s3title{animation:slideUp .6s ease 17.5s forwards}
+.s3title .tag{color:#25D366;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+.s3title h2{font-size:52px;font-weight:900;color:#fff;letter-spacing:-1.5px;margin-top:8px}
+.why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.why-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:24px;text-align:center;opacity:0}
+.started .wc1{animation:popIn .5s cubic-bezier(.34,1.56,.64,1) 17.9s forwards}
+.started .wc2{animation:popIn .5s cubic-bezier(.34,1.56,.64,1) 18.5s forwards}
+.started .wc3{animation:popIn .5s cubic-bezier(.34,1.56,.64,1) 19.1s forwards}
+.why-card .ico{font-size:40px;margin-bottom:12px}
+.why-card .wv{font-size:48px;font-weight:900;color:#25D366;line-height:1;letter-spacing:-2px}
+.why-card .wl{color:#64748b;font-size:13px;font-weight:600;margin-top:6px;text-transform:uppercase;letter-spacing:.06em}
+.why-card .wd{color:#25D366;font-size:12px;font-weight:600;margin-top:4px}
+/* S4: Wapaci = WhatsApp */
+#s4{position:absolute;inset:0;opacity:0;transform:scale(.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px}
+.started #s4{animation:scIn .7s cubic-bezier(.34,1.56,.64,1) 24.2s forwards}
+.s4logo{opacity:0}
+.started .s4logo{animation:popIn .7s cubic-bezier(.34,1.56,.64,1) 24.4s forwards}
+.s4logo img{height:100px;filter:drop-shadow(0 0 35px rgba(37,211,102,.65)) drop-shadow(0 0 70px rgba(37,211,102,.3))}
+.started .s4logo img{animation:glow 2s ease-in-out 24.8s infinite}
+.s4tag{text-align:center;opacity:0}
+.started .s4tag{animation:slideUp .6s ease 24.8s forwards}
+.s4tag h2{font-size:44px;font-weight:900;color:#fff;line-height:1.2;letter-spacing:-1px}
+.s4tag h2 em{color:#25D366;font-style:normal}
+.s4tag p{color:#64748b;font-size:22px;margin-top:10px}
+.s4url{background:rgba(37,211,102,.1);border:1.5px solid rgba(37,211,102,.45);border-radius:50px;padding:15px 44px;opacity:0}
+.started .s4url{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 27.5s forwards}
+.s4url span{color:#25D366;font-size:30px;font-weight:800}
+#bar{position:absolute;bottom:0;left:0;height:5px;background:linear-gradient(90deg,#3b82f6,#f59e0b,#25D366);width:0%;border-radius:0 2px 2px 0}
+.started #bar{animation:fillBar 30s linear forwards}
+#rply{position:fixed;bottom:20px;right:24px;z-index:100;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.35);color:#25D366;font-size:14px;font-weight:700;border-radius:22px;padding:10px 22px;cursor:pointer;opacity:0;transition:opacity .4s;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="overlay">
+  <div class="ov-logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+  <div class="ov-btns">
+    <button class="btn-play" onclick="startAd()"><svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366"><polygon points="5,3 19,12 5,21"/></svg>Preview Ad</button>
+    <button class="btn-dl" onclick="recordAd()"><svg width="12" height="12" viewBox="0 0 24 24" fill="#f87171"><circle cx="12" cy="12" r="8"/></svg>Record &amp; Download MP4</button>
+  </div>
+  <div class="ov-note">For audio: Select <strong>Chrome Tab</strong> → tick <strong>Share tab audio</strong></div>
+</div>
+<div id="C">
+  <div class="blob b1"></div><div class="blob b2"></div><div class="grid"></div>
+  <!-- S1 -->
+  <div id="s1">
+    <div class="s1q"><div class="pre">Which channel actually recovers abandoned carts?</div><h1>The data<br/>doesn't lie.</h1></div>
+    <div class="s1channels">
+      <div class="s1ch email"><span class="ico">📧</span><div><div class="nm">Email</div><div class="rt email">2% recovery</div></div></div>
+      <div class="s1ch sms"><span class="ico">💬</span><div><div class="nm">SMS</div><div class="rt sms">5% recovery</div></div></div>
+      <div class="s1ch wa"><span class="ico">💚</span><div><div class="nm">WhatsApp</div><div class="rt wa">28% recovery</div></div></div>
+    </div>
+    <div class="s1sub"><p>Let's break down why WhatsApp wins — every time.</p></div>
+  </div>
+  <!-- S2 Bars -->
+  <div id="s2">
+    <div class="s2title"><div class="tag">Cart Recovery Rate Comparison</div><h2>One channel dominates</h2></div>
+    <div class="bars-area">
+      <div class="bar-col">
+        <div class="bar-pct pct-email">2%</div>
+        <div class="bar-wrap"><div class="bar-fill email">📧</div></div>
+        <div class="bar-lbl email">Email</div>
+        <div class="bar-sublbl email">98% ignored</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-pct pct-sms">5%</div>
+        <div class="bar-wrap"><div class="bar-fill sms">💬</div></div>
+        <div class="bar-lbl sms">SMS</div>
+        <div class="bar-sublbl sms">Low intent</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-pct pct-wa">28%</div>
+        <div class="bar-wrap"><div class="bar-fill wa">💚</div></div>
+        <div class="bar-lbl wa">WhatsApp</div>
+        <div class="winner-badge">🏆 Clear winner</div>
+      </div>
+    </div>
+  </div>
+  <!-- S3 Why -->
+  <div id="s3">
+    <div class="s3title"><div class="tag">Why WhatsApp wins</div><h2>Built for real conversations</h2></div>
+    <div class="why-grid">
+      <div class="why-card wc1"><div class="ico">👀</div><div class="wv">98%</div><div class="wl">Open rate</div><div class="wd">vs 22% email</div></div>
+      <div class="why-card wc2"><div class="ico">⚡</div><div class="wv">3 min</div><div class="wl">Avg read time</div><div class="wd">vs hours for email</div></div>
+      <div class="why-card wc3"><div class="ico">💬</div><div class="wv">45%</div><div class="wl">Reply rate</div><div class="wd">vs 6% email CTR</div></div>
+    </div>
+  </div>
+  <!-- S4 CTA -->
+  <div id="s4">
+    <div class="s4logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+    <div class="s4tag"><h2>Switch to WhatsApp.<br/><em>Recover 14× more carts.</em></h2><p>Official Meta Partner · Shopify native · 10 min setup</p></div>
+    <div class="s4url"><span>wapaci.com</span></div>
+  </div>
+  <div id="bar"></div>
+</div>
+<button id="rply" onclick="restart()">↺ Replay</button>
+<script>
+const C=document.getElementById('C'),sh=C.innerHTML
+function sz(){const s=Math.min(window.innerWidth/1080,window.innerHeight/1080)*.95;C.style.transform=`scale(${s})`}
+sz();window.addEventListener('resize',sz)
+let ax=null
+function gCtx(){if(!ax||ax.state==='closed')ax=new(window.AudioContext||window.webkitAudioContext)();if(ax.state==='suspended')ax.resume();return ax}
+function bRv(ctx,d,dc){const sr=ctx.sampleRate,l=Math.ceil(sr*d),b=ctx.createBuffer(2,l,sr);for(let c=0;c<2;c++){const a=b.getChannelData(c);for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,dc)}const n=ctx.createConvolver();n.buffer=b;return n}
+function mk(ctx){const m=ctx.createGain();m.gain.value=.82;const d=ctx.createGain();d.gain.value=1;const w=ctx.createGain();w.gain.value=.35;const r=bRv(ctx,1.4,3.5);d.connect(m);r.connect(w);w.connect(m);m.connect(ctx.destination);return{d,r,m}}
+function nt(ctx,ch,at,f,du,v,tp,fe){try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ch.d);g.connect(ch.r);o.type=tp||'sine';o.frequency.setValueAtTime(f,at);if(fe)o.frequency.exponentialRampToValueAtTime(fe,at+du*.8);g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.006);g.gain.exponentialRampToValueAtTime(.0001,at+du);o.start(at);o.stop(at+du+.1)}catch(e){}}
+function ns(ctx,ch,at,du,v,f1,f2){try{const sr=ctx.sampleRate,b=ctx.createBuffer(1,Math.ceil(sr*du),sr),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=ctx.createBufferSource();s.buffer=b;const f=ctx.createBiquadFilter();f.type='bandpass';f.Q.value=.6;f.frequency.setValueAtTime(f1||400,at);if(f2)f.frequency.exponentialRampToValueAtTime(f2,at+du*.65);const g=ctx.createGain();g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.06);g.gain.exponentialRampToValueAtTime(.0001,at+du);s.connect(f);f.connect(g);g.connect(ch.d);g.connect(ch.r);s.start(at);s.stop(at+du+.1)}catch(e){}}
+function pad(ctx,ch,s,e){[131,165,196,262].forEach(f=>{try{const o=ctx.createOscillator();o.type='triangle';const g=ctx.createGain();o.connect(g);g.connect(ch.r);o.frequency.setValueAtTime(f,s);g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(.04,s+1.2);g.gain.setValueAtTime(.04,e-1.8);g.gain.linearRampToValueAtTime(0,e);o.start(s);o.stop(e+.2)}catch(e){}})}
+function whoosh(c,ch,at){ns(c,ch,at,.5,.6,300,4000);nt(c,ch,at+.05,180,.4,.18,'sine',900)}
+function sting(c,ch,at){nt(c,ch,at,523,.25,.52);nt(c,ch,at+.18,659,.28,.5);nt(c,ch,at+.36,784,.4,.55);nt(c,ch,at+.36,1568,.25,.2)}
+function tick(c,ch,at){nt(c,ch,at,1000,.05,.45);nt(c,ch,at,500,.05,.2,'triangle')}
+function lowTone(c,ch,at){nt(c,ch,at,220,.4,.3,'triangle');nt(c,ch,at,110,.5,.2,'triangle')}
+function midTone(c,ch,at){nt(c,ch,at,440,.3,.3);nt(c,ch,at,880,.2,.2)}
+function winTone(c,ch,at){[523,659,784,1047,1319].forEach((f,i)=>nt(c,ch,at+i*.12,f,.5+i*.1,.4+i*.04))}
+function triumph(c,ch,at){[261,329,392,523,659].forEach(f=>nt(c,ch,at,f,2.5,.22,'triangle'));ns(c,ch,at,.4,.3,300,2000);nt(c,ch,at+.1,1047,1.8,.15);nt(c,ch,at+.2,1319,1.5,.12)}
+function ding(c,ch,at){nt(c,ch,at,1047,.8,.52);nt(c,ch,at,.8,.35,'sine',1319);nt(c,ch,at+.1,1568,.6,.25)}
+function coin(c,ch,at){nt(c,ch,at,1400,.09,.5,'sine',700);nt(c,ch,at+.09,1100,.12,.42,'sine',550)}
+function sched(ctx){
+  const ch=mk(ctx),t=ctx.currentTime+.05
+  pad(ctx,ch,t+5,t+29.5)
+  // S1: hook
+  tick(ctx,ch,t+.3);tick(ctx,ch,t+1.3);tick(ctx,ch,t+2.3)
+  lowTone(ctx,ch,t+.6)  // email (low/weak)
+  midTone(ctx,ch,t+1.6) // SMS (medium)
+  // S2: bars
+  whoosh(ctx,ch,t+5.45)
+  lowTone(ctx,ch,t+6.55)    // email bar rises (weak)
+  midTone(ctx,ch,t+7.35)    // SMS bar rises
+  winTone(ctx,ch,t+8.25)    // WhatsApp bar rockets up!
+  sting(ctx,ch,t+9.3)       // winner badge
+  // S3: why cards
+  whoosh(ctx,ch,t+17.25)
+  tick(ctx,ch,t+17.95);coin(ctx,ch,t+18.55);coin(ctx,ch,t+19.15)
+  // S4: CTA
+  whoosh(ctx,ch,t+24.25);triumph(ctx,ch,t+24.6);ding(ctx,ch,t+27.6)
+}
+function startAd(){
+  document.getElementById('overlay').classList.add('hide')
+  setTimeout(()=>document.getElementById('overlay').style.display='none',450)
+  const ctx=gCtx();sched(ctx);C.classList.add('started')
+  setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)
+}
+async function recordAd(){
+  const ov=document.getElementById('overlay')
+  const mime=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm'
+  let stream
+  try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60},audio:true,preferCurrentTab:true})}
+  catch(e){alert('Cancelled. Try again.');return}
+  ov.classList.add('hide')
+  const chunks=[],rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000})
+  rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)}
+  rec.onstop=()=>{
+    stream.getTracks().forEach(t=>t.stop())
+    const blob=new Blob(chunks,{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a')
+    a.href=url;a.download='wapaci-channel-wars.'+(mime.includes('mp4')?'mp4':'webm')
+    document.body.appendChild(a);a.click();document.body.removeChild(a)
+    setTimeout(()=>URL.revokeObjectURL(url),5000)
+    document.getElementById('rply').style.opacity='1'
+  }
+  setTimeout(()=>{ov.style.display='none';rec.start(100);const ctx=gCtx();sched(ctx);C.classList.add('started');setTimeout(()=>rec.stop(),31500)},480)
+}
+function restart(){
+  document.getElementById('rply').style.opacity='0'
+  C.classList.remove('started');C.innerHTML=sh
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{const ctx=gCtx();sched(ctx);C.classList.add('started');setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)}))
+}
+</script>
+</body>
+</html>

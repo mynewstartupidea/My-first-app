@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><title>Wapaci Ad — Cart Recovery</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#overlay{position:fixed;inset:0;z-index:999;background:#060a10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;cursor:pointer;transition:opacity .4s}
+#overlay.hide{opacity:0;pointer-events:none}
+.ov-logo img{height:64px;filter:drop-shadow(0 0 20px rgba(37,211,102,.5))}
+.ov-btns{display:flex;flex-direction:column;align-items:center;gap:10px}
+.btn-play{display:flex;align-items:center;gap:9px;background:rgba(37,211,102,.13);border:1.5px solid rgba(37,211,102,.45);color:#25D366;font-size:15px;font-weight:700;border-radius:50px;padding:12px 28px;cursor:pointer;font-family:inherit}
+.btn-dl{display:flex;align-items:center;gap:9px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.4);color:#f87171;font-size:15px;font-weight:700;border-radius:50px;padding:12px 28px;cursor:pointer;font-family:inherit}
+.ov-note{color:#334155;font-size:11px;text-align:center;max-width:300px;line-height:1.5}
+#C{position:relative;width:1080px;height:1080px;background:#0a0f1a;overflow:hidden;transform-origin:center center}
+.blob{position:absolute;border-radius:50%;filter:blur(130px);opacity:0}
+.b1{width:700px;height:700px;background:#ef444410;top:-150px;left:-200px}
+.b2{width:600px;height:600px;background:#25D36610;bottom:-150px;right:-150px}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:80px 80px}
+.started .b1{animation:bIn 1.2s ease .1s forwards}
+.started .b2{animation:bIn 1.2s ease .5s forwards}
+@keyframes bIn{to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:scale(.72)}to{opacity:1;transform:scale(1)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scOut{to{opacity:0;transform:scale(.93);pointer-events:none}}
+@keyframes scOutU{to{opacity:0;transform:translateY(-30px);pointer-events:none}}
+@keyframes scIn{to{opacity:1;transform:none}}
+@keyframes msgPop{from{opacity:0;transform:translateY(10px) scale(.95)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+@keyframes dot{0%,80%,100%{transform:scale(.6);opacity:.35}40%{transform:scale(1);opacity:1}}
+@keyframes glow{0%,100%{box-shadow:0 0 40px rgba(37,211,102,.5),0 0 80px rgba(37,211,102,.15)}50%{box-shadow:0 0 80px rgba(37,211,102,.9),0 0 160px rgba(37,211,102,.35)}}
+@keyframes phoneFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-14px) rotate(1deg)}}
+@keyframes fillBar{to{width:100%}}
+/* S1 */
+#s1{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px}
+.started #s1{animation:scOut .5s ease 4.7s forwards}
+.s1badge{display:flex;align-items:center;gap:10px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);border-radius:40px;padding:10px 26px;opacity:0}
+.started .s1badge{animation:popIn .5s cubic-bezier(.34,1.56,.64,1) .2s forwards}
+.s1dot{width:10px;height:10px;border-radius:50%;background:#ef4444}
+.started .s1dot{animation:pulse 1s infinite .8s}
+.s1badge span{color:#ef4444;font-size:19px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.s1big{text-align:center;opacity:0}
+.started .s1big{animation:slideUp .65s cubic-bezier(.34,1.56,.64,1) .7s forwards}
+.s1num{font-size:180px;font-weight:900;color:#ef4444;line-height:1;letter-spacing:-10px}
+.s1lbl{font-size:34px;color:#94a3b8;font-weight:500;margin-top:6px}
+.s1sub{font-size:26px;color:#64748b;opacity:0}
+.started .s1sub{animation:slideUp .6s cubic-bezier(.34,1.56,.64,1) 1.3s forwards}
+.s1sub strong{color:#ef4444}
+.s1cards{display:flex;gap:24px;opacity:0}
+.started .s1cards{animation:fadeIn .7s ease 2.2s forwards}
+.s1c{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:16px;padding:18px 24px;text-align:center}
+.s1c .v{font-size:38px;font-weight:900;color:#ef4444}
+.s1c .l{font-size:12px;color:#64748b;margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+/* S2 */
+#s2{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px}
+.started #s2{animation:scIn .55s ease 5s forwards,scOutU .5s ease 9.6s forwards}
+.s2logo{opacity:0}
+.started .s2logo{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 5.3s forwards}
+.s2logo img{height:80px;filter:drop-shadow(0 0 28px rgba(37,211,102,.55))}
+.s2hl{text-align:center;opacity:0}
+.started .s2hl{animation:slideUp .6s cubic-bezier(.34,1.56,.64,1) 5.8s forwards}
+.s2hl h2{font-size:50px;font-weight:900;color:#fff;line-height:1.18;letter-spacing:-1.5px}
+.s2hl h2 em{color:#25D366;font-style:normal}
+.s2hl p{font-size:24px;color:#64748b;margin-top:10px}
+.s2feats{display:flex;gap:16px;opacity:0}
+.started .s2feats{animation:fadeIn .7s ease 6.5s forwards}
+.s2feat{background:rgba(37,211,102,.07);border:1px solid rgba(37,211,102,.22);border-radius:50px;padding:11px 22px}
+.s2feat span{color:#25D366;font-size:14px;font-weight:700}
+.s2bar{display:flex;align-items:center;gap:12px;background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.25);border-radius:50px;padding:13px 28px;opacity:0}
+.started .s2bar{animation:popIn .5s ease 7.8s forwards}
+.s2bar .lbl{color:#25D366;font-size:19px;font-weight:600}
+.dots{display:flex;gap:5px;margin-left:4px}
+.dots span{width:7px;height:7px;background:#25D366;border-radius:50%;opacity:.35}
+.started .dots span{animation:dot 1.2s infinite 8s}
+.started .dots span:nth-child(2){animation-delay:8.2s}
+.started .dots span:nth-child(3){animation-delay:8.4s}
+/* S3 - Chat */
+#s3{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;align-items:center;justify-content:center;gap:52px}
+.started #s3{animation:scIn .55s ease 10s forwards,scOutU .5s ease 23.5s forwards}
+.phone{width:340px;flex-shrink:0;background:#111827;border-radius:44px;border:2px solid rgba(255,255,255,.08);box-shadow:0 50px 100px rgba(0,0,0,.7);overflow:hidden;opacity:0}
+.started .phone{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 10.2s forwards,phoneFloat 3.5s ease-in-out 10.8s infinite}
+.pst{background:#0a0f1a;padding:10px 22px 6px;display:flex;justify-content:space-between}
+.pst .t{color:#fff;font-size:13px;font-weight:700}
+.pst .i{color:#fff;font-size:11px;opacity:.65}
+.pbar{background:#128C7E;padding:10px 16px;display:flex;align-items:center;gap:12px}
+.pav{width:36px;height:36px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0}
+.pi .name{color:#fff;font-size:14px;font-weight:700}
+.pi .st{color:rgba(255,255,255,.7);font-size:11px}
+.chat{background:#0b141a;padding:14px 12px;height:380px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
+.mo{align-self:flex-end;max-width:84%;background:#005c4b;border-radius:10px 2px 10px 10px;padding:9px 13px;opacity:0}
+.mo p{color:#fff;font-size:12px;line-height:1.5}
+.mo .ts{color:rgba(255,255,255,.45);font-size:10px;text-align:right;margin-top:3px}
+.started .m1{animation:msgPop .4s ease 10.8s forwards}
+.started .m2{animation:msgPop .4s ease 12.3s forwards}
+.started .m3{animation:msgPop .4s ease 18.5s forwards}
+.tyb{align-self:flex-start;background:#1f2c34;border-radius:2px 10px 10px 10px;padding:12px 18px;display:flex;gap:5px;align-items:center;opacity:0}
+.started .tyb{animation:msgPop .3s ease 15.6s forwards,ftOut .3s ease 16.4s forwards}
+@keyframes ftOut{to{opacity:0}}
+.tyb span{width:8px;height:8px;background:#aaa;border-radius:50%;display:inline-block}
+.started .tyb span{animation:dot 1s infinite 15.7s}
+.started .tyb span:nth-child(2){animation-delay:15.85s}
+.started .tyb span:nth-child(3){animation-delay:16s}
+.mi{align-self:flex-start;max-width:78%;background:#1f2c34;border-radius:2px 10px 10px 10px;padding:9px 13px;opacity:0}
+.mi p{color:#fff;font-size:12px;line-height:1.5}
+.mi .ts{color:rgba(255,255,255,.35);font-size:10px;margin-top:3px}
+.started .rpl{animation:msgPop .4s ease 16.6s forwards}
+.mconf{align-self:flex-end;max-width:90%;background:linear-gradient(135deg,#005c4b,#006d59);border-radius:10px 2px 10px 10px;padding:12px 14px;border:1px solid rgba(37,211,102,.35);opacity:0}
+.started .mconf{animation:msgPop .4s ease 18.5s forwards}
+.cr{display:flex;align-items:center;gap:8px}
+.cr .ck{font-size:18px}
+.cr p{color:#fff;font-size:14px;font-weight:700}
+.ca{color:#25D366;font-size:22px;font-weight:900;margin-top:5px}
+.cts{color:rgba(255,255,255,.35);font-size:10px;margin-top:3px;text-align:right}
+.side{display:flex;flex-direction:column;gap:20px;max-width:340px}
+.shl{opacity:0}
+.started .shl{animation:slideUp .7s cubic-bezier(.34,1.56,.64,1) 11.2s forwards}
+.shl h3{color:#fff;font-size:30px;font-weight:900;line-height:1.25;letter-spacing:-.5px}
+.shl h3 em{color:#25D366;font-style:normal}
+.shl p{color:#64748b;font-size:16px;margin-top:6px}
+.ms{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:16px 20px;opacity:0}
+.started .ms1{animation:popIn .5s ease 12s forwards}
+.started .ms2{animation:popIn .5s ease 12.6s forwards}
+.started .ms3{animation:popIn .5s ease 13.2s forwards}
+.ms .ml{color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.ms .mv{color:#fff;font-size:26px;font-weight:900;margin-top:2px}
+.ms .mv.g{color:#25D366}
+.ms .md{color:#25D366;font-size:12px;font-weight:600;margin-top:1px}
+.rec{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(37,211,102,.18),rgba(18,140,126,.18));border:1.5px solid rgba(37,211,102,.45);border-radius:20px;padding:18px 44px;text-align:center;white-space:nowrap;opacity:0}
+.started .rec{animation:popIn .5s cubic-bezier(.34,1.56,.64,1) 19.4s forwards}
+.rl{color:#94a3b8;font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.ra{color:#25D366;font-size:52px;font-weight:900;letter-spacing:-2px;margin-top:2px}
+/* S4 - Stats */
+#s4{position:absolute;inset:0;opacity:0;transform:translateY(36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:44px}
+.started #s4{animation:scIn .55s ease 24s forwards,scOutU .5s ease 27.7s forwards}
+.s4t{text-align:center;opacity:0}
+.started .s4t{animation:slideUp .6s ease 24.3s forwards}
+.s4t .tag{color:#25D366;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+.s4t h2{font-size:50px;font-weight:900;color:#fff;letter-spacing:-1.5px;margin-top:8px}
+.sgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.sc{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:24px 28px;opacity:0}
+.started .sc1{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 24.8s forwards}
+.started .sc2{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 25.4s forwards}
+.started .sc3{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 26s forwards}
+.started .sc4{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 26.6s forwards}
+.sc .cv{font-size:56px;font-weight:900;color:#fff;letter-spacing:-2px;line-height:1}
+.sc .cv.g{color:#25D366}
+.sc .cl{color:#64748b;font-size:13px;font-weight:600;margin-top:6px;text-transform:uppercase;letter-spacing:.06em}
+.sc .cd{color:#25D366;font-size:13px;font-weight:600;margin-top:4px}
+/* S5 - CTA */
+#s5{position:absolute;inset:0;opacity:0;transform:scale(.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px}
+.started #s5{animation:scIn .7s cubic-bezier(.34,1.56,.64,1) 28s forwards}
+.s5logo{opacity:0}
+.started .s5logo{animation:popIn .7s cubic-bezier(.34,1.56,.64,1) 28.2s forwards}
+.s5logo img{height:100px;filter:drop-shadow(0 0 35px rgba(37,211,102,.65)) drop-shadow(0 0 70px rgba(37,211,102,.3))}
+.started .s5logo img{animation:glow 2s ease-in-out 28.7s infinite}
+.s5tag{text-align:center;opacity:0}
+.started .s5tag{animation:slideUp .6s ease 28.6s forwards}
+.s5tag h2{font-size:42px;font-weight:900;color:#fff;line-height:1.2;letter-spacing:-1px}
+.s5tag h2 em{color:#25D366;font-style:normal}
+.s5tag p{color:#64748b;font-size:22px;margin-top:10px}
+.s5url{background:rgba(37,211,102,.1);border:1.5px solid rgba(37,211,102,.45);border-radius:50px;padding:15px 44px;opacity:0}
+.started .s5url{animation:popIn .6s cubic-bezier(.34,1.56,.64,1) 29s forwards}
+.s5url span{color:#25D366;font-size:30px;font-weight:800;letter-spacing:.02em}
+#bar{position:absolute;bottom:0;left:0;height:5px;background:linear-gradient(90deg,#ef4444,#25D366);width:0%;border-radius:0 2px 2px 0}
+.started #bar{animation:fillBar 30s linear forwards}
+#rply{position:fixed;bottom:20px;right:24px;z-index:100;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.35);color:#25D366;font-size:14px;font-weight:700;border-radius:22px;padding:10px 22px;cursor:pointer;opacity:0;transition:opacity .4s;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="overlay">
+  <div class="ov-logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+  <div class="ov-btns">
+    <button class="btn-play" onclick="startAd()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366"><polygon points="5,3 19,12 5,21"/></svg>
+      Preview Ad
+    </button>
+    <button class="btn-dl" onclick="recordAd()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="#f87171"><circle cx="12" cy="12" r="8"/></svg>
+      Record &amp; Download MP4
+    </button>
+  </div>
+  <div class="ov-note">For audio: Select <strong>Chrome Tab</strong> → tick <strong>Share tab audio</strong></div>
+</div>
+
+<div id="C">
+  <div class="blob b1"></div><div class="blob b2"></div><div class="grid"></div>
+  <!-- S1 Problem -->
+  <div id="s1">
+    <div class="s1badge"><div class="s1dot"></div><span>⚠ Cart Abandoned Alert</span></div>
+    <div class="s1big"><div class="s1num">70%</div><div class="s1lbl">of all carts are abandoned</div></div>
+    <div class="s1sub">Your store is losing <strong>₹lakhs every single month</strong></div>
+    <div class="s1cards">
+      <div class="s1c"><div class="v">₹15K</div><div class="l">Lost per day</div></div>
+      <div class="s1c"><div class="v">68%</div><div class="l">Abandon on mobile</div></div>
+      <div class="s1c"><div class="v">2%</div><div class="l">Email recovery</div></div>
+    </div>
+  </div>
+  <!-- S2 Brand -->
+  <div id="s2">
+    <div class="s2logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+    <div class="s2hl"><h2>WhatsApp automation that<br/><em>recovers your revenue</em></h2><p>Official Meta Partner · No code · 10 min setup</p></div>
+    <div class="s2feats">
+      <div class="s2feat"><span>✓ Cart Recovery</span></div>
+      <div class="s2feat"><span>✓ COD Verification</span></div>
+      <div class="s2feat"><span>✓ Shipping Updates</span></div>
+    </div>
+    <div class="s2bar"><span style="font-size:20px">📲</span><span class="lbl">Sending recovery message</span><div class="dots"><span></span><span></span><span></span></div></div>
+  </div>
+  <!-- S3 Chat demo -->
+  <div id="s3">
+    <div class="phone">
+      <div class="pst"><span class="t">10:42</span><span class="i">📶 🔋</span></div>
+      <div class="pbar"><div class="pav">W</div><div class="pi"><div class="name">Wapaci Store</div><div class="st">🟢 Online</div></div></div>
+      <div class="chat">
+        <div class="mo m1"><p>Hi Priya! 👋 You left something —<br/><strong>Nike Air Max (Size 8)</strong> is waiting 🛒</p><div class="ts">10:42 AM ✓✓</div></div>
+        <div class="mo m2"><p>🎁 <strong>10% off</strong> just for you: <strong>CART10</strong><br/>⏰ Valid 2 hours only!</p><div class="ts">10:42 AM ✓✓</div></div>
+        <div class="tyb"><span></span><span></span><span></span></div>
+        <div class="mi rpl"><p>OMG I totally forgot! 😅<br/>Placing the order now!</p><div class="ts">10:44 AM</div></div>
+        <div class="mo m3"><p>🎉 Order placed! Tracking link coming shortly.</p><div class="ts">10:45 AM ✓✓</div></div>
+        <div class="mconf"><div class="cr"><span class="ck">✅</span><p>Order Confirmed!</p></div><div class="ca">₹4,199 recovered</div><div class="cts">10:45 AM ✓✓</div></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="shl"><h3>Real messages.<br/><em>Real revenue.</em></h3><p>Sent automatically when a cart is abandoned.</p></div>
+      <div class="ms ms1"><div class="ml">Recovery Rate</div><div class="mv g">28%</div><div class="md">↑ 14× better than email</div></div>
+      <div class="ms ms2"><div class="ml">Avg Response</div><div class="mv">4 min</div><div class="md">↑ Customers reply on WhatsApp</div></div>
+      <div class="ms ms3"><div class="ml">Avg Recovered</div><div class="mv g">₹3,800</div><div class="md">↑ Per recovered cart</div></div>
+    </div>
+    <div class="rec"><div class="rl">Recovered just now</div><div class="ra">₹4,199 💰</div></div>
+  </div>
+  <!-- S4 Stats -->
+  <div id="s4">
+    <div class="s4t"><div class="tag">Real results · Indian D2C brands</div><h2>Numbers that speak for themselves</h2></div>
+    <div class="sgrid">
+      <div class="sc sc1"><div class="cv g">₹2.1L</div><div class="cl">Avg monthly recovery</div><div class="cd">↑ per store using Wapaci</div></div>
+      <div class="sc sc2"><div class="cv g">28%</div><div class="cl">Cart recovery rate</div><div class="cd">↑ vs 2% industry avg</div></div>
+      <div class="sc sc3"><div class="cv">4 min</div><div class="cl">Avg customer response</div><div class="cd">↑ WhatsApp beats email</div></div>
+      <div class="sc sc4"><div class="cv">10 min</div><div class="cl">Setup time</div><div class="cd">↑ Connect Shopify → go live</div></div>
+    </div>
+  </div>
+  <!-- S5 CTA -->
+  <div id="s5">
+    <div class="s5logo"><img src="../logo-white.svg" alt="Wapaci"/></div>
+    <div class="s5tag"><h2>Stop losing carts.<br/><em>Start recovering revenue.</em></h2><p>Free to start · No credit card needed</p></div>
+    <div class="s5url"><span>wapaci.com</span></div>
+  </div>
+  <div id="bar"></div>
+</div>
+<button id="rply" onclick="restart()">↺ Replay</button>
+<script>
+const C=document.getElementById('C'),sh=C.innerHTML
+function sz(){const s=Math.min(window.innerWidth/1080,window.innerHeight/1080)*.95;C.style.transform=`scale(${s})`}
+sz();window.addEventListener('resize',sz)
+let ax=null
+function gCtx(){if(!ax||ax.state==='closed')ax=new(window.AudioContext||window.webkitAudioContext)();if(ax.state==='suspended')ax.resume();return ax}
+function bRv(ctx,d,dc){const sr=ctx.sampleRate,l=Math.ceil(sr*d),b=ctx.createBuffer(2,l,sr);for(let c=0;c<2;c++){const a=b.getChannelData(c);for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,dc)}const n=ctx.createConvolver();n.buffer=b;return n}
+function mk(ctx){const m=ctx.createGain();m.gain.value=.82;const d=ctx.createGain();d.gain.value=1;const w=ctx.createGain();w.gain.value=.35;const r=bRv(ctx,1.4,3.5);d.connect(m);r.connect(w);w.connect(m);m.connect(ctx.destination);return{d,r,m}}
+function nt(ctx,ch,at,f,du,v,tp,fe){try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ch.d);g.connect(ch.r);o.type=tp||'sine';o.frequency.setValueAtTime(f,at);if(fe)o.frequency.exponentialRampToValueAtTime(fe,at+du*.8);g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.006);g.gain.exponentialRampToValueAtTime(.0001,at+du);o.start(at);o.stop(at+du+.1)}catch(e){}}
+function ns(ctx,ch,at,du,v,f1,f2){try{const sr=ctx.sampleRate,b=ctx.createBuffer(1,Math.ceil(sr*du),sr),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=ctx.createBufferSource();s.buffer=b;const f=ctx.createBiquadFilter();f.type='bandpass';f.Q.value=.6;f.frequency.setValueAtTime(f1||400,at);if(f2)f.frequency.exponentialRampToValueAtTime(f2,at+du*.65);const g=ctx.createGain();g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.06);g.gain.exponentialRampToValueAtTime(.0001,at+du);s.connect(f);f.connect(g);g.connect(ch.d);g.connect(ch.r);s.start(at);s.stop(at+du+.1)}catch(e){}}
+function pad(ctx,ch,s,e){[131,165,196,262].forEach(f=>{try{const o=ctx.createOscillator();o.type='triangle';const g=ctx.createGain();o.connect(g);g.connect(ch.r);o.frequency.setValueAtTime(f,s);g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(.045,s+1.2);g.gain.setValueAtTime(.045,e-1.8);g.gain.linearRampToValueAtTime(0,e);o.start(s);o.stop(e+.2)}catch(e){}})}
+function alert_(c,ch,at){nt(c,ch,at,587,.22,.55);nt(c,ch,at+.25,494,.22,.5);nt(c,ch,at+.5,392,.35,.55);nt(c,ch,at,98,.55,.3,'triangle');};
+function tick(c,ch,at){nt(c,ch,at,1000,.05,.45);nt(c,ch,at,500,.05,.2,'triangle')}
+function whoosh(c,ch,at){ns(c,ch,at,.5,.6,300,4000);nt(c,ch,at+.05,180,.4,.18,'sine',900)}
+function sting(c,ch,at){nt(c,ch,at,523,.25,.52);nt(c,ch,at+.18,659,.28,.5);nt(c,ch,at+.36,784,.4,.55);nt(c,ch,at+.36,1568,.25,.2)}
+function waSent(c,ch,at){nt(c,ch,at,880,.055,.5);nt(c,ch,at+.07,1109,.07,.48)}
+function waRecv(c,ch,at){nt(c,ch,at,440,.15,.55);nt(c,ch,at+.17,523,.15,.55);nt(c,ch,at+.34,659,.22,.58)}
+function typSnd(c,ch,at){nt(c,ch,at,650,.04,.3);nt(c,ch,at+.14,650,.04,.28);nt(c,ch,at+.28,650,.04,.26)}
+function succ(c,ch,at){[523,659,784,1047].forEach((f,i)=>nt(c,ch,at+i*.17,f,.55,.5))}
+function cash(c,ch,at){nt(c,ch,at,260,.09,.65,'triangle');nt(c,ch,at,130,.12,.55,'triangle');nt(c,ch,at+.07,1200,.6,.58);nt(c,ch,at+.07,1800,.3,.35);nt(c,ch,at+.1,2400,.1,.25);nt(c,ch,at+.23,2000,.1,.22);nt(c,ch,at+.36,1600,.12,.2);ns(c,ch,at,.09,.5,200,800)}
+function coin(c,ch,at){nt(c,ch,at,1400,.09,.5,'sine',700);nt(c,ch,at+.09,1100,.12,.42,'sine',550)}
+function triumph(c,ch,at){[261,329,392,523,659].forEach(f=>nt(c,ch,at,f,2.5,.22,'triangle'));ns(c,ch,at,.4,.3,300,2000);nt(c,ch,at+.1,1047,1.8,.15);nt(c,ch,at+.2,1319,1.5,.12)}
+function ding(c,ch,at){nt(c,ch,at,1047,.8,.52);nt(c,ch,at,.8,.35,'sine',1319);nt(c,ch,at+.1,1568,.6,.25)}
+function sched(ctx){
+  const ch=mk(ctx),t=ctx.currentTime+.05
+  pad(ctx,ch,t+4.5,t+29.5)
+  alert_(ctx,ch,t+.22);alert_(ctx,ch,t+1.5)
+  tick(ctx,ch,t+2.28);tick(ctx,ch,t+2.48);tick(ctx,ch,t+2.68)
+  whoosh(ctx,ch,t+5.05);sting(ctx,ch,t+5.42)
+  tick(ctx,ch,t+6.58);tick(ctx,ch,t+6.78);tick(ctx,ch,t+6.98)
+  typSnd(ctx,ch,t+7.92)
+  whoosh(ctx,ch,t+10.05)
+  waSent(ctx,ch,t+10.85);waSent(ctx,ch,t+12.35)
+  typSnd(ctx,ch,t+15.68);waRecv(ctx,ch,t+16.65)
+  waSent(ctx,ch,t+18.55);succ(ctx,ch,t+19.1);cash(ctx,ch,t+19.65)
+  whoosh(ctx,ch,t+24.05)
+  coin(ctx,ch,t+24.88);coin(ctx,ch,t+25.48);coin(ctx,ch,t+26.08);coin(ctx,ch,t+26.68)
+  whoosh(ctx,ch,t+28.05);triumph(ctx,ch,t+28.35);ding(ctx,ch,t+29.12)
+}
+function startAd(){
+  document.getElementById('overlay').classList.add('hide')
+  setTimeout(()=>document.getElementById('overlay').style.display='none',450)
+  const ctx=gCtx();sched(ctx);C.classList.add('started')
+  setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)
+}
+async function recordAd(){
+  const ov=document.getElementById('overlay')
+  const mime=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm'
+  let stream
+  try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60},audio:true,preferCurrentTab:true})}
+  catch(e){alert('Cancelled. Try again and click Share.');return}
+  ov.classList.add('hide')
+  const chunks=[],rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000})
+  rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)}
+  rec.onstop=()=>{
+    stream.getTracks().forEach(t=>t.stop())
+    const blob=new Blob(chunks,{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a')
+    a.href=url;a.download='wapaci-cart-recovery.'+(mime.includes('mp4')?'mp4':'webm')
+    document.body.appendChild(a);a.click();document.body.removeChild(a)
+    setTimeout(()=>URL.revokeObjectURL(url),5000)
+    document.getElementById('rply').style.opacity='1'
+  }
+  setTimeout(()=>{
+    ov.style.display='none';rec.start(100)
+    const ctx=gCtx();sched(ctx);C.classList.add('started')
+    setTimeout(()=>rec.stop(),31500)
+  },480)
+}
+function restart(){
+  document.getElementById('rply').style.opacity='0'
+  C.classList.remove('started');C.innerHTML=sh
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const ctx=gCtx();sched(ctx);C.classList.add('started')
+    setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)
+  }))
+}
+</script>
+</body>
+</html>
