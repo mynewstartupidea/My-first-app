@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Wapaci — 30s Ad</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#000; display:flex; align-items:center; justify-content:center;
+  min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+
+/* ── Overlay ── */
+#overlay {
+  position:fixed; inset:0; z-index:999; background:#060a10;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:30px;
+  cursor:pointer; transition:opacity 0.45s ease;
+}
+#overlay.hide { opacity:0; pointer-events:none; }
+.ov-logo img { height:72px; filter:drop-shadow(0 0 22px rgba(37,211,102,0.5)); }
+.ov-play {
+  width:84px; height:84px; border-radius:50%;
+  background:rgba(37,211,102,0.1); border:2px solid rgba(37,211,102,0.45);
+  display:flex; align-items:center; justify-content:center;
+  animation:ovPulse 1.8s ease-in-out infinite;
+}
+.ov-play svg { width:30px; height:30px; fill:#25D366; margin-left:5px; }
+@keyframes ovPulse {
+  0%,100%{ box-shadow:0 0 0 0 rgba(37,211,102,0.35); }
+  50%    { box-shadow:0 0 0 24px rgba(37,211,102,0); }
+}
+.ov-hint { color:#475569; font-size:15px; font-weight:500; }
+.ov-btns { display:flex; flex-direction:column; align-items:center; gap:12px; }
+.ov-btn-play {
+  display:flex; align-items:center; gap:10px;
+  background:rgba(37,211,102,0.14); border:1.5px solid rgba(37,211,102,0.45);
+  color:#25D366; font-size:16px; font-weight:700; border-radius:50px;
+  padding:13px 32px; cursor:pointer; font-family:inherit;
+  transition:background 0.2s;
+}
+.ov-btn-play:hover { background:rgba(37,211,102,0.24); }
+.ov-btn-rec {
+  display:flex; align-items:center; gap:10px;
+  background:rgba(239,68,68,0.10); border:1.5px solid rgba(239,68,68,0.4);
+  color:#f87171; font-size:16px; font-weight:700; border-radius:50px;
+  padding:13px 32px; cursor:pointer; font-family:inherit;
+  transition:background 0.2s;
+}
+.ov-btn-rec:hover { background:rgba(239,68,68,0.20); }
+.ov-rec-note { color:#334155; font-size:12px; text-align:center; max-width:320px; line-height:1.5; }
+
+/* ── Canvas ── */
+#canvas {
+  position:relative; width:1080px; height:1080px;
+  background:#0a0f1a; overflow:hidden; transform-origin:center center;
+}
+.blob { position:absolute; border-radius:50%; filter:blur(130px); opacity:0; }
+.blob-1 { width:650px; height:650px; background:#25D36616; top:-120px; left:-180px; }
+.blob-2 { width:550px; height:550px; background:#128C7E16; bottom:-120px; right:-120px; }
+.started .blob-1 { animation:blobIn 1.2s ease 0.1s forwards; }
+.started .blob-2 { animation:blobIn 1.2s ease 0.4s forwards; }
+@keyframes blobIn { to{opacity:1} }
+.grid {
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.022) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.022) 1px,transparent 1px);
+  background-size:80px 80px;
+}
+
+/* ── Shared keyframes ── */
+@keyframes popIn    { from{opacity:0;transform:scale(0.72)} to{opacity:1;transform:scale(1)} }
+@keyframes slideUp  { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideR   { from{opacity:0;transform:translateX(-30px)} to{opacity:1;transform:translateX(0)} }
+@keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+@keyframes sceneOut { to{opacity:0;transform:scale(0.93);pointer-events:none} }
+@keyframes sceneOutU{ to{opacity:0;transform:translateY(-30px);pointer-events:none} }
+@keyframes sceneIn  { to{opacity:1;transform:none} }
+@keyframes msgPop   { from{opacity:0;transform:translateY(10px) scale(0.95)} to{opacity:1;transform:none} }
+@keyframes pulse    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+@keyframes countUp  { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+@keyframes glow {
+  0%,100%{ box-shadow:0 0 40px rgba(37,211,102,0.5),0 0 80px rgba(37,211,102,0.15); }
+  50%    { box-shadow:0 0 80px rgba(37,211,102,0.95),0 0 160px rgba(37,211,102,0.35); }
+}
+@keyframes phoneFloat {
+  0%,100%{ transform:translateY(0) rotate(-1deg); }
+  50%    { transform:translateY(-14px) rotate(1deg); }
+}
+@keyframes fillBar { to{width:100%} }
+@keyframes dot {
+  0%,80%,100%{ transform:scale(0.6); opacity:0.35; }
+  40%        { transform:scale(1); opacity:1; }
+}
+
+/* ══ SCENE 1 — Problem  0–5s ══ */
+#s1 {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
+}
+.started #s1 { animation:sceneOut 0.5s ease 4.7s forwards; }
+
+.s1-badge { display:flex; align-items:center; gap:10px; background:rgba(239,68,68,0.12);
+  border:1px solid rgba(239,68,68,0.4); border-radius:40px; padding:10px 26px; opacity:0; }
+.started .s1-badge { animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.2s forwards; }
+.s1-dot { width:10px; height:10px; border-radius:50%; background:#ef4444; }
+.started .s1-dot { animation:pulse 1s infinite 0.8s; }
+.s1-badge span { color:#ef4444; font-size:19px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }
+
+.s1-big { text-align:center; opacity:0; }
+.started .s1-big { animation:slideUp 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.7s forwards; }
+.s1-num { font-size:170px; font-weight:900; color:#fff; line-height:1; letter-spacing:-8px; }
+.s1-num em { color:#ef4444; font-style:normal; }
+.s1-lbl { font-size:34px; color:#94a3b8; font-weight:500; margin-top:6px; }
+
+.s1-sub { font-size:26px; color:#64748b; opacity:0; }
+.started .s1-sub { animation:slideUp 0.6s cubic-bezier(0.34,1.56,0.64,1) 1.3s forwards; }
+.s1-sub strong { color:#ef4444; }
+
+.s1-stats { display:flex; gap:28px; opacity:0; }
+.started .s1-stats { animation:fadeIn 0.7s ease 2.2s forwards; }
+.s1-sc {
+  background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.2);
+  border-radius:16px; padding:18px 24px; text-align:center;
+}
+.s1-sc .v { font-size:38px; font-weight:900; color:#ef4444; }
+.s1-sc .l { font-size:12px; color:#64748b; margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; }
+
+/* ══ SCENE 2 — Meet Wapaci  5–10s ══ */
+#s2 {
+  position:absolute; inset:0; opacity:0; transform:translateY(36px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:40px;
+}
+.started #s2 { animation:sceneIn 0.55s ease 5.0s forwards, sceneOutU 0.5s ease 9.6s forwards; }
+
+.s2-logo { opacity:0; }
+.started .s2-logo { animation:popIn 0.6s cubic-bezier(0.34,1.56,0.64,1) 5.3s forwards; }
+.s2-logo img { height:80px; filter:drop-shadow(0 0 28px rgba(37,211,102,0.55)); }
+
+.s2-hl { text-align:center; opacity:0; }
+.started .s2-hl { animation:slideUp 0.6s cubic-bezier(0.34,1.56,0.64,1) 5.8s forwards; }
+.s2-hl h2 { font-size:50px; font-weight:900; color:#fff; line-height:1.18; letter-spacing:-1.5px; }
+.s2-hl h2 em { color:#25D366; font-style:normal; }
+.s2-hl p { font-size:24px; color:#64748b; margin-top:10px; }
+
+.s2-feats { display:flex; gap:18px; opacity:0; }
+.started .s2-feats { animation:fadeIn 0.7s ease 6.5s forwards; }
+.s2-feat {
+  background:rgba(37,211,102,0.07); border:1px solid rgba(37,211,102,0.22);
+  border-radius:50px; padding:11px 22px;
+}
+.s2-feat span { color:#25D366; font-size:14px; font-weight:700; }
+
+.s2-tbar {
+  display:flex; align-items:center; gap:12px;
+  background:rgba(37,211,102,0.08); border:1px solid rgba(37,211,102,0.25);
+  border-radius:50px; padding:13px 28px; opacity:0;
+}
+.started .s2-tbar { animation:popIn 0.5s ease 7.8s forwards; }
+.s2-tbar .lbl { color:#25D366; font-size:19px; font-weight:600; }
+.tdots { display:flex; gap:5px; margin-left:4px; }
+.tdots span { width:7px; height:7px; background:#25D366; border-radius:50%; opacity:0.35; }
+.started .tdots span   { animation:dot 1.2s infinite 8.0s; }
+.started .tdots span:nth-child(2){ animation-delay:8.2s; }
+.started .tdots span:nth-child(3){ animation-delay:8.4s; }
+
+/* ══ SCENE 3 — How It Works  10–14s ══ */
+#s3 {
+  position:absolute; inset:0; opacity:0; transform:translateY(36px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:52px;
+}
+.started #s3 { animation:sceneIn 0.55s ease 10.0s forwards, sceneOutU 0.5s ease 13.8s forwards; }
+
+.s3-title { text-align:center; opacity:0; }
+.started .s3-title { animation:slideUp 0.6s ease 10.3s forwards; }
+.s3-title .tag { color:#25D366; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; }
+.s3-title h2 { font-size:52px; font-weight:900; color:#fff; letter-spacing:-1.5px; margin-top:8px; }
+
+.s3-steps { display:flex; align-items:center; }
+.s3-step { text-align:center; opacity:0; }
+.started .s3-s1 { animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 10.8s forwards; }
+.started .s3-s2 { animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 11.5s forwards; }
+.started .s3-s3 { animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 12.2s forwards; }
+.started .s3-s4 { animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 12.9s forwards; }
+.s3-icon {
+  width:90px; height:90px; border-radius:24px;
+  display:flex; align-items:center; justify-content:center; font-size:42px;
+  margin:0 auto 14px; border:1.5px solid rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.04);
+}
+.s3-icon.g { background:rgba(37,211,102,0.12); border-color:rgba(37,211,102,0.3); }
+.s3-step p { color:#94a3b8; font-size:14px; font-weight:600; max-width:120px; line-height:1.4; }
+.s3-arr { color:rgba(255,255,255,0.2); font-size:28px; margin:0 18px; padding-bottom:28px; }
+
+/* ══ SCENE 4 — Live Demo  14–24s ══ */
+#s4 {
+  position:absolute; inset:0; opacity:0; transform:translateY(36px);
+  display:flex; align-items:center; justify-content:center; gap:52px;
+}
+.started #s4 { animation:sceneIn 0.55s ease 14.0s forwards, sceneOutU 0.5s ease 23.5s forwards; }
+
+.phone {
+  width:340px; flex-shrink:0; background:#111827;
+  border-radius:44px; border:2px solid rgba(255,255,255,0.08);
+  box-shadow:0 50px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03);
+  overflow:hidden; opacity:0;
+}
+.started .phone { animation:popIn 0.6s cubic-bezier(0.34,1.56,0.64,1) 14.2s forwards, phoneFloat 3.5s ease-in-out 14.8s infinite; }
+.ph-status {
+  background:#0a0f1a; padding:10px 22px 6px;
+  display:flex; justify-content:space-between;
+}
+.ph-status .t { color:#fff; font-size:13px; font-weight:700; }
+.ph-status .i { color:#fff; font-size:11px; opacity:0.65; }
+.ph-bar {
+  background:#128C7E; padding:10px 16px;
+  display:flex; align-items:center; gap:12px;
+}
+.ph-av {
+  width:36px; height:36px; border-radius:50%; background:#25D366;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; font-weight:800; color:#fff; flex-shrink:0;
+}
+.ph-info .name   { color:#fff; font-size:14px; font-weight:700; }
+.ph-info .status { color:rgba(255,255,255,0.7); font-size:11px; }
+.chat {
+  background:#0b141a; padding:14px 12px;
+  height:380px; display:flex; flex-direction:column; gap:9px; overflow:hidden;
+}
+.mout {
+  align-self:flex-end; max-width:84%; background:#005c4b;
+  border-radius:10px 2px 10px 10px; padding:9px 13px; opacity:0;
+}
+.mout p  { color:#fff; font-size:12px; line-height:1.5; }
+.mout .ts{ color:rgba(255,255,255,0.45); font-size:10px; text-align:right; margin-top:3px; }
+.started .m1 { animation:msgPop 0.4s ease 14.8s forwards; }
+.started .m2 { animation:msgPop 0.4s ease 16.3s forwards; }
+.started .m3 { animation:msgPop 0.4s ease 20.5s forwards; }
+
+.tyb {
+  align-self:flex-start; background:#1f2c34;
+  border-radius:2px 10px 10px 10px; padding:12px 18px;
+  display:flex; gap:5px; align-items:center; opacity:0;
+}
+.started .tyb { animation:msgPop 0.3s ease 17.6s forwards, fadeOut2 0.3s ease 18.4s forwards; }
+@keyframes fadeOut2 { to{opacity:0} }
+.tyb span { width:8px; height:8px; background:#aaa; border-radius:50%; display:inline-block; }
+.started .tyb span   { animation:dot 1s infinite 17.7s; }
+.started .tyb span:nth-child(2){ animation-delay:17.85s; }
+.started .tyb span:nth-child(3){ animation-delay:18.0s; }
+
+.min {
+  align-self:flex-start; max-width:78%; background:#1f2c34;
+  border-radius:2px 10px 10px 10px; padding:9px 13px; opacity:0;
+}
+.min p  { color:#fff; font-size:12px; line-height:1.5; }
+.min .ts{ color:rgba(255,255,255,0.35); font-size:10px; margin-top:3px; }
+.started .reply { animation:msgPop 0.4s ease 18.6s forwards; }
+
+.mconf {
+  align-self:flex-end; max-width:90%;
+  background:linear-gradient(135deg,#005c4b,#006d59);
+  border-radius:10px 2px 10px 10px; padding:12px 14px;
+  border:1px solid rgba(37,211,102,0.35); opacity:0;
+}
+.started .mconf { animation:msgPop 0.4s ease 20.5s forwards; }
+.conf-row { display:flex; align-items:center; gap:8px; }
+.conf-row .ck { font-size:18px; }
+.conf-row p   { color:#fff; font-size:14px; font-weight:700; }
+.conf-amt     { color:#25D366; font-size:22px; font-weight:900; margin-top:5px; }
+.conf-ts      { color:rgba(255,255,255,0.35); font-size:10px; margin-top:3px; text-align:right; }
+
+.s4-side { display:flex; flex-direction:column; gap:20px; max-width:340px; }
+.s4-hl { opacity:0; }
+.started .s4-hl { animation:slideR 0.7s cubic-bezier(0.34,1.56,0.64,1) 15.2s forwards; }
+.s4-hl h3 { color:#fff; font-size:30px; font-weight:900; line-height:1.25; letter-spacing:-0.5px; }
+.s4-hl h3 em { color:#25D366; font-style:normal; }
+.s4-hl p  { color:#64748b; font-size:16px; margin-top:6px; }
+.ms { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);
+  border-radius:14px; padding:16px 20px; opacity:0; }
+.started .ms1 { animation:popIn 0.5s ease 15.8s forwards; }
+.started .ms2 { animation:popIn 0.5s ease 16.4s forwards; }
+.started .ms3 { animation:popIn 0.5s ease 17.0s forwards; }
+.ms .ml  { color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; }
+.ms .mv  { color:#fff; font-size:26px; font-weight:900; margin-top:2px; }
+.ms .mv.g{ color:#25D366; }
+.ms .md  { color:#25D366; font-size:12px; font-weight:600; margin-top:1px; }
+
+.rec-banner {
+  position:absolute; bottom:52px; left:50%; transform:translateX(-50%);
+  background:linear-gradient(135deg,rgba(37,211,102,0.18),rgba(18,140,126,0.18));
+  border:1.5px solid rgba(37,211,102,0.45); border-radius:20px;
+  padding:18px 44px; text-align:center; white-space:nowrap; opacity:0;
+}
+.started .rec-banner { animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 21.4s forwards; }
+.rec-lbl { color:#94a3b8; font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; }
+.rec-amt { color:#25D366; font-size:52px; font-weight:900; letter-spacing:-2px; margin-top:2px; }
+
+/* ══ SCENE 5 — Results  24–28s ══ */
+#s5 {
+  position:absolute; inset:0; opacity:0; transform:translateY(36px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:44px;
+}
+.started #s5 { animation:sceneIn 0.55s ease 24.0s forwards, sceneOutU 0.5s ease 27.7s forwards; }
+
+.s5-title { text-align:center; opacity:0; }
+.started .s5-title { animation:slideUp 0.6s ease 24.3s forwards; }
+.s5-title .tag { color:#25D366; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; }
+.s5-title h2 { font-size:50px; font-weight:900; color:#fff; letter-spacing:-1.5px; margin-top:8px; }
+
+.s5-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; }
+.s5c { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+  border-radius:20px; padding:24px 28px; opacity:0; }
+.started .sc1 { animation:countUp 0.6s cubic-bezier(0.34,1.56,0.64,1) 24.8s forwards; }
+.started .sc2 { animation:countUp 0.6s cubic-bezier(0.34,1.56,0.64,1) 25.4s forwards; }
+.started .sc3 { animation:countUp 0.6s cubic-bezier(0.34,1.56,0.64,1) 26.0s forwards; }
+.started .sc4 { animation:countUp 0.6s cubic-bezier(0.34,1.56,0.64,1) 26.6s forwards; }
+.s5c .cv { font-size:56px; font-weight:900; color:#fff; letter-spacing:-2px; line-height:1; }
+.s5c .cv.g { color:#25D366; }
+.s5c .cl { color:#64748b; font-size:13px; font-weight:600; margin-top:6px; text-transform:uppercase; letter-spacing:0.06em; }
+.s5c .cd { color:#25D366; font-size:13px; font-weight:600; margin-top:4px; }
+
+/* ══ SCENE 6 — CTA  28–30s ══ */
+#s6 {
+  position:absolute; inset:0; opacity:0; transform:scale(0.92);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:32px;
+}
+.started #s6 { animation:sceneIn 0.7s cubic-bezier(0.34,1.56,0.64,1) 28.0s forwards; }
+
+.s6-logo { opacity:0; }
+.started .s6-logo { animation:popIn 0.7s cubic-bezier(0.34,1.56,0.64,1) 28.2s forwards; }
+.s6-logo img {
+  height:96px;
+  filter:drop-shadow(0 0 35px rgba(37,211,102,0.65)) drop-shadow(0 0 70px rgba(37,211,102,0.3));
+}
+.started .s6-logo img { animation:glow 2s ease-in-out 28.7s infinite; }
+
+.s6-tag { text-align:center; opacity:0; }
+.started .s6-tag { animation:slideUp 0.6s ease 28.6s forwards; }
+.s6-tag h2 { font-size:42px; font-weight:900; color:#fff; line-height:1.2; letter-spacing:-1px; }
+.s6-tag h2 em { color:#25D366; font-style:normal; }
+.s6-tag p { color:#64748b; font-size:22px; margin-top:10px; }
+
+.s6-url {
+  background:rgba(37,211,102,0.1); border:1.5px solid rgba(37,211,102,0.45);
+  border-radius:50px; padding:15px 44px; opacity:0;
+}
+.started .s6-url { animation:popIn 0.6s cubic-bezier(0.34,1.56,0.64,1) 29.0s forwards; }
+.s6-url span { color:#25D366; font-size:30px; font-weight:800; letter-spacing:0.02em; }
+
+/* ── Progress bar ── */
+#bar {
+  position:absolute; bottom:0; left:0; height:5px;
+  background:linear-gradient(90deg,#25D366,#128C7E); width:0%;
+  border-radius:0 2px 2px 0;
+}
+.started #bar { animation:fillBar 30s linear forwards; }
+
+/* ── Replay ── */
+#replay {
+  position:fixed; bottom:20px; right:24px; z-index:100;
+  background:rgba(37,211,102,0.12); border:1px solid rgba(37,211,102,0.35);
+  color:#25D366; font-size:14px; font-weight:700; border-radius:22px;
+  padding:10px 22px; cursor:pointer; opacity:0; transition:opacity 0.4s;
+  font-family:inherit;
+}
+#replay:hover { background:rgba(37,211,102,0.22); }
+</style>
+</head>
+<body>
+
+<!-- ── OVERLAY ── -->
+<div id="overlay">
+  <div class="ov-logo">
+    <img src="./logo-white.svg" alt="Wapaci"/>
+  </div>
+  <div class="ov-btns">
+    <button class="ov-btn-play" onclick="start()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><polygon points="5,3 19,12 5,21"/></svg>
+      Play with sound
+    </button>
+    <button class="ov-btn-rec" onclick="recordAndDownload()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="#f87171"><circle cx="12" cy="12" r="8"/></svg>
+      Record &amp; Download video
+    </button>
+  </div>
+  <div class="ov-rec-note">To capture audio: when Chrome asks what to share,<br/>select <strong style="color:#94a3b8">Chrome Tab</strong> → tick <strong style="color:#94a3b8">Share tab audio</strong> → Share</div>
+</div>
+
+<!-- ── CANVAS ── -->
+<div id="canvas">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="grid"></div>
+
+  <!-- S1: Problem -->
+  <div id="s1">
+    <div class="s1-badge"><div class="s1-dot"></div><span>Alert: Cart Abandoned</span></div>
+    <div class="s1-big">
+      <div class="s1-num"><em>70%</em></div>
+      <div class="s1-lbl">of all carts are abandoned</div>
+    </div>
+    <div class="s1-sub">Your store is losing <strong>₹lakhs every single month</strong></div>
+    <div class="s1-stats">
+      <div class="s1-sc"><div class="v">₹15K</div><div class="l">Lost per day avg</div></div>
+      <div class="s1-sc"><div class="v">68%</div><div class="l">Abandon on mobile</div></div>
+      <div class="s1-sc"><div class="v">2%</div><div class="l">Email recovery rate</div></div>
+    </div>
+  </div>
+
+  <!-- S2: Wapaci -->
+  <div id="s2">
+    <div class="s2-logo"><img src="./logo-white.svg" alt="Wapaci"/></div>
+    <div class="s2-hl">
+      <h2>WhatsApp automation that<br/><em>recovers your revenue</em></h2>
+      <p>Official Meta Partner · No code · Works in 10 minutes</p>
+    </div>
+    <div class="s2-feats">
+      <div class="s2-feat"><span>✓ Cart Recovery</span></div>
+      <div class="s2-feat"><span>✓ COD Verification</span></div>
+      <div class="s2-feat"><span>✓ Shipping Updates</span></div>
+    </div>
+    <div class="s2-tbar">
+      <span style="font-size:20px">📲</span>
+      <span class="lbl">Sending recovery message</span>
+      <div class="tdots"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <!-- S3: How it works -->
+  <div id="s3">
+    <div class="s3-title">
+      <div class="tag">How it works</div>
+      <h2>From cart to cash — automatically</h2>
+    </div>
+    <div class="s3-steps">
+      <div class="s3-step s3-s1">
+        <div class="s3-icon">🛒</div><p>Customer<br/>abandons cart</p>
+      </div>
+      <div class="s3-arr">→</div>
+      <div class="s3-step s3-s2">
+        <div class="s3-icon">⚡</div><p>Wapaci detects<br/>instantly</p>
+      </div>
+      <div class="s3-arr">→</div>
+      <div class="s3-step s3-s3">
+        <div class="s3-icon g">💬</div><p>WhatsApp<br/>message sent</p>
+      </div>
+      <div class="s3-arr">→</div>
+      <div class="s3-step s3-s4">
+        <div class="s3-icon g">💰</div><p>Revenue<br/>recovered!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- S4: Live Demo -->
+  <div id="s4">
+    <div class="phone">
+      <div class="ph-status"><span class="t">10:42</span><span class="i">▶ ⬛ 📶 🔋</span></div>
+      <div class="ph-bar">
+        <div class="ph-av">W</div>
+        <div class="ph-info">
+          <div class="name">Wapaci Store</div>
+          <div class="status">🟢 Online</div>
+        </div>
+      </div>
+      <div class="chat">
+        <div class="mout m1">
+          <p>Hi Priya! 👋 You left something in your cart —<br/><strong>Nike Air Max (Size 8)</strong> is waiting for you 🛒</p>
+          <div class="ts">10:42 AM ✓✓</div>
+        </div>
+        <div class="mout m2">
+          <p>🎁 Exclusive offer just for you:<br/><strong>10% off → use code CART10</strong><br/>⏰ Valid for next 2 hours only!</p>
+          <div class="ts">10:42 AM ✓✓</div>
+        </div>
+        <div class="tyb">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="min reply">
+          <p>OMG I totally forgot! 😅<br/>Placing the order right now!</p>
+          <div class="ts">10:44 AM</div>
+        </div>
+        <div class="mout m3">
+          <p>🎉 Order placed! You're amazing.<br/>We'll send your tracking link shortly.</p>
+          <div class="ts">10:45 AM ✓✓</div>
+        </div>
+        <div class="mconf">
+          <div class="conf-row"><span class="ck">✅</span><p>Order Confirmed!</p></div>
+          <div class="conf-amt">₹4,199 recovered</div>
+          <div class="conf-ts">10:45 AM ✓✓</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="s4-side">
+      <div class="s4-hl">
+        <h3>Real conversation.<br/><em>Real revenue.</em></h3>
+        <p>Wapaci sends the right message<br/>at exactly the right moment.</p>
+      </div>
+      <div class="ms ms1">
+        <div class="ml">Recovery Rate</div>
+        <div class="mv g">28%</div>
+        <div class="md">↑ 14× better than email</div>
+      </div>
+      <div class="ms ms2">
+        <div class="ml">Avg Response Time</div>
+        <div class="mv">4 min</div>
+        <div class="md">↑ Customers reply fast on WhatsApp</div>
+      </div>
+      <div class="ms ms3">
+        <div class="ml">Avg Order Recovered</div>
+        <div class="mv g">₹3,800</div>
+        <div class="md">↑ High-intent buyers return</div>
+      </div>
+    </div>
+
+    <div class="rec-banner">
+      <div class="rec-lbl">Recovered this session</div>
+      <div class="rec-amt">₹4,199 💰</div>
+    </div>
+  </div>
+
+  <!-- S5: Results -->
+  <div id="s5">
+    <div class="s5-title">
+      <div class="tag">Real results · Indian D2C brands</div>
+      <h2>Numbers that speak for themselves</h2>
+    </div>
+    <div class="s5-grid">
+      <div class="s5c sc1"><div class="cv g">₹2.1L</div><div class="cl">Avg monthly recovery</div><div class="cd">↑ per store using Wapaci</div></div>
+      <div class="s5c sc2"><div class="cv g">28%</div><div class="cl">Cart recovery rate</div><div class="cd">↑ vs 2% industry average</div></div>
+      <div class="s5c sc3"><div class="cv">4 min</div><div class="cl">Avg customer response</div><div class="cd">↑ WhatsApp beats email & SMS</div></div>
+      <div class="s5c sc4"><div class="cv">10 min</div><div class="cl">Setup time</div><div class="cd">↑ Connect Shopify → Go live</div></div>
+    </div>
+  </div>
+
+  <!-- S6: CTA -->
+  <div id="s6">
+    <div class="s6-logo"><img src="./logo-white.svg" alt="Wapaci"/></div>
+    <div class="s6-tag">
+      <h2>Stop losing revenue.<br/><em>Start recovering it on WhatsApp.</em></h2>
+      <p>Free to start · No credit card · Setup in 10 minutes</p>
+    </div>
+    <div class="s6-url"><span>wapaci.com</span></div>
+  </div>
+
+  <div id="bar"></div>
+</div>
+
+<button id="replay" onclick="restart()">↺ Replay</button>
+
+<script>
+/* ── Scale ── */
+const canvas = document.getElementById('canvas')
+function sc() {
+  const s = Math.min(window.innerWidth/1080, window.innerHeight/1080)*0.95
+  canvas.style.transform = `scale(${s})`
+}
+sc(); window.addEventListener('resize', sc)
+const srcHTML = canvas.innerHTML
+
+/* ══════════════════════════════════════════════════════
+   AUDIO ENGINE
+══════════════════════════════════════════════════════ */
+let actx = null
+
+function getCtx() {
+  if (!actx || actx.state === 'closed')
+    actx = new (window.AudioContext || window.webkitAudioContext)()
+  if (actx.state === 'suspended') actx.resume()
+  return actx
+}
+
+// Build a synthetic reverb impulse response
+function buildReverb(ctx, durSec, decay) {
+  const sr  = ctx.sampleRate
+  const len = Math.ceil(sr * durSec)
+  const buf = ctx.createBuffer(2, len, sr)
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c)
+    for (let i = 0; i < len; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/len, decay)
+    }
+  }
+  const node = ctx.createConvolver()
+  node.buffer = buf
+  return node
+}
+
+// Master chain:  osc → dry → master
+//                osc → reverb → wet → master → output
+function buildChain(ctx) {
+  const master = ctx.createGain(); master.gain.value = 0.80
+  const dry    = ctx.createGain(); dry.gain.value    = 1.0
+  const wet    = ctx.createGain(); wet.gain.value    = 0.38
+  const reverb = buildReverb(ctx, 1.4, 3.5)
+
+  dry.connect(master)
+  reverb.connect(wet)
+  wet.connect(master)
+  master.connect(ctx.destination)
+
+  return { dry, rev: reverb, master }
+}
+
+// Single oscillator note
+function note(ctx, chain, at, freq, dur, vol, type, freqEnd) {
+  try {
+    const o = ctx.createOscillator()
+    const g = ctx.createGain()
+    o.connect(g)
+    g.connect(chain.dry)
+    g.connect(chain.rev)
+    o.type = type || 'sine'
+    o.frequency.setValueAtTime(freq, at)
+    if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, at + dur * 0.8)
+    g.gain.setValueAtTime(0, at)
+    g.gain.linearRampToValueAtTime(vol, at + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    o.start(at); o.stop(at + dur + 0.1)
+  } catch(e) {}
+}
+
+// Noise burst (whoosh, impact)
+function noiseNode(ctx, chain, at, dur, vol, freqStart, freqEnd) {
+  try {
+    const sr  = ctx.sampleRate
+    const buf = ctx.createBuffer(1, Math.ceil(sr * dur), sr)
+    const d   = buf.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    const src = ctx.createBufferSource(); src.buffer = buf
+    const flt = ctx.createBiquadFilter(); flt.type = 'bandpass'; flt.Q.value = 0.6
+    flt.frequency.setValueAtTime(freqStart || 400, at)
+    if (freqEnd) flt.frequency.exponentialRampToValueAtTime(freqEnd, at + dur * 0.65)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0, at)
+    g.gain.linearRampToValueAtTime(vol, at + 0.06)
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    src.connect(flt); flt.connect(g)
+    g.connect(chain.dry); g.connect(chain.rev)
+    src.start(at); src.stop(at + dur + 0.1)
+  } catch(e) {}
+}
+
+// Background pad — very soft chord, fills silence
+function bgPad(ctx, chain, startAt, endAt) {
+  const chords = [131, 165, 196, 262]   // C3 E3 G3 C4 — major pad
+  chords.forEach(function(freq) {
+    try {
+      const o = ctx.createOscillator(); o.type = 'triangle'
+      const g = ctx.createGain()
+      o.connect(g); g.connect(chain.rev)   // only through reverb (very ambient)
+      o.frequency.setValueAtTime(freq, startAt)
+      g.gain.setValueAtTime(0, startAt)
+      g.gain.linearRampToValueAtTime(0.045, startAt + 1.2)
+      g.gain.setValueAtTime(0.045, endAt - 1.8)
+      g.gain.linearRampToValueAtTime(0, endAt)
+      o.start(startAt); o.stop(endAt + 0.2)
+    } catch(e) {}
+  })
+}
+
+/* ─── Named sound cues ─── */
+
+// Scene 1: Alert — descending 3-note warning
+function sfxAlert(ctx, chain, at) {
+  note(ctx, chain, at,        587, 0.22, 0.55, 'sine')   // D5
+  note(ctx, chain, at + 0.25, 494, 0.22, 0.50, 'sine')   // B4
+  note(ctx, chain, at + 0.50, 392, 0.35, 0.55, 'sine')   // G4
+  note(ctx, chain, at,         98, 0.55, 0.30, 'triangle') // bass thud
+}
+
+// Short stat tick
+function sfxTick(ctx, chain, at) {
+  note(ctx, chain, at, 1000, 0.05, 0.45, 'sine')
+  note(ctx, chain, at,  500, 0.05, 0.20, 'triangle')
+}
+
+// Scene transition whoosh
+function sfxWhoosh(ctx, chain, at) {
+  noiseNode(ctx, chain, at, 0.5, 0.60, 300, 4000)
+  note(ctx, chain, at + 0.05, 180, 0.4, 0.18, 'sine', 900)
+}
+
+// Logo sting — bright ascending C E G
+function sfxSting(ctx, chain, at) {
+  note(ctx, chain, at,        523, 0.25, 0.52, 'sine')    // C5
+  note(ctx, chain, at + 0.18, 659, 0.28, 0.50, 'sine')    // E5
+  note(ctx, chain, at + 0.36, 784, 0.40, 0.55, 'sine')    // G5
+  note(ctx, chain, at + 0.36, 1568, 0.25, 0.20, 'sine')   // G6 shimmer
+}
+
+// WhatsApp SENT — the real "tik-tik" feel: two very short crisp sine pops
+function sfxWASent(ctx, chain, at) {
+  note(ctx, chain, at,        880, 0.055, 0.50, 'sine')   // A5
+  note(ctx, chain, at + 0.07, 1109, 0.07, 0.48, 'sine')  // C#6
+}
+
+// WhatsApp RECEIVED — the iconic 3-note ascending melody (dee-dee-dee)
+function sfxWAReceive(ctx, chain, at) {
+  note(ctx, chain, at,        440,  0.15, 0.55, 'sine')   // A4
+  note(ctx, chain, at + 0.17, 523,  0.15, 0.55, 'sine')   // C5
+  note(ctx, chain, at + 0.34, 659,  0.22, 0.58, 'sine')   // E5
+}
+
+// Typing clicks
+function sfxTyping(ctx, chain, at) {
+  note(ctx, chain, at,        650, 0.04, 0.30, 'sine')
+  note(ctx, chain, at + 0.14, 650, 0.04, 0.28, 'sine')
+  note(ctx, chain, at + 0.28, 650, 0.04, 0.26, 'sine')
+}
+
+// Success arpeggio — C E G C ascending
+function sfxSuccess(ctx, chain, at) {
+  const ns = [523, 659, 784, 1047]
+  ns.forEach(function(f, i) {
+    note(ctx, chain, at + i*0.17, f, 0.55, 0.50, 'sine')
+  })
+}
+
+// Cash register cha-ching!
+function sfxCash(ctx, chain, at) {
+  // Impact punch
+  note(ctx, chain, at,        260, 0.09, 0.65, 'triangle')
+  note(ctx, chain, at,        130, 0.12, 0.55, 'triangle')
+  // Ring / till sound
+  note(ctx, chain, at + 0.07, 1200, 0.60, 0.58, 'sine')
+  note(ctx, chain, at + 0.07, 1800, 0.30, 0.35, 'sine')
+  // Coin shimmer
+  note(ctx, chain, at + 0.10, 2400, 0.10, 0.25, 'sine')
+  note(ctx, chain, at + 0.23, 2000, 0.10, 0.22, 'sine')
+  note(ctx, chain, at + 0.36, 1600, 0.12, 0.20, 'sine')
+  // Noise burst (impact body)
+  noiseNode(ctx, chain, at, 0.09, 0.50, 200, 800)
+}
+
+// Coin drop for stat cards
+function sfxCoin(ctx, chain, at) {
+  note(ctx, chain, at,        1400, 0.09, 0.50, 'sine', 700)
+  note(ctx, chain, at + 0.09, 1100, 0.12, 0.42, 'sine', 550)
+}
+
+// Triumph chord — warm full C major
+function sfxTriumph(ctx, chain, at) {
+  [261, 329, 392, 523, 659].forEach(function(f) {
+    note(ctx, chain, at, f, 2.5, 0.22, 'triangle')
+  })
+  noiseNode(ctx, chain, at, 0.4, 0.30, 300, 2000)
+  // Ascending shimmer
+  note(ctx, chain, at + 0.1, 1047, 1.8, 0.15, 'sine')
+  note(ctx, chain, at + 0.2, 1319, 1.5, 0.12, 'sine')
+}
+
+// Final URL ding
+function sfxDing(ctx, chain, at) {
+  note(ctx, chain, at,       1047, 0.8, 0.52, 'sine')   // C6
+  note(ctx, chain, at,       1319, 0.8, 0.35, 'sine')   // E6
+  note(ctx, chain, at + 0.1, 1568, 0.6, 0.25, 'sine')   // G6
+}
+
+/* ── Master schedule ── */
+function scheduleAll(ctx) {
+  const chain = buildChain(ctx)
+  const t = ctx.currentTime + 0.05
+
+  // ── Background pad: starts just before scene 2, fades out at end ──
+  bgPad(ctx, chain, t + 4.5, t + 29.5)
+
+  // ── Scene 1: Problem ──
+  sfxAlert(ctx, chain, t + 0.22)        // badge + 70% alarm
+  sfxAlert(ctx, chain, t + 1.50)        // second alarm (softer — scheduled same but quieter)
+  sfxTick(ctx, chain,  t + 2.28)        // stat 1
+  sfxTick(ctx, chain,  t + 2.48)        // stat 2
+  sfxTick(ctx, chain,  t + 2.68)        // stat 3
+
+  // ── Scene 2: Wapaci ──
+  sfxWhoosh(ctx, chain, t + 5.05)       // scene transition
+  sfxSting(ctx, chain,  t + 5.42)       // logo reveal sting
+  sfxTick(ctx, chain,   t + 6.58)       // feature 1
+  sfxTick(ctx, chain,   t + 6.78)       // feature 2
+  sfxTick(ctx, chain,   t + 6.98)       // feature 3
+  sfxTyping(ctx, chain, t + 7.92)       // typing indicator
+
+  // ── Scene 3: How It Works ──
+  sfxWhoosh(ctx, chain, t + 10.05)
+  sfxTick(ctx, chain,   t + 10.88)      // step 1 (cart)
+  sfxTick(ctx, chain,   t + 11.58)      // step 2 (detect)
+  sfxWASent(ctx, chain, t + 12.28)      // step 3 — message SENT sound
+  sfxCoin(ctx, chain,   t + 12.98)      // step 4 — money recovered
+
+  // ── Scene 4: Live Chat ──
+  sfxWhoosh(ctx, chain,   t + 14.05)
+  sfxWASent(ctx, chain,   t + 14.85)    // Message 1 sent ← real WA send tik-tik
+  sfxWASent(ctx, chain,   t + 16.35)    // Message 2 sent ← real WA send tik-tik
+  sfxTyping(ctx, chain,   t + 17.68)    // Customer typing bubble appears
+  sfxWAReceive(ctx, chain,t + 18.65)    // Customer REPLY ← real WA dee-dee-dee
+  sfxWASent(ctx, chain,   t + 20.55)    // Confirmation sent ← WA tik-tik
+  sfxSuccess(ctx, chain,  t + 21.10)    // ✅ Order confirmed arpeggio
+  sfxCash(ctx, chain,     t + 21.65)    // ₹4,199 — CHA-CHING 💰
+
+  // ── Scene 5: Stats ──
+  sfxWhoosh(ctx, chain, t + 24.05)
+  sfxCoin(ctx, chain,   t + 24.88)
+  sfxCoin(ctx, chain,   t + 25.48)
+  sfxCoin(ctx, chain,   t + 26.08)
+  sfxCoin(ctx, chain,   t + 26.68)
+
+  // ── Scene 6: CTA ──
+  sfxWhoosh(ctx, chain,   t + 28.05)
+  sfxTriumph(ctx, chain,  t + 28.35)    // triumph chord
+  sfxDing(ctx, chain,     t + 29.12)    // final URL ding
+}
+
+/* ── Start ── */
+function start() {
+  const ov = document.getElementById('overlay')
+  ov.classList.add('hide')
+  setTimeout(function(){ ov.style.display='none' }, 450)
+  const ctx = getCtx()
+  scheduleAll(ctx)
+  canvas.classList.add('started')
+  setTimeout(function(){ document.getElementById('replay').style.opacity='1' }, 30600)
+}
+
+/* ── Replay ── */
+function restart() {
+  document.getElementById('replay').style.opacity='0'
+  canvas.classList.remove('started')
+  canvas.innerHTML = srcHTML
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      const ctx = getCtx()
+      scheduleAll(ctx)
+      canvas.classList.add('started')
+      setTimeout(function(){ document.getElementById('replay').style.opacity='1' }, 30600)
+    })
+  })
+}
+
+/* ── Record & Download ── */
+async function recordAndDownload() {
+  const ov = document.getElementById('overlay')
+
+  // Pick best supported format
+  const mime = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']
+    .find(function(m){ return MediaRecorder.isTypeSupported(m) }) || 'video/webm'
+
+  let stream
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 60, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: true,
+      preferCurrentTab: true   // Chrome 109+: auto-selects this tab
+    })
+  } catch(e) {
+    alert('Screen capture cancelled or not supported.\n\nTip: use Chrome and click "Share" when prompted.')
+    return
+  }
+
+  // Hide overlay BEFORE starting so it's not in the recording
+  ov.classList.add('hide')
+
+  const chunks = []
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 })
+  rec.ondataavailable = function(e){ if(e.data.size > 0) chunks.push(e.data) }
+  rec.onstop = function() {
+    stream.getTracks().forEach(function(t){ t.stop() })
+    const blob = new Blob(chunks, { type: mime })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = 'wapaci-ad-30s.' + (mime.includes('mp4') ? 'mp4' : 'webm')
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(function(){ URL.revokeObjectURL(url) }, 5000)
+    document.getElementById('replay').style.opacity = '1'
+  }
+
+  // Small delay so overlay fade finishes before animation starts
+  setTimeout(function() {
+    ov.style.display = 'none'
+    rec.start(100)               // capture in 100ms chunks
+    const ctx = getCtx()
+    scheduleAll(ctx)
+    canvas.classList.add('started')
+    setTimeout(function(){ rec.stop() }, 31500)   // stop after 31.5s
+  }, 480)
+}
+</script>
+</body>
+</html>

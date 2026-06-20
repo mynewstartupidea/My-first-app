@@ -237,7 +237,7 @@ async function playVoiceover(ctx,id){
     for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i)
     const ab=await ctx.decodeAudioData(buf.buffer)
     const src=ctx.createBufferSource();src.buffer=ab
-    const vg=ctx.createGain();vg.gain.value=1.1
+    const vg=ctx.createGain();vg.gain.value=1.15
     src.connect(vg);vg.connect(ctx.destination)
     src.start(ctx.currentTime+0.15)
   }catch(e){console.warn('Voiceover:',e)}
@@ -248,6 +248,12 @@ function startAd(){
   const ctx=gCtx();sched(ctx);C.classList.add('started')
   playVoiceover(ctx,3)
   setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)
+}
+if(new URLSearchParams(location.search).get('autostart')==='1'){
+  window.addEventListener('load',()=>setTimeout(()=>{
+    const ov=document.getElementById('overlay');if(ov)ov.style.display='none'
+    const ctx=gCtx();sched(ctx);C.classList.add('started');playVoiceover(ctx,3)
+  },400))
 }
 async function recordAd(){
   const ov=document.getElementById('overlay')
