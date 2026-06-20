@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" fill="none">
+  <!-- Icon -->
+  <rect width="40" height="40" rx="9" fill="url(#grad2)"/>
+  <rect x="8" y="8" width="24" height="19" rx="5" fill="white"/>
+  <path d="M12 27 L10 34 L19 29" fill="white"/>
+  <text x="20" y="23" font-family="Arial Black, Arial, sans-serif" font-size="13" font-weight="900" fill="#25D366" text-anchor="middle">W</text>
+
+  <!-- Wordmark white -->
+  <text x="50" y="27" font-family="Arial Black, Arial, sans-serif" font-size="20" font-weight="900" fill="white" letter-spacing="-0.5">Wapaci</text>
+
+  <defs>
+    <linearGradient id="grad2" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#25D366"/>
+      <stop offset="100%" stop-color="#128C7E"/>
+    </linearGradient>
+  </defs>
+</svg>
