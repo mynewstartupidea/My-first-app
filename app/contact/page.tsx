@@ -36,9 +36,9 @@ const contacts = [
     accent: 'text-[#25D366]',
   },
   {
-    label: 'Sales & Demo',
+    label: 'Sales',
     email: 'sales@wapaci.com',
-    desc: 'Book a live demo, discuss pricing, or explore enterprise plans.',
+    desc: 'Discuss pricing, plans, or get help choosing the right option for your store.',
     color: 'bg-blue-500/10 border-blue-500/20',
     accent: 'text-blue-400',
   },
