@@ -164,7 +164,7 @@ export default function Pricing() {
         >
           <p className="text-slate-500 text-sm">All plans include a 7-day free trial. No credit card required to start.</p>
           <p className="text-slate-600 text-xs">
-            Questions? <a href="mailto:sales@wapaci.com" className="text-[#25D366] hover:underline">Chat with us →</a>
+            Questions? <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">Chat with us →</a>
           </p>
         </motion.div>
       </div>

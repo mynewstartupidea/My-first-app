@@ -37,14 +37,14 @@ const contacts = [
   },
   {
     label: 'Sales',
-    email: 'sales@wapaci.com',
+    email: 'support@wapaci.com',
     desc: 'Discuss pricing, plans, or get help choosing the right option for your store.',
     color: 'bg-blue-500/10 border-blue-500/20',
     accent: 'text-blue-400',
   },
   {
     label: 'Billing & Refunds',
-    email: 'billing@wapaci.com',
+    email: 'support@wapaci.com',
     desc: 'Invoice queries, subscription changes, and refund requests.',
     color: 'bg-purple-500/10 border-purple-500/20',
     accent: 'text-purple-400',

@@ -51,7 +51,7 @@ export default function RefundPolicyPage() {
         <div className="bg-white/3 border border-white/8 rounded-2xl p-6 mb-10">
           <p className="text-slate-300 text-sm leading-relaxed">
             We want you to be satisfied with Wapaci. This policy outlines when refunds are available and how to request them. If you have any questions, contact us at{' '}
-            <a href="mailto:billing@wapaci.com" className="text-[#25D366] hover:underline">billing@wapaci.com</a>.
+            <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">support@wapaci.com</a>.
           </p>
         </div>
 
@@ -79,7 +79,7 @@ export default function RefundPolicyPage() {
         </Section>
 
         <Section title="5. How to Request a Refund">
-          <p>To request a refund, email us at <a href="mailto:billing@wapaci.com" className="text-[#25D366] hover:underline">billing@wapaci.com</a> with:</p>
+          <p>To request a refund, email us at <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">support@wapaci.com</a> with:</p>
           <ul className="list-disc list-inside space-y-1.5 pl-2">
             <li>Your account email address</li>
             <li>The invoice number or charge date</li>
@@ -95,7 +95,7 @@ export default function RefundPolicyPage() {
         <Section title="7. Contact">
           <p>
             For any billing or refund questions, contact our billing team at{' '}
-            <a href="mailto:billing@wapaci.com" className="text-[#25D366] hover:underline">billing@wapaci.com</a>.
+            <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">support@wapaci.com</a>.
           </p>
         </Section>
       </main>
