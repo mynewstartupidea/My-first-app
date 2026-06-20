@@ -232,10 +232,23 @@ function sched(ctx){
   // S5: CTA
   whoosh(ctx,ch,t+26.25);triumph(ctx,ch,t+26.6);ding(ctx,ch,t+27.5)
 }
+async function playVoiceover(ctx,id){
+  const b64=sessionStorage.getItem('wapaci_voiceover_'+id);if(!b64)return
+  try{
+    const bin=atob(b64),buf=new Uint8Array(bin.length)
+    for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i)
+    const ab=await ctx.decodeAudioData(buf.buffer)
+    const src=ctx.createBufferSource();src.buffer=ab
+    const vg=ctx.createGain();vg.gain.value=1.1
+    src.connect(vg);vg.connect(ctx.destination)
+    src.start(ctx.currentTime+0.15)
+  }catch(e){console.warn('Voiceover:',e)}
+}
 function startAd(){
   document.getElementById('overlay').classList.add('hide')
   setTimeout(()=>document.getElementById('overlay').style.display='none',450)
   const ctx=gCtx();sched(ctx);C.classList.add('started')
+  playVoiceover(ctx,2)
   setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)
 }
 async function recordAd(){
@@ -255,7 +268,7 @@ async function recordAd(){
     setTimeout(()=>URL.revokeObjectURL(url),5000)
     document.getElementById('rply').style.opacity='1'
   }
-  setTimeout(()=>{ov.style.display='none';rec.start(100);const ctx=gCtx();sched(ctx);C.classList.add('started');setTimeout(()=>rec.stop(),31500)},480)
+  setTimeout(()=>{ov.style.display='none';rec.start(100);const ctx=gCtx();sched(ctx);C.classList.add('started');playVoiceover(ctx,2);setTimeout(()=>rec.stop(),31500)},480)
 }
 function restart(){
   document.getElementById('rply').style.opacity='0'

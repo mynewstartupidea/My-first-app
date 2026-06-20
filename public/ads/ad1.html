@@ -287,10 +287,23 @@ function sched(ctx){
   coin(ctx,ch,t+24.88);coin(ctx,ch,t+25.48);coin(ctx,ch,t+26.08);coin(ctx,ch,t+26.68)
   whoosh(ctx,ch,t+28.05);triumph(ctx,ch,t+28.35);ding(ctx,ch,t+29.12)
 }
+async function playVoiceover(ctx,id){
+  const b64=sessionStorage.getItem('wapaci_voiceover_'+id);if(!b64)return
+  try{
+    const bin=atob(b64),buf=new Uint8Array(bin.length)
+    for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i)
+    const ab=await ctx.decodeAudioData(buf.buffer)
+    const src=ctx.createBufferSource();src.buffer=ab
+    const vg=ctx.createGain();vg.gain.value=1.1
+    src.connect(vg);vg.connect(ctx.destination)
+    src.start(ctx.currentTime+0.15)
+  }catch(e){console.warn('Voiceover:',e)}
+}
 function startAd(){
   document.getElementById('overlay').classList.add('hide')
   setTimeout(()=>document.getElementById('overlay').style.display='none',450)
   const ctx=gCtx();sched(ctx);C.classList.add('started')
+  playVoiceover(ctx,1)
   setTimeout(()=>document.getElementById('rply').style.opacity='1',30600)
 }
 async function recordAd(){
@@ -312,7 +325,7 @@ async function recordAd(){
   }
   setTimeout(()=>{
     ov.style.display='none';rec.start(100)
-    const ctx=gCtx();sched(ctx);C.classList.add('started')
+    const ctx=gCtx();sched(ctx);C.classList.add('started');playVoiceover(ctx,1)
     setTimeout(()=>rec.stop(),31500)
   },480)
 }
