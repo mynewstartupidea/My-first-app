@@ -311,8 +311,1256 @@ function renderAd3(ctx: CanvasRenderingContext2D, t: number) {
   }
 }
 
+/* ─── Creative helpers ────────────────────────────────────────────── */
+function ghost(ctx: CanvasRenderingContext2D, x: number, y: number, sz: number, a: number) {
+  ctx.save(); ctx.globalAlpha = a
+  ctx.beginPath(); ctx.arc(x, y - sz * .2, sz * .48, Math.PI, 0)
+  ctx.lineTo(x + sz * .48, y + sz * .55)
+  for (let i = 4; i > 0; i--) {
+    const bx = x + sz * .48 - (4 - i) * sz * .24
+    ctx.quadraticCurveTo(bx - sz * .12, y + sz * .7, bx - sz * .24, y + sz * .55)
+  }
+  ctx.closePath(); ctx.fillStyle = 'rgba(203,213,225,.92)'; ctx.fill()
+  ctx.fillStyle = '#0f172a'
+  ;[[-0.15, -0.15], [0.15, -0.15]].forEach(([dx, dy]) => {
+    ctx.beginPath(); ctx.arc(x + sz * dx, y + sz * dy, sz * .08, 0, Math.PI * 2); ctx.fill()
+  }); ctx.restore()
+}
+
+function starfield(ctx: CanvasRenderingContext2D, n: number, t: number) {
+  ctx.save()
+  for (let i = 0; i < n; i++) {
+    const bx = Math.abs(Math.sin(i * 127.3)) * W, by = Math.abs(Math.sin(i * 311.7)) * H
+    const br = .5 + Math.abs(Math.sin(i * 47.1)) * 1.5
+    ctx.globalAlpha = .3 + .5 * Math.abs(Math.sin(t * 1.5 + i))
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill()
+  }; ctx.restore()
+}
+
+function rocketDraw(ctx: CanvasRenderingContext2D, x: number, y: number, sz: number, a: number, t: number) {
+  ctx.save(); ctx.globalAlpha = a
+  ctx.beginPath(); ctx.moveTo(x, y - sz)
+  ctx.bezierCurveTo(x + sz * .55, y - sz * .3, x + sz * .45, y + sz * .4, x + sz * .38, y + sz * .5)
+  ctx.lineTo(x - sz * .38, y + sz * .5)
+  ctx.bezierCurveTo(x - sz * .45, y + sz * .4, x - sz * .55, y - sz * .3, x, y - sz)
+  ctx.fillStyle = '#f97316'; ctx.fill()
+  ctx.beginPath(); ctx.arc(x, y - sz * .15, sz * .2, 0, Math.PI * 2); ctx.fillStyle = '#bfdbfe'; ctx.fill()
+  ;[-1, 1].forEach(d => {
+    ctx.beginPath(); ctx.moveTo(x + d * sz * .38, y + sz * .2)
+    ctx.lineTo(x + d * sz * .8, y + sz * .65); ctx.lineTo(x + d * sz * .38, y + sz * .5)
+    ctx.fillStyle = '#dc2626'; ctx.fill()
+  })
+  const fl = sz * .55 + Math.sin(t * 20) * sz * .12
+  ctx.beginPath(); ctx.moveTo(x - sz * .28, y + sz * .5)
+  ctx.quadraticCurveTo(x, y + sz * .5 + fl, x + sz * .28, y + sz * .5)
+  ctx.fillStyle = '#fbbf24'; ctx.fill(); ctx.restore()
+}
+
+function burst(ctx: CanvasRenderingContext2D, cx: number, cy: number, t: number, s: number, color: string, n = 28) {
+  if (t < s) return; const lt = t - s; ctx.save()
+  for (let i = 0; i < n; i++) {
+    const ang = (i / n) * Math.PI * 2, spd = 60 + Math.abs(Math.sin(i * 5.3)) * 80
+    const x = cx + Math.cos(ang) * spd * lt, y = cy + Math.sin(ang) * spd * lt + 180 * lt * lt
+    ctx.globalAlpha = Math.max(0, 1 - lt * 1.6)
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 4 + Math.abs(Math.sin(i * 2.1)) * 2.5, 0, Math.PI * 2); ctx.fill()
+  }; ctx.restore()
+}
+
+/* ─── Music helpers ───────────────────────────────────────────────── */
+function pad(audioCtx: AudioContext, master: GainNode, freqs: number[], wave: OscillatorType, gain: number, fin = 2.5, fout = DUR - 2) {
+  freqs.forEach(f => { try {
+    const osc = audioCtx.createOscillator(); osc.type = wave; osc.frequency.value = f
+    const g = audioCtx.createGain()
+    g.gain.setValueAtTime(0, audioCtx.currentTime)
+    g.gain.linearRampToValueAtTime(gain, audioCtx.currentTime + fin)
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + fout)
+    osc.connect(g); g.connect(master); osc.start(); osc.stop(audioCtx.currentTime + DUR)
+  } catch {} })
+}
+
+function arpNote(audioCtx: AudioContext, master: GainNode, freqs: number[], ms: number, wave: OscillatorType, gain: number, delay = 0) {
+  let i = 0; const max = Math.floor((DUR - delay) * 1000 / ms)
+  const step = () => { if (i >= max || audioCtx.state === 'closed') return; try {
+    const osc = audioCtx.createOscillator(); osc.type = wave; osc.frequency.value = freqs[i % freqs.length]
+    const g = audioCtx.createGain()
+    g.gain.setValueAtTime(gain, audioCtx.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms / 1000 * .75)
+    osc.connect(g); g.connect(master); osc.start(); osc.stop(audioCtx.currentTime + ms / 1000)
+    i++; setTimeout(step, ms)
+  } catch {} }
+  setTimeout(step, delay * 1000)
+}
+
+function tone(audioCtx: AudioContext, master: GainNode, at: number, freq: number, dur: number, gain: number, wave: OscillatorType = 'sine', endFreq?: number) {
+  try {
+    const osc = audioCtx.createOscillator()
+    const g = audioCtx.createGain()
+    osc.type = wave
+    osc.frequency.setValueAtTime(freq, at)
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, at + dur * .85)
+    g.gain.setValueAtTime(0.0001, at)
+    g.gain.linearRampToValueAtTime(gain, at + .015)
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    osc.connect(g); g.connect(master)
+    osc.start(at); osc.stop(at + dur + .08)
+  } catch {}
+}
+
+function noise(audioCtx: AudioContext, master: GainNode, at: number, dur: number, gain: number, type: BiquadFilterType, freq: number, q = .8) {
+  try {
+    const len = Math.ceil(audioCtx.sampleRate * dur)
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.4)
+    const src = audioCtx.createBufferSource()
+    const f = audioCtx.createBiquadFilter()
+    const g = audioCtx.createGain()
+    src.buffer = buf; f.type = type; f.frequency.value = freq; f.Q.value = q
+    g.gain.setValueAtTime(gain, at)
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    src.connect(f); f.connect(g); g.connect(master)
+    src.start(at); src.stop(at + dur + .05)
+  } catch {}
+}
+
+function hit(audioCtx: AudioContext, master: GainNode, at: number, color: 'green' | 'orange' | 'red' | 'blue' = 'green') {
+  const root = color === 'orange' ? 110 : color === 'red' ? 82 : color === 'blue' ? 98 : 130
+  tone(audioCtx, master, at, root, .42, .18, 'triangle', root / 2)
+  tone(audioCtx, master, at + .02, root * 2, .18, .08, 'sine')
+  noise(audioCtx, master, at, .26, .12, 'lowpass', 900)
+}
+
+function whooshFx(audioCtx: AudioContext, master: GainNode, at: number) {
+  noise(audioCtx, master, at, .52, .18, 'bandpass', 1800, .6)
+  tone(audioCtx, master, at + .03, 180, .5, .08, 'sine', 900)
+}
+
+function waPing(audioCtx: AudioContext, master: GainNode, at: number) {
+  tone(audioCtx, master, at, 880, .11, .18, 'sine')
+  tone(audioCtx, master, at + .09, 1320, .18, .15, 'sine')
+}
+
+function cashFx(audioCtx: AudioContext, master: GainNode, at: number) {
+  tone(audioCtx, master, at, 1480, .09, .18, 'sine', 740)
+  tone(audioCtx, master, at + .08, 1180, .18, .14, 'sine', 590)
+  tone(audioCtx, master, at + .2, 1760, .22, .12, 'triangle')
+}
+
+function ticker(audioCtx: AudioContext, master: GainNode, at: number, count: number, step = .18) {
+  for (let i = 0; i < count; i++) tone(audioCtx, master, at + i * step, 680 + i * 28, .055, .045, 'square')
+}
+
+function scheduleAdAudio(audioCtx: AudioContext, master: GainNode, adId: number) {
+  const now = audioCtx.currentTime
+  if (adId === 21) {
+    pad(audioCtx, master, [98, 147, 196, 294], 'triangle', .018, 1.2, 29)
+    arpNote(audioCtx, master, [294, 392, 494, 587, 659], 280, 'sine', .028, 7.8)
+    hit(audioCtx, master, now + .25, 'green'); ticker(audioCtx, master, now + 1.2, 8)
+    whooshFx(audioCtx, master, now + 5.1); hit(audioCtx, master, now + 5.55, 'green')
+    waPing(audioCtx, master, now + 10.3); waPing(audioCtx, master, now + 12.2); waPing(audioCtx, master, now + 15.5)
+    cashFx(audioCtx, master, now + 18.6); ticker(audioCtx, master, now + 20.4, 10, .11)
+    whooshFx(audioCtx, master, now + 23.4); hit(audioCtx, master, now + 24.1, 'green')
+    cashFx(audioCtx, master, now + 26.5); hit(audioCtx, master, now + 28.2, 'green'); cashFx(audioCtx, master, now + 29.15)
+    return
+  }
+  if (adId === 22) {
+    pad(audioCtx, master, [82, 123, 164, 246], 'sawtooth', .012, 1.5, 29)
+    arpNote(audioCtx, master, [220, 277, 330, 415, 554], 320, 'triangle', .025, 8.5)
+    hit(audioCtx, master, now + .35, 'orange'); hit(audioCtx, master, now + 2.25, 'red')
+    whooshFx(audioCtx, master, now + 5.4); tone(audioCtx, master, now + 6.2, 160, .4, .12, 'triangle', 80)
+    waPing(audioCtx, master, now + 11.25); waPing(audioCtx, master, now + 13.4)
+    hit(audioCtx, master, now + 15.2, 'green'); cashFx(audioCtx, master, now + 17.5)
+    ticker(audioCtx, master, now + 20.1, 8, .13); hit(audioCtx, master, now + 22.4, 'green')
+    whooshFx(audioCtx, master, now + 25.25); hit(audioCtx, master, now + 27.2, 'orange'); cashFx(audioCtx, master, now + 28.6)
+    return
+  }
+
+  // Existing ads keep the subtle bed they already had.
+  pad(audioCtx, master, [131, 165, 196, 262], 'triangle', .018)
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ADS 4–20 Renderers
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Ad 4 — Dead Hours (midnight blue, clock) */
+function renderAd4(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#040817'; ctx.fillRect(0, 0, W, H); grid(ctx)
+  glow(ctx, W / 2, H / 2, 600, '99,102,241', .07 * cl(t / 2))
+
+  if (t < 11) {
+    const f = t < 1 ? pr(t, 0, 1) : t > 9.5 ? 1 - pr(t, 9.5, 11) : 1
+    const cx = W / 2, cy = 430, r = 180
+    ctx.save(); ctx.globalAlpha = f
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(99,102,241,.4)'; ctx.lineWidth = 3; ctx.stroke()
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2
+      ctx.beginPath(); ctx.arc(cx + Math.cos(a) * (r - 18), cy + Math.sin(a) * (r - 18), i % 3 === 0 ? 6 : 3, 0, Math.PI * 2)
+      ctx.fillStyle = i % 3 === 0 ? '#818cf8' : 'rgba(99,102,241,.5)'; ctx.fill()
+    }
+    const ha = -Math.PI / 2, ma = -Math.PI / 2 + Math.PI / 6
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 5; ctx.lineCap = 'round'
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ha) * r * .55, cy + Math.sin(ha) * r * .55); ctx.stroke()
+    ctx.lineWidth = 3
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ma) * r * .78, cy + Math.sin(ma) * r * .78); ctx.stroke()
+    ctx.restore()
+    txt(ctx, '11 PM — 7 AM', W / 2, 670, { size: 32, color: '#818cf8', weight: '800', alpha: f * pr(t, .5, 2) })
+    txt(ctx, 'Your store earns ₹0.', W / 2, 730, { size: 28, color: '#94a3b8', weight: '400', alpha: f * pr(t, 1.5, 3) })
+    txt(ctx, 'Every. Single. Night.', W / 2, 776, { size: 28, color: '#94a3b8', weight: '400', alpha: f * pr(t, 2.5, 4) })
+  }
+  if (t >= 10 && t < 22) {
+    const lt = t - 10, f = lt < 1 ? pr(lt, 0, 1) : lt > 10.5 ? 1 - pr(lt, 10.5, 12) : 1
+    txt(ctx, '2:34 AM', W / 2, 250, { size: 22, color: '#475569', weight: '600', alpha: f * pr(lt, 0, 1) })
+    const msgs = [
+      { t0: .3, s: 'out', lines: ['Hi! You left something', 'in your cart 🛍️'] },
+      { t0: 2,  s: 'in',  lines: ['Oh wow thanks! Buying now!'] },
+      { t0: 4,  s: 'out', lines: ['Order placed! ✅', 'Delivery in 2 days 🚀'] },
+      { t0: 6.5,s: 'out', lines: ['Rate your experience?', '⭐⭐⭐⭐⭐'] },
+    ]
+    let my = 310
+    msgs.forEach(m => {
+      const mp = pr(lt, m.t0, m.t0 + .6); if (mp <= 0) return
+      const bw = 380, lh = 28, bh = 28 + m.lines.length * lh
+      const bx = m.s === 'out' ? W / 2 - bw - 10 : W / 2 + 10
+      ctx.globalAlpha = f * mp; rr(ctx, bx, my, bw, bh, 18, m.s === 'out' ? '#005c4b' : '#1f2c34')
+      m.lines.forEach((l, li) => txt(ctx, l, bx + 14, my + 28 + li * lh, { size: 19, weight: '400', align: 'left', alpha: f * mp }))
+      my += bh + 14
+    })
+    ctx.globalAlpha = 1
+    txt(ctx, 'Wapaci works while you sleep.', W / 2, 830, { size: 30, color: '#818cf8', weight: '700', alpha: f * pr(lt, 7, 9) })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '99,102,241', .18 * f)
+    txt(ctx, '₹87,000 earned', W / 2, 390, { size: 72, color: '#818cf8', weight: '900', alpha: f })
+    txt(ctx, 'while you slept last night.', W / 2, 480, { size: 38, weight: '700', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 220, 580, 440, 82, 41, '#6366f1')
+    txt(ctx, 'Try Wapaci Free →', W / 2, 621, { size: 28, color: '#fff', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 720, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 5 — The 98% Club (gold, open rate comparison) */
+function renderAd5(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#0a0900'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(234,179,8,.02)')
+  glow(ctx, W / 2, H / 2, 700, '234,179,8', .06 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    txt(ctx, 'Email open rate?', W / 2, 360, { size: 48, color: '#475569', weight: '700', alpha: f * pr(t, 0, 1) })
+    txt(ctx, '2%', W / 2, 530, { size: 180 * pr(t, .3, 1.5), color: '#374151', weight: '900', alpha: f * pr(t, .3, 1.5) })
+    txt(ctx, 'Two. Percent.', W / 2, 680, { size: 30, color: '#374151', weight: '500', alpha: f * pr(t, 2, 3.5) })
+  }
+  if (t >= 7 && t < 16) {
+    const lt = t - 7, f = lt < .8 ? pr(lt, 0, .8) : lt > 7.5 ? 1 - pr(lt, 7.5, 9) : 1
+    txt(ctx, 'SMS open rate?', W / 2, 360, { size: 48, color: '#475569', weight: '700', alpha: f * pr(lt, 0, .8) })
+    txt(ctx, '5%', W / 2, 530, { size: 180 * pr(lt, .3, 1.5), color: '#6b7280', weight: '900', alpha: f * pr(lt, .3, 1.5) })
+    txt(ctx, 'Better. Still terrible.', W / 2, 680, { size: 30, color: '#6b7280', weight: '500', alpha: f * pr(lt, 2, 3.5) })
+  }
+  if (t >= 14 && t < 24) {
+    const lt = t - 14, f = lt < 1 ? pr(lt, 0, 1) : lt > 9 ? 1 - pr(lt, 9, 10) : 1
+    glow(ctx, W / 2, H / 2, 700, '234,179,8', .22 * f * pr(lt, 0, 2))
+    txt(ctx, 'WhatsApp open rate?', W / 2, 290, { size: 38, color: '#a16207', weight: '700', alpha: f * pr(lt, 0, 1) })
+    txt(ctx, '98%', W / 2, 510, { size: Math.min(240, 240 * pr(lt, .2, 1.8)), color: '#eab308', weight: '900', alpha: f * pr(lt, .2, 1.8) })
+    burst(ctx, W / 2, 510, lt, 1.5, '#fbbf24')
+    burst(ctx, W / 2, 510, lt, 1.5, '#f59e0b', 20)
+    txt(ctx, 'NINETY. EIGHT. PERCENT.', W / 2, 700, { size: 32, color: '#eab308', weight: '800', alpha: f * pr(lt, 2, 3.5) })
+    txt(ctx, '49× better than email.', W / 2, 752, { size: 26, color: '#a16207', weight: '500', alpha: f * pr(lt, 3.5, 5) })
+  }
+  if (t >= 23) {
+    const lt = t - 23, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '234,179,8', .2 * f)
+    txt(ctx, 'Join the 98% Club.', W / 2, 400, { size: 68, weight: '900', color: '#eab308', alpha: f })
+    txt(ctx, 'WhatsApp automation by Wapaci.', W / 2, 490, { size: 30, color: '#94a3b8', weight: '400', alpha: f * pr(lt, .5, 1.5) })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 220, 580, 440, 82, 41, '#eab308')
+    txt(ctx, 'Get Started Free →', W / 2, 621, { size: 28, color: '#000', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 720, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 6 — COD Recovery (orange, returns reduction) */
+function renderAd6(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#0d0700'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(249,115,22,.025)')
+  glow(ctx, 200, 300, 500, '249,115,22', .08 * cl(t / 2))
+
+  if (t < 10) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 9 ? 1 - pr(t, 9, 10) : 1
+    const bx = W / 2 - 120, by = 330, bw = 240, bh = 200
+    ctx.globalAlpha = f * pr(t, .3, 1.5)
+    rr(ctx, bx, by, bw, bh, 12, 'rgba(249,115,22,.15)', 'rgba(249,115,22,.5)', 2)
+    txt(ctx, '📦', W / 2, by + bh / 2, { size: 80, alpha: f * pr(t, .3, 1.5) })
+    txt(ctx, '32% of COD orders', W / 2, 595, { size: 36, weight: '800', color: '#f97316', alpha: f * pr(t, 1, 2.5) })
+    txt(ctx, 'are returned. Unopened.', W / 2, 648, { size: 34, weight: '400', color: '#94a3b8', alpha: f * pr(t, 1.5, 3) })
+    txt(ctx, "That's ₹1.6L wasted every month.", W / 2, 730, { size: 26, color: '#6b7280', alpha: f * pr(t, 3, 5) })
+    ctx.globalAlpha = 1
+  }
+  if (t >= 9 && t < 22) {
+    const lt = t - 9, f = lt < 1 ? pr(lt, 0, 1) : lt > 11 ? 1 - pr(lt, 11, 13) : 1
+    txt(ctx, 'Wapaci sends a WhatsApp', W / 2, 270, { size: 30, color: '#f97316', weight: '700', alpha: f * pr(lt, 0, 1) })
+    txt(ctx, 'confirmation before delivery.', W / 2, 314, { size: 30, color: '#f97316', weight: '700', alpha: f * pr(lt, .3, 1.3) })
+    const msgs = [
+      { t0: 1,   lines: ['📦 Your order arrives tomorrow!', 'Confirm delivery? Reply YES'] },
+      { t0: 3.5, lines: ['YES please! 👍'] },
+      { t0: 5.5, lines: ['✅ Confirmed! See you tomorrow.'] },
+    ]
+    const sides = ['out', 'in', 'out']
+    let my = 380
+    msgs.forEach((m, i) => {
+      const mp = pr(lt, m.t0, m.t0 + .7); if (mp <= 0) return
+      const bw = 400, lh = 28, bh = 28 + m.lines.length * lh
+      const bx = sides[i] === 'out' ? W / 2 - bw - 10 : W / 2 + 10
+      ctx.globalAlpha = f * mp; rr(ctx, bx, my, bw, bh, 18, sides[i] === 'out' ? '#005c4b' : '#1f2c34')
+      m.lines.forEach((l, li) => txt(ctx, l, bx + 14, my + 26 + li * lh, { size: 18, weight: '400', align: 'left', alpha: f * mp }))
+      my += bh + 12
+    })
+    ctx.globalAlpha = 1
+    txt(ctx, 'Customer confirms. Return eliminated.', W / 2, 810, { size: 24, color: '#25D366', weight: '700', alpha: f * pr(lt, 7, 9) })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '37,211,102', .18 * f)
+    txt(ctx, 'COD Returns', W / 2, 380, { size: 60, weight: '900', alpha: f })
+    txt(ctx, '↓ 40%', W / 2, 468, { size: 88, color: '#25D366', weight: '900', alpha: f })
+    txt(ctx, 'Wapaci COD confirmation flow.', W / 2, 570, { size: 26, color: '#94a3b8', weight: '400', alpha: f * pr(lt, .5, 1.5) })
+    ctx.globalAlpha = f * pr(lt, .6, 1.5)
+    rr(ctx, W / 2 - 215, 640, 430, 80, 40, '#f97316')
+    txt(ctx, 'Reduce Returns Today →', W / 2, 680, { size: 26, color: '#fff', weight: '800', alpha: f * pr(lt, .6, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 775, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 7 — Ghost Customers (purple, cartoon) */
+function renderAd7(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#08030f'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(168,85,247,.025)')
+  glow(ctx, W / 2, 400, 550, '168,85,247', .09 * cl(t / 2))
+
+  if (t < 10) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 9 ? 1 - pr(t, 9, 10) : 1
+    txt(ctx, 'Remember these customers?', W / 2, 230, { size: 36, color: '#a78bfa', weight: '700', alpha: f * pr(t, 0, 1) })
+    const positions = [150, 350, 550, 750, 950]
+    positions.forEach((x, i) => {
+      const fp = f * pr(t, .2 + i * .15, .9 + i * .15)
+      const fade = t > 3 ? pr(t, 3 + i * .4, 5 + i * .4) : 0
+      const col = `rgba(168,85,247,${Math.max(.1, .85 - fade * .75)})`
+      rr(ctx, x - 60, 310, 120, 280, 60, col); ctx.globalAlpha = fp * (1 - fade * .6)
+      txt(ctx, ['👩', '👨', '👧', '👦', '👴'][i], x, 410, { size: 70, alpha: fp })
+      ghost(ctx, x, 600, 90, fp * fade)
+      ctx.globalAlpha = 1
+    })
+    txt(ctx, '60 days of silence.', W / 2, 700, { size: 38, color: '#7c3aed', weight: '800', alpha: f * pr(t, 4, 6) })
+    txt(ctx, "They've become ghosts.", W / 2, 756, { size: 34, color: '#94a3b8', weight: '400', alpha: f * pr(t, 5, 7) })
+  }
+  if (t >= 9 && t < 22) {
+    const lt = t - 9, f = lt < 1 ? pr(lt, 0, 1) : lt > 11 ? 1 - pr(lt, 11, 13) : 1
+    const positions = [180, 400, 540, 760, 900]
+    positions.forEach((x, i) => {
+      const fp = f * pr(lt, .2 + i * .2, 1 + i * .2)
+      const ret = pr(lt, 3 + i * .3, 5.5 + i * .3)
+      ghost(ctx, x, 370, 90, fp * (1 - ret))
+      const col = `rgba(168,85,247,${ret * .9})`
+      rr(ctx, x - 60, 290, 120, 200, 60, col); ctx.globalAlpha = fp * ret
+      txt(ctx, ['👩', '👨', '👧', '👦', '👴'][i], x, 360, { size: 60, alpha: fp * ret })
+      ctx.globalAlpha = 1
+    })
+    rr(ctx, 160, 540, 760, 90, 20, 'rgba(168,85,247,.1)', 'rgba(168,85,247,.4)', 1.5)
+    txt(ctx, '💬  "We miss you! Here\'s 15% OFF"', W / 2, 585, { size: 24, color: '#c4b5fd', weight: '600', alpha: f * pr(lt, 2, 3.5) })
+    txt(ctx, 'Wapaci Win-Back. Ghosts return.', W / 2, 750, { size: 34, color: '#a78bfa', weight: '800', alpha: f * pr(lt, 6, 8) })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '168,85,247', .2 * f)
+    txt(ctx, '15% of lost customers', W / 2, 380, { size: 48, weight: '800', alpha: f })
+    txt(ctx, 'come back with Wapaci.', W / 2, 448, { size: 48, color: '#a78bfa', weight: '800', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 215, 560, 430, 82, 41, '#7c3aed')
+    txt(ctx, 'Bring Back Lost Customers →', W / 2, 601, { size: 26, color: '#fff', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 700, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 8 — The Leaky Bucket (blue, revenue leaking) */
+function renderAd8(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#020c1a'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(59,130,246,.025)')
+  glow(ctx, W / 2, H / 2, 600, '59,130,246', .08 * cl(t / 2))
+
+  const drawBucket = (alpha: number, holes: boolean, plugged: boolean) => {
+    ctx.save(); ctx.globalAlpha = alpha
+    const bx = W / 2 - 160, by = 260, bw = 320, bh = 350
+    ctx.beginPath(); ctx.moveTo(bx + 30, by); ctx.lineTo(bx + bw - 30, by)
+    ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx, by + bh); ctx.closePath()
+    ctx.fillStyle = 'rgba(59,130,246,.12)'; ctx.fill()
+    ctx.strokeStyle = plugged ? 'rgba(37,211,102,.7)' : 'rgba(59,130,246,.6)'; ctx.lineWidth = 3; ctx.stroke()
+    txt(ctx, '₹', W / 2, by + bh / 2, { size: 80, color: plugged ? '#25D366' : '#3b82f6', weight: '900', alpha })
+    if (holes) {
+      ;[0.25, 0.5, 0.75].forEach((p, i) => {
+        const hx = bx + bw * p, hy = by + bh * (0.4 + i * 0.2)
+        if (!plugged) {
+          ctx.beginPath(); ctx.arc(hx, hy, 12, 0, Math.PI * 2)
+          ctx.fillStyle = '#020c1a'; ctx.fill()
+          ctx.strokeStyle = 'rgba(239,68,68,.8)'; ctx.lineWidth = 2; ctx.stroke()
+        } else {
+          ctx.beginPath(); ctx.arc(hx, hy, 12, 0, Math.PI * 2)
+          ctx.fillStyle = 'rgba(37,211,102,.4)'; ctx.fill()
+        }
+      })
+    }
+    ctx.restore()
+  }
+
+  if (t < 10) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 9 ? 1 - pr(t, 9, 10) : 1
+    drawBucket(f, true, false)
+    const leaks = [
+      { label: 'Cart Abandonment', v: '₹2.4L/mo', x: W / 2 - 270, y: 440 },
+      { label: 'No Follow-up', v: '₹1.1L/mo', x: W / 2 - 270, y: 530 },
+      { label: 'Lost Customers', v: '₹0.8L/mo', x: W / 2 - 270, y: 620 },
+    ]
+    leaks.forEach((lk, i) => {
+      const lp = f * pr(t, 1.5 + i * .7, 2.5 + i * .7)
+      for (let d = 0; d < 4; d++) {
+        const dy = ((t * 80 + d * 30) % 100)
+        ctx.globalAlpha = lp * (1 - dy / 100)
+        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(W / 2 - 150 + i * 60, lk.y - 20 + dy, 4, 0, Math.PI * 2); ctx.fill()
+      }
+      ctx.globalAlpha = 1
+      txt(ctx, `${lk.v} — ${lk.label}`, 380, lk.y, { size: 20, color: '#ef4444', weight: '600', alpha: lp, align: 'right' as CanvasTextAlign })
+    })
+    txt(ctx, 'Total leaking: ₹4.3L every month', W / 2, 800, { size: 28, color: '#94a3b8', weight: '700', alpha: f * pr(t, 5, 7) })
+  }
+  if (t >= 9 && t < 22) {
+    const lt = t - 9, f = lt < 1 ? pr(lt, 0, 1) : lt > 11 ? 1 - pr(lt, 11, 13) : 1
+    drawBucket(f, true, pr(lt, 2, 5) > .5)
+    txt(ctx, 'Wapaci plugs every leak.', W / 2, 700, { size: 34, color: '#25D366', weight: '800', alpha: f * pr(lt, 3, 5) })
+    const flows = ['Cart Recovery', 'Follow-up Flows', 'Win-Back Campaigns']
+    flows.forEach((fl, i) => {
+      ctx.globalAlpha = f * pr(lt, 3.5 + i * .5, 5 + i * .5)
+      rr(ctx, W / 2 - 185, 750 + i * 50, 370, 36, 18, 'rgba(37,211,102,.1)', 'rgba(37,211,102,.35)')
+      txt(ctx, `✓  ${fl}`, W / 2, 768 + i * 50, { size: 18, color: '#25D366', weight: '600', alpha: f * pr(lt, 3.5 + i * .5, 5 + i * .5) })
+      ctx.globalAlpha = 1
+    })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '37,211,102', .18 * f)
+    txt(ctx, 'Stop leaking ₹4.3L', W / 2, 390, { size: 60, weight: '900', alpha: f })
+    txt(ctx, 'every month.', W / 2, 464, { size: 60, color: '#3b82f6', weight: '900', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .6, 1.5)
+    rr(ctx, W / 2 - 210, 570, 420, 82, 41, '#3b82f6')
+    txt(ctx, 'Plug the Leaks with Wapaci →', W / 2, 611, { size: 24, color: '#fff', weight: '800', alpha: f * pr(lt, .6, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 710, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 9 — Flash Sale Blast (red, particles explosion) */
+function renderAd9(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#0d0000'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(239,68,68,.03)')
+  glow(ctx, W / 2, H / 2, 700, '239,68,68', .06 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .5 ? pr(t, 0, .5) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    txt(ctx, 'FLASH SALE', W / 2, 340, { size: 88, color: '#ef4444', weight: '900', alpha: f * pr(t, 0, .8) })
+    txt(ctx, 'BROADCAST IN', W / 2, 440, { size: 52, color: '#94a3b8', weight: '700', alpha: f * pr(t, .3, 1.2) })
+    const secs = Math.max(0, Math.ceil(5 - t * 1.5))
+    txt(ctx, String(secs || '🚀'), W / 2, 610, { size: 200 - secs * 20, color: secs === 0 ? '#fbbf24' : '#ef4444', weight: '900', alpha: f })
+  }
+  if (t >= 7) {
+    const lt = t - 7, f = lt < 1 ? pr(lt, 0, 1) : lt > 14 ? 1 - pr(lt, 14, 15) : 1
+    glow(ctx, W / 2, H / 2, 800, '239,68,68', .25 * f * pr(lt, 0, 1.5))
+    burst(ctx, W / 2, H / 2, lt, 0, '#ef4444', 36)
+    burst(ctx, W / 2, H / 2, lt, 0, '#fbbf24', 24)
+    burst(ctx, W / 2, H / 2, lt, .3, '#f97316', 20)
+    txt(ctx, 'BROADCAST SENT!', W / 2, 310, { size: 72, color: '#fbbf24', weight: '900', alpha: f * pr(lt, .2, 1.5) })
+    const stats = [
+      { v: '50,000', l: 'Customers Reached' },
+      { v: '98%', l: 'Will See It in 3 Min' },
+      { v: '₹12L', l: 'Revenue in 4 Hours' },
+    ]
+    stats.forEach((s, i) => {
+      const sp = pr(lt, 1.5 + i * .5, 2.8 + i * .5); ctx.globalAlpha = f * sp
+      rr(ctx, 80 + i * 320, 450, 290, 180, 20, 'rgba(239,68,68,.1)', 'rgba(239,68,68,.35)')
+      txt(ctx, s.v, 225 + i * 320, 518, { size: 52, color: '#fbbf24', weight: '900', alpha: f * sp })
+      txt(ctx, s.l, 225 + i * 320, 582, { size: 18, color: '#94a3b8', weight: '500', alpha: f * sp })
+    })
+    ctx.globalAlpha = 1
+  }
+  if (t >= 22) {
+    const lt = t - 22, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '239,68,68', .2 * f)
+    txt(ctx, 'WhatsApp Broadcast.', W / 2, 390, { size: 60, weight: '900', alpha: f })
+    txt(ctx, 'Nothing else comes close.', W / 2, 466, { size: 46, color: '#ef4444', weight: '800', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 215, 568, 430, 82, 41, '#ef4444')
+    txt(ctx, 'Launch Your Flash Sale →', W / 2, 609, { size: 26, color: '#fff', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 710, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 10 — Order Update Delight (teal, journey) */
+function renderAd10(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#020f0d'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(20,184,166,.025)')
+  glow(ctx, W / 2, H / 2, 600, '20,184,166', .07 * cl(t / 2))
+
+  if (t < 10) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 9 ? 1 - pr(t, 9, 10) : 1
+    txt(ctx, 'Your customer just ordered.', W / 2, 300, { size: 40, weight: '700', alpha: f * pr(t, 0, 1) })
+    txt(ctx, '📱', W / 2, 500, { size: 160, alpha: f * pr(t, .3, 1.5) })
+    txt(ctx, 'Now what?', W / 2, 720, { size: 46, color: '#14b8a6', weight: '800', alpha: f * pr(t, 2, 3.5) })
+    txt(ctx, 'Silence? Email? Nothing?', W / 2, 782, { size: 30, color: '#6b7280', weight: '400', alpha: f * pr(t, 4, 6) })
+  }
+  if (t >= 9 && t < 22) {
+    const lt = t - 9, f = lt < 1 ? pr(lt, 0, 1) : lt > 11 ? 1 - pr(lt, 11, 13) : 1
+    const steps = [
+      { icon: '✅', label: 'Order Placed', sub: 'Thank you message + receipt', t0: .3 },
+      { icon: '📦', label: 'Packing',      sub: 'Estimated dispatch time',       t0: 2 },
+      { icon: '🚚', label: 'Shipped',      sub: 'Tracking link sent instantly',  t0: 3.8 },
+      { icon: '🏠', label: 'Delivered',    sub: 'Ask for review + next offer',   t0: 5.8 },
+    ]
+    const lineY = 400
+    ctx.globalAlpha = f
+    ctx.strokeStyle = 'rgba(20,184,166,.3)'; ctx.lineWidth = 2
+    ctx.beginPath(); ctx.moveTo(130, lineY); ctx.lineTo(950, lineY); ctx.stroke()
+    steps.forEach((s, i) => {
+      const sp = pr(lt, s.t0, s.t0 + .8), sx = 130 + i * 273
+      ctx.globalAlpha = f * sp
+      ctx.beginPath(); ctx.arc(sx, lineY, 28, 0, Math.PI * 2)
+      ctx.fillStyle = '#14b8a6'; ctx.fill()
+      txt(ctx, s.icon, sx, lineY, { size: 26, alpha: f * sp })
+      txt(ctx, s.label, sx, lineY + 60, { size: 18, color: '#14b8a6', weight: '700', alpha: f * sp })
+      txt(ctx, s.sub, sx, lineY + 92, { size: 14, color: '#64748b', weight: '400', alpha: f * sp })
+      ctx.globalAlpha = 1
+    })
+    const reacts = ['😍', '🔥', '💯', '🎉']
+    reacts.forEach((r, i) => {
+      const rp = pr(lt, 7 + i * .4, 8 + i * .4)
+      const ry = 600 - rp * 120
+      txt(ctx, r, 200 + i * 230, ry, { size: 60 + rp * 20, alpha: f * rp * (1 - Math.max(0, rp - .7) * 3) })
+    })
+    txt(ctx, 'Every update. On WhatsApp. Instantly.', W / 2, 840, { size: 26, color: '#14b8a6', weight: '700', alpha: f * pr(lt, 9, 11) })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '20,184,166', .18 * f)
+    txt(ctx, '8 in 10 customers', W / 2, 380, { size: 58, weight: '900', alpha: f })
+    txt(ctx, 'say WhatsApp updates build trust.', W / 2, 454, { size: 38, color: '#14b8a6', weight: '700', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 210, 570, 420, 82, 41, '#14b8a6')
+    txt(ctx, 'Delight Your Customers →', W / 2, 611, { size: 26, color: '#000', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 712, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 11 — Win-Back Campaign (cyan, fading silhouettes) */
+function renderAd11(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#020a0d'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(6,182,212,.025)')
+  glow(ctx, W / 2, H / 2, 600, '6,182,212', .07 * cl(t / 2))
+
+  if (t < 10) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 9 ? 1 - pr(t, 9, 10) : 1
+    txt(ctx, '60 days of silence.', W / 2, 270, { size: 52, weight: '800', color: '#06b6d4', alpha: f * pr(t, 0, 1) })
+    const xs = [150, 310, 470, 630, 790, 930]
+    xs.forEach((x, i) => {
+      const fade = pr(t, 1 + i * .3, 3 + i * .3), fp = f * pr(t, .2 + i * .1, .9 + i * .1)
+      const col = `rgba(6,182,212,${.85 - fade * .75})`
+      rr(ctx, x - 60, 340, 120, 200, 60, col); ctx.globalAlpha = fp
+      txt(ctx, ['👩', '👨', '👧', '👦', '🧓', '👴'][i], x, 410, { size: 55, alpha: fp * (1 - fade * .8) })
+      ctx.globalAlpha = 1
+    })
+    txt(ctx, 'They bought once.', W / 2, 640, { size: 38, color: '#475569', weight: '600', alpha: f * pr(t, 3, 5) })
+    txt(ctx, 'Then... disappeared.', W / 2, 696, { size: 38, color: '#475569', weight: '600', alpha: f * pr(t, 4.5, 6.5) })
+    txt(ctx, 'Sound familiar?', W / 2, 784, { size: 34, color: '#0e7490', weight: '700', alpha: f * pr(t, 7, 9) })
+  }
+  if (t >= 9 && t < 22) {
+    const lt = t - 9, f = lt < 1 ? pr(lt, 0, 1) : lt > 11 ? 1 - pr(lt, 11, 13) : 1
+    rr(ctx, 140, 260, 800, 110, 24, 'rgba(6,182,212,.1)', 'rgba(6,182,212,.4)', 1.5)
+    txt(ctx, '💬  "Hey! We miss you. Here\'s 20% OFF"', W / 2, 315, { size: 24, color: '#67e8f9', weight: '600', alpha: f * pr(lt, 0, 1.5) })
+    const xs = [150, 310, 470, 630, 790, 930]
+    xs.forEach((x, i) => {
+      const ret = pr(lt, 2 + i * .35, 4.5 + i * .35), fp = f * pr(lt, .2 + i * .1, .9 + i * .1)
+      const col = `rgba(6,182,212,${.1 + ret * .75})`
+      rr(ctx, x - 60, 430, 120, 200, 60, col); ctx.globalAlpha = fp
+      txt(ctx, ['👩', '👨', '👧', '👦', '🧓', '👴'][i], x, 498, { size: 55, alpha: fp * ret })
+      ctx.globalAlpha = 1
+    })
+    txt(ctx, 'They came back. 💚', W / 2, 750, { size: 44, color: '#06b6d4', weight: '800', alpha: f * pr(lt, 7, 9) })
+    txt(ctx, 'Wapaci Win-Back flow. Automatic.', W / 2, 818, { size: 26, color: '#0e7490', weight: '600', alpha: f * pr(lt, 9, 11) })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '6,182,212', .2 * f)
+    txt(ctx, '₹1.8L recovered monthly', W / 2, 390, { size: 56, color: '#06b6d4', weight: '900', alpha: f })
+    txt(ctx, 'from customers who ghosted you.', W / 2, 466, { size: 34, weight: '600', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 210, 570, 420, 82, 41, '#06b6d4')
+    txt(ctx, 'Win Back Lost Customers →', W / 2, 611, { size: 26, color: '#000', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 712, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 12 — Testimonial Wall (green, chat bubbles) */
+function renderAd12(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#03100a'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(37,211,102,.02)')
+  glow(ctx, W / 2, H / 2, 600, '37,211,102', .07 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    txt(ctx, '500+ Indian D2C brands', W / 2, 400, { size: 58, color: '#25D366', weight: '900', alpha: f * pr(t, 0, 1) })
+    txt(ctx, 'use Wapaci. Here\'s what they say.', W / 2, 480, { size: 36, weight: '500', alpha: f * pr(t, .5, 1.8) })
+  }
+  if (t >= 7) {
+    const lt = t - 7, f = lt < 1 ? pr(lt, 0, 1) : lt > 19 ? 1 - pr(lt, 19, 21) : 1
+    const testimonials = [
+      { brand: 'FreshCart', text: '"Cart recovery alone pays for the plan 10×. We made ₹2.4L in month one."', t0: .3 },
+      { brand: 'StyleKart',  text: '"COD returns dropped from 38% to 19%. That\'s real money saved."',           t0: 2.5 },
+      { brand: 'NutriBox',   text: '"Our customers love the order updates on WhatsApp. 5-star reviews went up."', t0: 5 },
+      { brand: 'GlowSkin',   text: '"Win-back campaigns brought back 800+ customers we thought were gone."',       t0: 7.5 },
+      { brand: 'FitGear',    text: '"47× ROI in 90 days. Best marketing investment we\'ve made."',                t0: 10 },
+    ]
+    testimonials.forEach((tm, i) => {
+      const tp = pr(lt, tm.t0, tm.t0 + .8); if (tp <= 0) return
+      const by = 200 + i * 152
+      ctx.globalAlpha = f * tp; rr(ctx, 80, by, 920, 128, 18, 'rgba(37,211,102,.08)', 'rgba(37,211,102,.25)')
+      txt(ctx, tm.brand, 136, by + 34, { size: 18, color: '#25D366', weight: '800', alpha: f * tp, align: 'left' as CanvasTextAlign })
+      txt(ctx, tm.text, 540, by + 80, { size: 17, color: '#94a3b8', weight: '400', alpha: f * tp })
+      ctx.globalAlpha = 1
+    })
+  }
+  if (t >= 26) {
+    const lt = t - 26, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '37,211,102', .2 * f)
+    txt(ctx, 'Join 500+ brands growing', W / 2, 390, { size: 48, weight: '800', alpha: f })
+    txt(ctx, 'with WhatsApp automation.', W / 2, 454, { size: 48, color: '#25D366', weight: '800', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 205, 560, 410, 82, 41, '#25D366')
+    txt(ctx, 'Start Free Today →', W / 2, 601, { size: 28, color: '#000', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 700, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 13 — Automation Stack (indigo, flowchart) */
+function renderAd13(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#04030f'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(99,102,241,.025)')
+  glow(ctx, 200, 300, 500, '99,102,241', .08 * cl(t / 2))
+  glow(ctx, 800, 700, 400, '167,139,250', .06 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    txt(ctx, 'One platform.', W / 2, 380, { size: 76, weight: '900', alpha: f * pr(t, 0, 1) })
+    txt(ctx, 'Five automations.', W / 2, 472, { size: 76, color: '#818cf8', weight: '900', alpha: f * pr(t, .5, 1.5) })
+    txt(ctx, 'Running 24/7.', W / 2, 564, { size: 76, color: '#a78bfa', weight: '900', alpha: f * pr(t, 1, 2) })
+  }
+  if (t >= 7 && t < 24) {
+    const lt = t - 7, f = lt < 1 ? pr(lt, 0, 1) : lt > 15 ? 1 - pr(lt, 15, 17) : 1
+    const flows = [
+      { trigger: 'Cart Abandoned', action: 'WhatsApp Recovery', result: '+28% Recovery', color: '#ef4444', t0: .3 },
+      { trigger: 'COD Order',      action: 'Confirmation Flow', result: '-40% Returns',  color: '#f97316', t0: 2.2 },
+      { trigger: 'New Customer',   action: 'Welcome Series',    result: '2× Retention',  color: '#25D366', t0: 4.2 },
+      { trigger: '60d Inactive',   action: 'Win-Back Offer',    result: '15% Come Back', color: '#06b6d4', t0: 6.2 },
+      { trigger: 'After Delivery', action: 'Review + Upsell',   result: '+₹800 AOV',     color: '#a78bfa', t0: 8.2 },
+    ]
+    flows.forEach((fl, i) => {
+      const fp = pr(lt, fl.t0, fl.t0 + .8), fy = 190 + i * 148
+      ctx.globalAlpha = f * fp
+      rr(ctx, 60, fy, 240, 66, 14, `${fl.color}18`, `${fl.color}55`)
+      txt(ctx, fl.trigger, 180, fy + 33, { size: 17, color: fl.color, weight: '700', alpha: f * fp })
+      ctx.strokeStyle = `${fl.color}60`; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4])
+      ctx.beginPath(); ctx.moveTo(300, fy + 33); ctx.lineTo(480, fy + 33); ctx.stroke(); ctx.setLineDash([])
+      txt(ctx, '▶', 390, fy + 33, { size: 14, color: fl.color, alpha: f * fp })
+      rr(ctx, 480, fy, 250, 66, 14, `${fl.color}18`, `${fl.color}55`)
+      txt(ctx, fl.action, 605, fy + 33, { size: 17, color: fl.color, weight: '700', alpha: f * fp })
+      ctx.strokeStyle = `${fl.color}60`; ctx.beginPath(); ctx.moveTo(730, fy + 33); ctx.lineTo(830, fy + 33); ctx.stroke()
+      txt(ctx, '▶', 780, fy + 33, { size: 14, color: fl.color, alpha: f * fp })
+      rr(ctx, 830, fy, 210, 66, 14, `${fl.color}25`, `${fl.color}70`)
+      txt(ctx, fl.result, 935, fy + 33, { size: 18, color: '#fff', weight: '800', alpha: f * fp })
+      ctx.globalAlpha = 1
+    })
+  }
+  if (t >= 23) {
+    const lt = t - 23, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '99,102,241', .2 * f)
+    txt(ctx, 'Set up in 10 minutes.', W / 2, 390, { size: 52, weight: '800', alpha: f })
+    txt(ctx, 'Run forever.', W / 2, 460, { size: 52, color: '#818cf8', weight: '900', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 210, 565, 420, 82, 41, '#6366f1')
+    txt(ctx, 'Automate Revenue Now →', W / 2, 606, { size: 26, color: '#fff', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 706, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 14 — ₹1 Crore Club (gold, crazy counter + shockwaves) */
+function renderAd14(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#080600'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(234,179,8,.03)')
+  glow(ctx, W / 2, H / 2, 700, '234,179,8', .08 * cl(t / 2))
+
+  if (t < 10) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 9 ? 1 - pr(t, 9, 10) : 1
+    txt(ctx, 'Your next revenue milestone', W / 2, 330, { size: 36, color: '#a16207', weight: '700', alpha: f * pr(t, 0, 1) })
+    const val = Math.round(10_000_000 * eOut(cl(t / 8)))
+    txt(ctx, `₹${val.toLocaleString('en-IN')}`, W / 2, 510, { size: 86, color: '#eab308', weight: '900', alpha: f })
+    txt(ctx, '₹1,00,00,000', W / 2, 650, { size: 28, color: '#78350f', weight: '600', alpha: f * pr(t, 2, 4) })
+    txt(ctx, 'One. Crore. Rupees.', W / 2, 710, { size: 26, color: '#92400e', weight: '600', alpha: f * pr(t, 4, 6) })
+  }
+  if (t >= 9 && t < 22) {
+    const lt = t - 9, f = lt < 1 ? pr(lt, 0, 1) : lt > 11 ? 1 - pr(lt, 11, 13) : 1
+    glow(ctx, W / 2, H / 2, 700, '234,179,8', .2 * f * pr(lt, 0, 2))
+    for (let r = 0; r < 5; r++) {
+      const rp = cl((lt - r * .4) / 2), rr2 = rp * 600
+      ctx.globalAlpha = f * Math.max(0, 1 - rp * 1.1) * .5
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, rr2, 0, Math.PI * 2)
+      ctx.strokeStyle = '#eab308'; ctx.lineWidth = 3 - rp * 2; ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+    txt(ctx, 'YOUR MILESTONE', W / 2, 290, { size: 36, color: '#78350f', weight: '800', alpha: f * pr(lt, 0, 1) })
+    txt(ctx, '₹1 CRORE', W / 2, 480, { size: 140, color: '#eab308', weight: '900', alpha: f })
+    burst(ctx, W / 2, 480, lt, .5, '#fbbf24', 30)
+    burst(ctx, W / 2, 480, lt, .5, '#f59e0b', 20)
+    const items = ['Cart Recovery +₹2.4L', 'COD Fix +₹1.6L', 'Win-Back +₹1.8L', 'Upsells +₹2.1L', 'Broadcasts +₹2.1L']
+    items.forEach((it, i) => {
+      ctx.globalAlpha = f * pr(lt, 5 + i * .5, 7 + i * .5)
+      rr(ctx, W / 2 - 225, 650 + i * 56, 450, 42, 12, 'rgba(234,179,8,.1)', 'rgba(234,179,8,.3)')
+      txt(ctx, it, W / 2, 671 + i * 56, { size: 18, color: '#eab308', weight: '700', alpha: f * pr(lt, 5 + i * .5, 7 + i * .5) })
+      ctx.globalAlpha = 1
+    })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 700, '234,179,8', .25 * f)
+    txt(ctx, 'Join the', W / 2, 360, { size: 52, weight: '700', alpha: f })
+    txt(ctx, '₹1 Crore Club', W / 2, 438, { size: 72, color: '#eab308', weight: '900', alpha: f })
+    txt(ctx, '500+ brands already inside.', W / 2, 530, { size: 28, color: '#92400e', weight: '500', alpha: f * pr(lt, .4, 1.4) })
+    ctx.globalAlpha = f * pr(lt, .6, 1.5)
+    rr(ctx, W / 2 - 210, 600, 420, 82, 41, '#eab308')
+    txt(ctx, 'Claim Your Spot →', W / 2, 641, { size: 28, color: '#000', weight: '800', alpha: f * pr(lt, .6, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 740, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 15 — Competitor's Secret (crimson, mystery reveal) */
+function renderAd15(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#0d0003'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(220,38,38,.025)')
+  glow(ctx, W / 2, H / 2, 600, '220,38,38', .07 * cl(t / 2))
+
+  if (t < 10) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 9 ? 1 - pr(t, 9, 10) : 1
+    txt(ctx, 'Your top competitor', W / 2, 350, { size: 52, weight: '700', alpha: f * pr(t, 0, 1) })
+    txt(ctx, 'has a secret.', W / 2, 420, { size: 52, weight: '700', alpha: f * pr(t, .4, 1.4) })
+    txt(ctx, '...', W / 2, 550, { size: 80, color: '#dc2626', weight: '900', alpha: f * pr(t, 2, 4) * Math.abs(Math.sin(t * 4)) })
+    txt(ctx, 'Want to know what it is?', W / 2, 700, { size: 34, color: '#7f1d1d', weight: '600', alpha: f * pr(t, 5, 7.5) })
+  }
+  if (t >= 9 && t < 22) {
+    const lt = t - 9, f = lt < 1 ? pr(lt, 0, 1) : lt > 11.5 ? 1 - pr(lt, 11.5, 13) : 1
+    glow(ctx, W / 2, H / 2, 500, '220,38,38', .18 * f * pr(lt, 0, 1.5))
+    txt(ctx, 'They use', W / 2, 310, { size: 40, color: '#9ca3af', weight: '500', alpha: f * pr(lt, 0, 1) })
+    txt(ctx, 'WhatsApp Automation.', W / 2, 390, { size: 56, color: '#dc2626', weight: '900', alpha: f * pr(lt, .4, 1.6) })
+    const rows = [
+      { them: '₹3.2L recovered/mo', you: '₹0 recovered', label: 'Cart Recovery' },
+      { them: '18% COD returns', you: '38% COD returns', label: 'COD Confirm' },
+      { them: '500+ reviews/mo', you: '12 reviews/mo', label: 'Review Flows' },
+    ]
+    rows.forEach((r, i) => {
+      const rp = pr(lt, 2 + i * .6, 3.2 + i * .6); ctx.globalAlpha = f * rp
+      rr(ctx, 60, 470 + i * 120, 440, 88, 16, 'rgba(37,211,102,.1)', 'rgba(37,211,102,.3)')
+      txt(ctx, r.them, 280, 514 + i * 120, { size: 20, color: '#25D366', weight: '700', alpha: f * rp })
+      rr(ctx, 580, 470 + i * 120, 440, 88, 16, 'rgba(220,38,38,.1)', 'rgba(220,38,38,.3)')
+      txt(ctx, r.you, 800, 514 + i * 120, { size: 20, color: '#dc2626', weight: '700', alpha: f * rp })
+      txt(ctx, r.label, W / 2, 494 + i * 120, { size: 14, color: '#475569', weight: '600', alpha: f * rp })
+      ctx.globalAlpha = 1
+    })
+    txt(ctx, 'Them   vs   You', W / 2, 460, { size: 22, color: '#475569', weight: '600', alpha: f * pr(lt, 1.5, 2.5) })
+  }
+  if (t >= 21) {
+    const lt = t - 21, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '37,211,102', .18 * f)
+    txt(ctx, 'Now you know the secret.', W / 2, 380, { size: 46, weight: '700', alpha: f })
+    txt(ctx, 'Time to use it.', W / 2, 448, { size: 46, color: '#25D366', weight: '900', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 205, 560, 410, 82, 41, '#25D366')
+    txt(ctx, 'Get the Competitive Edge →', W / 2, 601, { size: 24, color: '#000', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 702, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 16 — Broadcast Power (green, ripple circles) */
+function renderAd16(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#010d05'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(37,211,102,.02)')
+  glow(ctx, W / 2, H / 2, 700, '37,211,102', .07 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    ctx.globalAlpha = f
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 70, 0, Math.PI * 2)
+    ctx.fillStyle = '#25D366'; ctx.fill()
+    txt(ctx, '💬', W / 2, H / 2, { size: 60, alpha: f })
+    txt(ctx, 'You wrote 1 message.', W / 2, 760, { size: 38, weight: '700', alpha: f * pr(t, .5, 2) })
+    txt(ctx, 'Watch what happens next.', W / 2, 822, { size: 28, color: '#166534', weight: '500', alpha: f * pr(t, 2.5, 4.5) })
+    ctx.globalAlpha = 1
+  }
+  if (t >= 7 && t < 23) {
+    const lt = t - 7, f = lt < 1 ? pr(lt, 0, 1) : lt > 14 ? 1 - pr(lt, 14, 16) : 1
+    ctx.globalAlpha = f
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 70, 0, Math.PI * 2); ctx.fillStyle = '#25D366'; ctx.fill()
+    txt(ctx, '💬', W / 2, H / 2, { size: 60, alpha: f })
+    for (let r = 0; r < 6; r++) {
+      const rp = cl((lt - r * .6) / 3.5), rad = 70 + rp * 520
+      ctx.globalAlpha = f * Math.max(0, 1 - rp * 1.05) * .7
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, rad, 0, Math.PI * 2)
+      ctx.strokeStyle = '#25D366'; ctx.lineWidth = 3 - rp * 2.5; ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+    const counts = [['1', 'message sent'], ['50,000', 'customers reached'], ['98%', 'open it in 3 min'], ['₹12L', 'revenue in 4 hrs']]
+    counts.forEach(([v, l], i) => {
+      const cp = pr(lt, 2 + i * 1.5, 3.2 + i * 1.5)
+      ctx.globalAlpha = f * cp
+      rr(ctx, W / 2 - 200, 780 + (i % 2) * 0, 400, 60, 14, 'rgba(37,211,102,.1)', 'rgba(37,211,102,.3)')
+      // place in corners
+      const positions = [[130, 180], [930, 180], [130, 900], [930, 900]]
+      const [px, py] = positions[i]
+      rr(ctx, px - 95, py - 30, 190, 60, 14, 'rgba(37,211,102,.15)', 'rgba(37,211,102,.4)')
+      txt(ctx, v, px, py - 2, { size: 22, color: '#25D366', weight: '900', alpha: f * cp })
+      txt(ctx, l, px, py + 22, { size: 12, color: '#166534', weight: '600', alpha: f * cp })
+      ctx.globalAlpha = 1
+    })
+  }
+  if (t >= 22) {
+    const lt = t - 22, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 700, '37,211,102', .22 * f)
+    txt(ctx, '1 message.', W / 2, 380, { size: 68, weight: '900', color: '#25D366', alpha: f })
+    txt(ctx, '50,000 customers.', W / 2, 464, { size: 56, weight: '900', alpha: f })
+    txt(ctx, 'Instant.', W / 2, 536, { size: 56, weight: '900', color: '#25D366', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 205, 610, 410, 82, 41, '#25D366')
+    txt(ctx, 'Launch Your Broadcast →', W / 2, 651, { size: 26, color: '#000', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 752, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 17 — Ten Minute Setup (sky blue, circular timer) */
+function renderAd17(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#020810'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(56,189,248,.025)')
+  glow(ctx, W / 2, H / 2, 600, '56,189,248', .07 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    txt(ctx, 'How long does it take', W / 2, 350, { size: 46, weight: '700', alpha: f * pr(t, 0, 1) })
+    txt(ctx, 'to set up Wapaci?', W / 2, 416, { size: 46, weight: '700', alpha: f * pr(t, .4, 1.4) })
+    txt(ctx, '?', W / 2, 600, { size: 200, color: '#38bdf8', weight: '900', alpha: f * pr(t, 1, 2.5) })
+  }
+  if (t >= 7 && t < 24) {
+    const lt = t - 7, f = lt < 1 ? pr(lt, 0, 1) : lt > 15 ? 1 - pr(lt, 15, 17) : 1
+    const angle = -Math.PI / 2 + Math.PI * 2 * cl(lt / 13)
+    ctx.save(); ctx.globalAlpha = f
+    ctx.beginPath(); ctx.arc(W / 2, 430, 180, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(56,189,248,.15)'; ctx.lineWidth = 12; ctx.stroke()
+    ctx.beginPath(); ctx.arc(W / 2, 430, 180, -Math.PI / 2, angle); ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 12; ctx.lineCap = 'round'; ctx.stroke()
+    ctx.restore()
+    const elapsed = Math.min(10, lt * (10 / 13))
+    const mm = Math.floor(elapsed), ss = Math.round((elapsed % 1) * 60)
+    txt(ctx, `${mm}:${ss.toString().padStart(2, '0')}`, W / 2, 420, { size: 96, color: '#38bdf8', weight: '900', alpha: f })
+    txt(ctx, 'minutes', W / 2, 500, { size: 28, color: '#0369a1', weight: '600', alpha: f })
+    const steps = [
+      { s: 'Connect your Shopify store', t0: .5 },
+      { s: 'Enable Cart Recovery flow', t0: 2.8 },
+      { s: 'Set up COD Confirmation',   t0: 5.2 },
+      { s: 'Launch Welcome Series',     t0: 7.8 },
+      { s: 'All 5 automations: LIVE ✅',t0: 10.5 },
+    ]
+    steps.forEach((s, i) => {
+      const sp = pr(lt, s.t0, s.t0 + .7)
+      ctx.globalAlpha = f * sp
+      rr(ctx, W / 2 - 245, 645 + i * 62, 490, 46, 10, i === 4 ? 'rgba(37,211,102,.15)' : 'rgba(56,189,248,.1)', i === 4 ? 'rgba(37,211,102,.5)' : 'rgba(56,189,248,.3)')
+      txt(ctx, s.s, W / 2, 668 + i * 62, { size: 18, color: i === 4 ? '#25D366' : '#38bdf8', weight: i === 4 ? '800' : '600', alpha: f * sp })
+      ctx.globalAlpha = 1
+    })
+  }
+  if (t >= 23) {
+    const lt = t - 23, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '56,189,248', .2 * f)
+    txt(ctx, '10 minutes to set up.', W / 2, 390, { size: 50, weight: '800', alpha: f })
+    txt(ctx, 'Lifetime of revenue.', W / 2, 460, { size: 50, color: '#38bdf8', weight: '900', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 205, 562, 410, 82, 41, '#38bdf8')
+    txt(ctx, 'Start the 10-Min Setup →', W / 2, 603, { size: 25, color: '#000', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 704, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 18 — Emoji Reactions (colorful, floating emoji cartoon) */
+function renderAd18(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#07060e'; ctx.fillRect(0, 0, W, H); grid(ctx)
+  glow(ctx, W / 2, 600, 600, '168,85,247', .06 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    rr(ctx, 140, 340, 800, 200, 24, 'rgba(255,255,255,.05)', 'rgba(255,255,255,.1)')
+    txt(ctx, '📦 Order Update!', W / 2, 406, { size: 30, weight: '700', alpha: f * pr(t, .3, 1.3) })
+    txt(ctx, 'Your package is out for delivery 🚀', W / 2, 456, { size: 22, color: '#94a3b8', weight: '400', alpha: f * pr(t, .8, 1.8) })
+    txt(ctx, '— Wapaci', W / 2, 510, { size: 18, color: '#475569', weight: '600', alpha: f * pr(t, 1.5, 2.5) })
+    txt(ctx, 'How do customers feel?', W / 2, 720, { size: 32, weight: '700', alpha: f * pr(t, 3.5, 5.5) })
+  }
+  if (t >= 7 && t < 23) {
+    const lt = t - 7, f = lt < 1 ? pr(lt, 0, 1) : lt > 14 ? 1 - pr(lt, 14, 16) : 1
+    const emojis = [
+      { e: '😍', x: 160, delay: .3, color: '#f43f5e' },
+      { e: '🔥', x: 350, delay: .9, color: '#f97316' },
+      { e: '💯', x: 540, delay: 1.5, color: '#eab308' },
+      { e: '🎉', x: 730, delay: 2.1, color: '#22c55e' },
+      { e: '✨', x: 920, delay: 2.7, color: '#818cf8' },
+      { e: '😱', x: 250, delay: 4,   color: '#ec4899' },
+      { e: '💚', x: 450, delay: 4.6, color: '#25D366' },
+      { e: '👏', x: 650, delay: 5.2, color: '#f59e0b' },
+      { e: '🚀', x: 840, delay: 5.8, color: '#38bdf8' },
+    ]
+    emojis.forEach(em => {
+      const ep = pr(lt, em.delay, em.delay + .5); if (ep <= 0) return
+      const floatY = 800 - ep * 600 - lt * 30
+      const fadeA = ep < .3 ? ep / .3 : floatY < 100 ? (floatY - 50) / 50 : 1
+      txt(ctx, em.e, em.x, Math.max(50, floatY), { size: 80 + ep * 30, alpha: f * Math.max(0, fadeA) })
+    })
+    const msgs2 = [
+      { t0: 7,   text: '"This brand actually cares! 🥰"' },
+      { t0: 9.5, text: '"Best post-purchase experience ever!"' },
+      { t0: 12,  text: '"Just ordered again. Second time this week 😅"' },
+    ]
+    msgs2.forEach(m => {
+      const mp = pr(lt, m.t0, m.t0 + .8); if (mp <= 0) return
+      rr(ctx, 130, 640, 820, 68, 18, 'rgba(255,255,255,.06)', 'rgba(255,255,255,.12)')
+      txt(ctx, m.text, W / 2, 674, { size: 22, color: '#e2e8f0', weight: '500', alpha: f * mp })
+    })
+  }
+  if (t >= 22) {
+    const lt = t - 22, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '168,85,247', .2 * f)
+    txt(ctx, 'Make customers feel this.', W / 2, 380, { size: 50, weight: '800', alpha: f })
+    txt(ctx, 'Every. Single. Time.', W / 2, 456, { size: 50, color: '#a78bfa', weight: '900', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 205, 560, 410, 82, 41, '#7c3aed')
+    txt(ctx, 'Create Happy Customers →', W / 2, 601, { size: 25, color: '#fff', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 702, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 19 — The Proof (slate, stat grid) */
+function renderAd19(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#040810'; ctx.fillRect(0, 0, W, H); grid(ctx)
+  glow(ctx, W / 2, H / 2, 600, '148,163,184', .05 * cl(t / 2))
+
+  if (t < 8) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 7 ? 1 - pr(t, 7, 8) : 1
+    txt(ctx, 'The numbers', W / 2, 400, { size: 88, weight: '900', alpha: f * pr(t, 0, 1) })
+    txt(ctx, "don't lie.", W / 2, 500, { size: 88, color: '#94a3b8', weight: '900', alpha: f * pr(t, .4, 1.4) })
+  }
+  if (t >= 7 && t < 24) {
+    const lt = t - 7, f = lt < 1 ? pr(lt, 0, 1) : lt > 15 ? 1 - pr(lt, 15, 17) : 1
+    const stats = [
+      { v: '500+',  l: 'Indian D2C Brands',      c: '#f8fafc', t0: .3 },
+      { v: '98%',   l: 'WhatsApp Open Rate',      c: '#25D366', t0: 1.2 },
+      { v: '₹47L',  l: 'Avg Monthly Recovered',   c: '#eab308', t0: 2.1 },
+      { v: '28%',   l: 'Cart Recovery Rate',       c: '#f97316', t0: 3 },
+      { v: '47×',   l: 'Average ROI',              c: '#818cf8', t0: 3.9 },
+      { v: '3 min', l: 'Avg Message Read Time',    c: '#38bdf8', t0: 4.8 },
+    ]
+    stats.forEach((s, i) => {
+      const col = i % 3, row = Math.floor(i / 3)
+      const sx = 120 + col * 300, sy = 270 + row * 300
+      const sp = pr(lt, s.t0, s.t0 + .8); ctx.globalAlpha = f * sp
+      rr(ctx, sx, sy, 270, 240, 22, 'rgba(255,255,255,.04)', 'rgba(255,255,255,.08)')
+      txt(ctx, s.v, sx + 135, sy + 90, { size: 62, color: s.c, weight: '900', alpha: f * sp })
+      txt(ctx, s.l, sx + 135, sy + 176, { size: 17, color: '#64748b', weight: '500', alpha: f * sp })
+      ctx.globalAlpha = 1
+    })
+  }
+  if (t >= 23) {
+    const lt = t - 23, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 600, '148,163,184', .18 * f)
+    txt(ctx, 'India\'s fastest-growing', W / 2, 390, { size: 46, weight: '700', alpha: f })
+    txt(ctx, 'D2C brands trust Wapaci.', W / 2, 454, { size: 46, color: '#94a3b8', weight: '700', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .5, 1.5)
+    rr(ctx, W / 2 - 205, 562, 410, 82, 41, '#475569')
+    txt(ctx, 'See the Results for Yourself →', W / 2, 603, { size: 23, color: '#fff', weight: '800', alpha: f * pr(lt, .5, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 704, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 20 — Revenue Rocket (space, cartoon rocket) */
+function renderAd20(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#01020a'; ctx.fillRect(0, 0, W, H)
+  starfield(ctx, 120, t)
+  glow(ctx, W / 2, H / 2, 600, '249,115,22', .06 * cl(t / 2))
+
+  if (t < 9) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 8 ? 1 - pr(t, 8, 9) : 1
+    rocketDraw(ctx, W / 2, 700, 120, f, t)
+    txt(ctx, 'Your Revenue', W / 2, 880, { size: 32, color: '#94a3b8', weight: '600', alpha: f * pr(t, .3, 1.5) })
+    txt(ctx, 'Before Wapaci', W / 2, 928, { size: 24, color: '#475569', weight: '500', alpha: f * pr(t, 1, 2.5) })
+    txt(ctx, 'Still on the launchpad...', W / 2, 980, { size: 22, color: '#374151', weight: '400', alpha: f * pr(t, 3, 5) })
+  }
+  if (t >= 8 && t < 24) {
+    const lt = t - 8, f = lt < 1 ? pr(lt, 0, 1) : lt > 14 ? 1 - pr(lt, 14, 16) : 1
+    const rocketY = 900 - lt * 65
+    rocketDraw(ctx, W / 2, Math.max(-100, rocketY), 120, f, t)
+    for (let i = 0; i < 20; i++) {
+      const py = rocketY + 80 + i * 30 + (t * 40) % 30
+      const px = W / 2 + (Math.sin(i * 2.7 + t * 8) * 30)
+      ctx.globalAlpha = f * Math.max(0, 1 - i * .06)
+      ctx.fillStyle = i % 2 === 0 ? '#fbbf24' : '#f97316'
+      ctx.beginPath(); ctx.arc(px, py, 8 - i * .3, 0, Math.PI * 2); ctx.fill()
+    }
+    ctx.globalAlpha = 1
+    const milestones = [
+      { v: '₹5L/mo',  y: 820, t0: .8 },
+      { v: '₹25L/mo', y: 570, t0: 4 },
+      { v: '₹50L/mo', y: 330, t0: 7.5 },
+      { v: '₹1Cr/mo', y: 100, t0: 11 },
+    ]
+    milestones.forEach(m => {
+      const mp = pr(lt, m.t0, m.t0 + .7), yy = m.y
+      if (mp <= 0 || rocketY > yy + 40) return
+      ctx.globalAlpha = f * mp
+      ctx.strokeStyle = 'rgba(249,115,22,.35)'; ctx.lineWidth = 1; ctx.setLineDash([6, 4])
+      ctx.beginPath(); ctx.moveTo(160, yy); ctx.lineTo(920, yy); ctx.stroke(); ctx.setLineDash([])
+      rr(ctx, 620, yy - 24, 220, 48, 12, 'rgba(249,115,22,.15)', 'rgba(249,115,22,.45)')
+      txt(ctx, m.v, 730, yy, { size: 22, color: '#f97316', weight: '800', alpha: f * mp })
+      ctx.globalAlpha = 1
+    })
+    if (lt > 11) {
+      burst(ctx, W / 2, 100, lt, 11, '#f97316', 30)
+      burst(ctx, W / 2, 100, lt, 11, '#fbbf24', 20)
+    }
+  }
+  if (t >= 23) {
+    const lt = t - 23, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 700, '249,115,22', .22 * f)
+    txt(ctx, 'WhatsApp-Powered', W / 2, 370, { size: 56, color: '#f97316', weight: '900', alpha: f })
+    txt(ctx, 'Revenue 🚀', W / 2, 450, { size: 56, weight: '900', alpha: f })
+    txt(ctx, 'From launchpad to ₹1 crore/month.', W / 2, 540, { size: 28, color: '#92400e', weight: '500', alpha: f * pr(lt, .4, 1.4) })
+    ctx.globalAlpha = f * pr(lt, .6, 1.5)
+    rr(ctx, W / 2 - 210, 610, 420, 82, 41, '#f97316')
+    txt(ctx, 'Launch With Wapaci →', W / 2, 651, { size: 26, color: '#fff', weight: '800', alpha: f * pr(lt, .6, 1.5) })
+    txt(ctx, 'wapaci.com', W / 2, 752, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1, 2) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 21 — The Cart Is Still Warm (real-time cart rescue) */
+function renderAd21(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#050b12'; ctx.fillRect(0, 0, W, H)
+  grid(ctx, 'rgba(37,211,102,.025)')
+  glow(ctx, 170, 220, 560, '37,211,102', .07 * cl(t / 2))
+  glow(ctx, 930, 860, 560, '14,165,233', .05 * cl(t / 2))
+
+  if (t < 6) {
+    const f = t < .6 ? pr(t, 0, .6) : t > 5 ? 1 - pr(t, 5, 6) : 1
+    ctx.globalAlpha = f
+    rr(ctx, 250, 245, 580, 68, 34, 'rgba(37,211,102,.1)', 'rgba(37,211,102,.36)')
+    txt(ctx, 'LIVE CART EVENT', W / 2, 279, { size: 18, color: '#25D366', weight: '900', alpha: f * pr(t, .1, .8) })
+    const sec = Math.max(0, Math.round(12 - t * 2.1))
+    txt(ctx, `${sec}s ago`, W / 2, 455, { size: 126, color: '#25D366', weight: '900', alpha: f * pr(t, .3, 1.1) })
+    txt(ctx, 'someone almost bought from you.', W / 2, 560, { size: 38, color: '#dbeafe', weight: '700', alpha: f * pr(t, 1, 1.8) })
+    rr(ctx, 220, 650, 640, 94, 22, 'rgba(239,68,68,.08)', 'rgba(239,68,68,.25)')
+    txt(ctx, 'If you wait until tomorrow...', W / 2, 682, { size: 24, color: '#f87171', weight: '700', alpha: f * pr(t, 2.2, 3) })
+    txt(ctx, 'that cart goes cold.', W / 2, 718, { size: 24, color: '#94a3b8', weight: '500', alpha: f * pr(t, 2.8, 3.7) })
+    ctx.globalAlpha = 1
+  }
+
+  if (t >= 5.3 && t < 16.5) {
+    const lt = t - 5.3, f = lt < .7 ? pr(lt, 0, .7) : lt > 10.2 ? 1 - pr(lt, 10.2, 11.2) : 1
+    txt(ctx, 'Wapaci reacts while intent is still hot.', W / 2, 150, { size: 31, color: '#93c5fd', weight: '700', alpha: f * pr(lt, 0, 1) })
+    const px = 125, py = 255, pw = 360, ph = 590
+    ctx.globalAlpha = f
+    rr(ctx, px, py, pw, ph, 40, '#101827', 'rgba(255,255,255,.1)', 2)
+    rr(ctx, px, py, pw, 76, 40, '#075e54'); ctx.fillStyle = '#075e54'; ctx.fillRect(px, py + 38, pw, 38)
+    ctx.beginPath(); ctx.arc(px + 45, py + 39, 24, 0, Math.PI * 2); ctx.fillStyle = '#25D366'; ctx.fill()
+    txt(ctx, 'W', px + 45, py + 39, { size: 20, weight: '900', alpha: f })
+    txt(ctx, 'Wapaci Recovery', px + 82, py + 33, { size: 18, weight: '800', align: 'left', alpha: f })
+    txt(ctx, 'typing...', px + 82, py + 57, { size: 13, color: 'rgba(255,255,255,.65)', weight: '500', align: 'left', alpha: f })
+    ctx.fillStyle = '#0b141a'; ctx.fillRect(px, py + 76, pw, ph - 76)
+
+    const msgs = [
+      { t0: .7, side: 'out', lines: ['Still thinking about', 'the sneakers, Aarav?'] },
+      { t0: 2.6, side: 'out', lines: ['Your size is still reserved', 'for the next 15 minutes.'] },
+      { t0: 4.8, side: 'in',  lines: ['Perfect timing 😅'] },
+      { t0: 6.4, side: 'out', lines: ['Use WELCOME10', 'and checkout in one tap.'] },
+      { t0: 8.4, side: 'in',  lines: ['Done. Ordered! ✅'] },
+    ]
+    let my = py + 100
+    msgs.forEach(m => {
+      const mp = pr(lt, m.t0, m.t0 + .55); if (mp <= 0) return
+      const bw = 282, bh = 34 + m.lines.length * 24
+      const bx = m.side === 'out' ? px + pw - bw - 14 : px + 14
+      ctx.globalAlpha = f * mp
+      rr(ctx, bx, my, bw, bh, 16, m.side === 'out' ? '#005c4b' : '#1f2c34')
+      m.lines.forEach((l, i) => txt(ctx, l, bx + 14, my + 28 + i * 24, { size: 16, weight: '500', align: 'left', alpha: f * mp }))
+      my += bh + 11
+    })
+
+    const steps = [
+      { l: 'Cart detected', v: '0.2 sec', c: '#38bdf8', t0: .8 },
+      { l: 'Message sent', v: '12 sec', c: '#25D366', t0: 2 },
+      { l: 'Customer replied', v: '3 min', c: '#eab308', t0: 5 },
+      { l: 'Revenue recovered', v: '₹8,999', c: '#25D366', t0: 8.3 },
+    ]
+    steps.forEach((s, i) => {
+      const sp = pr(lt, s.t0, s.t0 + .65)
+      const x = 565, y = 280 + i * 112
+      ctx.globalAlpha = f * sp
+      rr(ctx, x, y, 380, 82, 18, `${s.c}16`, `${s.c}55`)
+      txt(ctx, s.l, x + 24, y + 28, { size: 17, color: '#94a3b8', weight: '600', align: 'left', alpha: f * sp })
+      txt(ctx, s.v, x + 24, y + 57, { size: 28, color: s.c, weight: '900', align: 'left', alpha: f * sp })
+    })
+    ctx.globalAlpha = 1
+  }
+
+  if (t >= 15.5 && t < 25.5) {
+    const lt = t - 15.5, f = lt < .8 ? pr(lt, 0, .8) : lt > 8.8 ? 1 - pr(lt, 8.8, 10) : 1
+    txt(ctx, 'The money was already on your site.', W / 2, 260, { size: 36, weight: '800', alpha: f * pr(lt, 0, 1) })
+    txt(ctx, 'Wapaci brings it back.', W / 2, 312, { size: 36, color: '#25D366', weight: '900', alpha: f * pr(lt, .4, 1.4) })
+    const stats = [
+      { v: '28%', l: 'cart recovery', s: 'while intent is hot' },
+      { v: '98%', l: 'open rate', s: 'WhatsApp-first' },
+      { v: '₹2.1L', l: 'avg monthly lift', s: 'per active brand' },
+    ]
+    stats.forEach((s, i) => {
+      const sp = pr(lt, 1 + i * .45, 2 + i * .45)
+      const x = 120 + i * 300
+      ctx.globalAlpha = f * sp
+      rr(ctx, x, 410, 260, 245, 22, 'rgba(37,211,102,.07)', 'rgba(37,211,102,.22)')
+      txt(ctx, s.v, x + 130, 500, { size: 62, color: '#25D366', weight: '900', alpha: f * sp })
+      txt(ctx, s.l, x + 130, 570, { size: 19, weight: '800', alpha: f * sp })
+      txt(ctx, s.s, x + 130, 603, { size: 15, color: '#64748b', weight: '500', alpha: f * sp })
+    })
+    rr(ctx, 210, 745, 660, 76, 38, 'rgba(37,211,102,.12)', 'rgba(37,211,102,.38)')
+    txt(ctx, 'Recover the cart before it goes cold.', W / 2, 783, { size: 26, color: '#d1fae5', weight: '800', alpha: f * pr(lt, 4, 5) })
+    ctx.globalAlpha = 1
+  }
+
+  if (t >= 24.5) {
+    const lt = t - 24.5, f = lt < .8 ? pr(lt, 0, .8) : 1
+    glow(ctx, W / 2, H / 2, 680, '37,211,102', .22 * f)
+    txt(ctx, 'Save warm carts.', W / 2, 385, { size: 66, weight: '900', alpha: f })
+    txt(ctx, 'Automatically.', W / 2, 470, { size: 66, color: '#25D366', weight: '900', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .45, 1.25)
+    rr(ctx, W / 2 - 220, 590, 440, 84, 42, '#25D366')
+    txt(ctx, 'Try Wapaci Free →', W / 2, 632, { size: 28, color: '#00130a', weight: '900', alpha: f * pr(lt, .45, 1.25) })
+    txt(ctx, 'wapaci.com', W / 2, 730, { size: 24, color: '#64748b', weight: '500', alpha: f * pr(lt, .9, 1.8) })
+    ctx.globalAlpha = 1
+  }
+}
+
+/* Ad 22 — COD Filter (confirm before you ship) */
+function renderAd22(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#100804'; ctx.fillRect(0, 0, W, H)
+  grid(ctx, 'rgba(249,115,22,.025)')
+  glow(ctx, 180, 220, 600, '239,68,68', .07 * cl(t / 2))
+  glow(ctx, 900, 860, 620, '37,211,102', .06 * cl(t / 2))
+
+  if (t < 7) {
+    const f = t < .6 ? pr(t, 0, .6) : t > 6 ? 1 - pr(t, 6, 7) : 1
+    txt(ctx, 'Fake COD orders', W / 2, 310, { size: 66, color: '#fb923c', weight: '900', alpha: f * pr(t, .1, 1) })
+    txt(ctx, 'do not just lose a sale.', W / 2, 390, { size: 36, color: '#fed7aa', weight: '700', alpha: f * pr(t, .8, 1.8) })
+    const costs = [
+      { v: 'Shipping', c: '#ef4444', t0: 1.5 },
+      { v: 'RTO fee', c: '#f97316', t0: 2.2 },
+      { v: 'Inventory stuck', c: '#eab308', t0: 2.9 },
+    ]
+    costs.forEach((c, i) => {
+      const cp = pr(t, c.t0, c.t0 + .65)
+      const x = 135 + i * 300
+      ctx.globalAlpha = f * cp
+      rr(ctx, x, 500, 250, 130, 20, `${c.c}18`, `${c.c}55`)
+      txt(ctx, '✕', x + 125, 545, { size: 34, color: c.c, weight: '900', alpha: f * cp })
+      txt(ctx, c.v, x + 125, 592, { size: 20, color: '#fff7ed', weight: '800', alpha: f * cp })
+    })
+    txt(ctx, 'You pay twice for a customer who was never serious.', W / 2, 735, { size: 27, color: '#9ca3af', weight: '600', alpha: f * pr(t, 4, 5) })
+    ctx.globalAlpha = 1
+  }
+
+  if (t >= 6.2 && t < 17.5) {
+    const lt = t - 6.2, f = lt < .8 ? pr(lt, 0, .8) : lt > 10 ? 1 - pr(lt, 10, 11.3) : 1
+    txt(ctx, 'Wapaci confirms before dispatch.', W / 2, 160, { size: 34, color: '#fb923c', weight: '900', alpha: f * pr(lt, 0, 1) })
+    rr(ctx, 90, 260, 900, 470, 34, 'rgba(255,255,255,.045)', 'rgba(255,255,255,.09)')
+    const orders = [
+      { name: 'Order #1048', amt: '₹1,899', ans: 'YES', color: '#25D366', t0: .8 },
+      { name: 'Order #1049', amt: '₹3,299', ans: 'NO', color: '#ef4444', t0: 2.4 },
+      { name: 'Order #1050', amt: '₹999', ans: 'YES', color: '#25D366', t0: 4 },
+      { name: 'Order #1051', amt: '₹4,499', ans: 'NO', color: '#ef4444', t0: 5.6 },
+    ]
+    orders.forEach((o, i) => {
+      const op = pr(lt, o.t0, o.t0 + .65)
+      const y = 305 + i * 88
+      ctx.globalAlpha = f * op
+      rr(ctx, 140, y, 330, 62, 16, 'rgba(251,146,60,.12)', 'rgba(251,146,60,.35)')
+      txt(ctx, o.name, 165, y + 21, { size: 17, color: '#ffedd5', weight: '800', align: 'left', alpha: f * op })
+      txt(ctx, o.amt, 165, y + 45, { size: 15, color: '#9ca3af', weight: '600', align: 'left', alpha: f * op })
+      rr(ctx, 585, y, 170, 62, 31, `${o.color}22`, `${o.color}70`)
+      txt(ctx, o.ans, 670, y + 31, { size: 28, color: o.color, weight: '900', alpha: f * op })
+      const laneX = o.ans === 'YES' ? 825 : 890
+      txt(ctx, o.ans === 'YES' ? 'Ship' : 'Stop', laneX, y + 31, { size: 20, color: o.color, weight: '800', alpha: f * op })
+      ctx.globalAlpha = 1
+    })
+    ctx.globalAlpha = f * pr(lt, 7.5, 8.5)
+    rr(ctx, 210, 790, 660, 86, 22, 'rgba(37,211,102,.12)', 'rgba(37,211,102,.38)')
+    txt(ctx, 'Only confirmed COD orders leave your warehouse.', W / 2, 833, { size: 26, color: '#bbf7d0', weight: '900', alpha: f * pr(lt, 7.5, 8.5) })
+    ctx.globalAlpha = 1
+  }
+
+  if (t >= 16.5 && t < 25.5) {
+    const lt = t - 16.5, f = lt < .8 ? pr(lt, 0, .8) : lt > 7.8 ? 1 - pr(lt, 7.8, 9) : 1
+    txt(ctx, 'The result:', W / 2, 250, { size: 34, color: '#fed7aa', weight: '800', alpha: f * pr(lt, 0, 1) })
+    const stats = [
+      { v: '-41%', l: 'RTO reduction', c: '#25D366' },
+      { v: '₹84K', l: 'shipping saved', c: '#eab308' },
+      { v: '+18%', l: 'COD confirmation', c: '#fb923c' },
+    ]
+    stats.forEach((s, i) => {
+      const sp = pr(lt, .6 + i * .45, 1.6 + i * .45)
+      const x = 120 + i * 300
+      ctx.globalAlpha = f * sp
+      rr(ctx, x, 360, 260, 250, 22, `${s.c}14`, `${s.c}46`)
+      txt(ctx, s.v, x + 130, 458, { size: 60, color: s.c, weight: '900', alpha: f * sp })
+      txt(ctx, s.l, x + 130, 530, { size: 20, color: '#fff7ed', weight: '800', alpha: f * sp })
+    })
+    rr(ctx, 190, 710, 700, 92, 24, 'rgba(249,115,22,.11)', 'rgba(249,115,22,.35)')
+    txt(ctx, 'Stop shipping uncertainty.', W / 2, 746, { size: 28, color: '#fdba74', weight: '900', alpha: f * pr(lt, 4, 5) })
+    txt(ctx, 'Send only what customers confirm.', W / 2, 780, { size: 22, color: '#9ca3af', weight: '600', alpha: f * pr(lt, 4.6, 5.6) })
+    ctx.globalAlpha = 1
+  }
+
+  if (t >= 24.5) {
+    const lt = t - 24.5, f = lt < .8 ? pr(lt, 0, .8) : 1
+    glow(ctx, W / 2, H / 2, 680, '249,115,22', .2 * f)
+    txt(ctx, 'Confirm COD.', W / 2, 382, { size: 66, color: '#fb923c', weight: '900', alpha: f })
+    txt(ctx, 'Cut RTO waste.', W / 2, 468, { size: 66, color: '#25D366', weight: '900', alpha: f })
+    ctx.globalAlpha = f * pr(lt, .45, 1.25)
+    rr(ctx, W / 2 - 225, 592, 450, 84, 42, '#fb923c')
+    txt(ctx, 'Automate COD on WhatsApp →', W / 2, 634, { size: 25, color: '#111827', weight: '900', alpha: f * pr(lt, .45, 1.25) })
+    txt(ctx, 'wapaci.com', W / 2, 732, { size: 24, color: '#78716c', weight: '500', alpha: f * pr(lt, .9, 1.8) })
+    ctx.globalAlpha = 1
+  }
+}
+
 const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => void> = {
   1: renderAd1, 2: renderAd2, 3: renderAd3,
+  4: renderAd4, 5: renderAd5, 6: renderAd6, 7: renderAd7,
+  8: renderAd8, 9: renderAd9, 10: renderAd10, 11: renderAd11,
+  12: renderAd12, 13: renderAd13, 14: renderAd14, 15: renderAd15,
+  16: renderAd16, 17: renderAd17, 18: renderAd18, 19: renderAd19,
+  20: renderAd20, 21: renderAd21, 22: renderAd22,
 }
 
 /* ─── Ad definitions ──────────────────────────────────────────────── */
@@ -416,6 +1664,66 @@ Wapakee — WhatsApp automation for Indian D2C brands.
 
 Try it free today — wapaci dot com!`,
     voiceDir: 'start very slow and deliberate, long dramatic silence between each stat, explosive excitement on the WhatsApp reveal, thoughtful pause then warm confident close',
+  },
+  {
+    id: 21, filename: 'wapaci-warm-cart',
+    title: 'Warm Cart Rescue — Real-Time Intent',
+    tag: 'High Intent', tagColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    accent: '#25D366',
+    defaultScript: `Someone almost bought from you...
+twelve seconds ago.
+
+The cart is still warm.
+The intent is still alive.
+
+But every minute you wait...
+that customer forgets.
+
+Wapakee reacts instantly.
+It detects the abandoned cart,
+sends a WhatsApp message,
+reserves the product,
+and gives the customer one clear reason to finish checkout.
+
+No manual follow-up.
+No cold email.
+No lost intent.
+
+Just the right message...
+while they still want to buy.
+
+Save warm carts automatically.
+Try Wapakee free today — wapaci dot com!`,
+    voiceDir: 'urgent, cinematic, crisp Indian ecommerce ad voice; pause hard after the first line, then build speed and confidence; make the cart is still warm feel important; energetic CTA',
+  },
+  {
+    id: 22, filename: 'wapaci-cod-filter',
+    title: 'COD Filter — Confirm Before You Ship',
+    tag: 'COD/RTO', tagColor: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    accent: '#fb923c',
+    defaultScript: `Fake COD orders don't just waste your time.
+
+They cost you shipping.
+RTO fees.
+Inventory delays.
+And angry operations teams.
+
+Wapakee fixes this before the package leaves your warehouse.
+
+Every COD buyer gets a WhatsApp confirmation.
+Yes means ship it.
+No means stop it.
+No reply means follow up automatically.
+
+So your team ships only serious orders.
+
+Less RTO.
+Less wasted cash.
+More confirmed revenue.
+
+Confirm COD on WhatsApp.
+Try Wapakee free today — wapaci dot com!`,
+    voiceDir: 'direct, sharp, business-focused Indian founder tone; serious on the pain, confident on the solution, punchy pacing, strong closing CTA',
   },
 ]
 
@@ -549,15 +1857,7 @@ export default function AdminAdsPage() {
       } catch (e) { console.warn('voiceover decode:', e) }
     }
 
-    // Ambient chord pad (very subtle)
-    ;[131, 165, 196, 262].forEach(f => {
-      const osc = audioCtx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = f
-      const g   = audioCtx.createGain()
-      g.gain.setValueAtTime(0, audioCtx.currentTime)
-      g.gain.linearRampToValueAtTime(0.018, audioCtx.currentTime + 2.5)
-      g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + DUR - 2)
-      osc.connect(g); g.connect(master); osc.start()
-    })
+    scheduleAdAudio(audioCtx, master, ad.id)
 
     /* ── MediaRecorder from offscreen canvas stream ── */
     const videoStream = recordCanvas.captureStream(30)
