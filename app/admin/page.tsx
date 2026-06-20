@@ -10,7 +10,7 @@ import {
   MessageSquare, Store, Crown, AlertTriangle, Ban,
   ArrowUpRight, Activity, DollarSign, UserMinus, Edit2,
   X, Copy, Mail, CheckCheck, AlertCircle, LifeBuoy,
-  Tag, Clock, ChevronRight,
+  Tag, Clock, ChevronRight, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -255,6 +255,10 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 hidden sm:block">{stats?.total_signups ?? 0} total users</span>
+          <a href="/ads"
+            className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition px-3 py-1.5 rounded-lg hover:bg-purple-500/10 border border-purple-500/20 font-medium">
+            <Sparkles className="w-3.5 h-3.5" /> Ad Engine
+          </a>
           <button onClick={load} title="Refresh" className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
