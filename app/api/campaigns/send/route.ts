@@ -13,10 +13,25 @@ export async function POST(req: NextRequest) {
   if (!campaign_id) return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })
 
   // Fetch campaign (RLS ensures ownership)
+  // Check billing quota before doing anything else
+  const { data: remaining } = await supabase.rpc('get_messages_remaining', { p_user_id: user.id })
+  if ((remaining ?? 0) <= 0) {
+    return NextResponse.json({ error: 'Monthly message limit reached. Upgrade your plan.' }, { status: 403 })
+  }
+
   const { data: campaign, error: cErr } = await supabase
     .from('campaigns').select('*').eq('id', campaign_id).single()
   if (cErr || !campaign) return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
-  if (campaign.status === 'running' || campaign.status === 'completed') {
+
+  // Atomic claim: only update if still in draft/scheduled — prevents double-send
+  const { data: claimed } = await supabase
+    .from('campaigns')
+    .update({ status: 'running', updated_at: new Date().toISOString() })
+    .eq('id', campaign_id)
+    .in('status', ['draft', 'scheduled'])
+    .select('id')
+
+  if (!claimed || claimed.length === 0) {
     return NextResponse.json({ error: 'Campaign already running or completed' }, { status: 400 })
   }
 
@@ -46,11 +61,10 @@ export async function POST(req: NextRequest) {
 
   const { data: customers } = await query.limit(1000)
   if (!customers || customers.length === 0) {
+    // Revert claim so the campaign can be retried
+    await supabase.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
     return NextResponse.json({ error: 'No eligible customers in this audience segment' }, { status: 400 })
   }
-
-  // Mark campaign as running
-  await supabase.from('campaigns').update({ status: 'running', updated_at: new Date().toISOString() }).eq('id', campaign_id)
 
   let sentCount = 0
   let failedCount = 0

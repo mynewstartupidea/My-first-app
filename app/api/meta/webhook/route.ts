@@ -2,8 +2,19 @@
 // Handles: incoming messages, delivery updates, read receipts
 
 export const dynamic = 'force-dynamic'
+import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+
+function verifyMetaSignature(rawBody: string, signatureHeader: string): boolean {
+  const appSecret = process.env.META_APP_SECRET
+  if (!appSecret) return true // no secret configured — skip (dev mode)
+  const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex')}`
+  const a = Buffer.from(expected)
+  const b = Buffer.from(signatureHeader)
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
+}
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN ?? 'wapaci_webhook_verify'
 
@@ -29,9 +40,17 @@ export async function GET(request: Request) {
 // ─── POST — receive events ────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  const rawBody = await request.text()
+  const signature = request.headers.get('x-hub-signature-256') ?? ''
+
+  if (!verifyMetaSignature(rawBody, signature)) {
+    console.error('[Meta webhook] signature verification failed')
+    return NextResponse.json({ ok: false }, { status: 403 })
+  }
+
   let body: MetaWebhookPayload
   try {
-    body = await request.json() as MetaWebhookPayload
+    body = JSON.parse(rawBody) as MetaWebhookPayload
   } catch {
     console.error('[Meta webhook] failed to parse body')
     return NextResponse.json({ ok: false }, { status: 400 })

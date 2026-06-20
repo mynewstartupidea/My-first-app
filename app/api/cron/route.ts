@@ -8,8 +8,8 @@ export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
 
-  // Allow Vercel cron (no auth header) OR manual calls with secret
-  if (cronSecret && authHeader && authHeader !== `Bearer ${cronSecret}`) {
+  // When CRON_SECRET is set, require it — Vercel cron sends it automatically
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

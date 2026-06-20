@@ -116,7 +116,7 @@ async function attributeRevenue(
   const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: recentMsg } = await supabase
     .from('messages')
-    .select('id, type, job_id')
+    .select('id, type, job_id, metadata')
     .eq('store_id', storeId)
     .eq('customer_phone', customerPhone)
     .gte('created_at', windowStart)
@@ -126,21 +126,31 @@ async function attributeRevenue(
 
   if (!recentMsg) return
 
-  // Update message revenue attribution
+  // Merge attributed_order_id into existing metadata instead of replacing it
+  const existingMeta = (recentMsg.metadata ?? {}) as Record<string, unknown>
   await supabase.from('messages')
-    .update({ revenue_attributed: orderValue, metadata: { attributed_order_id: String(orderId) } })
+    .update({ revenue_attributed: orderValue, metadata: { ...existingMeta, attributed_order_id: String(orderId) } })
     .eq('id', recentMsg.id)
 
-  // Update analytics_daily revenue_recovered
+  // Increment analytics_daily — read then write to avoid overwriting existing totals
   const today = new Date().toISOString().split('T')[0]
+  const { data: existing } = await supabase
+    .from('analytics_daily')
+    .select('revenue_recovered, carts_recovered')
+    .eq('store_id', storeId)
+    .eq('date', today)
+    .maybeSingle()
+
+  const isCartRecovery = recentMsg.type === 'abandoned_cart'
   await supabase.from('analytics_daily').upsert(
-    { store_id: storeId, date: today, revenue_recovered: orderValue, carts_recovered: recentMsg.type === 'abandoned_cart' ? 1 : 0 },
+    {
+      store_id:         storeId,
+      date:             today,
+      revenue_recovered: Number(existing?.revenue_recovered ?? 0) + orderValue,
+      carts_recovered:  (existing?.carts_recovered ?? 0) + (isCartRecovery ? 1 : 0),
+    },
     { onConflict: 'store_id,date' }
-  ).then(async () => {
-    // Add to existing rather than replace — use increment
-    await supabase.rpc('increment_analytics', { p_store_id: storeId, p_date: today, p_field: 'carts_recovered' })
-      .then(null, () => null)
-  })
+  ).then(null, () => null)
 }
 
 async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
@@ -171,7 +181,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
   if (confirmAuto) {
     const msg = renderTemplate(confirmAuto.template, {
       name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
-      order_url: `https://${(order.order_status_url as string) ?? ''}`,
+      order_url: String(order.order_status_url ?? ''),
     })
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: confirmAuto.id, type: 'order_confirmation',

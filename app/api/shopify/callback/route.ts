@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { exchangeCodeForToken, getShopDetails, registerWebhooks } from '@/lib/shopify'
+import { exchangeCodeForToken, getShopDetails, registerWebhooks, verifyShopifyOAuthCallback, verifyOAuthState } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
@@ -15,16 +15,21 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/dashboard/integrations?shopify=error`)
   }
 
-  let userId: string
-  let returnTo = '/dashboard/integrations'
-  try {
-    const decoded = JSON.parse(Buffer.from(state, 'base64').toString())
-    userId  = decoded.userId
-    if (decoded.returnTo) returnTo = decoded.returnTo
-  } catch {
-    console.error('[Shopify OAuth] invalid state param')
+  // Verify Shopify's HMAC signature on the callback parameters
+  if (!verifyShopifyOAuthCallback(searchParams)) {
+    console.error('[Shopify OAuth] HMAC verification failed — possible forgery')
     return NextResponse.redirect(`${origin}/dashboard/integrations?shopify=error`)
   }
+
+  let userId: string
+  let returnTo = '/dashboard/integrations'
+  const decoded = verifyOAuthState(state)
+  if (!decoded) {
+    console.error('[Shopify OAuth] invalid or tampered state param')
+    return NextResponse.redirect(`${origin}/dashboard/integrations?shopify=error`)
+  }
+  userId  = decoded.userId
+  if (decoded.returnTo) returnTo = decoded.returnTo
 
   try {
     // 1. Exchange code for access token

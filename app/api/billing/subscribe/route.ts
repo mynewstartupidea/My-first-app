@@ -2,15 +2,15 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 const PLAN_CONFIG: Record<string, { messages_limit: number; amount: number; label: string }> = {
-  starter: { messages_limit: 500,   amount: 99900,  label: 'Starter' },
-  growth:  { messages_limit: 5000,  amount: 299900, label: 'Growth'  },
-  pro:     { messages_limit: 25000, amount: 799900, label: 'Pro'     },
+  starter: { messages_limit: 2000,  amount: 99900,  label: 'Starter' },
+  growth:  { messages_limit: 8000,  amount: 249900, label: 'Growth'  },
+  scale:   { messages_limit: 25000, amount: 599900, label: 'Scale'   },
 }
 
 const PLANS_TO_CREATE = [
-  { name: 'starter', amount: 99900,  description: 'Wapaci Starter – 500 messages/month'    },
-  { name: 'growth',  amount: 299900, description: 'Wapaci Growth – 5,000 messages/month'   },
-  { name: 'pro',     amount: 799900, description: 'Wapaci Pro – 25,000 messages/month'      },
+  { name: 'starter', amount: 99900,  description: 'Wapaci Starter – 2,000 messages/month'   },
+  { name: 'growth',  amount: 249900, description: 'Wapaci Growth – 8,000 messages/month'    },
+  { name: 'scale',   amount: 599900, description: 'Wapaci Scale – 25,000 messages/month'    },
 ]
 
 function rzAuth() {

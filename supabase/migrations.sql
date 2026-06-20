@@ -238,3 +238,38 @@ CREATE POLICY "support_tickets_own_insert" ON support_tickets FOR INSERT WITH CH
 CREATE INDEX IF NOT EXISTS support_tickets_user_id_idx  ON support_tickets(user_id);
 CREATE INDEX IF NOT EXISTS support_tickets_status_idx   ON support_tickets(status);
 CREATE INDEX IF NOT EXISTS support_tickets_created_idx  ON support_tickets(created_at DESC);
+
+-- ─── Campaigns: add read_count + revenue_attributed columns ──────────────────
+-- Queried in dashboard/analytics pages but missing from original schema.
+
+ALTER TABLE campaigns
+  ADD COLUMN IF NOT EXISTS read_count        INTEGER     DEFAULT 0;
+ALTER TABLE campaigns
+  ADD COLUMN IF NOT EXISTS revenue_attributed DECIMAL(12,2) DEFAULT 0;
+
+-- ─── Team members: add invited_by column ─────────────────────────────────────
+-- team/invite API inserts invited_by; must exist in the table.
+
+ALTER TABLE team_members
+  ADD COLUMN IF NOT EXISTS invited_by UUID REFERENCES auth.users(id);
+
+-- Fix role constraint to include manager and support roles used by the invite API
+ALTER TABLE team_members
+  DROP CONSTRAINT IF EXISTS team_members_role_check;
+ALTER TABLE team_members
+  ADD CONSTRAINT team_members_role_check
+    CHECK (role IN ('owner','admin','manager','support','member'));
+
+-- ─── Cancellation feedback table ─────────────────────────────────────────────
+-- billing/cancel API writes churn feedback here (best-effort).
+
+CREATE TABLE IF NOT EXISTS cancellation_feedback (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  reason     TEXT NOT NULL,
+  detail     TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cancellation_feedback ENABLE ROW LEVEL SECURITY;
+-- Only the service role writes here; no user-facing reads needed
+CREATE POLICY "cancel_feedback_insert" ON cancellation_feedback FOR INSERT WITH CHECK (user_id = auth.uid());

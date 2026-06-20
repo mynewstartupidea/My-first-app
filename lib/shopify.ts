@@ -2,6 +2,50 @@ import crypto from 'crypto'
 
 const SHOPIFY_API_VERSION = '2025-01'
 
+// Reject any shop that isn't a valid *.myshopify.com domain
+export function validateShopDomain(shop: string): boolean {
+  return /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/.test(shop)
+}
+
+// HMAC-sign the OAuth state so the callback can detect tampering
+export function signOAuthState(data: object): string {
+  const secret = process.env.SHOPIFY_API_SECRET ?? ''
+  const payload = JSON.stringify(data)
+  const hmac    = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+  return Buffer.from(JSON.stringify({ payload, hmac })).toString('base64url')
+}
+
+// Returns parsed state data or null if signature is missing / invalid
+export function verifyOAuthState(state: string): Record<string, string> | null {
+  try {
+    const { payload, hmac } = JSON.parse(Buffer.from(state, 'base64url').toString()) as { payload: string; hmac: string }
+    const secret   = process.env.SHOPIFY_API_SECRET ?? ''
+    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+    const a = Buffer.from(expected, 'hex')
+    const b = Buffer.from(hmac,     'hex')
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
+    return JSON.parse(payload) as Record<string, string>
+  } catch {
+    return null
+  }
+}
+
+// Verify Shopify's HMAC on the OAuth callback query string
+export function verifyShopifyOAuthCallback(searchParams: URLSearchParams): boolean {
+  const secret = process.env.SHOPIFY_API_SECRET
+  if (!secret) return false
+  const hmac = searchParams.get('hmac')
+  if (!hmac) return false
+  const parts: string[] = []
+  searchParams.forEach((value, key) => { if (key !== 'hmac') parts.push(`${key}=${value}`) })
+  parts.sort()
+  const expected = crypto.createHmac('sha256', secret).update(parts.join('&')).digest('hex')
+  const a = Buffer.from(expected, 'hex')
+  const b = Buffer.from(hmac,     'hex')
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
+}
+
 export function getShopifyOAuthUrl(shop: string, state: string): string {
   const apiKey   = process.env.SHOPIFY_API_KEY!
   const scopes   = process.env.SHOPIFY_SCOPES!
@@ -58,5 +102,8 @@ export function verifyShopifyWebhook(body: string, hmacHeader: string): boolean 
   const secret = process.env.SHOPIFY_API_SECRET
   if (!secret) return false
   const hash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
-  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hmacHeader))
+  const a = Buffer.from(hash)
+  const b = Buffer.from(hmacHeader)
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
 }

@@ -49,9 +49,10 @@ export default async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // ── Admin routes: require login only — admin page checks email itself ─────
+  // ── Admin routes: require the configured admin email ──────────────────────
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'vaibhavsin9574395@gmail.com'
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
-    if (!user) {
+    if (!user || user.email !== adminEmail) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
   }

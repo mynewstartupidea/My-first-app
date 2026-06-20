@@ -115,9 +115,8 @@ export async function POST(request: Request) {
   }
   if (!body.code) return NextResponse.json({ ok: false, error: 'Missing code' }, { status: 400 })
 
-  // Log the full raw authResponse from the client so we can see exactly what Meta returned
+  // Log key names only — never log the raw authResponse values (may contain OAuth tokens)
   console.log('[Meta callback] rawAuthResponseKeys:', JSON.stringify(body.rawAuthResponseKeys ?? []))
-  console.log('[Meta callback] rawAuthResponse:', JSON.stringify(body.rawAuthResponse ?? {}))
   console.log('[Meta callback] sessionInfo received:', JSON.stringify(body.sessionInfo ?? null))
 
   const result = await processMetaCode(body.code, undefined, user.id, body.sessionInfo, body.rawAuthResponseKeys, body.rawAuthResponse)
