@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Sparkles, Download, Mic, Loader2, Volume2, CheckCircle2,
   AlertCircle, ChevronDown, ChevronUp, ArrowLeft, Film, RefreshCw,
-  Square, Globe, User,
+  Globe, User,
 } from 'lucide-react'
 
 /* ─── Canvas dimensions ───────────────────────────────────────────── */
@@ -434,23 +434,28 @@ type VoiceState = {
   error:         string | null
 }
 
-type RecState = {
-  active:      boolean
+// Per-ad silent download state (no modal — purely inline)
+type DlState = {
   adId:        number | null
   secondsLeft: number
   done:        boolean
 }
 
-/* ─── Build description sent to Rumik ─────────────────────────────── */
-function buildDesc(ad: typeof ADS[0], v: VoiceState) {
+/* ─── Build description + language sent to Rumik ──────────────────── */
+function buildDesc(ad: typeof ADS[0], v: VoiceState): { description: string; language?: string } {
   const gPart = v.gender === 'male'
     ? 'deep clear Indian male voice'
     : 'warm clear Indian female voice'
-  const lPart = v.lang === 'english' ? 'speak in clear English'
-    : v.lang === 'hindi'             ? 'speak in clear Hindi, natural Indian accent'
+  const lPart = v.lang === 'english'
+    ? 'MUST speak ONLY in English — do not use any other language, no Hindi, no mixing languages, 100% English throughout'
+    : v.lang === 'hindi'
+    ? 'speak ONLY in Hindi, natural Indian accent, no English mixing'
     : 'speak in the same language as the script text'
   const parts = [gPart, lPart, ad.voiceDir, v.customDir.trim()].filter(Boolean)
-  return parts.join(', ')
+  return {
+    description: parts.join(', '),
+    language:    v.lang === 'english' ? 'en' : v.lang === 'hindi' ? 'hi' : undefined,
+  }
 }
 
 /* ─── Main component ──────────────────────────────────────────────── */
@@ -468,12 +473,11 @@ export default function AdminAdsPage() {
       error:     null,
     }]))
   )
-  const [rec, setRec] = useState<RecState>({ active: false, adId: null, secondsLeft: 30, done: false })
+  const [dl, setDl] = useState<DlState>({ adId: null, secondsLeft: 30, done: false })
 
-  // Two canvas refs per ad: preview (visible) and record (offscreen, always mounted)
+  // Two canvas refs per ad: preview (visible in card) and record (offscreen, always mounted)
   const previewRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
   const recordRefs  = useRef<Record<number, HTMLCanvasElement | null>>({})
-  const displayRefs = useRef<Record<number, HTMLCanvasElement | null>>({}) // modal display
   const recMrRef    = useRef<MediaRecorder | null>(null)
   const chunksRef   = useRef<Blob[]>([])
   const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -489,10 +493,11 @@ export default function AdminAdsPage() {
     if (v.audioUrl) URL.revokeObjectURL(v.audioUrl)
     setVo(ad.id, { status: 'generating', error: null, audioBlob: null, audioUrl: null })
     try {
+      const { description, language } = buildDesc(ad, v)
       const res = await fetch('/api/voiceover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'muga', text: v.script, description: buildDesc(ad, v) }),
+        body: JSON.stringify({ model: 'muga', text: v.script, description, language }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed' }))
@@ -505,17 +510,19 @@ export default function AdminAdsPage() {
     }
   }
 
-  /* ── Canvas + Web Audio — zero screen share ── */
+  /* ── Canvas + Web Audio recording — no modal, no screen share ── */
   const downloadVideo = useCallback(async (ad: typeof ADS[0]) => {
-    // Always use the dedicated offscreen recording canvas (never unmounts)
+    if (dl.adId !== null) return // already encoding something
+
+    // Offscreen 1080×1080 canvas — always mounted, never in the DOM visible flow
     const recordCanvas = recordRefs.current[ad.id]
-    if (!recordCanvas) { alert('Canvas not ready, please wait a moment and try again.'); return }
+    if (!recordCanvas) { alert('Canvas not ready — please refresh and try again.'); return }
 
     const v = voices[ad.id]
-    setRec({ active: true, adId: ad.id, secondsLeft: 30, done: false })
+    setDl({ adId: ad.id, secondsLeft: 30, done: false })
     chunksRef.current = []
 
-    /* Audio */
+    /* ── Web Audio ── */
     const audioCtx  = new AudioContext()
     const audioDest = audioCtx.createMediaStreamDestination()
     const master    = audioCtx.createGain(); master.gain.value = 0.9
@@ -525,13 +532,13 @@ export default function AdminAdsPage() {
       try {
         const buf = await audioCtx.decodeAudioData(await v.audioBlob.arrayBuffer())
         const src = audioCtx.createBufferSource(); src.buffer = buf
-        const vg  = audioCtx.createGain();         vg.gain.value = 1.15
+        const vg  = audioCtx.createGain(); vg.gain.value = 1.15
         src.connect(vg); vg.connect(master)
         src.start(audioCtx.currentTime + 0.15)
       } catch (e) { console.warn('voiceover decode:', e) }
     }
 
-    // Subtle ambient pad
+    // Ambient chord pad (very subtle)
     ;[131, 165, 196, 262].forEach(f => {
       const osc = audioCtx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = f
       const g   = audioCtx.createGain()
@@ -541,11 +548,14 @@ export default function AdminAdsPage() {
       osc.connect(g); g.connect(master); osc.start()
     })
 
-    /* MediaRecorder from offscreen canvas */
+    /* ── MediaRecorder from offscreen canvas stream ── */
     const videoStream = recordCanvas.captureStream(30)
-    const combined    = new MediaStream([...videoStream.getVideoTracks(), ...audioDest.stream.getAudioTracks()])
+    const combined    = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...audioDest.stream.getAudioTracks(),
+    ])
 
-    // Try H.264 first (best mobile quality), fall back to VP9/WebM
+    // Best codec order: H.264 mp4 (sharpest on mobile) → VP9 webm → plain webm
     const mime = [
       'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
       'video/mp4',
@@ -555,34 +565,40 @@ export default function AdminAdsPage() {
 
     const recorder = new MediaRecorder(combined, {
       mimeType: mime,
-      videoBitsPerSecond: 20_000_000, // 20 Mbps for sharp 1080p
+      videoBitsPerSecond: 20_000_000, // 20 Mbps → sharp 1080p on phone
     })
     recMrRef.current = recorder
     recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+
     recorder.onstop = () => {
       audioCtx.close()
       if (timerRef.current) clearInterval(timerRef.current)
       cancelAnimationFrame(rafRef.current)
+
+      // Build blob and trigger browser download — no tab opens
       const blob = new Blob(chunksRef.current, { type: mime })
       const url  = URL.createObjectURL(blob)
+      const ext  = mime.includes('mp4') ? 'mp4' : 'webm'
       const a    = document.createElement('a')
-      a.href = url; a.download = `${ad.filename}.${mime.includes('mp4') ? 'mp4' : 'webm'}`
+      a.href = url; a.download = `${ad.filename}.${ext}`
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 8000)
-      setRec({ active: false, adId: null, secondsLeft: 30, done: true })
-      setTimeout(() => setRec(r => ({ ...r, done: false })), 4000)
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+
+      setDl({ adId: null, secondsLeft: 30, done: true })
+      setTimeout(() => setDl(d => ({ ...d, done: false })), 5000)
     }
 
-    recorder.start(100)
+    recorder.start(100) // collect a chunk every 100 ms
 
-    // Countdown
-    let secs = 30
+    // Countdown timer — drives the inline progress in the button
+    let secs = DUR
     timerRef.current = setInterval(() => {
-      secs--; setRec(r => ({ ...r, secondsLeft: secs }))
+      secs--
+      setDl(d => ({ ...d, secondsLeft: secs }))
       if (secs <= 0) { clearInterval(timerRef.current!); recorder.stop() }
     }, 1000)
 
-    // Render loop — draws to offscreen canvas AND mirrors to modal display canvas
+    // Frame loop — renders to the offscreen canvas (captureStream picks it up automatically)
     const renderer = RENDERERS[ad.id]
     const rCtx     = recordCanvas.getContext('2d')!
     const startMs  = performance.now()
@@ -590,28 +606,22 @@ export default function AdminAdsPage() {
     function frame() {
       const t = (performance.now() - startMs) / 1000
       renderer(rCtx, t)
-      const disp = displayRefs.current[ad.id]
-      if (disp && recordCanvas) {
-        const dCtx = disp.getContext('2d')!
-        dCtx.drawImage(recordCanvas, 0, 0, disp.width, disp.height)
-      }
-      if (t < DUR) { rafRef.current = requestAnimationFrame(frame) }
+      if (t < DUR + 0.5) rafRef.current = requestAnimationFrame(frame)
     }
     rafRef.current = requestAnimationFrame(frame)
-  }, [voices])
+  }, [voices, dl.adId])
 
-  function stopRec() {
+  function cancelDl() {
     if (recMrRef.current?.state !== 'inactive') recMrRef.current?.stop()
     cancelAnimationFrame(rafRef.current)
     if (timerRef.current) clearInterval(timerRef.current)
-    setRec({ active: false, adId: null, secondsLeft: 30, done: false })
+    setDl({ adId: null, secondsLeft: 30, done: false })
   }
 
-  // Preview loop
+  // Preview animation loop for all cards
   useEffect(() => {
     const handles: Record<number, number> = {}
     ADS.forEach(ad => {
-      if (rec.active && rec.adId === ad.id) return
       const canvas = previewRefs.current[ad.id]
       if (!canvas) return
       const ctx = canvas.getContext('2d')!
@@ -623,17 +633,15 @@ export default function AdminAdsPage() {
       handles[ad.id] = requestAnimationFrame(loop)
     })
     return () => Object.values(handles).forEach(h => cancelAnimationFrame(h))
-  }, [rec.active, rec.adId])
+  }, [])
 
-  useEffect(() => () => stopRec(), [])
-
-  const recAd = ADS.find(a => a.id === rec.adId)
+  useEffect(() => () => cancelDl(), [])
 
   return (
     <div className="min-h-screen bg-[#070b12] text-white">
 
-      {/* ── Offscreen recording canvases (always mounted, never visible) ── */}
-      <div aria-hidden style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
+      {/* ── Offscreen recording canvases — at -9999px, captureStream picks them up ── */}
+      <div aria-hidden style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', opacity: 0 }}>
         {ADS.map(ad => (
           <canvas
             key={ad.id}
@@ -642,30 +650,6 @@ export default function AdminAdsPage() {
           />
         ))}
       </div>
-
-      {/* ── Recording modal ── */}
-      {rec.active && recAd && (
-        <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center gap-5">
-          <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
-            <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-white font-bold">Recording</span>
-            <span className="text-red-400 font-mono font-bold text-lg tabular-nums">{rec.secondsLeft}s</span>
-            <div className="ml-4 w-32 bg-white/10 rounded-full h-1.5">
-              <div className="bg-red-500 h-1.5 rounded-full transition-all" style={{ width: `${((30 - rec.secondsLeft) / 30) * 100}%` }} />
-            </div>
-            <button onClick={stopRec} className="ml-2 flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 border border-red-500/40 rounded-lg text-red-400 text-sm font-semibold hover:bg-red-500/30 transition">
-              <Square size={11} /> Stop
-            </button>
-          </div>
-          {/* Display canvas mirrors the offscreen recording canvas */}
-          <canvas
-            ref={el => { displayRefs.current[recAd.id] = el }}
-            width={540} height={540}
-            style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.1)' }}
-          />
-          <p className="text-slate-600 text-xs">Rendering directly on canvas · no screen share · downloads automatically</p>
-        </div>
-      )}
 
       {/* ── Header ── */}
       <div className="border-b border-white/[0.06] px-8 py-5 flex items-center justify-between">
@@ -684,10 +668,20 @@ export default function AdminAdsPage() {
             </div>
           </div>
         </div>
-        {rec.done && (
+        {dl.done && (
           <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2">
             <CheckCircle2 size={14} className="text-green-400" />
             <span className="text-green-400 text-sm font-semibold">Downloaded successfully!</span>
+          </div>
+        )}
+        {dl.adId !== null && (
+          <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+            <Loader2 size={13} className="text-purple-400 animate-spin" />
+            <span className="text-slate-300 text-sm">Encoding video… <span className="font-bold tabular-nums text-white">{dl.secondsLeft}s</span></span>
+            <div className="w-24 bg-white/10 rounded-full h-1">
+              <div className="bg-purple-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - dl.secondsLeft) / DUR) * 100}%` }} />
+            </div>
+            <button onClick={cancelDl} className="text-slate-600 hover:text-red-400 text-xs transition">✕</button>
           </div>
         )}
       </div>
@@ -695,27 +689,26 @@ export default function AdminAdsPage() {
       {/* ── Ad cards ── */}
       <div className="px-8 py-6 space-y-6">
         {ADS.map(ad => {
-          const v    = voices[ad.id]
-          const isEx = expanded === ad.id
-          const isRe = rec.active && rec.adId === ad.id
+          const v       = voices[ad.id]
+          const isEx    = expanded === ad.id
+          const isEncoding = dl.adId === ad.id
 
           return (
             <div key={ad.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
               <div className="flex">
 
-                {/* Preview canvas thumbnail */}
+                {/* Preview canvas thumbnail — always visible */}
                 <div className="flex-shrink-0 relative bg-black overflow-hidden" style={{ width: 200, height: 200 }}>
-                  {isRe ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                      <span className="text-red-400 text-xs font-bold">REC {rec.secondsLeft}s</span>
+                  <canvas
+                    ref={el => { previewRefs.current[ad.id] = el }}
+                    width={1080} height={1080}
+                    style={{ width: 200, height: 200, display: 'block' }}
+                  />
+                  {isEncoding && (
+                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1.5">
+                      <Loader2 size={20} className="text-purple-400 animate-spin" />
+                      <span className="text-white text-xs font-bold tabular-nums">{dl.secondsLeft}s</span>
                     </div>
-                  ) : (
-                    <canvas
-                      ref={el => { previewRefs.current[ad.id] = el }}
-                      width={1080} height={1080}
-                      style={{ width: 200, height: 200, display: 'block' }}
-                    />
                   )}
                   <div className="absolute top-2 left-2 z-10">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${ad.tagColor}`}>{ad.tag}</span>
@@ -726,18 +719,20 @@ export default function AdminAdsPage() {
                 <div className="flex-1 p-5 flex flex-col justify-between">
                   <div>
                     <h3 className="text-white font-bold text-base">{ad.title}</h3>
-                    <p className="text-slate-500 text-xs mt-0.5">1080×1080 · 20Mbps · 30fps</p>
+                    <p className="text-slate-500 text-xs mt-0.5">1080×1080 · 20Mbps · 30fps · canvas encode</p>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => downloadVideo(ad)}
-                      disabled={rec.active}
+                      disabled={dl.adId !== null}
                       className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{ backgroundColor: ad.accent + '25', color: ad.accent, border: `1px solid ${ad.accent}50` }}
                     >
-                      <Download size={13} />
-                      {v.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}
+                      {isEncoding
+                        ? <><Loader2 size={13} className="animate-spin" /> Encoding {dl.secondsLeft}s…</>
+                        : <><Download size={13} /> {v.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}</>
+                      }
                     </button>
 
                     <button
@@ -857,10 +852,13 @@ export default function AdminAdsPage() {
                           <audio src={v.audioUrl} controls className="w-full" style={{ height: 32 }} />
                           <button
                             onClick={() => downloadVideo(ad)}
-                            disabled={rec.active}
+                            disabled={dl.adId !== null}
                             className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition"
                           >
-                            <Download size={12} /> Download Video with Voiceover
+                            {isEncoding
+                              ? <><Loader2 size={12} className="animate-spin" /> Encoding {dl.secondsLeft}s…</>
+                              : <><Download size={12} /> Download Video with Voiceover</>
+                            }
                           </button>
                         </div>
                       )}

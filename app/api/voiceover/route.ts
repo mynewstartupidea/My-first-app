@@ -7,17 +7,18 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { text, model = 'mulberry', description, speaker } = body
+  const { text, model = 'muga', description, language, speaker } = body
 
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     return NextResponse.json({ error: 'text is required' }, { status: 400 })
   }
 
   const payload: Record<string, unknown> = { text: text.trim(), model }
-  if (model === 'mulberry') {
-    if (description) payload.description = description
-    if (speaker) payload.speaker = speaker
-  }
+
+  // Pass description + language for both muga and mulberry
+  if (description) payload.description = description
+  if (language)    payload.language    = language
+  if (speaker)     payload.speaker     = speaker
 
   const rumikRes = await fetch('https://silk-api.rumik.ai/v1/tts', {
     method: 'POST',
