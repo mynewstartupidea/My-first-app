@@ -408,6 +408,7 @@ export default function AdminPage() {
                     <tr className="border-b border-white/8 bg-white/3">
                       <th className="text-left px-4 py-3 text-slate-400 text-xs font-semibold">User</th>
                       <th className="text-left px-4 py-3 text-slate-400 text-xs font-semibold hidden md:table-cell">Phone</th>
+                      <th className="text-left px-4 py-3 text-slate-400 text-xs font-semibold hidden lg:table-cell">Company</th>
                       <th className="text-left px-4 py-3 text-slate-400 text-xs font-semibold">Plan / Status</th>
                       <th className="text-left px-4 py-3 text-slate-400 text-xs font-semibold hidden lg:table-cell">
                         <button className="flex items-center gap-1 hover:text-white" onClick={() => { setSortBy('messages_30d'); setSortAsc(s => !s) }}>
@@ -425,7 +426,7 @@ export default function AdminPage() {
                   </thead>
                   <tbody className="divide-y divide-white/5">
                     {filtered.length === 0 ? (
-                      <tr><td colSpan={7} className="text-center text-slate-500 py-12">No users found</td></tr>
+                      <tr><td colSpan={8} className="text-center text-slate-500 py-12">No users found</td></tr>
                     ) : filtered.map(u => (
                       <Fragment key={u.id}>
                         <tr className="hover:bg-white/3 transition cursor-pointer" onClick={() => setExpanded(expanded === u.id ? null : u.id)}>
@@ -445,7 +446,12 @@ export default function AdminPage() {
                                 {u.phone}
                                 <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
                               </button>
-                            ) : <span className="text-slate-600 text-xs">No phone</span>}
+                            ) : <span className="text-slate-600 text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3 hidden lg:table-cell">
+                            {u.company_name
+                              ? <p className="text-slate-300 text-sm truncate max-w-[160px]">{u.company_name}</p>
+                              : <span className="text-slate-600 text-xs">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-col gap-1">
@@ -508,7 +514,7 @@ export default function AdminPage() {
                         {/* Expanded detail row */}
                         {expanded === u.id && (
                           <tr className="bg-white/2">
-                            <td colSpan={7} className="px-4 py-5">
+                            <td colSpan={8} className="px-4 py-5">
                               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5 text-sm">
                                 <div>
                                   <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1"><Phone className="w-3 h-3" /> Phone</p>
