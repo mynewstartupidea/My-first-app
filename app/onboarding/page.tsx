@@ -24,12 +24,6 @@ const STEP_META: Record<Step, { title: string; sub: string }> = {
   done:          { title: 'All Set!',       sub: 'You\'re ready'     },
 }
 
-const BSP_OPTIONS = [
-  { value: 'interakt', label: 'Interakt',        desc: 'Recommended for India — plug-and-play setup', popular: true },
-  { value: 'gupshup',  label: 'Gupshup',         desc: 'Largest BSP in India, great for scale'       },
-  { value: 'mock',     label: 'Mock (Testing)',   desc: 'No real sends — logs only. Perfect to explore first' },
-]
-
 // ─── Progress bar ──────────────────────────────────────────────────────────────
 
 function StepProgress({ current }: { current: Step }) {
@@ -221,28 +215,17 @@ function WhatsAppStep({
   onNext: () => void
   onSkip: () => void
 }) {
-  const [bsp, setBsp]       = useState('interakt')
-  const [apiKey, setApiKey] = useState('')
-  const [number, setNumber] = useState('')
   const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState('')
   const supabase = useMemo(() => createClient(), [])
 
   async function handleSave() {
     if (!storeId) { onNext(); return }
     setSaving(true)
-    setError('')
-    const { error: err } = await supabase
-      .from('stores')
-      .update({
-        whatsapp_bsp:     bsp,
-        whatsapp_api_key: apiKey.trim() || null,
-        whatsapp_number:  number.trim() || null,
-        updated_at:       new Date().toISOString(),
-      })
-      .eq('id', storeId)
+    await supabase.from('stores').update({
+      whatsapp_bsp: 'meta',
+      updated_at:   new Date().toISOString(),
+    }).eq('id', storeId)
     setSaving(false)
-    if (err) { setError(err.message); return }
     onNext()
   }
 
@@ -251,74 +234,40 @@ function WhatsAppStep({
       <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
         <MessageCircle className="w-8 h-8 text-green-600" />
       </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Set up WhatsApp</h2>
+      <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Connect WhatsApp</h2>
       <p className="text-slate-500 text-center mb-8 text-sm">
-        Connect your WhatsApp Business account so Wapaci can send messages on your behalf.
+        Wapaci uses the WhatsApp Cloud API directly — no third-party provider needed.
       </p>
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
-
-      {/* BSP picker */}
-      <div className="mb-5">
-        <label className="block text-sm font-medium text-slate-700 mb-2">Select your WhatsApp Business Service Provider</label>
-        <div className="space-y-2">
-          {BSP_OPTIONS.map(opt => (
-            <label key={opt.value} className={cn(
-              'flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition',
-              bsp === opt.value ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
-            )}>
-              <input type="radio" className="mt-0.5 accent-[#25D366]" checked={bsp === opt.value} onChange={() => setBsp(opt.value)} />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-800 text-sm">{opt.label}</span>
-                  {opt.popular && <span className="text-[10px] bg-[#25D366] text-white px-1.5 py-0.5 rounded-full">Popular</span>}
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
-              </div>
-            </label>
-          ))}
+      {/* Info card */}
+      <div className="bg-[#25D366]/8 border border-[#25D366]/20 rounded-2xl p-5 mb-6">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 bg-[#25D366]/15 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+            <CheckCircle2 className="w-5 h-5 text-[#25D366]" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800 text-sm mb-1">Official Meta WhatsApp API</p>
+            <p className="text-slate-500 text-xs leading-relaxed">
+              Wapaci connects directly to the WhatsApp Cloud API via Meta Embedded Signup.
+              You&apos;ll link your WhatsApp Business number in <strong>Settings → WhatsApp</strong> right after this — it only takes 2 minutes.
+            </p>
+          </div>
         </div>
       </div>
 
-      {bsp !== 'mock' && (
-        <>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              {bsp === 'interakt' ? 'Interakt' : 'Gupshup'} API Key
-            </label>
-            <input
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder="Paste your API key here"
-              type="password"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
-            />
-            <p className="text-xs text-slate-400 mt-1">
-              Find this in your {bsp === 'interakt' ? 'Interakt' : 'Gupshup'} dashboard → API keys
-            </p>
+      <div className="grid grid-cols-3 gap-3 mb-7">
+        {[
+          { icon: '🔒', label: 'No BSP needed',      desc: 'Direct Meta API' },
+          { icon: '⚡', label: '2-min setup',         desc: 'Embedded Signup' },
+          { icon: '✅', label: 'Meta verified',       desc: 'Official partner' },
+        ].map(f => (
+          <div key={f.label} className="bg-slate-50 rounded-xl p-3 text-center">
+            <div className="text-xl mb-1">{f.icon}</div>
+            <p className="text-xs font-semibold text-slate-700">{f.label}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{f.desc}</p>
           </div>
-
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">WhatsApp Business Number</label>
-            <input
-              value={number}
-              onChange={e => setNumber(e.target.value)}
-              placeholder="+91 98765 43210"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
-            />
-          </div>
-        </>
-      )}
-
-      {bsp === 'mock' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-700">
-          <strong>Mock mode:</strong> Messages will be logged but not actually sent. Great for exploring the dashboard first. You can change this anytime in Settings.
-        </div>
-      )}
+        ))}
+      </div>
 
       <button
         onClick={handleSave}
@@ -326,7 +275,7 @@ function WhatsAppStep({
         className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-semibold py-3.5 rounded-2xl transition mb-3"
       >
         {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-        {saving ? 'Saving…' : 'Save & Continue'}
+        {saving ? 'Saving…' : 'Got it — Continue'}
       </button>
       <button onClick={onSkip} className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 text-sm py-2 transition">
         <SkipForward className="w-4 h-4" /> I&apos;ll configure this later

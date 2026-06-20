@@ -28,7 +28,6 @@ export default function Footer() {
                 { href: '#how-it-works', label: 'How it works' },
                 { href: '#use-cases', label: 'Use Cases' },
                 { href: '#faq', label: 'FAQ' },
-                { href: 'https://cal.com/wapaci/demo', label: 'Book Demo' },
                 { href: '/login', label: 'Login / Dashboard' },
               ].map(({ href, label }) => (
                 <div key={label}>

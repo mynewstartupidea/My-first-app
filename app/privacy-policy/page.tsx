@@ -80,7 +80,7 @@ export default function PrivacyPolicyPage() {
           <p>Wapaci integrates with external services to deliver its functionality:</p>
           <ul className="list-disc list-inside space-y-1.5 pl-2">
             <li><strong className="text-slate-300">WhatsApp / Meta:</strong> Messages are sent via the WhatsApp Business API. Meta&apos;s data policies apply to message delivery.</li>
-            <li><strong className="text-slate-300">WhatsApp BSPs (Interakt, Gupshup, etc.):</strong> We route messages through your configured Business Solution Provider.</li>
+            <li><strong className="text-slate-300">WhatsApp / Meta Cloud API:</strong> Messages are sent directly via the WhatsApp Cloud API. Wapaci is an official Meta Business Partner — no third-party BSP is involved.</li>
             <li><strong className="text-slate-300">Ecommerce platforms (Shopify, WooCommerce):</strong> We connect to your store via official APIs using OAuth tokens.</li>
             <li><strong className="text-slate-300">Supabase:</strong> Our database and authentication infrastructure. Data is encrypted at rest.</li>
             <li><strong className="text-slate-300">Payment processors:</strong> We use industry-standard payment providers for billing. We do not store card details.</li>

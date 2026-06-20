@@ -8,7 +8,7 @@ import { ChevronDown } from 'lucide-react'
 const faqs = [
   {
     q: 'Do I need a WhatsApp Business API account?',
-    a: 'No. Wapaci handles the WhatsApp Business API setup for you. We work with leading BSPs (Business Solution Providers) — just connect your ecommerce store and you\'re ready to go.',
+    a: 'No. Wapaci is an official Meta Business Partner and manages the WhatsApp Business API directly — no third-party BSP required. Just connect your ecommerce store and you\'re ready to go.',
   },
   {
     q: 'Will my customers receive spam?',

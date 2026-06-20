@@ -74,7 +74,7 @@ export default function RefundPolicyPage() {
         </Section>
 
         <Section title="4. Per-Message Charges">
-          <p>Charges for WhatsApp messages sent through your BSP (Business Solution Provider) are governed by your BSP&apos;s billing terms. Wapaci does not control and cannot refund charges billed directly by your BSP.</p>
+          <p>WhatsApp conversation charges are billed by Meta directly under your WhatsApp Business Account. Wapaci does not control and cannot refund charges applied by Meta for conversation-based pricing.</p>
           <p>Where Wapaci bills per-message credits directly, unused credits are non-refundable but remain valid for the lifetime of your account.</p>
         </Section>
 

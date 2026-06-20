@@ -106,7 +106,7 @@ export default function TermsPage() {
         </Section>
 
         <Section title="7. Service Availability">
-          <p>We aim for 99.9% uptime but do not guarantee uninterrupted service. Planned maintenance, third-party outages (WhatsApp, BSPs, ecommerce platforms), or unforeseen incidents may cause temporary unavailability.</p>
+          <p>We aim for 99.9% uptime but do not guarantee uninterrupted service. Planned maintenance, third-party outages (WhatsApp, ecommerce platforms), or unforeseen incidents may cause temporary unavailability.</p>
         </Section>
 
         <Section title="8. Intellectual Property">
