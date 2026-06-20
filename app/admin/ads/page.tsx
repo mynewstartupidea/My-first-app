@@ -324,31 +324,31 @@ const ADS = [
     title: 'Cart Recovery — PAS Formula',
     tag: 'Cold Traffic', tagColor: 'bg-red-500/20 text-red-400 border-red-500/30',
     accent: '#ef4444',
-    defaultScript: `[serious] Right now...
+    defaultScript: `Right now...
 
-[emotional] seventy percent of your customers... are leaving.
+Seventy percent of your customers... are leaving.
 
-[serious] Without buying.
+Without buying.
 
-[conversational] That's real money. Walking out the door. Every. Single. Day.
+That's real money. Walking out the door. Every. Single. Day.
 
-[serious] And you have... absolutely no way to bring them back.
+And you have... absolutely no way to bring them back.
 
-[excited] Until now.
+Until now.
 
-[happy] Wapakee sends them a WhatsApp message — automatically! In conversational Hindi or English. At exactly the right moment.
+Wapakee sends them a WhatsApp message — automatically. At exactly the right moment.
 
-[conversational] And here's what happens next?
+And here's what happens next?
 
-[excited] Twenty-eight percent... come back!
+Twenty-eight percent... come back!
 
-[happy] Twenty-eight percent of your abandoned carts — recovered. Every month. On autopilot.
+Twenty-eight percent of your abandoned carts — recovered. Every month. On autopilot.
 
-[serious] Your competitors are already doing this.
+Your competitors are already doing this.
 
-[excited] Don't get left behind.
+Don't get left behind.
 
-[happy] Try Wapakee free today — wapaci dot com!`,
+Try Wapakee free today — wapaci dot com!`,
     voiceDir: 'serious and slow dramatic opening with heavy pauses, build suspense, then suddenly shift to excited and energetic when revealing the solution, warm and enthusiastic close',
   },
   {
@@ -356,31 +356,31 @@ const ADS = [
     title: 'ROI Machine — Outcome First',
     tag: 'Warm Traffic', tagColor: 'bg-green-500/20 text-green-400 border-green-500/30',
     accent: '#25D366',
-    defaultScript: `[excited] What... if I told you...
+    defaultScript: `What... if I told you...
 
-[serious] Five lakh rupees of abandoned carts...
+Five lakh rupees of abandoned carts...
 
-[excited] Could become... one point four lakh... in recovered revenue?
+Could become... one point four lakh... in recovered revenue?
 
-[serious] That's not a pitch. That's the math.
+That's not a pitch. That's the math.
 
-[conversational] WhatsApp messages get a...
+WhatsApp messages get a...
 
-[excited] ninety-eight percent open rate.
+Ninety-eight percent open rate.
 
-[serious] Nine. Eight. Percent.
+Nine. Eight. Percent.
 
-[conversational] Read in under three minutes. Forty-five percent of customers... actually reply back.
+Read in under three minutes. Forty-five percent of customers... actually reply back.
 
-[excited] That's forty-seven times your investment. Every. Single. Month.
+That's forty-seven times your investment. Every. Single. Month.
 
-[emotional] The math is simple. The setup? Ten minutes.
+The math is simple. The setup? Ten minutes.
 
-[serious] Your competitors are already using this.
+Your competitors are already using this.
 
-[happy] The results speak for themselves.
+The results speak for themselves.
 
-[excited] Start your free trial at Wapakee dot com — today!`,
+Start your free trial at Wapakee dot com — today!`,
     voiceDir: 'confident and curious opening, slow down on numbers so they land with weight, conversational warmth in the middle, build to high energy close, like a passionate founder sharing a breakthrough',
   },
   {
@@ -388,33 +388,33 @@ const ADS = [
     title: 'Channel Wars — Comparison',
     tag: 'Consideration', tagColor: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     accent: '#3b82f6',
-    defaultScript: `[serious] Quick question.
+    defaultScript: `Quick question.
 
-[conversational] Which channel... do your customers actually read?
+Which channel... do your customers actually read?
 
-[serious] Email?
+Email?
 
-[emotional] Two percent open rate. ...
+Two percent open rate. ...
 
-[serious] SMS?
+SMS?
 
-[emotional] Five percent. ...
+Five percent. ...
 
-[excited] WhatsApp?
+WhatsApp?
 
-[excited] Ninety. Eight. Percent!
+Ninety. Eight. Percent!
 
-[serious] Let that sink in.
+Let that sink in.
 
-[conversational] Your customers are on WhatsApp. They read messages in under three minutes. And almost half of them... reply!
+Your customers are on WhatsApp. They read messages in under three minutes. And almost half of them... reply!
 
-[emotional] Stop sending emails nobody opens.
+Stop sending emails nobody opens.
 
-[excited] Start sending WhatsApp messages that actually convert.
+Start sending WhatsApp messages that actually convert.
 
-[happy] Wapakee — WhatsApp automation for Indian D2C brands.
+Wapakee — WhatsApp automation for Indian D2C brands.
 
-[excited] Try it free today — wapaci dot com!`,
+Try it free today — wapaci dot com!`,
     voiceDir: 'start very slow and deliberate, long dramatic silence between each stat, explosive excitement on the WhatsApp reveal, thoughtful pause then warm confident close',
   },
 ]
@@ -441,16 +441,24 @@ type DlState = {
   done:        boolean
 }
 
-/* ─── Build description + language sent to Rumik ──────────────────── */
+/* ─── Strip [tone] tags — only used with Muga; Mulberry ignores them or reads them literally ── */
+function stripToneTags(text: string): string {
+  return text
+    .replace(/\[(serious|excited|emotional|happy|conversational|sad|angry|calm)\]\s*/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/* ─── Build description sent to Rumik Mulberry ─────────────────────── */
 function buildDesc(ad: typeof ADS[0], v: VoiceState): { description: string; language?: string } {
   const gPart = v.gender === 'male'
-    ? 'deep clear Indian male voice'
-    : 'warm clear Indian female voice'
+    ? 'deep clear Indian male voice speaking in English'
+    : 'warm clear Indian female voice speaking in English'
   const lPart = v.lang === 'english'
-    ? 'MUST speak ONLY in English — do not use any other language, no Hindi, no mixing languages, 100% English throughout'
+    ? 'speak only in English'
     : v.lang === 'hindi'
-    ? 'speak ONLY in Hindi, natural Indian accent, no English mixing'
-    : 'speak in the same language as the script text'
+    ? 'speak only in Hindi, natural Indian accent'
+    : 'speak in the same language as the script'
   const parts = [gPart, lPart, ad.voiceDir, v.customDir.trim()].filter(Boolean)
   return {
     description: parts.join(', '),
@@ -494,10 +502,13 @@ export default function AdminAdsPage() {
     setVo(ad.id, { status: 'generating', error: null, audioBlob: null, audioUrl: null })
     try {
       const { description, language } = buildDesc(ad, v)
+      // mulberry = Rumik's natural-language model, supports English
+      // Strip [tone] tags — those are Muga-only markers that cause mulberry to speak Hindi
+      const cleanText = stripToneTags(v.script)
       const res = await fetch('/api/voiceover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'muga', text: v.script, description, language }),
+        body: JSON.stringify({ model: 'mulberry', text: cleanText, description, language }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed' }))
@@ -771,8 +782,7 @@ export default function AdminAdsPage() {
                         className="w-full text-sm text-slate-200 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-1 focus:ring-purple-500/50 font-mono leading-relaxed"
                       />
                       <p className="text-slate-600 text-[10px] mt-1.5">
-                        Tone tags: <code className="text-purple-400">[serious]</code> <code className="text-purple-400">[excited]</code> <code className="text-purple-400">[emotional]</code> <code className="text-purple-400">[happy]</code> <code className="text-purple-400">[conversational]</code>
-                        &nbsp;· <code className="text-slate-500">...</code> for pause · Short sentences = natural rhythm
+                        Write plain English · Use <code className="text-slate-500">...</code> for pauses · Short sentences on separate lines = natural rhythm · Tone is controlled by Voice Direction below
                       </p>
                     </div>
 
