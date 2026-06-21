@@ -2437,34 +2437,38 @@ Messages that feel human... create customers who feel loyal.
 
 Try Wapakee free — wapaki dot com!`,
     voiceDir: 'warm and personable from the first word, playful contrast between cold and warm messaging, genuinely excited and enthusiastic for the good example message, genuine and heartfelt close',
-    expertScript: `You know what kills a brand...
+    expertScript: `You sent her an order confirmation.
 
-Faster than a bad product?
+She wanted to feel something.
 
-A bad message.
+Wapakee lets you write messages that feel human.
 
-Your customer just ordered her birthday dress. She's excited. She's smiling right now.
+Messages that get screenshotted.
 
-And you sent her this: "Order confirmed. Expected delivery four to five business days."
+Shared.
 
-That's not a brand.
+Remembered.
 
-That's a machine.
+Because customers who feel something...
 
-Wapakee changes that.
+come back.
 
-Try writing her this instead: "Your birthday dress is flying to you! We can't wait to see you in it!"
+Try Wapakee free. Wapaki dot com.`,
+    expertVoiceDir: `Warm, expressive Indian female voice. English only. You have 9 lines. Take your time. Silence is part of the performance — do NOT rush.
 
-Same information. Completely different feeling.
+"You sent her an order confirmation." — quiet, almost disappointed. Like watching someone miss a moment. Slow.
 
-She screenshots that message. Sends it to her sister. Remembers your brand forever.
+"She wanted to feel something." — pause after this. A full breath. Let it sit. This line is the whole point.
 
-That's not marketing.
+"Wapakee lets you write messages that feel human." — shift completely. Warm, confident, like the answer just walked in. Smile in your voice.
 
-That's loyalty.
+"Messages that get screenshotted." — pause. "Shared." — pause. "Remembered." — pause after each word. Three separate moments. Not a list. Let each one land.
 
-Try Wapakee free — wapaki dot com.`,
-    expertVoiceDir: `Confident warm Indian female voice, English only, natural conversational energy — speak like someone who genuinely cares and has the answer. Open low and conspiratorial, like pulling someone aside before they make a mistake — slow and deliberate on the opening lines. Land "A bad message" flat, like a verdict — no rush away from it. Shift to warmth and real tenderness describing the happy customer. Then go cold and robotic on the bad message example — make the contrast jarring on purpose. Pause. Pivot sharply to warmth on "Wapakee changes that" — decisive and clean. Sound genuinely delighted on the good message example, like a friend texting something lovely. Build energy through the list at the end. Land "That's loyalty" low, certain, and final — like it's the most important thing you'll say. Close with a warm smile in your voice.`,
+"Because customers who feel something..." — slow down here. Build. The ellipsis is a real pause.
+
+"come back." — land this quietly. Certain. Final. Like a fact you've seen a hundred times. No drama. Just truth.
+
+"Try Wapakee free. Wapaki dot com." — warm and direct. You've already earned it.`,
   },
   {
     id: 19, filename: 'wapaci-the-proof',
@@ -2495,32 +2499,30 @@ The math is simple. The setup is ten minutes. The results are real.
 
 Start your free trial at wapaki dot com.`,
     voiceDir: 'confident and measured, let each stat land with weight and a brief pause, speak like someone presenting undeniable evidence, serious and credible throughout, matter-of-fact but compelling close',
-    expertScript: `Let's skip the pitch.
+    expertScript: `WhatsApp. Ninety-eight percent open rate.
 
-Just... numbers.
+Email. Two percent.
 
-WhatsApp open rate? Ninety-eight percent.
+Twenty-eight percent of abandoned carts... recovered.
 
-Email open rate? Two percent.
+Not a pitch.
 
-Cart recovery with Wapakee? Twenty-eight percent of abandoned carts come back.
+Real numbers. Real brands. Right now.
 
-Without it? Zero.
+Start free at Wapakee dot com.`,
+    expertVoiceDir: `Calm, authoritative Indian female voice. English only. No warmup. No intro. Lead with the numbers like they're facts carved in stone. You have 6 lines. Go slow. Every pause earns its keep.
 
-COD confirmations up sixty-seven percent.
+"WhatsApp. Ninety-eight percent open rate." — say each word like you're placing it on a table in front of them. Deliberate. Pause after.
 
-Win-back campaigns — thirty percent of lapsed customers repurchase.
+"Email. Two percent." — flat. Almost pitying. No drama. The silence after this line does all the work. Hold it.
 
-These aren't promises.
+"Twenty-eight percent of abandoned carts... recovered." — slow down on 'recovered'. Land it like money appearing in an account. The ellipsis is a real pause — hold it.
 
-These are averages... across real Indian D2C brands using Wapakee today.
+"Not a pitch." — firm. Short. Make eye contact through the mic. Pause.
 
-The math is simple.
+"Real numbers. Real brands. Right now." — each phrase separate, each one heavier than the last. Not fast. Punchy but deliberate.
 
-The setup takes ten minutes.
-
-Start your free trial at Wapakee dot com.`,
-    expertVoiceDir: `Confident, calm Indian female voice, English only, natural authority — you have real data and don't need theatrics. Open with calm dismissal of typical marketing, almost bored with hype — "Let's skip the pitch" is casual and clean. Let each stat land with quiet weight and a natural pause — the numbers do the work, don't oversell them. Deliver "Zero" completely flat, one word, like a verdict. Slow down significantly on "These aren't promises" — serious, grounded, make them feel the weight of real data. Close easy and matter-of-fact — you've already made the case, the CTA is just the obvious next step.`,
+"Start free at Wapakee dot com." — calm, certain. You've already won the argument. This is just the obvious next step.`,
   },
   {
     id: 20, filename: 'wapaci-revenue-rocket',
@@ -2553,34 +2555,36 @@ Try it free — wapaki dot com!`,
     voiceDir: 'cinematic and epic from the first word, deliberate and weighty on the three things, build momentum and energy steadily, reach a thrilling peak at the launch metaphor, triumphant and inspiring close',
     expertScript: `Every rocket needs three things.
 
-Fuel.
+Fuel. Direction. Ignition.
 
-Direction.
+Your brand has the fuel.
 
-Ignition.
+WhatsApp is the direction.
 
-Your brand already has fuel — your products, your customers, your hunger to grow.
+Wapakee...
 
-Direction? WhatsApp. The channel ninety-eight percent of India opens every single day.
+is the ignition.
 
-Ignition?
+Two to four times the revenue. No extra ad spend.
 
-...That's Wapakee.
+Wapakee dot com. Light the fuse.`,
+    expertVoiceDir: `Cinematic, powerful Indian female voice. English only. You are a launch director. You have 8 lines. Build from cold commanding to full ignition. Take your time — this ad earns its silence.
 
-Wapakee connects your store to full WhatsApp automation in ten minutes. Cart recovery. COD confirmation. Win-back campaigns. Flash sale blasts. Everything fires automatically.
+"Every rocket needs three things." — slow, deliberate, like opening a strategy briefing. Pause after. Make them wait.
 
-Brands using Wapakee see two to four times the revenue from their existing customers.
+"Fuel. Direction. Ignition." — three separate breaths. Each word is its own moment. "Fuel" — grounded. "Direction" — rising slightly. "Ignition" — sharp, like striking a match. Pause after each word.
 
-No extra ad spend.
+"Your brand has the fuel." — warm, validating. Directed at them personally.
 
-Just smarter automation.
+"WhatsApp is the direction." — clean, certain.
 
-Your rocket is already on the launchpad.
+"Wapakee..." — pause here. Real pause. Build the tension.
 
-The countdown has started.
+"is the ignition." — say this like handing someone the key. Quiet confidence. This is the reveal.
 
-Ignite your revenue with Wapakee. Wapakee dot com.`,
-    expertVoiceDir: `Cinematic, powerful Indian female voice, English only, building from commanding calm to triumphant energy. Open deliberate and commanding — like briefing a launch team. "Fuel. Direction. Ignition." — each word its own breath, heavy and separate like foundation stones. Validate "your brand has fuel" with belief in them. "Ignition? ...That's Wapakee" is a cinematic reveal — pause before answering, then land the name like a key turning in a lock. Rapid-fire the features like engines lighting, each one faster. Slow right down for "No extra ad spend" — that's the hook, say it like a gift. Then build to a triumphant CTA — not shouting, but genuinely thrilling. End like a rocket leaving the launchpad.`,
+"Two to four times the revenue. No extra ad spend." — land each phrase like a headline. Pause between them. "No extra ad spend" — almost conspiratorial, like you're giving them a secret.
+
+"Wapakee dot com. Light the fuse." — triumphant but controlled. End with energy, not shouting.`,
   },
   {
     id: 21, filename: 'wapaci-warm-cart',
@@ -2612,30 +2616,38 @@ while they still want to buy.
 Save warm carts automatically.
 Try Wapakee free today — wapaki dot com!`,
     voiceDir: 'urgent, cinematic, crisp Indian ecommerce ad voice; pause hard after the first line, then build speed and confidence; make the cart is still warm feel important; energetic CTA',
-    expertScript: `Someone almost bought from you...
+    expertScript: `Someone almost bought from you.
 
 Twelve seconds ago.
-
-The cart is still warm.
 
 The intent is still alive.
 
 But every minute you wait...
 
-...that customer forgets.
+they forget.
 
-Wapakee reacts instantly.
+Wapakee sends the message. Instantly.
 
-It detects the cart, sends a WhatsApp message, holds the product, and gives them one clear reason to come back.
+No lost sale.
 
-No manual follow-up. No cold email. No lost sale.
+Try Wapakee free. Wapaki dot com.`,
+    expertVoiceDir: `Urgent, cinematic Indian female voice. English only. You have 8 lines. Open barely above a whisper — do not rush a single word. This ad lives in its pauses.
 
-Just the right message... while they still want to buy.
+"Someone almost bought from you." — hushed. Intimate. Like telling a secret to one person. Slow.
 
-Save warm carts automatically.
+"Twelve seconds ago." — sharp and precise. Like a timer going off. Short pause after.
 
-Try Wapakee free — wapaki dot com.`,
-    expertVoiceDir: `Urgent, cinematic Indian female voice, English only, natural and alive — not like someone reading a script. Open in a near-whisper, hushed and intimate, like catching someone before they walk out the door. "Twelve seconds ago" — sharp and precise, like a timer going off. Treat "The cart is still warm" with quiet reverence, like holding something fragile. Build dread through the waiting lines, each pause getting heavier. Pivot completely on "Wapakee reacts instantly" — sudden, decisive, confident, like a machine clicking into action. Rapid-fire the features. "No lost sale" lands with quiet relief. "Just the right message..." — warm, almost gentle, real pause on the ellipsis. Close clear and energetic.`,
+"The intent is still alive." — careful, almost reverent. Like holding something fragile that could break. Slower than you think.
+
+"But every minute you wait..." — build dread here. Each word heavier than the last. The ellipsis is a real pause — hold it. Let them feel the time passing.
+
+"they forget." — quiet. Flat. Final. Like watching something slip away. Do not rush away from this line.
+
+"Wapakee sends the message. Instantly." — complete pivot. Sharp, decisive, confident. Like a switch being flipped. "Instantly" lands clean.
+
+"No lost sale." — quiet satisfaction. Short. Let it breathe.
+
+"Try Wapakee free. Wapaki dot com." — warm, clear, energetic. You've earned this CTA.`,
   },
   {
     id: 22, filename: 'wapaci-cod-filter',
@@ -2665,30 +2677,30 @@ More confirmed revenue.
 Confirm COD on WhatsApp.
 Try Wapakee free today — wapaki dot com!`,
     voiceDir: 'direct, sharp, business-focused Indian founder tone; serious on the pain, confident on the solution, punchy pacing, strong closing CTA',
-    expertScript: `Fake COD orders don't just waste your time.
+    expertScript: `Every fake COD order costs you money you'll never get back.
 
-They're costing you real money.
+Wapakee sends a WhatsApp before your package ships.
 
-Shipping fees you'll never get back. RTO charges eating your margins. Inventory locked in transit for days.
+Yes — ship it.
 
-Wapakee fixes this... before the package ever leaves your warehouse.
+No — stop it.
 
-Every COD buyer gets a WhatsApp confirmation.
+Less RTO. More real revenue.
 
-Yes means ship it.
+Try Wapakee free. Wapaki dot com.`,
+    expertVoiceDir: `Direct, sharp Indian female voice. English only. You have 6 lines. No warmup. No filler. You are talking to a founder who is losing money right now.
 
-No means stop it.
+"Every fake COD order costs you money you'll never get back." — open serious and direct, like reading out a bill they didn't expect. Slow down on "you'll never get back." Land it. Pause after.
 
-No reply? Wapakee follows up automatically.
+"Wapakee sends a WhatsApp before your package ships." — confident pivot. Clean. Relief in your voice. This is the fix.
 
-Your team ships only serious orders.
+"Yes — ship it." — sharp. Decisive. Short pause after.
 
-Less RTO. Less wasted cash. More confirmed revenue.
+"No — stop it." — even sharper. Like flipping a switch. Pause after. These two lines are punches. Let them land separately.
 
-Confirm COD on WhatsApp.
+"Less RTO. More real revenue." — staccato. Two punches. "Less RTO" — pause. "More real revenue." — heavier, land this like money hitting the table.
 
-Try Wapakee free today — wapaki dot com.`,
-    expertVoiceDir: `Direct, sharp Indian female voice, English only, natural authority — speak like a founder who has seen this pain and has the exact fix. Open like you're talking directly to someone bleeding money and not fully realising it — serious, no fluff. Each pain point in the list lands harder than the last, build frustration. Sharp decisive pivot on "Wapakee fixes this" — relief and confidence. Go staccato on the Yes/No/No-reply options — crisp and clean, like a system working perfectly, slight clever smile on the automatic follow-up. "Less RTO. Less wasted cash. More confirmed revenue." — punchy, each phrase lands like a coin dropping, the last one heaviest. Close urgent and confident, no-nonsense.`,
+"Try Wapakee free. Wapaki dot com." — direct, confident, final. No fluff. They already know they need this.`,
   },
 ]
 
