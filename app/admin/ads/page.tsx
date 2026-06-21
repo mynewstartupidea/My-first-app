@@ -2636,6 +2636,11 @@ export default function AdminAdsPage() {
   const patchExpertAdDl = (id: number, p: Partial<{ phase: ExpertPhase; pct: number; error: string | null }>) =>
     setExpertAdDls(prev => ({ ...prev, [id]: { ...getExpertAdDl(id), ...p } }))
 
+  // Pre-render blob caches — base = video+music only; voiced = video+music+voiceover
+  const baseCacheRef   = useRef<Map<number, Blob>>(new Map())
+  const voicedCacheRef = useRef<Map<number, Blob>>(new Map())
+  const [preRenderDone, setPreRenderDone] = useState(0)
+
   // Two canvas refs per ad: preview (visible in card) and record (offscreen, always mounted)
   const previewRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
   const recordRefs  = useRef<Record<number, HTMLCanvasElement | null>>({})
@@ -2664,21 +2669,30 @@ export default function AdminAdsPage() {
         throw new Error(err.error ?? 'Generation failed')
       }
       const blob = await res.blob()
+      voicedCacheRef.current.delete(ad.id)
       setVo(ad.id, { status: 'ready', audioBlob: blob, audioUrl: URL.createObjectURL(blob) })
     } catch (e: unknown) {
       setVo(ad.id, { status: 'error', error: e instanceof Error ? e.message : 'Error' })
     }
   }
 
-  /* ── WebCodecs fast encoder — renders all frames offline, no real-time wait ── */
-  async function fastEncode(
+  /* ── Trigger browser download from a Blob ── */
+  function triggerDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${filename}.mp4`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 15_000)
+  }
+
+  /* ── WebCodecs encoder — renders all frames offline, returns a Blob ── */
+  async function fastEncodeToBlob(
     recordCanvas: HTMLCanvasElement,
     renderer: (ctx: CanvasRenderingContext2D, t: number) => void,
     adId: number,
     audioBlob: Blob | null,
-    filename: string,
     onProgress: (pct: number) => void,
-  ): Promise<void> {
+  ): Promise<Blob> {
     const SR = 48000, CH = 2, FPS = 30, TOTAL_FRAMES = DUR * FPS
 
     // ── Audio: render with OfflineAudioContext (near-instant) ──
@@ -2708,12 +2722,12 @@ export default function AdminAdsPage() {
       fastStart: 'in-memory',
     })
 
-    // ── VideoEncoder (H.264, 30 Mbps for top quality) ──
+    // ── VideoEncoder — H.264 High at 12 Mbps (top notch for 1080p social media) ──
     const vEnc = new VideoEncoder({
       output: (chunk, meta) => muxer.addVideoChunk(chunk, meta!),
       error:  e => { throw e },
     })
-    vEnc.configure({ codec: 'avc1.4D0028', width: W, height: H, bitrate: 30_000_000, framerate: FPS })
+    vEnc.configure({ codec: 'avc1.4D0028', width: W, height: H, bitrate: 12_000_000, framerate: FPS })
 
     // ── AudioEncoder (AAC, 320 kbps) ──
     const aEnc = new AudioEncoder({
@@ -2746,37 +2760,64 @@ export default function AdminAdsPage() {
     const R = rendered.numberOfChannels > 1 ? rendered.getChannelData(1) : L
     const planar = new Float32Array(L.length + R.length)
     planar.set(L, 0); planar.set(R, L.length)
-    const ad = new AudioData({
+    const audioData = new AudioData({
       format: 'f32-planar', sampleRate: SR, numberOfFrames: rendered.length,
       numberOfChannels: CH, timestamp: 0, data: planar,
     })
-    aEnc.encode(ad); ad.close()
+    aEnc.encode(audioData); audioData.close()
     await aEnc.flush()
 
-    // ── Finalize and download ──
+    // ── Finalize ──
     muxer.finalize()
-    const url = URL.createObjectURL(new Blob([target.buffer], { type: 'video/mp4' }))
-    const a   = document.createElement('a')
-    a.href = url; a.download = `${filename}.mp4`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 15_000)
+    return new Blob([target.buffer], { type: 'video/mp4' })
   }
 
-  /* ── Download MP4 — each ad is independent, multiple can run in parallel ── */
+  /* ── Thin wrapper: encode → download ── */
+  async function fastEncode(
+    recordCanvas: HTMLCanvasElement,
+    renderer: (ctx: CanvasRenderingContext2D, t: number) => void,
+    adId: number,
+    audioBlob: Blob | null,
+    filename: string,
+    onProgress: (pct: number) => void,
+  ): Promise<void> {
+    const blob = await fastEncodeToBlob(recordCanvas, renderer, adId, audioBlob, onProgress)
+    triggerDownload(blob, filename)
+  }
+
+  /* ── Download MP4 — checks pre-render cache first for instant download ── */
   const downloadVideo = useCallback(async (ad: typeof ADS[0]) => {
-    if (getAdDl(ad.id).phase === 'encoding') return // this specific ad is already encoding
+    if (getAdDl(ad.id).phase === 'encoding') return
+    const hasVoice = voices[ad.id]?.status === 'ready' && !!voices[ad.id]?.audioBlob
+
+    // Instant path — serve from cache
+    const cachedBlob = hasVoice
+      ? voicedCacheRef.current.get(ad.id)
+      : baseCacheRef.current.get(ad.id)
+
+    if (cachedBlob) {
+      patchAdDl(ad.id, { phase: 'done', pct: 100 })
+      triggerDownload(cachedBlob, ad.filename)
+      setTimeout(() => patchAdDl(ad.id, { phase: 'idle', pct: 0 }), 3000)
+      return
+    }
+
+    // Cache miss — encode fresh then cache for next time
     const recordCanvas = recordRefs.current[ad.id]
     if (!recordCanvas) { alert('Canvas not ready — please refresh.'); return }
 
     patchAdDl(ad.id, { phase: 'encoding', pct: 0 })
     try {
-      await fastEncode(
+      const blob = await fastEncodeToBlob(
         recordCanvas, RENDERERS[ad.id], ad.id,
-        voices[ad.id]?.audioBlob ?? null, ad.filename,
+        voices[ad.id]?.audioBlob ?? null,
         pct => patchAdDl(ad.id, { pct }),
       )
+      if (hasVoice) voicedCacheRef.current.set(ad.id, blob)
+      else baseCacheRef.current.set(ad.id, blob)
+      triggerDownload(blob, ad.filename)
       patchAdDl(ad.id, { phase: 'done', pct: 100 })
-      setTimeout(() => patchAdDl(ad.id, { phase: 'idle', pct: 0 }), 4000)
+      setTimeout(() => patchAdDl(ad.id, { phase: 'idle', pct: 0 }), 3000)
     } catch (e) {
       console.error('encode failed:', e)
       patchAdDl(ad.id, { phase: 'idle', pct: 0 })
@@ -2814,11 +2855,12 @@ export default function AdminAdsPage() {
     // Phase 2: encode video
     patchExpertAdDl(ad.id, { phase: 'encoding', pct: 0 })
     try {
-      await fastEncode(
+      const blob = await fastEncodeToBlob(
         recordCanvas, RENDERERS[ad.id], ad.id,
-        expertAudioBlob, `${ad.filename}-expert-voice`,
+        expertAudioBlob,
         pct => patchExpertAdDl(ad.id, { pct }),
       )
+      triggerDownload(blob, `${ad.filename}-expert-voice`)
       patchExpertAdDl(ad.id, { phase: 'done', pct: 100 })
       setTimeout(() => patchExpertAdDl(ad.id, { phase: 'idle', pct: 0 }), 4000)
     } catch (e) {
@@ -2841,6 +2883,32 @@ export default function AdminAdsPage() {
       handles[ad.id] = requestAnimationFrame(loop)
     })
     return () => Object.values(handles).forEach(h => cancelAnimationFrame(h))
+  }, [])
+
+  // Pre-render all ads in background on mount so downloads are instant
+  useEffect(() => {
+    let cancelled = false
+    async function preRenderAll() {
+      for (const ad of ADS) {
+        if (cancelled) return
+        if (baseCacheRef.current.has(ad.id)) continue
+        const canvas = recordRefs.current[ad.id]
+        if (!canvas) continue
+        try {
+          const blob = await fastEncodeToBlob(canvas, RENDERERS[ad.id], ad.id, null, () => {})
+          if (!cancelled) {
+            baseCacheRef.current.set(ad.id, blob)
+            setPreRenderDone(d => d + 1)
+          }
+        } catch (e) {
+          console.warn(`pre-render failed for ad ${ad.id}:`, e)
+        }
+      }
+    }
+    // Small delay so preview canvases start first and DOM refs settle
+    const timer = setTimeout(preRenderAll, 800)
+    return () => { cancelled = true; clearTimeout(timer) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -2870,21 +2938,39 @@ export default function AdminAdsPage() {
             </div>
             <div>
               <h1 className="text-white font-bold text-base leading-none">Ad Engine</h1>
-              <p className="text-slate-500 text-xs mt-0.5">Canvas · 20Mbps · no screen share · direct MP4</p>
+              <p className="text-slate-500 text-xs mt-0.5">Canvas · 12Mbps · instant download · 30fps</p>
             </div>
           </div>
         </div>
-        {/* Active encoding count badge */}
-        {(() => {
-          const enc = Object.values(adDls).filter(d => d.phase === 'encoding').length
-            + Object.values(expertAdDls).filter(d => d.phase === 'encoding' || d.phase === 'generating').length
-          return enc > 0 ? (
-            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-              <Loader2 size={13} className="text-purple-400 animate-spin" />
-              <span className="text-slate-300 text-sm">{enc} video{enc > 1 ? 's' : ''} encoding…</span>
+        {/* Right side: pre-render progress or encoding badge */}
+        <div className="flex items-center gap-3">
+          {preRenderDone < ADS.length && (
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+              <Loader2 size={13} className="text-emerald-400 animate-spin flex-shrink-0" />
+              <div>
+                <div className="text-slate-300 text-xs font-semibold">Pre-rendering {preRenderDone}/{ADS.length}</div>
+                <div className="mt-1 h-1 bg-white/10 rounded-full w-28 overflow-hidden">
+                  <div className="h-1 rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${(preRenderDone / ADS.length) * 100}%` }} />
+                </div>
+              </div>
             </div>
-          ) : null
-        })()}
+          )}
+          {preRenderDone >= ADS.length && (
+            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-4 py-2">
+              <span className="text-emerald-400 text-xs font-bold">⚡ All {ADS.length} ads ready — downloads instant</span>
+            </div>
+          )}
+          {(() => {
+            const enc = Object.values(adDls).filter(d => d.phase === 'encoding').length
+              + Object.values(expertAdDls).filter(d => d.phase === 'encoding' || d.phase === 'generating').length
+            return enc > 0 ? (
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+                <Loader2 size={13} className="text-purple-400 animate-spin" />
+                <span className="text-slate-300 text-sm">{enc} video{enc > 1 ? 's' : ''} encoding…</span>
+              </div>
+            ) : null
+          })()}
+        </div>
       </div>
 
       {/* ── Ad cards ── */}
@@ -2897,6 +2983,8 @@ export default function AdminAdsPage() {
           const isEncoding     = adDl.phase === 'encoding'
           const isExpertActive = exAdDl.phase === 'generating' || exAdDl.phase === 'encoding'
           const hasExpert      = !!(ad as typeof ADS[0] & { expertScript?: string }).expertScript
+          const hasVoice       = v?.status === 'ready' && !!v?.audioBlob
+          const isCached       = hasVoice ? voicedCacheRef.current.has(ad.id) : baseCacheRef.current.has(ad.id)
 
           return (
             <div key={ad.id} className={`rounded-2xl border overflow-hidden transition ${hasExpert ? 'border-pink-500/20 bg-pink-500/[0.015]' : 'border-white/[0.08] bg-white/[0.02]'}`}>
@@ -2926,34 +3014,42 @@ export default function AdminAdsPage() {
                   <div className="absolute top-2 left-2 z-10">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${ad.tagColor}`}>{ad.tag}</span>
                   </div>
-                  {hasExpert && (
-                    <div className="absolute bottom-2 right-2 z-10">
+                  <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1">
+                    {isCached && !isEncoding && adDl.phase !== 'done' && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/30 border border-emerald-500/50 text-emerald-300">⚡ Ready</span>
+                    )}
+                    {hasExpert && (
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-pink-500/30 border border-pink-500/50 text-pink-300">✦ Expert</span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Info + actions */}
                 <div className="flex-1 p-5 flex flex-col justify-between">
                   <div>
                     <h3 className="text-white font-bold text-base">{ad.title}</h3>
-                    <p className="text-slate-500 text-xs mt-0.5">1080×1080 · 20Mbps · 30fps · canvas encode</p>
+                    <p className="text-slate-500 text-xs mt-0.5">1080×1080 · 12Mbps · 30fps · canvas encode</p>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Download button — never disabled by other ads encoding */}
+                      {/* Download button — instant if pre-rendered, never blocked by other ads */}
                       <button
                         onClick={() => downloadVideo(ad)}
                         disabled={isEncoding}
                         className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ backgroundColor: ad.accent + '25', color: ad.accent, border: `1px solid ${ad.accent}50` }}
+                        style={isCached && !isEncoding
+                          ? { backgroundColor: '#10b98120', color: '#10b981', border: '1px solid #10b98140' }
+                          : { backgroundColor: ad.accent + '25', color: ad.accent, border: `1px solid ${ad.accent}50` }
+                        }
                       >
                         {isEncoding
                           ? <><Loader2 size={13} className="animate-spin" /> Encoding… {adDl.pct}%</>
                           : adDl.phase === 'done'
                           ? <><CheckCircle2 size={13} /> Downloaded!</>
-                          : <><Download size={13} /> {v.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}</>
+                          : isCached
+                          ? <><span style={{ fontSize: 13 }}>⚡</span> {hasVoice ? 'Download with Voiceover' : 'Download MP4'}</>
+                          : <><Download size={13} /> {hasVoice ? 'Download with Voiceover' : 'Download MP4'}</>
                         }
                       </button>
 
