@@ -452,31 +452,214 @@ function ticker(audioCtx: AudioContext, master: GainNode, at: number, count: num
 
 function scheduleAdAudio(audioCtx: AudioContext, master: GainNode, adId: number) {
   const now = audioCtx.currentTime
-  if (adId === 21) {
-    pad(audioCtx, master, [98, 147, 196, 294], 'triangle', .018, 1.2, 29)
-    arpNote(audioCtx, master, [294, 392, 494, 587, 659], 280, 'sine', .028, 7.8)
-    hit(audioCtx, master, now + .25, 'green'); ticker(audioCtx, master, now + 1.2, 8)
-    whooshFx(audioCtx, master, now + 5.1); hit(audioCtx, master, now + 5.55, 'green')
-    waPing(audioCtx, master, now + 10.3); waPing(audioCtx, master, now + 12.2); waPing(audioCtx, master, now + 15.5)
-    cashFx(audioCtx, master, now + 18.6); ticker(audioCtx, master, now + 20.4, 10, .11)
-    whooshFx(audioCtx, master, now + 23.4); hit(audioCtx, master, now + 24.1, 'green')
-    cashFx(audioCtx, master, now + 26.5); hit(audioCtx, master, now + 28.2, 'green'); cashFx(audioCtx, master, now + 29.15)
-    return
+  switch (adId) {
+    case 4: // Dead Hours — dark minor, eerie midnight
+      pad(audioCtx, master, [82, 98, 123, 164], 'sawtooth', .012, 2, 29)
+      arpNote(audioCtx, master, [164, 196, 220, 247, 196], 420, 'triangle', .020, 4)
+      hit(audioCtx, master, now + .3, 'blue')
+      tone(audioCtx, master, now + 3.5, 80, .8, .08, 'sine')
+      whooshFx(audioCtx, master, now + 8.2)
+      hit(audioCtx, master, now + 12.1, 'blue')
+      waPing(audioCtx, master, now + 15.8)
+      hit(audioCtx, master, now + 20.5, 'green')
+      cashFx(audioCtx, master, now + 24.2)
+      hit(audioCtx, master, now + 27.5, 'green'); cashFx(audioCtx, master, now + 29)
+      break
+    case 5: // 98% Club — triumphant ascending
+      pad(audioCtx, master, [131, 165, 196, 262], 'sine', .016, 1.5, 28)
+      arpNote(audioCtx, master, [262, 330, 392, 494, 587], 240, 'sine', .024, 3)
+      hit(audioCtx, master, now + .4, 'green')
+      ticker(audioCtx, master, now + 2, 9)
+      whooshFx(audioCtx, master, now + 6.5); hit(audioCtx, master, now + 7, 'green')
+      cashFx(audioCtx, master, now + 10.5)
+      ticker(audioCtx, master, now + 14, 12, .14)
+      cashFx(audioCtx, master, now + 18.5); hit(audioCtx, master, now + 22, 'green')
+      cashFx(audioCtx, master, now + 26.5); hit(audioCtx, master, now + 28.8, 'green')
+      break
+    case 6: // COD Recovery — urgent, punchy orange
+      pad(audioCtx, master, [110, 138, 165, 220], 'sawtooth', .014, 1.8, 28)
+      arpNote(audioCtx, master, [220, 277, 330, 440], 300, 'square', .018, 5)
+      hit(audioCtx, master, now + .25, 'orange'); hit(audioCtx, master, now + 1.8, 'red')
+      whooshFx(audioCtx, master, now + 5.5)
+      hit(audioCtx, master, now + 9.2, 'orange'); hit(audioCtx, master, now + 13.5, 'red')
+      waPing(audioCtx, master, now + 16.4)
+      hit(audioCtx, master, now + 19.1, 'green'); cashFx(audioCtx, master, now + 22.3)
+      ticker(audioCtx, master, now + 25, 8, .15); hit(audioCtx, master, now + 28.5, 'green')
+      break
+    case 7: // Ghost Customers — playful, whimsical purple
+      pad(audioCtx, master, [196, 247, 294, 392], 'triangle', .016, 2, 27)
+      arpNote(audioCtx, master, [392, 440, 494, 587, 659, 784], 200, 'sine', .022, 4)
+      tone(audioCtx, master, now + .5, 880, .15, .12, 'triangle')
+      tone(audioCtx, master, now + 1.2, 1047, .12, .1, 'triangle')
+      whooshFx(audioCtx, master, now + 4.5)
+      hit(audioCtx, master, now + 8, 'blue')
+      tone(audioCtx, master, now + 11, 988, .18, .14, 'triangle')
+      hit(audioCtx, master, now + 15.5, 'green')
+      waPing(audioCtx, master, now + 19.3)
+      cashFx(audioCtx, master, now + 23.1); hit(audioCtx, master, now + 27, 'green')
+      break
+    case 8: // Leaky Bucket — descending drip feel
+      pad(audioCtx, master, [73, 98, 110, 147], 'triangle', .015, 2, 28)
+      arpNote(audioCtx, master, [220, 196, 175, 156, 131], 380, 'sine', .020, 3)
+      tone(audioCtx, master, now + .6, 440, .25, .09, 'sine', 220)
+      tone(audioCtx, master, now + 2.4, 440, .25, .08, 'sine', 220)
+      tone(audioCtx, master, now + 4.1, 440, .25, .08, 'sine', 220)
+      hit(audioCtx, master, now + 6.5, 'red')
+      whooshFx(audioCtx, master, now + 10.2); hit(audioCtx, master, now + 14.5, 'blue')
+      waPing(audioCtx, master, now + 18.2)
+      cashFx(audioCtx, master, now + 22.4)
+      ticker(audioCtx, master, now + 25.5, 7, .16); hit(audioCtx, master, now + 28.5, 'green')
+      break
+    case 9: // Flash Sale Blast — explosive, high energy
+      pad(audioCtx, master, [165, 220, 277, 330], 'sawtooth', .014, 1, 28)
+      arpNote(audioCtx, master, [440, 554, 659, 880, 988], 160, 'square', .020, 2)
+      hit(audioCtx, master, now + .2, 'red'); hit(audioCtx, master, now + .8, 'orange')
+      ticker(audioCtx, master, now + 2, 16, .1)
+      whooshFx(audioCtx, master, now + 5.5); cashFx(audioCtx, master, now + 7)
+      hit(audioCtx, master, now + 10.5, 'red')
+      ticker(audioCtx, master, now + 14, 10, .12)
+      cashFx(audioCtx, master, now + 17.5); hit(audioCtx, master, now + 21, 'green')
+      cashFx(audioCtx, master, now + 24.3)
+      ticker(audioCtx, master, now + 26.5, 10, .1); hit(audioCtx, master, now + 29, 'green')
+      break
+    case 10: // Order Delight — gentle journey teal
+      pad(audioCtx, master, [174, 220, 261, 349], 'sine', .018, 2, 28)
+      arpNote(audioCtx, master, [349, 440, 523, 659, 784], 320, 'sine', .020, 5)
+      waPing(audioCtx, master, now + 1.5); hit(audioCtx, master, now + 4, 'green')
+      waPing(audioCtx, master, now + 7.5); hit(audioCtx, master, now + 11, 'green')
+      waPing(audioCtx, master, now + 14.5); cashFx(audioCtx, master, now + 18)
+      hit(audioCtx, master, now + 22, 'green')
+      waPing(audioCtx, master, now + 25.5); cashFx(audioCtx, master, now + 28)
+      break
+    case 11: // Win-Back — nostalgic, emotional cyan
+      pad(audioCtx, master, [131, 165, 196, 247], 'triangle', .016, 2.5, 27)
+      arpNote(audioCtx, master, [196, 247, 294, 370, 494], 360, 'triangle', .022, 6)
+      tone(audioCtx, master, now + 1, 392, .4, .14, 'triangle', 196)
+      hit(audioCtx, master, now + 5.5, 'blue')
+      whooshFx(audioCtx, master, now + 10); hit(audioCtx, master, now + 14.5, 'blue')
+      waPing(audioCtx, master, now + 18.5); cashFx(audioCtx, master, now + 22.5)
+      hit(audioCtx, master, now + 26, 'green'); cashFx(audioCtx, master, now + 28.8)
+      break
+    case 12: // Testimonial Wall — warm chat pings green
+      pad(audioCtx, master, [131, 175, 220, 262], 'sine', .016, 2, 28)
+      arpNote(audioCtx, master, [262, 330, 392, 523], 280, 'sine', .018, 4)
+      waPing(audioCtx, master, now + 1); waPing(audioCtx, master, now + 3.5)
+      hit(audioCtx, master, now + 6, 'green')
+      waPing(audioCtx, master, now + 9); waPing(audioCtx, master, now + 12.5)
+      hit(audioCtx, master, now + 16, 'green'); cashFx(audioCtx, master, now + 19.5)
+      waPing(audioCtx, master, now + 22.5)
+      hit(audioCtx, master, now + 25.5, 'green'); cashFx(audioCtx, master, now + 28.5)
+      break
+    case 13: // Automation Stack — mechanical, technical indigo
+      pad(audioCtx, master, [55, 82, 110, 164], 'sawtooth', .012, 1.5, 28)
+      arpNote(audioCtx, master, [220, 330, 440, 660], 250, 'square', .016, 3)
+      ticker(audioCtx, master, now + .5, 6, .14); hit(audioCtx, master, now + 3.5, 'blue')
+      whooshFx(audioCtx, master, now + 7.5)
+      ticker(audioCtx, master, now + 10, 8, .12); hit(audioCtx, master, now + 13.5, 'blue')
+      whooshFx(audioCtx, master, now + 17)
+      ticker(audioCtx, master, now + 20, 10, .11); hit(audioCtx, master, now + 24, 'green')
+      cashFx(audioCtx, master, now + 27.5)
+      break
+    case 14: // ₹1 Crore Club — epic crescendo gold
+      pad(audioCtx, master, [82, 103, 130, 164], 'triangle', .018, 2, 28)
+      arpNote(audioCtx, master, [164, 207, 261, 330, 392, 523], 200, 'sine', .024, 2)
+      hit(audioCtx, master, now + .5, 'green')
+      ticker(audioCtx, master, now + 3, 12, .13); cashFx(audioCtx, master, now + 6.5)
+      hit(audioCtx, master, now + 10, 'green'); cashFx(audioCtx, master, now + 13.5)
+      ticker(audioCtx, master, now + 17, 15, .11); cashFx(audioCtx, master, now + 21)
+      hit(audioCtx, master, now + 24.5, 'green')
+      cashFx(audioCtx, master, now + 27); cashFx(audioCtx, master, now + 28.5)
+      break
+    case 15: // Competitor's Secret — mysterious, tense crimson
+      pad(audioCtx, master, [73, 92, 110, 138], 'sawtooth', .012, 3, 27)
+      arpNote(audioCtx, master, [138, 164, 196, 220, 174], 500, 'triangle', .018, 5)
+      tone(audioCtx, master, now + 1, 220, .6, .1, 'sine', 110)
+      noise(audioCtx, master, now + 4.5, .8, .1, 'bandpass', 800, .4)
+      hit(audioCtx, master, now + 8, 'red')
+      whooshFx(audioCtx, master, now + 12); hit(audioCtx, master, now + 16, 'orange')
+      waPing(audioCtx, master, now + 20.5); cashFx(audioCtx, master, now + 24)
+      hit(audioCtx, master, now + 27.5, 'green')
+      break
+    case 16: // Broadcast Power — radio waves, green ripples
+      pad(audioCtx, master, [131, 196, 262, 392], 'sine', .016, 2, 28)
+      arpNote(audioCtx, master, [392, 494, 587, 740, 880], 220, 'sine', .022, 3)
+      waPing(audioCtx, master, now + .8); waPing(audioCtx, master, now + 2.2)
+      hit(audioCtx, master, now + 4.5, 'green')
+      waPing(audioCtx, master, now + 7.5); waPing(audioCtx, master, now + 10)
+      cashFx(audioCtx, master, now + 13); hit(audioCtx, master, now + 16.5, 'green')
+      ticker(audioCtx, master, now + 20, 12, .12); cashFx(audioCtx, master, now + 24)
+      hit(audioCtx, master, now + 27.5, 'green')
+      break
+    case 17: // Ten Minute Setup — light, quick sky blue
+      pad(audioCtx, master, [174, 220, 277, 349], 'triangle', .014, 1.5, 27)
+      arpNote(audioCtx, master, [440, 523, 659, 784, 988], 180, 'sine', .022, 2)
+      hit(audioCtx, master, now + .4, 'blue')
+      ticker(audioCtx, master, now + 2, 10, .12); hit(audioCtx, master, now + 5, 'green')
+      whooshFx(audioCtx, master, now + 8.5)
+      ticker(audioCtx, master, now + 12, 6, .14); cashFx(audioCtx, master, now + 15.5)
+      hit(audioCtx, master, now + 19, 'green')
+      ticker(audioCtx, master, now + 22.5, 10, .11); cashFx(audioCtx, master, now + 26)
+      hit(audioCtx, master, now + 28.5, 'green')
+      break
+    case 18: // Emoji Reactions — fun, bouncy colorful
+      pad(audioCtx, master, [196, 247, 330, 392], 'triangle', .014, 2, 27)
+      arpNote(audioCtx, master, [494, 587, 740, 880, 988, 1175], 160, 'sine', .020, 2)
+      tone(audioCtx, master, now + .5, 1047, .1, .1, 'triangle')
+      tone(audioCtx, master, now + 1.5, 1175, .12, .1, 'triangle')
+      hit(audioCtx, master, now + 3, 'green')
+      tone(audioCtx, master, now + 5.5, 1319, .1, .09, 'triangle')
+      hit(audioCtx, master, now + 8, 'orange')
+      tone(audioCtx, master, now + 11, 1047, .12, .1, 'triangle')
+      cashFx(audioCtx, master, now + 14.5); hit(audioCtx, master, now + 18, 'green')
+      tone(audioCtx, master, now + 21.5, 1319, .1, .09, 'triangle')
+      cashFx(audioCtx, master, now + 24.5); hit(audioCtx, master, now + 27.5, 'green')
+      cashFx(audioCtx, master, now + 29)
+      break
+    case 19: // The Proof — serious, corporate data slate
+      pad(audioCtx, master, [82, 110, 130, 174], 'sine', .018, 2, 28)
+      arpNote(audioCtx, master, [174, 220, 261, 330, 392], 350, 'triangle', .020, 4)
+      hit(audioCtx, master, now + .5, 'blue')
+      ticker(audioCtx, master, now + 3, 8, .15); cashFx(audioCtx, master, now + 7)
+      hit(audioCtx, master, now + 11, 'green')
+      ticker(audioCtx, master, now + 14.5, 10, .13); cashFx(audioCtx, master, now + 18)
+      hit(audioCtx, master, now + 22, 'green')
+      ticker(audioCtx, master, now + 25.5, 8, .12); cashFx(audioCtx, master, now + 28.5)
+      break
+    case 20: // Revenue Rocket — space launch, epic dark
+      pad(audioCtx, master, [55, 82, 110, 138], 'sawtooth', .014, 3, 28)
+      arpNote(audioCtx, master, [110, 138, 174, 220, 277, 349], 280, 'sine', .022, 2)
+      noise(audioCtx, master, now + 1, .8, .1, 'lowpass', 400, .3)
+      hit(audioCtx, master, now + 3, 'blue')
+      noise(audioCtx, master, now + 5, 1.2, .12, 'lowpass', 600, .4)
+      whooshFx(audioCtx, master, now + 9); hit(audioCtx, master, now + 11, 'green')
+      cashFx(audioCtx, master, now + 14)
+      whooshFx(audioCtx, master, now + 18.5); cashFx(audioCtx, master, now + 21)
+      ticker(audioCtx, master, now + 24, 12, .12); hit(audioCtx, master, now + 27, 'green')
+      cashFx(audioCtx, master, now + 28.5); cashFx(audioCtx, master, now + 29.2)
+      break
+    case 21:
+      pad(audioCtx, master, [98, 147, 196, 294], 'triangle', .018, 1.2, 29)
+      arpNote(audioCtx, master, [294, 392, 494, 587, 659], 280, 'sine', .028, 7.8)
+      hit(audioCtx, master, now + .25, 'green'); ticker(audioCtx, master, now + 1.2, 8)
+      whooshFx(audioCtx, master, now + 5.1); hit(audioCtx, master, now + 5.55, 'green')
+      waPing(audioCtx, master, now + 10.3); waPing(audioCtx, master, now + 12.2); waPing(audioCtx, master, now + 15.5)
+      cashFx(audioCtx, master, now + 18.6); ticker(audioCtx, master, now + 20.4, 10, .11)
+      whooshFx(audioCtx, master, now + 23.4); hit(audioCtx, master, now + 24.1, 'green')
+      cashFx(audioCtx, master, now + 26.5); hit(audioCtx, master, now + 28.2, 'green'); cashFx(audioCtx, master, now + 29.15)
+      break
+    case 22:
+      pad(audioCtx, master, [82, 123, 164, 246], 'sawtooth', .012, 1.5, 29)
+      arpNote(audioCtx, master, [220, 277, 330, 415, 554], 320, 'triangle', .025, 8.5)
+      hit(audioCtx, master, now + .35, 'orange'); hit(audioCtx, master, now + 2.25, 'red')
+      whooshFx(audioCtx, master, now + 5.4); tone(audioCtx, master, now + 6.2, 160, .4, .12, 'triangle', 80)
+      waPing(audioCtx, master, now + 11.25); waPing(audioCtx, master, now + 13.4)
+      hit(audioCtx, master, now + 15.2, 'green'); cashFx(audioCtx, master, now + 17.5)
+      ticker(audioCtx, master, now + 20.1, 8, .13); hit(audioCtx, master, now + 22.4, 'green')
+      whooshFx(audioCtx, master, now + 25.25); hit(audioCtx, master, now + 27.2, 'orange'); cashFx(audioCtx, master, now + 28.6)
+      break
+    default:
+      pad(audioCtx, master, [131, 165, 196, 262], 'triangle', .018)
   }
-  if (adId === 22) {
-    pad(audioCtx, master, [82, 123, 164, 246], 'sawtooth', .012, 1.5, 29)
-    arpNote(audioCtx, master, [220, 277, 330, 415, 554], 320, 'triangle', .025, 8.5)
-    hit(audioCtx, master, now + .35, 'orange'); hit(audioCtx, master, now + 2.25, 'red')
-    whooshFx(audioCtx, master, now + 5.4); tone(audioCtx, master, now + 6.2, 160, .4, .12, 'triangle', 80)
-    waPing(audioCtx, master, now + 11.25); waPing(audioCtx, master, now + 13.4)
-    hit(audioCtx, master, now + 15.2, 'green'); cashFx(audioCtx, master, now + 17.5)
-    ticker(audioCtx, master, now + 20.1, 8, .13); hit(audioCtx, master, now + 22.4, 'green')
-    whooshFx(audioCtx, master, now + 25.25); hit(audioCtx, master, now + 27.2, 'orange'); cashFx(audioCtx, master, now + 28.6)
-    return
-  }
-
-  // Existing ads keep the subtle bed they already had.
-  pad(audioCtx, master, [131, 165, 196, 262], 'triangle', .018)
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1664,6 +1847,530 @@ Wapakee — WhatsApp automation for Indian D2C brands.
 
 Try it free today — wapaci dot com!`,
     voiceDir: 'start very slow and deliberate, long dramatic silence between each stat, explosive excitement on the WhatsApp reveal, thoughtful pause then warm confident close',
+  },
+  {
+    id: 4, filename: 'wapaci-dead-hours',
+    title: 'Dead Hours — Midnight Revenue',
+    tag: 'Problem-Centric', tagColor: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+    accent: '#6366f1',
+    defaultScript: `What happens to your store... after midnight?
+
+Your customers don't stop browsing at eleven pm. They scroll at two in the morning. They abandon carts at three am. They have questions... at four am.
+
+And your team? Fast asleep.
+
+Every single hour that passes without a follow-up... that customer forgets you existed.
+
+Wapakee never sleeps.
+
+It sends WhatsApp messages automatically... the moment your customer shows intent. No matter what time it is. No matter what day it is.
+
+Your competitor is already following up at midnight. While you sleep, they're recovering carts.
+
+Set up Wapakee once.
+
+And your store never has dead hours again.
+
+Try it free — wapaci dot com!`,
+    voiceDir: 'slow mysterious opening, build a cinematic late-night feeling, serious and atmospheric, then shift to confident and energizing when revealing the solution, warm closing',
+  },
+  {
+    id: 5, filename: 'wapaci-98-percent-club',
+    title: '98% Club — Open Rate Shock',
+    tag: 'Problem-Centric', tagColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    accent: '#f59e0b',
+    defaultScript: `You sent that email last week.
+
+Spent two hours writing it. Got your designer to make it beautiful. Hit send to fifteen thousand customers.
+
+How many opened it?
+
+Three hundred. Maybe four hundred.
+
+That's two percent.
+
+Two percent of the people you worked so hard to reach... actually saw your message.
+
+Now here's what happens when Wapakee sends a WhatsApp instead.
+
+Ninety. Eight. Percent.
+
+Fourteen thousand seven hundred people. Reading your message. In under three minutes.
+
+That is forty-nine times more reach. For the same effort.
+
+The same customers. The same message. Forty-nine times the impact.
+
+WhatsApp is where India shops.
+
+Join the ninety-eight percent club.
+
+Start free at wapaci dot com!`,
+    voiceDir: 'conversational and relatable opening, pause hard after the two percent reveal, then build to absolute amazement at the ninety-eight percent stat, upbeat and motivating close',
+  },
+  {
+    id: 6, filename: 'wapaci-cod-recovery',
+    title: 'COD Recovery — Stop the Returns',
+    tag: 'Problem-Centric', tagColor: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    accent: '#f97316',
+    defaultScript: `Every time a fake COD order ships...
+
+You pay for packaging. You pay for the courier. You pay for return logistics. And the product comes back damaged, unsellable.
+
+One fake COD doesn't hurt much.
+
+But fifty a month? A hundred? It's quietly killing your margins.
+
+Wapakee stops fake COD orders before they ship.
+
+The moment a COD order is placed... Wapakee sends the customer a WhatsApp confirmation.
+
+One tap to confirm. One tap to cancel.
+
+No confirmation? Wapakee follows up automatically. Twice. Three times.
+
+Only confirmed orders leave your warehouse.
+
+Your RTO rate drops. Your team stops wasting hours. Your margins recover.
+
+Stop shipping to people who never intended to buy.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'sharp and direct, urgent pacing on the pain points, matter-of-fact businesslike tone, confident and decisive when presenting the solution, punchy close',
+  },
+  {
+    id: 7, filename: 'wapaci-ghost-customers',
+    title: 'Ghost Customers — They Were There',
+    tag: 'Problem-Centric', tagColor: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    accent: '#a855f7',
+    defaultScript: `They visited your store. They browsed three products. They even added one to the cart.
+
+And then... they vanished.
+
+No purchase. No message. Nothing.
+
+These aren't lost customers. These are ghost customers.
+
+They were interested. They just needed one more nudge.
+
+But you never gave it to them because you had no way to reach them.
+
+Until Wapakee.
+
+The moment a customer ghosts your cart... Wapakee appears in their WhatsApp. With the exact product they left behind. With a personalized message. With just enough reason to come back.
+
+Ghosts don't buy. Engaged customers do.
+
+Turn your ghost customers into real revenue.
+
+Try Wapakee free today — wapaci dot com!`,
+    voiceDir: 'playful and slightly mysterious opening, build intrigue around the ghost metaphor, then shift to warm and confident for the solution reveal, energetic and fun close',
+  },
+  {
+    id: 8, filename: 'wapaci-leaky-bucket',
+    title: 'Leaky Bucket — Plug the Revenue Holes',
+    tag: 'Problem-Centric', tagColor: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    accent: '#3b82f6',
+    defaultScript: `Imagine filling a bucket with water...
+
+But the bucket has holes in the bottom.
+
+That's your e-commerce store right now.
+
+Money flows in from your ads. From your SEO. From your influencers.
+
+And it leaks out through abandoned carts. Unconfirmed COD orders. Customers who ordered once... and never came back.
+
+You're spending more and more to fill a leaky bucket.
+
+Wapakee plugs the holes.
+
+Cart abandonment? Automatic WhatsApp follow-up.
+
+COD fraud? Confirmation message before it ships.
+
+One-time buyers? Win-back campaigns that bring them back.
+
+Stop pouring money into a leaky funnel.
+
+Plug the holes. Keep the revenue.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'calm and analytical opening with the bucket metaphor, slow build as the problems are listed, then energetic and solution-focused, confident closing with a sense of relief',
+  },
+  {
+    id: 9, filename: 'wapaci-flash-sale-blast',
+    title: 'Flash Sale Blast — Sell Out in Minutes',
+    tag: 'Solution-Centric', tagColor: 'bg-red-500/20 text-red-400 border-red-500/30',
+    accent: '#ef4444',
+    defaultScript: `You have a flash sale starting in two hours.
+
+How do you tell twenty thousand customers?
+
+Email? Half of them won't see it for three days.
+
+Instagram? Your algorithm reach is maybe five percent.
+
+SMS? Most people don't even open promotional texts anymore.
+
+WhatsApp?
+
+Ninety-eight percent open rate. Read in under three minutes.
+
+Wapakee broadcasts your flash sale to every customer... at exactly the moment you choose. With a personalized message. With a direct link to your store.
+
+Twenty thousand messages. Delivered. Read. Acted on.
+
+Your competitors are selling out in minutes while you're still waiting for your email to land.
+
+Don't run another flash sale without Wapakee.
+
+Try it free — wapaci dot com!`,
+    voiceDir: 'fast and urgent opening, build excitement and energy throughout, make each channel comparison land with increasing impact, explosive and enthusiastic for the WhatsApp reveal, rally-cry close',
+  },
+  {
+    id: 10, filename: 'wapaci-order-delight',
+    title: 'Order Delight — Every Step Counts',
+    tag: 'Solution-Centric', tagColor: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
+    accent: '#14b8a6',
+    defaultScript: `Order confirmed.
+
+Packed and dispatched.
+
+Out for delivery.
+
+Delivered.
+
+Four messages. That's all it takes to turn a nervous customer into a loyal fan.
+
+Most D2C brands give customers... nothing. No updates. No tracking messages. Just silence until a package appears at the door.
+
+And customers hate that silence.
+
+Wapakee sends every order update directly to WhatsApp. In real time. Automatically.
+
+Customers know exactly where their order is. They feel taken care of. They trust your brand more.
+
+And that trust? It turns first-time buyers into repeat customers.
+
+Delight your customers at every step.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'warm and deliberate opening reading out the order stages, conversational and empathetic through the pain point, then warm and reassuring for the solution, genuine and caring close',
+  },
+  {
+    id: 11, filename: 'wapaci-win-back',
+    title: 'Win-Back — They Chose You Once',
+    tag: 'Solution-Centric', tagColor: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+    accent: '#06b6d4',
+    defaultScript: `Somewhere in your customer list... there are people who loved your product.
+
+They bought once. They left a good review. They even told a friend.
+
+And then... they disappeared.
+
+Not because they stopped liking you. Life got busy. They forgot. No one reminded them you existed.
+
+These are your easiest customers to win back.
+
+Wapakee identifies customers who haven't bought in sixty, ninety, or a hundred and twenty days... and automatically reaches out on WhatsApp with a personalized message.
+
+A gentle nudge. A special offer. A reminder of why they chose you.
+
+Thirty percent of win-back messages result in a repurchase.
+
+The sale is already there. You just have to show up.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'nostalgic and warm opening, slightly melancholic but hopeful, build emotional connection, then shift to confident and optimistic for the solution, heartfelt and genuine close',
+  },
+  {
+    id: 12, filename: 'wapaci-testimonial-wall',
+    title: 'Testimonial Wall — Let Customers Sell',
+    tag: 'Solution-Centric', tagColor: 'bg-green-500/20 text-green-400 border-green-500/30',
+    accent: '#22c55e',
+    defaultScript: `Your best salesperson isn't on your team.
+
+It's your happiest customer.
+
+But how do you get them to speak up?
+
+Most brands send a review email. It goes to spam. Open rate? Two percent.
+
+Wapakee sends a review request on WhatsApp... the day after delivery, when the excitement is still fresh.
+
+Ninety-eight percent open rate. Customers actually respond.
+
+And here's the magic.
+
+Happy customers write five-star reviews. They share photos. They send voice notes.
+
+Wapakee collects it all. Automatically.
+
+Your testimonials grow on autopilot. Your social proof stacks up. New customers trust your brand before they've even met you.
+
+Let your happiest customers do the selling.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'warm and conversational, like sharing a secret, build curiosity and contrast with the old way, then enthusiastic and bright for the WhatsApp reveal, empowering and uplifting close',
+  },
+  {
+    id: 13, filename: 'wapaci-automation-stack',
+    title: 'Automation Stack — Set It, Forget It',
+    tag: 'Solution-Centric', tagColor: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+    accent: '#6366f1',
+    defaultScript: `What if your entire WhatsApp marketing stack ran... on its own?
+
+No manual messages. No copy-pasting. No team sitting at midnight sending follow-ups.
+
+Just flows that work around the clock.
+
+Customer abandons cart? Automated message.
+
+COD order needs confirmation? Automated message.
+
+Order ships? Automated update.
+
+Customer goes quiet for sixty days? Automated win-back.
+
+Flash sale tomorrow? Schedule it once. It sends to everyone.
+
+Wapakee is the automation layer your D2C brand has been missing.
+
+One platform. Every flow. Running twenty-four-seven.
+
+Set up your first automation in ten minutes.
+
+Your competitors built this stack six months ago.
+
+Don't wait any longer.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'calm and confident, like a knowledgeable expert revealing a system, crisp and rhythmic pacing as you list the flows, build momentum, then compelling and authoritative close',
+  },
+  {
+    id: 14, filename: 'wapaci-crore-club',
+    title: '₹1 Crore Club — Join Them',
+    tag: 'Solution-Centric', tagColor: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    accent: '#eab308',
+    defaultScript: `Fifty-three Indian D2C brands crossed one crore rupees in monthly revenue last quarter.
+
+What did they have in common?
+
+None of them relied on email.
+
+None of them were praying for Instagram reach.
+
+Every single one had WhatsApp automation running in the background. Recovering carts. Confirming COD orders. Sending review requests. Running flash sales.
+
+While their owners slept... Wapakee worked.
+
+That's the difference between a five lakh a month brand and a one crore a month brand.
+
+Not better products. Not bigger ad budgets.
+
+Better WhatsApp automation.
+
+Your next crore is already in your customer list.
+
+Wapakee helps you collect it.
+
+Try it free today — wapaci dot com!`,
+    voiceDir: 'authoritative and impressive opening, build with conviction, make the contrast between email and WhatsApp feel decisive, triumphant and aspirational close that feels achievable',
+  },
+  {
+    id: 15, filename: 'wapaci-competitors-secret',
+    title: "Competitor's Secret — They Know Something",
+    tag: 'Problem-Centric', tagColor: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
+    accent: '#f43f5e',
+    defaultScript: `Your competitor launched the same product as you... six months ago.
+
+Same price. Same quality. Same target audience.
+
+They're now doing ten times your revenue.
+
+You've been trying to figure out why.
+
+Here's their secret.
+
+While you were sending emails nobody opened... they were sending WhatsApp messages with a ninety-eight percent open rate.
+
+While you were manually following up with cart abandoners... they had Wapakee doing it automatically at the right time.
+
+While you were losing COD orders to fraud... they were confirming every order before shipping.
+
+The product isn't the difference. The channel is.
+
+Your competitor found Wapakee before you did.
+
+Don't let them stay ahead.
+
+Try Wapakee free today — wapaci dot com!`,
+    voiceDir: 'mysterious and intriguing opening that creates tension, build suspense and curiosity, then reveal with confident insider energy, urgent and slightly competitive close',
+  },
+  {
+    id: 16, filename: 'wapaci-broadcast-power',
+    title: 'Broadcast Power — Reach Everyone at Once',
+    tag: 'Solution-Centric', tagColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    accent: '#10b981',
+    defaultScript: `You built a customer list of thirty thousand people.
+
+That list is worth crores.
+
+But are you using it?
+
+Most brands barely touch their customer list. The occasional email blast. A weak SMS campaign. And hope for the best.
+
+Wapakee lets you broadcast directly to WhatsApp.
+
+Personalized messages. Right name. Right product. Right timing.
+
+Thirty thousand messages sent. Twenty-nine thousand opened. Within three minutes.
+
+No other channel gives you that.
+
+New product launch? Broadcast it.
+
+Flash sale in two hours? Broadcast it.
+
+Seasonal offer? Broadcast it.
+
+Your customer list is your most valuable asset.
+
+Wapakee helps you unlock it.
+
+Try it free — wapaci dot com!`,
+    voiceDir: 'confident and business-focused, build the value of the customer list, then excited and emphatic on the WhatsApp open rates, rhythmic and energetic through the broadcast examples, powerful close',
+  },
+  {
+    id: 17, filename: 'wapaci-ten-minute-setup',
+    title: 'Ten Minute Setup — Running Today',
+    tag: 'Solution-Centric', tagColor: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+    accent: '#0ea5e9',
+    defaultScript: `How long does it take to set up WhatsApp automation for your store?
+
+Most brands think... months. Custom dev. API integrations. A tech team.
+
+With Wapakee?
+
+Ten minutes.
+
+Minute one: connect your store.
+
+Minute three: pick your automations.
+
+Minute seven: customize your messages.
+
+Minute ten: go live.
+
+No coding. No developers. No meetings.
+
+From zero to fully automated WhatsApp marketing... in ten minutes.
+
+Cart recovery? Running.
+
+COD confirmation? Running.
+
+Order updates? Running.
+
+Win-back flows? Running.
+
+Your entire retention engine. Live. Today.
+
+Not next month. Not after you hire someone.
+
+Today.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'energetic and upbeat from the start, crisp and satisfying rhythm through the minute-by-minute breakdown, build genuine excitement, powerful and motivating close with emphasis on today',
+  },
+  {
+    id: 18, filename: 'wapaci-emoji-reactions',
+    title: 'Emoji Reactions — Messages They Love',
+    tag: 'Solution-Centric', tagColor: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
+    accent: '#ec4899',
+    defaultScript: `What's the difference between a message people ignore... and one they actually love?
+
+Personality.
+
+Most brand messages are cold. Corporate. Boring.
+
+Your customer ordered a birthday dress. Your WhatsApp message says: "Order confirmed. Expected delivery four to five business days."
+
+That's not a brand. That's a machine.
+
+Wapakee lets you write messages that feel human. With warmth. With excitement. With the energy of a brand that actually cares.
+
+"Your birthday dress is on its way! Can't wait for you to wear it!"
+
+Same information. Completely different feeling.
+
+Customers screenshot messages like that. They share them. They remember your brand.
+
+Messages that feel human... create customers who feel loyal.
+
+Try Wapakee free — wapaci dot com!`,
+    voiceDir: 'warm and personable from the first word, playful contrast between cold and warm messaging, genuinely excited and enthusiastic for the good example message, genuine and heartfelt close',
+  },
+  {
+    id: 19, filename: 'wapaci-the-proof',
+    title: 'The Proof — Numbers Don\'t Lie',
+    tag: 'Solution-Centric', tagColor: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+    accent: '#64748b',
+    defaultScript: `Let's skip the pitch. Here are the numbers.
+
+WhatsApp open rate? Ninety-eight percent.
+
+Email open rate? Two percent.
+
+WhatsApp read time? Under three minutes.
+
+Email read time? If it's ever opened... hours later.
+
+Cart recovery rate with Wapakee? Twenty-eight percent of abandoned carts recovered.
+
+Cart recovery rate without it? Zero.
+
+COD confirmation rate? Sixty-seven percent of unconfirmed orders confirm after a WhatsApp message.
+
+Win-back campaign response rate? Thirty percent of lapsed customers repurchase.
+
+These aren't projections. These are averages across Indian D2C brands using Wapakee today.
+
+The math is simple. The setup is ten minutes. The results are real.
+
+Start your free trial at wapaci dot com.`,
+    voiceDir: 'confident and measured, let each stat land with weight and a brief pause, speak like someone presenting undeniable evidence, serious and credible throughout, matter-of-fact but compelling close',
+  },
+  {
+    id: 20, filename: 'wapaci-revenue-rocket',
+    title: 'Revenue Rocket — Blast Off',
+    tag: 'Solution-Centric', tagColor: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
+    accent: '#8b5cf6',
+    defaultScript: `Every rocket needs three things.
+
+Fuel. Direction. Ignition.
+
+Your D2C brand already has fuel. Your products. Your customers. Your ambition.
+
+Direction? WhatsApp. The channel ninety-eight percent of India checks every single day.
+
+Ignition? That's Wapakee.
+
+Wapakee connects your store to WhatsApp automation in ten minutes. Cart recovery. COD confirmation. Order updates. Win-back campaigns. Flash sale broadcasts.
+
+Everything fires automatically. Everything runs on rocket fuel.
+
+Brands using Wapakee see two to four times the revenue from their existing customer base. No extra ad spend. Just better automation.
+
+Your rocket is on the launchpad.
+
+The countdown has started.
+
+Ignite your revenue with Wapakee.
+
+Try it free — wapaci dot com!`,
+    voiceDir: 'cinematic and epic from the first word, deliberate and weighty on the three things, build momentum and energy steadily, reach a thrilling peak at the launch metaphor, triumphant and inspiring close',
   },
   {
     id: 21, filename: 'wapaci-warm-cart',
