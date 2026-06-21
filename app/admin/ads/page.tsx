@@ -378,17 +378,19 @@ function pad(audioCtx: AudioContext, master: GainNode, freqs: number[], wave: Os
   } catch {} })
 }
 
-function arpNote(audioCtx: AudioContext, master: GainNode, freqs: number[], ms: number, wave: OscillatorType, gain: number, delay = 0) {
-  let i = 0; const max = Math.floor((DUR - delay) * 1000 / ms)
-  const step = () => { if (i >= max || audioCtx.state === 'closed') return; try {
-    const osc = audioCtx.createOscillator(); osc.type = wave; osc.frequency.value = freqs[i % freqs.length]
-    const g = audioCtx.createGain()
-    g.gain.setValueAtTime(gain, audioCtx.currentTime)
-    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms / 1000 * .75)
-    osc.connect(g); g.connect(master); osc.start(); osc.stop(audioCtx.currentTime + ms / 1000)
-    i++; setTimeout(step, ms)
-  } catch {} }
-  setTimeout(step, delay * 1000)
+function arpNote(audioCtx: AudioContext | OfflineAudioContext, master: GainNode, freqs: number[], ms: number, wave: OscillatorType, gain: number, delay = 0) {
+  const count = Math.floor((DUR - delay) * 1000 / ms)
+  for (let i = 0; i < count; i++) {
+    const at = audioCtx.currentTime + delay + i * (ms / 1000)
+    if (at >= audioCtx.currentTime + DUR) break
+    try {
+      const osc = audioCtx.createOscillator(); osc.type = wave; osc.frequency.value = freqs[i % freqs.length]
+      const g = audioCtx.createGain()
+      g.gain.setValueAtTime(gain, at)
+      g.gain.exponentialRampToValueAtTime(0.0001, at + ms / 1000 * 0.75)
+      osc.connect(g); g.connect(master); osc.start(at); osc.stop(at + ms / 1000 + 0.05)
+    } catch {}
+  }
 }
 
 function tone(audioCtx: AudioContext, master: GainNode, at: number, freq: number, dur: number, gain: number, wave: OscillatorType = 'sine', endFreq?: number) {
@@ -2670,97 +2672,169 @@ export default function AdminAdsPage() {
     }
   }
 
-  /* ── Canvas + Web Audio recording — no modal, no screen share ── */
+  /* ── WebCodecs fast encoder — renders all frames offline, no real-time wait ── */
+  async function fastEncode(
+    recordCanvas: HTMLCanvasElement,
+    renderer: (ctx: CanvasRenderingContext2D, t: number) => void,
+    adId: number,
+    audioBlob: Blob | null,
+    filename: string,
+    onProgress: (secondsLeft: number) => void,
+  ): Promise<void> {
+    const SR = 48000, CH = 2, FPS = 30, TOTAL_FRAMES = DUR * FPS
+
+    // ── Audio: render with OfflineAudioContext (near-instant) ──
+    const offCtx = new OfflineAudioContext(CH, Math.ceil(SR * DUR), SR)
+    const offMaster = offCtx.createGain(); offMaster.gain.value = 0.9
+    offMaster.connect(offCtx.destination)
+
+    if (audioBlob) {
+      try {
+        const buf = await offCtx.decodeAudioData(await audioBlob.arrayBuffer())
+        const src = offCtx.createBufferSource(); src.buffer = buf
+        const vg  = offCtx.createGain(); vg.gain.value = 1.15
+        src.connect(vg); vg.connect(offMaster); src.start(0.15)
+      } catch (e) { console.warn('audio decode:', e) }
+    }
+    scheduleAdAudio(offCtx as unknown as AudioContext, offMaster as unknown as GainNode, adId)
+    const rendered = await offCtx.startRendering()
+
+    // ── Set up mp4-muxer ──
+    const { Muxer, ArrayBufferTarget } = await import('mp4-muxer')
+    const target = new ArrayBufferTarget()
+    const muxer  = new Muxer({
+      target,
+      video: { codec: 'avc', width: W, height: H },
+      audio: { codec: 'aac', sampleRate: SR, numberOfChannels: CH },
+      firstTimestampBehavior: 'offset',
+      fastStart: 'in-memory',
+    })
+
+    // ── VideoEncoder (H.264, 30 Mbps for top quality) ──
+    const vEnc = new VideoEncoder({
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta!),
+      error:  e => { throw e },
+    })
+    vEnc.configure({ codec: 'avc1.4D0028', width: W, height: H, bitrate: 30_000_000, framerate: FPS })
+
+    // ── AudioEncoder (AAC, 320 kbps) ──
+    const aEnc = new AudioEncoder({
+      output: (chunk, meta) => muxer.addAudioChunk(chunk, meta!),
+      error:  e => { throw e },
+    })
+    aEnc.configure({ codec: 'mp4a.40.2', sampleRate: SR, numberOfChannels: CH, bitrate: 320_000 })
+
+    // ── Encode video frames as fast as possible ──
+    const rCtx = recordCanvas.getContext('2d')!
+    for (let i = 0; i <= TOTAL_FRAMES; i++) {
+      renderer(rCtx, i / FPS)
+      const vf = new VideoFrame(recordCanvas, {
+        timestamp: Math.round((i / FPS) * 1_000_000),
+        duration:  Math.round(1_000_000 / FPS),
+      })
+      vEnc.encode(vf, { keyFrame: i % (FPS * 3) === 0 })
+      vf.close()
+
+      // Yield every 15 frames to update UI and let encoder drain
+      if (i % 15 === 0) {
+        onProgress(Math.ceil((TOTAL_FRAMES - i) / FPS))
+        await new Promise<void>(r => setTimeout(r, 0))
+      }
+    }
+    await vEnc.flush()
+
+    // ── Encode audio (f32-planar from OfflineAudioContext) ──
+    const L = rendered.getChannelData(0)
+    const R = rendered.numberOfChannels > 1 ? rendered.getChannelData(1) : L
+    const planar = new Float32Array(L.length + R.length)
+    planar.set(L, 0); planar.set(R, L.length)
+    const ad = new AudioData({
+      format: 'f32-planar', sampleRate: SR, numberOfFrames: rendered.length,
+      numberOfChannels: CH, timestamp: 0, data: planar,
+    })
+    aEnc.encode(ad); ad.close()
+    await aEnc.flush()
+
+    // ── Finalize and download ──
+    muxer.finalize()
+    const url = URL.createObjectURL(new Blob([target.buffer], { type: 'video/mp4' }))
+    const a   = document.createElement('a')
+    a.href = url; a.download = `${filename}.mp4`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 15_000)
+  }
+
+  /* ── Download MP4 — fast WebCodecs path, MediaRecorder fallback ── */
   const downloadVideo = useCallback(async (ad: typeof ADS[0]) => {
-    if (dl.adId !== null) return // already encoding something
-
-    // Offscreen 1080×1080 canvas — always mounted, never in the DOM visible flow
+    if (dl.adId !== null) return
     const recordCanvas = recordRefs.current[ad.id]
-    if (!recordCanvas) { alert('Canvas not ready — please refresh and try again.'); return }
+    if (!recordCanvas) { alert('Canvas not ready — please refresh.'); return }
 
+    setDl({ adId: ad.id, secondsLeft: DUR, done: false })
     const v = voices[ad.id]
-    setDl({ adId: ad.id, secondsLeft: 30, done: false })
-    chunksRef.current = []
 
-    /* ── Web Audio ── */
+    if (typeof VideoEncoder !== 'undefined') {
+      // ── Fast path: WebCodecs ──
+      try {
+        await fastEncode(
+          recordCanvas, RENDERERS[ad.id], ad.id,
+          v.audioBlob ?? null, ad.filename,
+          sl => setDl(d => ({ ...d, secondsLeft: sl })),
+        )
+        setDl({ adId: null, secondsLeft: DUR, done: true })
+        setTimeout(() => setDl(d => ({ ...d, done: false })), 5000)
+      } catch (e) {
+        console.error('fast encode failed, retrying with MediaRecorder:', e)
+        setDl({ adId: null, secondsLeft: DUR, done: false })
+      }
+      return
+    }
+
+    // ── Slow fallback: MediaRecorder (real-time, 30s) ──
+    chunksRef.current = []
     const audioCtx  = new AudioContext()
     const audioDest = audioCtx.createMediaStreamDestination()
     const master    = audioCtx.createGain(); master.gain.value = 0.9
     master.connect(audioDest); master.connect(audioCtx.destination)
-
     if (v.audioBlob) {
       try {
         const buf = await audioCtx.decodeAudioData(await v.audioBlob.arrayBuffer())
         const src = audioCtx.createBufferSource(); src.buffer = buf
         const vg  = audioCtx.createGain(); vg.gain.value = 1.15
-        src.connect(vg); vg.connect(master)
-        src.start(audioCtx.currentTime + 0.15)
+        src.connect(vg); vg.connect(master); src.start(audioCtx.currentTime + 0.15)
       } catch (e) { console.warn('voiceover decode:', e) }
     }
-
     scheduleAdAudio(audioCtx, master, ad.id)
-
-    /* ── MediaRecorder from offscreen canvas stream ── */
-    const videoStream = recordCanvas.captureStream(30)
-    const combined    = new MediaStream([
-      ...videoStream.getVideoTracks(),
+    const combined = new MediaStream([
+      ...recordCanvas.captureStream(30).getVideoTracks(),
       ...audioDest.stream.getAudioTracks(),
     ])
-
-    // Best codec order: H.264 mp4 (sharpest on mobile) → VP9 webm → plain webm
-    const mime = [
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
-      'video/webm',
-    ].find(m => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
-
-    const recorder = new MediaRecorder(combined, {
-      mimeType: mime,
-      videoBitsPerSecond: 20_000_000, // 20 Mbps → sharp 1080p on phone
-    })
+    const mime = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(m => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
+    const recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 20_000_000 })
     recMrRef.current = recorder
     recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-
     recorder.onstop = () => {
       audioCtx.close()
       if (timerRef.current) clearInterval(timerRef.current)
       cancelAnimationFrame(rafRef.current)
-
-      // Build blob and trigger browser download — no tab opens
       const blob = new Blob(chunksRef.current, { type: mime })
       const url  = URL.createObjectURL(blob)
-      const ext  = mime.includes('mp4') ? 'mp4' : 'webm'
       const a    = document.createElement('a')
-      a.href = url; a.download = `${ad.filename}.${ext}`
+      a.href = url; a.download = `${ad.filename}.${mime.includes('mp4') ? 'mp4' : 'webm'}`
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
-
-      setDl({ adId: null, secondsLeft: 30, done: true })
+      setDl({ adId: null, secondsLeft: DUR, done: true })
       setTimeout(() => setDl(d => ({ ...d, done: false })), 5000)
     }
-
-    recorder.start(100) // collect a chunk every 100 ms
-
-    // Countdown timer — drives the inline progress in the button
+    recorder.start(100)
     let secs = DUR
     timerRef.current = setInterval(() => {
-      secs--
-      setDl(d => ({ ...d, secondsLeft: secs }))
+      secs--; setDl(d => ({ ...d, secondsLeft: secs }))
       if (secs <= 0) { clearInterval(timerRef.current!); recorder.stop() }
     }, 1000)
-
-    // Frame loop — renders to the offscreen canvas (captureStream picks it up automatically)
-    const renderer = RENDERERS[ad.id]
-    const rCtx     = recordCanvas.getContext('2d')!
-    const startMs  = performance.now()
-
-    function frame() {
-      const t = (performance.now() - startMs) / 1000
-      renderer(rCtx, t)
-      if (t < DUR + 0.5) rafRef.current = requestAnimationFrame(frame)
-    }
-    rafRef.current = requestAnimationFrame(frame)
+    const rCtx = recordCanvas.getContext('2d')!; const s = performance.now()
+    const loop = () => { const t = (performance.now() - s) / 1000; RENDERERS[ad.id](rCtx, t); if (t < DUR + 0.5) rafRef.current = requestAnimationFrame(loop) }
+    rafRef.current = requestAnimationFrame(loop)
   }, [voices, dl.adId])
 
   function cancelDl() {
@@ -2811,77 +2885,20 @@ export default function AdminAdsPage() {
       return
     }
 
-    // ── Phase 2: encode video with expert audio ──
+    // ── Phase 2: encode video with expert audio (fast WebCodecs path) ──
     setExpertDl({ adId: ad.id, phase: 'encoding', secondsLeft: DUR, error: null })
-    expertChunksRef.current = []
-
-    const audioCtx  = new AudioContext()
-    const audioDest = audioCtx.createMediaStreamDestination()
-    const master    = audioCtx.createGain(); master.gain.value = 0.9
-    master.connect(audioDest); master.connect(audioCtx.destination)
-
-    if (expertAudioBlob) {
-      try {
-        const buf = await audioCtx.decodeAudioData(await expertAudioBlob.arrayBuffer())
-        const src = audioCtx.createBufferSource(); src.buffer = buf
-        const vg  = audioCtx.createGain(); vg.gain.value = 1.15
-        src.connect(vg); vg.connect(master)
-        src.start(audioCtx.currentTime + 0.15)
-      } catch (e) { console.warn('expert voice decode:', e) }
-    }
-
-    scheduleAdAudio(audioCtx, master, ad.id)
-
-    const videoStream = recordCanvas.captureStream(30)
-    const combined    = new MediaStream([
-      ...videoStream.getVideoTracks(),
-      ...audioDest.stream.getAudioTracks(),
-    ])
-
-    const mime = [
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
-      'video/webm',
-    ].find(m => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
-
-    const recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 20_000_000 })
-    expertMrRef.current = recorder
-    recorder.ondataavailable = e => { if (e.data.size > 0) expertChunksRef.current.push(e.data) }
-
-    recorder.onstop = () => {
-      audioCtx.close()
-      if (expertTimerRef.current) clearInterval(expertTimerRef.current)
-      cancelAnimationFrame(expertRafRef.current)
-      const blob = new Blob(expertChunksRef.current, { type: mime })
-      const url  = URL.createObjectURL(blob)
-      const ext  = mime.includes('mp4') ? 'mp4' : 'webm'
-      const a    = document.createElement('a')
-      a.href = url; a.download = `${ad.filename}-expert-voice.${ext}`
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    try {
+      await fastEncode(
+        recordCanvas, RENDERERS[ad.id], ad.id,
+        expertAudioBlob, `${ad.filename}-expert-voice`,
+        sl => setExpertDl(d => ({ ...d, secondsLeft: sl })),
+      )
       setExpertDl({ adId: null, phase: 'done', secondsLeft: DUR, error: null })
       setTimeout(() => setExpertDl(d => ({ ...d, phase: 'idle' })), 5000)
+    } catch (e) {
+      console.error('expert fast encode failed:', e)
+      setExpertDl({ adId: null, phase: 'error', secondsLeft: DUR, error: e instanceof Error ? e.message : 'Encode failed' })
     }
-
-    recorder.start(100)
-
-    let secs = DUR
-    expertTimerRef.current = setInterval(() => {
-      secs--
-      setExpertDl(d => ({ ...d, secondsLeft: secs }))
-      if (secs <= 0) { clearInterval(expertTimerRef.current!); recorder.stop() }
-    }, 1000)
-
-    const renderer = RENDERERS[ad.id]
-    const rCtx     = recordCanvas.getContext('2d')!
-    const startMs  = performance.now()
-    function expertFrame() {
-      const t = (performance.now() - startMs) / 1000
-      renderer(rCtx, t)
-      if (t < DUR + 0.5) expertRafRef.current = requestAnimationFrame(expertFrame)
-    }
-    expertRafRef.current = requestAnimationFrame(expertFrame)
   }, [expertDl.adId, dl.adId])
 
   // Preview animation loop for all cards
@@ -2950,25 +2967,25 @@ export default function AdminAdsPage() {
           {dl.adId !== null && (
             <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
               <Loader2 size={13} className="text-purple-400 animate-spin" />
-              <span className="text-slate-300 text-sm">Encoding… <span className="font-bold tabular-nums text-white">{dl.secondsLeft}s</span></span>
+              <span className="text-slate-300 text-sm">Encoding… <span className="font-bold tabular-nums text-white">{Math.round((DUR - dl.secondsLeft) / DUR * 100)}%</span></span>
               <div className="w-20 bg-white/10 rounded-full h-1">
                 <div className="bg-purple-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - dl.secondsLeft) / DUR) * 100}%` }} />
               </div>
-              <button onClick={cancelDl} className="text-slate-600 hover:text-red-400 text-xs transition">✕</button>
             </div>
           )}
           {expertDl.adId !== null && expertDl.phase !== 'done' && (
             <div className="flex items-center gap-3 bg-pink-500/[0.08] border border-pink-500/20 rounded-xl px-4 py-2">
               <Loader2 size={13} className="text-pink-400 animate-spin" />
               <span className="text-slate-300 text-sm">
-                {expertDl.phase === 'generating' ? 'Generating expert voice…' : <>Encoding… <span className="font-bold tabular-nums text-white">{expertDl.secondsLeft}s</span></>}
+                {expertDl.phase === 'generating'
+                  ? 'Generating expert voice…'
+                  : <>Encoding… <span className="font-bold tabular-nums text-white">{Math.round((DUR - expertDl.secondsLeft) / DUR * 100)}%</span></>}
               </span>
               {expertDl.phase === 'encoding' && (
                 <div className="w-20 bg-white/10 rounded-full h-1">
                   <div className="bg-pink-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - expertDl.secondsLeft) / DUR) * 100}%` }} />
                 </div>
               )}
-              <button onClick={cancelExpertDl} className="text-slate-600 hover:text-red-400 text-xs transition">✕</button>
             </div>
           )}
         </div>
@@ -3034,7 +3051,7 @@ export default function AdminAdsPage() {
                         style={{ backgroundColor: ad.accent + '25', color: ad.accent, border: `1px solid ${ad.accent}50` }}
                       >
                         {isEncoding
-                          ? <><Loader2 size={13} className="animate-spin" /> Encoding {dl.secondsLeft}s…</>
+                          ? <><Loader2 size={13} className="animate-spin" /> Encoding… {Math.round((DUR - dl.secondsLeft) / DUR * 100)}%</>
                           : <><Download size={13} /> {v.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}</>
                         }
                       </button>
@@ -3064,7 +3081,7 @@ export default function AdminAdsPage() {
                         {isExpertActive
                           ? expertDl.phase === 'generating'
                             ? <><Loader2 size={13} className="animate-spin text-pink-400" /> Generating expert voice…</>
-                            : <><Loader2 size={13} className="animate-spin text-pink-400" /> Encoding {expertDl.secondsLeft}s…</>
+                            : <><Loader2 size={13} className="animate-spin text-pink-400" /> Encoding… {Math.round((DUR - expertDl.secondsLeft) / DUR * 100)}%</>
                           : <><Sparkles size={13} className="text-pink-400" /> Download Expert Voice MP4 · Female · English</>
                         }
                       </button>
@@ -3181,7 +3198,7 @@ export default function AdminAdsPage() {
                             className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition"
                           >
                             {isEncoding
-                              ? <><Loader2 size={12} className="animate-spin" /> Encoding {dl.secondsLeft}s…</>
+                              ? <><Loader2 size={12} className="animate-spin" /> Encoding… {Math.round((DUR - dl.secondsLeft) / DUR * 100)}%</>
                               : <><Download size={12} /> Download Video with Voiceover</>
                             }
                           </button>
