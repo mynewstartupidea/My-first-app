@@ -2622,25 +2622,23 @@ export default function AdminAdsPage() {
       error:     null,
     }]))
   )
-  const [dl, setDl] = useState<DlState>({ adId: null, secondsLeft: 30, done: false })
-
-  // Expert voice download state (ads 1–3)
+  // Per-ad download state — each ad tracks its own, so multiple can encode in parallel
+  type AdDlPhase = 'idle' | 'encoding' | 'done'
   type ExpertPhase = 'idle' | 'generating' | 'encoding' | 'done' | 'error'
-  const [expertDl, setExpertDl] = useState<{
-    adId: number | null; phase: ExpertPhase; secondsLeft: number; error: string | null
-  }>({ adId: null, phase: 'idle', secondsLeft: DUR, error: null })
-  const expertMrRef    = useRef<MediaRecorder | null>(null)
-  const expertChunksRef = useRef<Blob[]>([])
-  const expertTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
-  const expertRafRef    = useRef<number>(0)
+  const [adDls,      setAdDls]      = useState<Record<number, { phase: AdDlPhase; pct: number }>>({})
+  const [expertAdDls, setExpertAdDls] = useState<Record<number, { phase: ExpertPhase; pct: number; error: string | null }>>({})
+
+  const getAdDl      = (id: number) => adDls[id]      ?? { phase: 'idle' as AdDlPhase, pct: 0 }
+  const getExpertAdDl = (id: number) => expertAdDls[id] ?? { phase: 'idle' as ExpertPhase, pct: 0, error: null }
+
+  const patchAdDl      = (id: number, p: Partial<{ phase: AdDlPhase; pct: number }>) =>
+    setAdDls(prev => ({ ...prev, [id]: { ...getAdDl(id), ...p } }))
+  const patchExpertAdDl = (id: number, p: Partial<{ phase: ExpertPhase; pct: number; error: string | null }>) =>
+    setExpertAdDls(prev => ({ ...prev, [id]: { ...getExpertAdDl(id), ...p } }))
 
   // Two canvas refs per ad: preview (visible in card) and record (offscreen, always mounted)
   const previewRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
   const recordRefs  = useRef<Record<number, HTMLCanvasElement | null>>({})
-  const recMrRef    = useRef<MediaRecorder | null>(null)
-  const chunksRef   = useRef<Blob[]>([])
-  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null)
-  const rafRef      = useRef<number>(0)
 
   function setVo(id: number, patch: Partial<VoiceState>) {
     setVoices(p => ({ ...p, [id]: { ...p[id], ...patch } }))
@@ -2679,7 +2677,7 @@ export default function AdminAdsPage() {
     adId: number,
     audioBlob: Blob | null,
     filename: string,
-    onProgress: (secondsLeft: number) => void,
+    onProgress: (pct: number) => void,
   ): Promise<void> {
     const SR = 48000, CH = 2, FPS = 30, TOTAL_FRAMES = DUR * FPS
 
@@ -2735,9 +2733,9 @@ export default function AdminAdsPage() {
       vEnc.encode(vf, { keyFrame: i % (FPS * 3) === 0 })
       vf.close()
 
-      // Yield every 15 frames to update UI and let encoder drain
-      if (i % 15 === 0) {
-        onProgress(Math.ceil((TOTAL_FRAMES - i) / FPS))
+      // Yield every 45 frames — keeps UI responsive without heavy task overhead
+      if (i % 45 === 0) {
+        onProgress(Math.round((i / TOTAL_FRAMES) * 100))
         await new Promise<void>(r => setTimeout(r, 0))
       }
     }
@@ -2764,142 +2762,69 @@ export default function AdminAdsPage() {
     setTimeout(() => URL.revokeObjectURL(url), 15_000)
   }
 
-  /* ── Download MP4 — fast WebCodecs path, MediaRecorder fallback ── */
+  /* ── Download MP4 — each ad is independent, multiple can run in parallel ── */
   const downloadVideo = useCallback(async (ad: typeof ADS[0]) => {
-    if (dl.adId !== null) return
+    if (getAdDl(ad.id).phase === 'encoding') return // this specific ad is already encoding
     const recordCanvas = recordRefs.current[ad.id]
     if (!recordCanvas) { alert('Canvas not ready — please refresh.'); return }
 
-    setDl({ adId: ad.id, secondsLeft: DUR, done: false })
-    const v = voices[ad.id]
-
-    if (typeof VideoEncoder !== 'undefined') {
-      // ── Fast path: WebCodecs ──
-      try {
-        await fastEncode(
-          recordCanvas, RENDERERS[ad.id], ad.id,
-          v.audioBlob ?? null, ad.filename,
-          sl => setDl(d => ({ ...d, secondsLeft: sl })),
-        )
-        setDl({ adId: null, secondsLeft: DUR, done: true })
-        setTimeout(() => setDl(d => ({ ...d, done: false })), 5000)
-      } catch (e) {
-        console.error('fast encode failed, retrying with MediaRecorder:', e)
-        setDl({ adId: null, secondsLeft: DUR, done: false })
-      }
-      return
+    patchAdDl(ad.id, { phase: 'encoding', pct: 0 })
+    try {
+      await fastEncode(
+        recordCanvas, RENDERERS[ad.id], ad.id,
+        voices[ad.id]?.audioBlob ?? null, ad.filename,
+        pct => patchAdDl(ad.id, { pct }),
+      )
+      patchAdDl(ad.id, { phase: 'done', pct: 100 })
+      setTimeout(() => patchAdDl(ad.id, { phase: 'idle', pct: 0 }), 4000)
+    } catch (e) {
+      console.error('encode failed:', e)
+      patchAdDl(ad.id, { phase: 'idle', pct: 0 })
     }
+  }, [voices, adDls])
 
-    // ── Slow fallback: MediaRecorder (real-time, 30s) ──
-    chunksRef.current = []
-    const audioCtx  = new AudioContext()
-    const audioDest = audioCtx.createMediaStreamDestination()
-    const master    = audioCtx.createGain(); master.gain.value = 0.9
-    master.connect(audioDest); master.connect(audioCtx.destination)
-    if (v.audioBlob) {
-      try {
-        const buf = await audioCtx.decodeAudioData(await v.audioBlob.arrayBuffer())
-        const src = audioCtx.createBufferSource(); src.buffer = buf
-        const vg  = audioCtx.createGain(); vg.gain.value = 1.15
-        src.connect(vg); vg.connect(master); src.start(audioCtx.currentTime + 0.15)
-      } catch (e) { console.warn('voiceover decode:', e) }
-    }
-    scheduleAdAudio(audioCtx, master, ad.id)
-    const combined = new MediaStream([
-      ...recordCanvas.captureStream(30).getVideoTracks(),
-      ...audioDest.stream.getAudioTracks(),
-    ])
-    const mime = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(m => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
-    const recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 20_000_000 })
-    recMrRef.current = recorder
-    recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-    recorder.onstop = () => {
-      audioCtx.close()
-      if (timerRef.current) clearInterval(timerRef.current)
-      cancelAnimationFrame(rafRef.current)
-      const blob = new Blob(chunksRef.current, { type: mime })
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a')
-      a.href = url; a.download = `${ad.filename}.${mime.includes('mp4') ? 'mp4' : 'webm'}`
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      setDl({ adId: null, secondsLeft: DUR, done: true })
-      setTimeout(() => setDl(d => ({ ...d, done: false })), 5000)
-    }
-    recorder.start(100)
-    let secs = DUR
-    timerRef.current = setInterval(() => {
-      secs--; setDl(d => ({ ...d, secondsLeft: secs }))
-      if (secs <= 0) { clearInterval(timerRef.current!); recorder.stop() }
-    }, 1000)
-    const rCtx = recordCanvas.getContext('2d')!; const s = performance.now()
-    const loop = () => { const t = (performance.now() - s) / 1000; RENDERERS[ad.id](rCtx, t); if (t < DUR + 0.5) rafRef.current = requestAnimationFrame(loop) }
-    rafRef.current = requestAnimationFrame(loop)
-  }, [voices, dl.adId])
-
-  function cancelDl() {
-    if (recMrRef.current?.state !== 'inactive') recMrRef.current?.stop()
-    cancelAnimationFrame(rafRef.current)
-    if (timerRef.current) clearInterval(timerRef.current)
-    setDl({ adId: null, secondsLeft: 30, done: false })
-  }
-
-  function cancelExpertDl() {
-    if (expertMrRef.current?.state !== 'inactive') expertMrRef.current?.stop()
-    cancelAnimationFrame(expertRafRef.current)
-    if (expertTimerRef.current) clearInterval(expertTimerRef.current)
-    setExpertDl({ adId: null, phase: 'idle', secondsLeft: DUR, error: null })
-  }
-
-  /* ── Expert Voice Download — generates female EN voice then encodes video ── */
+  /* ── Expert Voice Download — independent per ad ── */
   const downloadWithExpertVoice = useCallback(async (ad: typeof ADS[0] & { expertScript?: string; expertVoiceDir?: string }) => {
-    if (expertDl.adId !== null || dl.adId !== null) return
+    if (getExpertAdDl(ad.id).phase !== 'idle') return
     if (!ad.expertScript) return
-
     const recordCanvas = recordRefs.current[ad.id]
     if (!recordCanvas) { alert('Canvas not ready — please refresh.'); return }
 
-    // ── Phase 1: generate expert voice ──
-    setExpertDl({ adId: ad.id, phase: 'generating', secondsLeft: DUR, error: null })
+    // Phase 1: generate voice
+    patchExpertAdDl(ad.id, { phase: 'generating', pct: 0, error: null })
     let expertAudioBlob: Blob | null = null
     try {
-      const genderPart = 'warm clear Indian female voice speaking only in English'
-      const description = [genderPart, ad.expertVoiceDir ?? ''].filter(Boolean).join(', ')
       const res = await fetch('/api/voiceover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'mulberry',
           text: stripToneTags(ad.expertScript),
-          description,
+          description: ['warm clear Indian female voice speaking only in English', ad.expertVoiceDir ?? ''].filter(Boolean).join(', '),
           language: 'en',
         }),
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'API error' }))
-        throw new Error(err.error ?? 'Voice generation failed')
-      }
+      if (!res.ok) { const err = await res.json().catch(() => ({ error: 'API error' })); throw new Error(err.error ?? 'Failed') }
       expertAudioBlob = await res.blob()
     } catch (e: unknown) {
-      setExpertDl({ adId: null, phase: 'error', secondsLeft: DUR, error: e instanceof Error ? e.message : 'Error' })
+      patchExpertAdDl(ad.id, { phase: 'error', error: e instanceof Error ? e.message : 'Error' })
       return
     }
 
-    // ── Phase 2: encode video with expert audio (fast WebCodecs path) ──
-    setExpertDl({ adId: ad.id, phase: 'encoding', secondsLeft: DUR, error: null })
+    // Phase 2: encode video
+    patchExpertAdDl(ad.id, { phase: 'encoding', pct: 0 })
     try {
       await fastEncode(
         recordCanvas, RENDERERS[ad.id], ad.id,
         expertAudioBlob, `${ad.filename}-expert-voice`,
-        sl => setExpertDl(d => ({ ...d, secondsLeft: sl })),
+        pct => patchExpertAdDl(ad.id, { pct }),
       )
-      setExpertDl({ adId: null, phase: 'done', secondsLeft: DUR, error: null })
-      setTimeout(() => setExpertDl(d => ({ ...d, phase: 'idle' })), 5000)
+      patchExpertAdDl(ad.id, { phase: 'done', pct: 100 })
+      setTimeout(() => patchExpertAdDl(ad.id, { phase: 'idle', pct: 0 }), 4000)
     } catch (e) {
-      console.error('expert fast encode failed:', e)
-      setExpertDl({ adId: null, phase: 'error', secondsLeft: DUR, error: e instanceof Error ? e.message : 'Encode failed' })
+      patchExpertAdDl(ad.id, { phase: 'error', error: e instanceof Error ? e.message : 'Encode failed' })
     }
-  }, [expertDl.adId, dl.adId])
+  }, [expertAdDls])
 
   // Preview animation loop for all cards
   useEffect(() => {
@@ -2917,8 +2842,6 @@ export default function AdminAdsPage() {
     })
     return () => Object.values(handles).forEach(h => cancelAnimationFrame(h))
   }, [])
-
-  useEffect(() => () => cancelDl(), [])
 
   return (
     <div className="min-h-screen bg-[#070b12] text-white">
@@ -2951,44 +2874,17 @@ export default function AdminAdsPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {dl.done && (
-            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2">
-              <CheckCircle2 size={14} className="text-green-400" />
-              <span className="text-green-400 text-sm font-semibold">Downloaded!</span>
-            </div>
-          )}
-          {expertDl.phase === 'done' && (
-            <div className="flex items-center gap-2 bg-pink-500/10 border border-pink-500/20 rounded-xl px-4 py-2">
-              <CheckCircle2 size={14} className="text-pink-400" />
-              <span className="text-pink-400 text-sm font-semibold">Expert voice downloaded!</span>
-            </div>
-          )}
-          {dl.adId !== null && (
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+        {/* Active encoding count badge */}
+        {(() => {
+          const enc = Object.values(adDls).filter(d => d.phase === 'encoding').length
+            + Object.values(expertAdDls).filter(d => d.phase === 'encoding' || d.phase === 'generating').length
+          return enc > 0 ? (
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
               <Loader2 size={13} className="text-purple-400 animate-spin" />
-              <span className="text-slate-300 text-sm">Encoding… <span className="font-bold tabular-nums text-white">{Math.round((DUR - dl.secondsLeft) / DUR * 100)}%</span></span>
-              <div className="w-20 bg-white/10 rounded-full h-1">
-                <div className="bg-purple-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - dl.secondsLeft) / DUR) * 100}%` }} />
-              </div>
+              <span className="text-slate-300 text-sm">{enc} video{enc > 1 ? 's' : ''} encoding…</span>
             </div>
-          )}
-          {expertDl.adId !== null && expertDl.phase !== 'done' && (
-            <div className="flex items-center gap-3 bg-pink-500/[0.08] border border-pink-500/20 rounded-xl px-4 py-2">
-              <Loader2 size={13} className="text-pink-400 animate-spin" />
-              <span className="text-slate-300 text-sm">
-                {expertDl.phase === 'generating'
-                  ? 'Generating expert voice…'
-                  : <>Encoding… <span className="font-bold tabular-nums text-white">{Math.round((DUR - expertDl.secondsLeft) / DUR * 100)}%</span></>}
-              </span>
-              {expertDl.phase === 'encoding' && (
-                <div className="w-20 bg-white/10 rounded-full h-1">
-                  <div className="bg-pink-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - expertDl.secondsLeft) / DUR) * 100}%` }} />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+          ) : null
+        })()}
       </div>
 
       {/* ── Ad cards ── */}
@@ -2996,8 +2892,10 @@ export default function AdminAdsPage() {
         {ADS.map(ad => {
           const v              = voices[ad.id]
           const isEx           = expanded === ad.id
-          const isEncoding     = dl.adId === ad.id
-          const isExpertActive = expertDl.adId === ad.id
+          const adDl           = getAdDl(ad.id)
+          const exAdDl         = getExpertAdDl(ad.id)
+          const isEncoding     = adDl.phase === 'encoding'
+          const isExpertActive = exAdDl.phase === 'generating' || exAdDl.phase === 'encoding'
           const hasExpert      = !!(ad as typeof ADS[0] & { expertScript?: string }).expertScript
 
           return (
@@ -3014,14 +2912,14 @@ export default function AdminAdsPage() {
                   {isEncoding && (
                     <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1.5">
                       <Loader2 size={20} className="text-purple-400 animate-spin" />
-                      <span className="text-white text-xs font-bold tabular-nums">{dl.secondsLeft}s</span>
+                      <span className="text-white text-xs font-bold tabular-nums">{adDl.pct}%</span>
                     </div>
                   )}
                   {isExpertActive && (
                     <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1.5">
                       <Loader2 size={20} className="text-pink-400 animate-spin" />
                       <span className="text-pink-300 text-[10px] font-bold text-center px-2">
-                        {expertDl.phase === 'generating' ? 'Generating voice…' : `Encoding ${expertDl.secondsLeft}s`}
+                        {exAdDl.phase === 'generating' ? 'Generating voice…' : `Encoding ${exAdDl.pct}%`}
                       </span>
                     </div>
                   )}
@@ -3044,17 +2942,26 @@ export default function AdminAdsPage() {
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Download button — never disabled by other ads encoding */}
                       <button
                         onClick={() => downloadVideo(ad)}
-                        disabled={dl.adId !== null || expertDl.adId !== null}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={isEncoding}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ backgroundColor: ad.accent + '25', color: ad.accent, border: `1px solid ${ad.accent}50` }}
                       >
                         {isEncoding
-                          ? <><Loader2 size={13} className="animate-spin" /> Encoding… {Math.round((DUR - dl.secondsLeft) / DUR * 100)}%</>
+                          ? <><Loader2 size={13} className="animate-spin" /> Encoding… {adDl.pct}%</>
+                          : adDl.phase === 'done'
+                          ? <><CheckCircle2 size={13} /> Downloaded!</>
                           : <><Download size={13} /> {v.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}</>
                         }
                       </button>
+
+                      {isEncoding && (
+                        <div className="flex-1 min-w-[80px] bg-white/10 rounded-full h-1.5">
+                          <div className="h-1.5 rounded-full transition-all" style={{ width: `${adDl.pct}%`, backgroundColor: ad.accent }} />
+                        </div>
+                      )}
 
                       <button
                         onClick={() => setExpanded(isEx ? null : ad.id)}
@@ -3070,25 +2977,33 @@ export default function AdminAdsPage() {
                       </button>
                     </div>
 
-                    {/* Expert Voice Download — only on ads with expertScript */}
+                    {/* Expert Voice Download — independent per ad, never disabled by others */}
                     {hasExpert && (
-                      <button
-                        onClick={() => downloadWithExpertVoice(ad as typeof ADS[0] & { expertScript?: string; expertVoiceDir?: string })}
-                        disabled={expertDl.adId !== null || dl.adId !== null}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed w-full justify-center"
-                        style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(139,92,246,0.15) 100%)', border: '1px solid rgba(236,72,153,0.35)', color: '#f9a8d4' }}
-                      >
-                        {isExpertActive
-                          ? expertDl.phase === 'generating'
+                      <>
+                        <button
+                          onClick={() => downloadWithExpertVoice(ad as typeof ADS[0] & { expertScript?: string; expertVoiceDir?: string })}
+                          disabled={isExpertActive || exAdDl.phase === 'done'}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed w-full justify-center"
+                          style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(139,92,246,0.15) 100%)', border: '1px solid rgba(236,72,153,0.35)', color: '#f9a8d4' }}
+                        >
+                          {exAdDl.phase === 'generating'
                             ? <><Loader2 size={13} className="animate-spin text-pink-400" /> Generating expert voice…</>
-                            : <><Loader2 size={13} className="animate-spin text-pink-400" /> Encoding… {Math.round((DUR - expertDl.secondsLeft) / DUR * 100)}%</>
-                          : <><Sparkles size={13} className="text-pink-400" /> Download Expert Voice MP4 · Female · English</>
-                        }
-                      </button>
-                    )}
-
-                    {expertDl.phase === 'error' && expertDl.adId === null && (
-                      <p className="text-red-400 text-xs px-1">{expertDl.error}</p>
+                            : exAdDl.phase === 'encoding'
+                            ? <><Loader2 size={13} className="animate-spin text-pink-400" /> Encoding… {exAdDl.pct}%</>
+                            : exAdDl.phase === 'done'
+                            ? <><CheckCircle2 size={13} className="text-pink-400" /> Expert voice downloaded!</>
+                            : <><Sparkles size={13} className="text-pink-400" /> Download Expert Voice MP4 · Female · English</>
+                          }
+                        </button>
+                        {exAdDl.phase === 'encoding' && (
+                          <div className="w-full bg-white/10 rounded-full h-1">
+                            <div className="bg-pink-500 h-1 rounded-full transition-all" style={{ width: `${exAdDl.pct}%` }} />
+                          </div>
+                        )}
+                        {exAdDl.phase === 'error' && (
+                          <p className="text-red-400 text-xs px-1">{exAdDl.error}</p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -3194,11 +3109,11 @@ export default function AdminAdsPage() {
                           <audio src={v.audioUrl} controls className="w-full" style={{ height: 32 }} />
                           <button
                             onClick={() => downloadVideo(ad)}
-                            disabled={dl.adId !== null}
+                            disabled={isEncoding}
                             className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition"
                           >
                             {isEncoding
-                              ? <><Loader2 size={12} className="animate-spin" /> Encoding… {Math.round((DUR - dl.secondsLeft) / DUR * 100)}%</>
+                              ? <><Loader2 size={12} className="animate-spin" /> Encoding… {adDl.pct}%</>
                               : <><Download size={12} /> Download Video with Voiceover</>
                             }
                           </button>
