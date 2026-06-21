@@ -2437,6 +2437,49 @@ Messages that feel human... create customers who feel loyal.
 
 Try Wapakee free — wapaci dot com!`,
     voiceDir: 'warm and personable from the first word, playful contrast between cold and warm messaging, genuinely excited and enthusiastic for the good example message, genuine and heartfelt close',
+    expertLines: [
+      {
+        text: `You know what kills a brand faster than a bad product? A bad message.`,
+        dir: `Start low, almost conspiratorial — like you're leaning in to pull someone aside before they make a mistake. Slow, deliberate. Then land "A bad message" completely flat, no inflection, like a verdict. Let it sit in silence. Do not rush away from it.`,
+        pause: 0.9,
+      },
+      {
+        text: `Your customer ordered her birthday dress. She's probably smiling right now. Excited. Imagining how she'll look.`,
+        dir: `Warm, visual, tender. You're painting a picture of a real human moment. Slow down on "smiling right now" — smile slightly in your own voice. Build a little warmth so the contrast hits harder in the next line.`,
+        pause: 0.5,
+      },
+      {
+        text: `And you sent her: Order confirmed. Expected delivery four to five business days.`,
+        dir: `Go completely robotic. Flat, cold, mechanical — like a machine reading a database entry. No warmth whatsoever. Monotone. This should feel jarring after the previous warmth. That contrast is the entire point.`,
+        pause: 0.7,
+      },
+      {
+        text: `That's not a brand talking. That's a machine.`,
+        dir: `Quiet. Disappointed. Speak slowly — one sentence, breath, next sentence. "That's a machine" should land heavy and final, like a door closing. No anger. Just sad certainty.`,
+        pause: 0.9,
+      },
+      {
+        text: `Wapaci changes that. Write her: Your birthday dress is flying to you! We can't wait for you to wear it!`,
+        dir: `Sharp confident pivot on "Wapaci changes that" — decisive, clean. Then for the good message example, shift completely to warmth and genuine excitement. Sound like a friend who just texted you something lovely. Smile is audible. Light, joyful, human.`,
+        pause: 0.7,
+      },
+      {
+        text: `Same information. Completely different human being on the other end.`,
+        dir: `Measured. Let "same information" land simply — factual. Then pause briefly before "completely different human being on the other end" — say it slowly, with quiet wonder, like you're holding something important up to the light.`,
+        pause: 0.8,
+      },
+      {
+        text: `She screenshots that message. Sends it to her sister. Tells her friends. Remembers your brand forever. That's not marketing. That's loyalty.`,
+        dir: `Build energy through the list — each action slightly more impressed than the last. Then slow completely for "That's not marketing." Pause. Then "That's loyalty." — say it like it's the most important thing you'll say today. Low, certain, final.`,
+        pause: 0.8,
+      },
+      {
+        text: `Try Wapaci free. Wapaci dot com.`,
+        dir: `Warm, confident, like a friend recommending something they genuinely love. No hype. Just clear and inviting. Smile in your voice on "free." Clean ending.`,
+        pause: 0,
+      },
+    ],
+    expertVoiceDir: `Warm clear Indian female voice, English only. Every line has its own emotional world — read the direction carefully and honour it exactly.`,
   },
   {
     id: 19, filename: 'wapaci-the-proof',
@@ -2467,6 +2510,39 @@ The math is simple. The setup is ten minutes. The results are real.
 
 Start your free trial at wapaci dot com.`,
     voiceDir: 'confident and measured, let each stat land with weight and a brief pause, speak like someone presenting undeniable evidence, serious and credible throughout, matter-of-fact but compelling close',
+    expertLines: [
+      {
+        text: `Let's skip the pitch. I'm just going to show you numbers.`,
+        dir: `Confident. Slightly dismissive of typical marketing fluff — like someone who has real data and doesn't need tricks. "Let's skip the pitch" is almost casual, friendly authority. "I'm just going to show you numbers" — clean, certain, no theatrics. Set the expectation.`,
+        pause: 0.8,
+      },
+      {
+        text: `WhatsApp open rate? Ninety-eight percent. Email open rate? Two percent.`,
+        dir: `Present each question then answer it like you're reading off a report. Neutral, almost clinical on the WhatsApp stat. Then a slight pause before "Email open rate" — and deliver "Two percent" with quiet, almost pitying flatness. Don't be dramatic. The number does the work.`,
+        pause: 0.7,
+      },
+      {
+        text: `Cart recovery rate with Wapaci? Twenty-eight percent of abandoned carts come back. Without it? Zero.`,
+        dir: `Building credibility now. Slightly more weight on "twenty-eight percent" — it's impressive and you let it land. Then "Without it?" — raise a quiet eyebrow in your voice. Then "Zero." — completely flat, cold, final. One word. Let it echo.`,
+        pause: 0.8,
+      },
+      {
+        text: `COD confirmations up sixty-seven percent. Lapsed customers repurchasing? Thirty percent win-back rate.`,
+        dir: `Pace picking up slightly — you're on a roll of evidence now. Each stat should hit with a quiet punch. Not excited, but you can't help the fact that these numbers are genuinely impressive. Controlled admiration.`,
+        pause: 0.7,
+      },
+      {
+        text: `These aren't promises. These are averages. Across real Indian D2C brands using Wapaci right now.`,
+        dir: `Slow down completely. This is the credibility anchor. "These aren't promises" — firm, grounded. "These are averages" — even firmer. Then "across real Indian D2C brands using Wapaci right now" — one word at a time, deliberate, like you're placing each brick. No rush. Let them absorb.`,
+        pause: 0.9,
+      },
+      {
+        text: `The math is simple. The setup takes ten minutes. Start your free trial at Wapaci dot com.`,
+        dir: `Easy, matter-of-fact — like the conclusion writes itself. "The math is simple" sounds almost casual because it is. "The setup takes ten minutes" — reassuring, light. Then a slight lift for the CTA — warm, not pushy. You've already won the argument. The invite is generous.`,
+        pause: 0,
+      },
+    ],
+    expertVoiceDir: `Confident, calm Indian female voice, English only. You are presenting undeniable evidence. No hype — the numbers speak. Follow the per-line direction precisely.`,
   },
   {
     id: 20, filename: 'wapaci-revenue-rocket',
@@ -2497,6 +2573,49 @@ Ignite your revenue with Wapakee.
 
 Try it free — wapaci dot com!`,
     voiceDir: 'cinematic and epic from the first word, deliberate and weighty on the three things, build momentum and energy steadily, reach a thrilling peak at the launch metaphor, triumphant and inspiring close',
+    expertLines: [
+      {
+        text: `Every rocket needs three things.`,
+        dir: `Commanding, deliberate, like opening a strategy briefing for something important. Slow. Each word carries weight. Pause noticeably after "things" — you're about to reveal them. Build quiet anticipation.`,
+        pause: 0.8,
+      },
+      {
+        text: `Fuel. Direction. Ignition.`,
+        dir: `Three separate words, each its own breath. "Fuel" — grounded, heavy. "Direction" — slightly rising. "Ignition" — sharp, intense, like striking a match. Leave real silence between each word. This is a countdown. Make it feel like one.`,
+        pause: 1.0,
+      },
+      {
+        text: `Your brand already has fuel. Your products. Your customers. Your hunger to grow.`,
+        dir: `Validating, confident. "Your brand already has fuel" — said directly to them, believing in them. Then the list: "Your products" — simple. "Your customers" — with quiet appreciation. "Your hunger to grow" — conviction, almost emotional. This one should land in the chest.`,
+        pause: 0.7,
+      },
+      {
+        text: `Direction? WhatsApp. The channel ninety-eight percent of India opens every single day.`,
+        dir: `Raise the question genuinely — like you're solving a puzzle out loud. Pause before the answer. Then "WhatsApp" — clean, decisive, no frills. Follow immediately with "the channel ninety-eight percent of India opens every single day" — build slightly on "every single day", give it weight.`,
+        pause: 0.7,
+      },
+      {
+        text: `Ignition? That's Wapaci.`,
+        dir: `Pause before answering — let the tension build. Then "That's Wapaci" like a reveal. Confident, clean, no hype needed. One breath. The name lands like a key turning.`,
+        pause: 0.8,
+      },
+      {
+        text: `Wapaci connects your store to full WhatsApp automation in ten minutes. Cart recovery. COD confirmation. Order updates. Win-back campaigns. Flash sale blasts. Everything fires automatically.`,
+        dir: `Confident and efficient on the opening sentence. Then the list — rapid fire, momentum building with each item, like engines igniting one by one. "Everything fires automatically" — slight awe. Slower. Like watching something launch. Let that line breathe.`,
+        pause: 0.7,
+      },
+      {
+        text: `Brands using Wapaci see two to four times the revenue from their existing customers. No extra ad spend. Just smarter automation.`,
+        dir: `Slow down. This is the money line. "Two to four times the revenue" — let each word land. Pause after. Then "No extra ad spend" — emphasise this, it's the hook. Say it like you're giving them a gift. "Just smarter automation" — satisfied, certain, like it's obvious once you see it.`,
+        pause: 0.8,
+      },
+      {
+        text: `Your rocket is on the launchpad. The countdown has already started. Ignite your revenue with Wapaci. Wapaci dot com.`,
+        dir: `Cinematic intensity. Start near a whisper — "Your rocket is on the launchpad" — quiet, serious, like standing at Cape Canaveral. Then "The countdown has already started" — urgency building, slightly faster. Then "Ignite your revenue with Wapaci" — rise to a triumphant, full-voice CTA. "Wapaci dot com" — clear, strong, confident close.`,
+        pause: 0,
+      },
+    ],
+    expertVoiceDir: `Cinematic, powerful Indian female voice, English only. Build from commanding calm to triumphant launch energy. Follow per-line direction with precision — every moment matters.`,
   },
   {
     id: 21, filename: 'wapaci-warm-cart',
@@ -2528,6 +2647,44 @@ while they still want to buy.
 Save warm carts automatically.
 Try Wapakee free today — wapaci dot com!`,
     voiceDir: 'urgent, cinematic, crisp Indian ecommerce ad voice; pause hard after the first line, then build speed and confidence; make the cart is still warm feel important; energetic CTA',
+    expertLines: [
+      {
+        text: `Someone almost bought from you... twelve seconds ago.`,
+        dir: `Open in a hushed near-whisper — intimate, like telling a secret. "Someone almost bought from you" — trailing, unfinished. Real pause after the ellipsis, a full breath. Then "twelve seconds ago" — sharp, precise, like a timer going off. The contrast between the soft opening and the crisp timestamp is everything.`,
+        pause: 0.9,
+      },
+      {
+        text: `The cart is still warm. The intent is still alive.`,
+        dir: `Quiet intensity. Treat these two lines like fragile things — speak carefully, like you're trying not to disturb something. "The cart is still warm" — slow, wonder in your voice, like holding something delicate. Breath. "The intent is still alive" — slightly more urgent, like a pulse you can still feel.`,
+        pause: 0.8,
+      },
+      {
+        text: `But every minute you wait... that customer forgets.`,
+        dir: `Shift to building dread. Slow down. "But every minute you wait" — each word slightly heavier, like a clock ticking. Real pause on the ellipsis — let it hang. Then "that customer forgets" — flat, resigned, final. Like watching water drain. No anger. Just quiet loss.`,
+        pause: 0.9,
+      },
+      {
+        text: `Wapaci reacts instantly. It detects the cart, sends the WhatsApp message, holds the product, and gives them one clear reason to finish checkout.`,
+        dir: `Sudden confident shift — clean and decisive, like a machine clicking to life. "Wapaci reacts instantly" — sharp, no hesitation. Then the list: rapid but clear, each action punchy and efficient. Build speed through the list. "One clear reason to finish checkout" — slightly slower, satisfying, like a lock engaging.`,
+        pause: 0.6,
+      },
+      {
+        text: `No manual follow-up. No cold email. No lost intent.`,
+        dir: `Each line is a relief. "No manual follow-up" — clean, light, a burden lifted. "No cold email" — same energy, nodding away a bad option. "No lost intent" — land this one with the most weight. This is the real fear you're erasing. Let it breathe.`,
+        pause: 0.7,
+      },
+      {
+        text: `Just the right message... while they still want to buy.`,
+        dir: `Warm, almost gentle — the tension releases here. "Just the right message" — confident but soft, like a hand on the shoulder. Real pause on the ellipsis. Then "while they still want to buy" — quiet urgency, the reminder that timing is everything. Smile barely audible.`,
+        pause: 0.8,
+      },
+      {
+        text: `Save warm carts automatically. Try Wapaci free today. Wapaci dot com.`,
+        dir: `Energetic and clear CTA. "Save warm carts automatically" — confident, strong, like the solution is obvious. Then "Try Wapaci free today" — upbeat, inviting, genuine. "Wapaci dot com" — clean, sharp close. End on a high.`,
+        pause: 0,
+      },
+    ],
+    expertVoiceDir: `Urgent, cinematic Indian female voice, English only. The emotional arc is: hushed secret → quiet dread → sharp solution → warm relief → energetic CTA. Follow every direction precisely.`,
   },
   {
     id: 22, filename: 'wapaci-cod-filter',
@@ -2557,6 +2714,39 @@ More confirmed revenue.
 Confirm COD on WhatsApp.
 Try Wapakee free today — wapaci dot com!`,
     voiceDir: 'direct, sharp, business-focused Indian founder tone; serious on the pain, confident on the solution, punchy pacing, strong closing CTA',
+    expertLines: [
+      {
+        text: `Fake COD orders don't just waste your time. They're costing you real money.`,
+        dir: `Open direct and serious — like you're talking to a founder who is bleeding money right now and doesn't fully realize it. "Don't just waste your time" — firm, building. Then "They're costing you real money" — harder, heavier, emphasis squarely on "real." Make them feel it.`,
+        pause: 0.7,
+      },
+      {
+        text: `Shipping fees you'll never recover. RTO charges eating your margins. Inventory locked in transit for days.`,
+        dir: `Each line lands harder than the one before. Speak with building frustration — not yours, theirs. You're naming their pain precisely and they know it. "Shipping fees you'll never recover" — resigned. "RTO charges eating your margins" — sharper, the word 'eating' has bite. "Inventory locked in transit for days" — exhausted, stretched, the weight of waiting.`,
+        pause: 0.8,
+      },
+      {
+        text: `Wapaci fixes this before the package ever leaves your warehouse.`,
+        dir: `Sharp, confident pivot — solution mode. The energy shifts completely. "Before the package ever leaves your warehouse" — this is the key differentiator, say it cleanly and let it register. Slight relief in your voice. The problem has a clean answer.`,
+        pause: 0.7,
+      },
+      {
+        text: `Every COD buyer gets a WhatsApp confirmation. Yes means ship it. No means stop it. No reply? Wapaci follows up automatically.`,
+        dir: `Clear and methodical on the first sentence — like explaining a system that simply works. Then go staccato on the options: "Yes means ship it" — clean, decisive. "No means stop it" — firmer, satisfying, like flipping a switch. "No reply? Wapaci follows up automatically" — slight smile in your voice, almost clever, like the system is smarter than the problem.`,
+        pause: 0.7,
+      },
+      {
+        text: `Your team ships only serious orders. Less RTO. Less wasted cash. More confirmed revenue.`,
+        dir: `Build pride and efficiency. "Your team ships only serious orders" — say it with quiet satisfaction, like a well-run operation. Then the three-part close — punchy, staccato, each phrase lands like a coin dropping: "Less RTO." pause. "Less wasted cash." pause. "More confirmed revenue." — the last one has the most weight. Let it land.`,
+        pause: 0.8,
+      },
+      {
+        text: `Confirm COD on WhatsApp before it costs you any more. Try Wapaci free. Wapaci dot com.`,
+        dir: `Urgent but controlled. "Before it costs you any more" — a quiet warning, grounded, not fear-mongering. Then "Try Wapaci free" — confident invitation, no hesitation. "Wapaci dot com" — strong, clean, no-nonsense close. End like a founder who knows exactly what they're recommending.`,
+        pause: 0,
+      },
+    ],
+    expertVoiceDir: `Direct, sharp Indian female voice, English only. Speak like a founder who has seen this pain before and has the exact solution. Follow every direction precisely.`,
   },
 ]
 
@@ -2626,14 +2816,14 @@ export default function AdminAdsPage() {
   type AdDlPhase = 'idle' | 'encoding' | 'done'
   type ExpertPhase = 'idle' | 'generating' | 'encoding' | 'done' | 'error'
   const [adDls,      setAdDls]      = useState<Record<number, { phase: AdDlPhase; pct: number }>>({})
-  const [expertAdDls, setExpertAdDls] = useState<Record<number, { phase: ExpertPhase; pct: number; error: string | null }>>({})
+  const [expertAdDls, setExpertAdDls] = useState<Record<number, { phase: ExpertPhase; pct: number; error: string | null; label: string }>>({})
 
   const getAdDl      = (id: number) => adDls[id]      ?? { phase: 'idle' as AdDlPhase, pct: 0 }
-  const getExpertAdDl = (id: number) => expertAdDls[id] ?? { phase: 'idle' as ExpertPhase, pct: 0, error: null }
+  const getExpertAdDl = (id: number) => expertAdDls[id] ?? { phase: 'idle' as ExpertPhase, pct: 0, error: null, label: '' }
 
   const patchAdDl      = (id: number, p: Partial<{ phase: AdDlPhase; pct: number }>) =>
     setAdDls(prev => ({ ...prev, [id]: { ...getAdDl(id), ...p } }))
-  const patchExpertAdDl = (id: number, p: Partial<{ phase: ExpertPhase; pct: number; error: string | null }>) =>
+  const patchExpertAdDl = (id: number, p: Partial<{ phase: ExpertPhase; pct: number; error: string | null; label: string }>) =>
     setExpertAdDls(prev => ({ ...prev, [id]: { ...getExpertAdDl(id), ...p } }))
 
   // Pre-render blob caches — base = video+music only; voiced = video+music+voiceover
@@ -2674,6 +2864,83 @@ export default function AdminAdsPage() {
     } catch (e: unknown) {
       setVo(ad.id, { status: 'error', error: e instanceof Error ? e.message : 'Error' })
     }
+  }
+
+  /* ── Encode an AudioBuffer to float32 WAV blob ── */
+  function audioBufferToWav(buffer: AudioBuffer): Blob {
+    const SR = buffer.sampleRate, CH = buffer.numberOfChannels, len = buffer.length
+    const dataBytes = len * CH * 4
+    const ab = new ArrayBuffer(44 + dataBytes)
+    const v = new DataView(ab)
+    const w = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)) }
+    w(0, 'RIFF'); v.setUint32(4, 36 + dataBytes, true)
+    w(8, 'WAVE'); w(12, 'fmt ')
+    v.setUint32(16, 16, true); v.setUint16(20, 3, true) // IEEE float
+    v.setUint16(22, CH, true); v.setUint32(24, SR, true)
+    v.setUint32(28, SR * CH * 4, true); v.setUint16(32, CH * 4, true)
+    v.setUint16(34, 32, true); w(36, 'data'); v.setUint32(40, dataBytes, true)
+    let off = 44
+    for (let i = 0; i < len; i++) {
+      for (let c = 0; c < CH; c++) {
+        v.setFloat32(off, buffer.getChannelData(c)[i], true)
+        off += 4
+      }
+    }
+    return new Blob([ab], { type: 'audio/wav' })
+  }
+
+  /* ── Generate per-line voiceover, concatenate with silence, return WAV blob ── */
+  async function generatePerLineVoice(
+    lines: Array<{ text: string; dir: string; pause?: number }>,
+    globalDir: string,
+    onProgress: (label: string, pct: number) => void,
+  ): Promise<Blob> {
+    const SR = 48000, CH = 2
+    const tempCtx = new AudioContext({ sampleRate: SR })
+    const segments: AudioBuffer[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      onProgress(`Generating line ${i + 1} of ${lines.length}…`, Math.round((i / lines.length) * 75))
+
+      const res = await fetch('/api/voiceover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'mulberry',
+          text: line.text,
+          description: `${globalDir} — ${line.dir}`,
+          language: 'en',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'API error' }))
+        throw new Error(`Line ${i + 1}: ${err.error ?? 'Failed'}`)
+      }
+      const decoded = await tempCtx.decodeAudioData(await (await res.blob()).arrayBuffer())
+      segments.push(decoded)
+
+      // Insert silence between lines
+      const silenceSec = line.pause ?? 0.5
+      if (silenceSec > 0) {
+        segments.push(tempCtx.createBuffer(CH, Math.round(silenceSec * SR), SR))
+      }
+    }
+    await tempCtx.close()
+
+    // Concatenate all segments in a single OfflineAudioContext render
+    const totalFrames = segments.reduce((s, b) => s + b.length, 0)
+    const offCtx = new OfflineAudioContext(CH, totalFrames, SR)
+    let cursor = 0
+    for (const seg of segments) {
+      const src = offCtx.createBufferSource()
+      src.buffer = seg
+      src.connect(offCtx.destination)
+      src.start(cursor / SR)
+      cursor += seg.length
+    }
+    const rendered = await offCtx.startRendering()
+    return audioBufferToWav(rendered)
   }
 
   /* ── Trigger browser download from a Blob ── */
@@ -2824,47 +3091,63 @@ export default function AdminAdsPage() {
     }
   }, [voices, adDls])
 
-  /* ── Expert Voice Download — independent per ad ── */
-  const downloadWithExpertVoice = useCallback(async (ad: typeof ADS[0] & { expertScript?: string; expertVoiceDir?: string }) => {
+  /* ── Expert Voice Download — per-line direction for expertLines ads, single-call for expertScript ads ── */
+  type ExpertAd = typeof ADS[0] & {
+    expertScript?: string
+    expertVoiceDir?: string
+    expertLines?: Array<{ text: string; dir: string; pause?: number }>
+  }
+  const downloadWithExpertVoice = useCallback(async (ad: ExpertAd) => {
     if (getExpertAdDl(ad.id).phase !== 'idle') return
-    if (!ad.expertScript) return
+    if (!ad.expertLines && !ad.expertScript) return
     const recordCanvas = recordRefs.current[ad.id]
     if (!recordCanvas) { alert('Canvas not ready — please refresh.'); return }
 
-    // Phase 1: generate voice
-    patchExpertAdDl(ad.id, { phase: 'generating', pct: 0, error: null })
+    patchExpertAdDl(ad.id, { phase: 'generating', pct: 0, error: null, label: 'Starting…' })
     let expertAudioBlob: Blob | null = null
+
     try {
-      const res = await fetch('/api/voiceover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'mulberry',
-          text: stripToneTags(ad.expertScript),
-          description: ['warm clear Indian female voice speaking only in English', ad.expertVoiceDir ?? ''].filter(Boolean).join(', '),
-          language: 'en',
-        }),
-      })
-      if (!res.ok) { const err = await res.json().catch(() => ({ error: 'API error' })); throw new Error(err.error ?? 'Failed') }
-      expertAudioBlob = await res.blob()
+      if (ad.expertLines && ad.expertLines.length > 0) {
+        // Per-line generation — each segment gets its own precise voice direction
+        expertAudioBlob = await generatePerLineVoice(
+          ad.expertLines,
+          ad.expertVoiceDir ?? 'warm clear Indian female voice speaking only in English',
+          (label, pct) => patchExpertAdDl(ad.id, { phase: 'generating', label, pct }),
+        )
+      } else {
+        // Legacy single-call path (ads 1–3)
+        patchExpertAdDl(ad.id, { phase: 'generating', pct: 10, label: 'Generating expert voice…' })
+        const res = await fetch('/api/voiceover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'mulberry',
+            text: stripToneTags(ad.expertScript!),
+            description: ['warm clear Indian female voice speaking only in English', ad.expertVoiceDir ?? ''].filter(Boolean).join(', '),
+            language: 'en',
+          }),
+        })
+        if (!res.ok) { const err = await res.json().catch(() => ({ error: 'API error' })); throw new Error(err.error ?? 'Failed') }
+        expertAudioBlob = await res.blob()
+      }
     } catch (e: unknown) {
-      patchExpertAdDl(ad.id, { phase: 'error', error: e instanceof Error ? e.message : 'Error' })
+      patchExpertAdDl(ad.id, { phase: 'error', error: e instanceof Error ? e.message : 'Error', label: '' })
       return
     }
 
-    // Phase 2: encode video
-    patchExpertAdDl(ad.id, { phase: 'encoding', pct: 0 })
+    // Encode video with expert voiceover
+    patchExpertAdDl(ad.id, { phase: 'encoding', pct: 0, label: 'Encoding video…' })
     try {
       const blob = await fastEncodeToBlob(
         recordCanvas, RENDERERS[ad.id], ad.id,
         expertAudioBlob,
-        pct => patchExpertAdDl(ad.id, { pct }),
+        pct => patchExpertAdDl(ad.id, { pct, label: `Encoding… ${pct}%` }),
       )
       triggerDownload(blob, `${ad.filename}-expert-voice`)
-      patchExpertAdDl(ad.id, { phase: 'done', pct: 100 })
-      setTimeout(() => patchExpertAdDl(ad.id, { phase: 'idle', pct: 0 }), 4000)
+      patchExpertAdDl(ad.id, { phase: 'done', pct: 100, label: '' })
+      setTimeout(() => patchExpertAdDl(ad.id, { phase: 'idle', pct: 0, label: '' }), 4000)
     } catch (e) {
-      patchExpertAdDl(ad.id, { phase: 'error', error: e instanceof Error ? e.message : 'Encode failed' })
+      patchExpertAdDl(ad.id, { phase: 'error', error: e instanceof Error ? e.message : 'Encode failed', label: '' })
     }
   }, [expertAdDls])
 
@@ -2982,7 +3265,7 @@ export default function AdminAdsPage() {
           const exAdDl         = getExpertAdDl(ad.id)
           const isEncoding     = adDl.phase === 'encoding'
           const isExpertActive = exAdDl.phase === 'generating' || exAdDl.phase === 'encoding'
-          const hasExpert      = !!(ad as typeof ADS[0] & { expertScript?: string }).expertScript
+          const hasExpert      = !!(ad as ExpertAd).expertScript || !!(ad as ExpertAd).expertLines?.length
           const hasVoice       = v?.status === 'ready' && !!v?.audioBlob
           const isCached       = hasVoice ? voicedCacheRef.current.has(ad.id) : baseCacheRef.current.has(ad.id)
 
@@ -3007,7 +3290,7 @@ export default function AdminAdsPage() {
                     <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1.5">
                       <Loader2 size={20} className="text-pink-400 animate-spin" />
                       <span className="text-pink-300 text-[10px] font-bold text-center px-2">
-                        {exAdDl.phase === 'generating' ? 'Generating voice…' : `Encoding ${exAdDl.pct}%`}
+                        {exAdDl.label || (exAdDl.phase === 'generating' ? 'Generating voice…' : `Encoding ${exAdDl.pct}%`)}
                       </span>
                     </div>
                   )}
@@ -3073,27 +3356,27 @@ export default function AdminAdsPage() {
                       </button>
                     </div>
 
-                    {/* Expert Voice Download — independent per ad, never disabled by others */}
+                    {/* Expert Voice Download — per-line direction for new ads, single-call for legacy */}
                     {hasExpert && (
                       <>
                         <button
-                          onClick={() => downloadWithExpertVoice(ad as typeof ADS[0] & { expertScript?: string; expertVoiceDir?: string })}
+                          onClick={() => downloadWithExpertVoice(ad as ExpertAd)}
                           disabled={isExpertActive || exAdDl.phase === 'done'}
                           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed w-full justify-center"
                           style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(139,92,246,0.15) 100%)', border: '1px solid rgba(236,72,153,0.35)', color: '#f9a8d4' }}
                         >
                           {exAdDl.phase === 'generating'
-                            ? <><Loader2 size={13} className="animate-spin text-pink-400" /> Generating expert voice…</>
+                            ? <><Loader2 size={13} className="animate-spin text-pink-400" /> {exAdDl.label || 'Generating…'}</>
                             : exAdDl.phase === 'encoding'
-                            ? <><Loader2 size={13} className="animate-spin text-pink-400" /> Encoding… {exAdDl.pct}%</>
+                            ? <><Loader2 size={13} className="animate-spin text-pink-400" /> {exAdDl.label || `Encoding… ${exAdDl.pct}%`}</>
                             : exAdDl.phase === 'done'
                             ? <><CheckCircle2 size={13} className="text-pink-400" /> Expert voice downloaded!</>
                             : <><Sparkles size={13} className="text-pink-400" /> Download Expert Voice MP4 · Female · English</>
                           }
                         </button>
-                        {exAdDl.phase === 'encoding' && (
+                        {(exAdDl.phase === 'generating' || exAdDl.phase === 'encoding') && (
                           <div className="w-full bg-white/10 rounded-full h-1">
-                            <div className="bg-pink-500 h-1 rounded-full transition-all" style={{ width: `${exAdDl.pct}%` }} />
+                            <div className="bg-pink-500 h-1 rounded-full transition-all duration-300" style={{ width: `${exAdDl.pct}%` }} />
                           </div>
                         )}
                         {exAdDl.phase === 'error' && (
