@@ -1820,7 +1820,7 @@ Your competitors are already doing this.
 Don't get left behind.
 
 Try Wapakee free today — wapaki dot com.`,
-    expertVoiceDir: `Warm Indian female voice, English only. Start in a slow near-whisper that builds dread — like sharing a dark secret. Hold a full two-second silence after the word 'customers' and again after 'leaving'. Deliver 'Without buying. A single thing.' with heavy broken weight — each phrase lands separately, like a gut punch. Drop almost to silence before 'Until now' — then shift completely into warmth, brightness, relief — like a friend who just found the answer. Build confident energy through the WhatsApp explanation. Land 'come BACK' with explosive triumph and genuine joy — this is the emotional peak of the ad. Close with urgent warmth, like a mentor who sincerely wants you to win.`,
+    expertVoiceDir: `28 year old Indian female, warm and emotional, dramatic build from whisper to triumph, expert ad voice`,
   },
   {
     id: 2, filename: 'wapaci-roi-machine',
@@ -1892,7 +1892,7 @@ Your competitors are already using this.
 The results speak for themselves.
 
 Start your free trial at Wapakee dot com — today.`,
-    expertVoiceDir: `Confident, clear Indian female voice speaking English only. Open slowly with genuine wonder and curiosity — like you are about to share something that completely changed things for you. Slow way down on the numbers — each one must land with physical weight, as if you are writing it in the air. Pause a full second after 'Nine. Eight. Percent.' and let the listener absorb it. Middle section: warm and conversational, like a smart friend who did the math so you didn't have to. Build to controlled electricity at 'forty-seven times your investment' — not shouting, but thrilling and alive. Close with deep conviction — like someone who has seen these results personally and cannot believe more people don't know about this yet.`,
+    expertVoiceDir: `28 year old Indian female, confident and clear, wonder-filled curiosity, builds to electric conviction, expert ad voice`,
   },
   {
     id: 3, filename: 'wapaci-channel-wars',
@@ -1972,7 +1972,7 @@ Start sending WhatsApp messages that actually convert.
 Wapakee — WhatsApp automation for Indian D two C brands.
 
 Try it free today — wapaki dot com.`,
-    expertVoiceDir: `Sharp, intelligent Indian female voice speaking fluent English only. Open with playful provocative energy — a question that dares the listener to think. After 'actually read' hold a full two-second silence. Deliver 'Two percent' with quiet almost-sad disappointment — trailing off like reading a bad report card. Same tone for 'Five percent' — even quieter, even sadder. Then one full beat of complete silence. Then EXPLODE on 'Ninety. Eight. Percent.' — maximum energy, genuine excitement, as if this number personally thrills you every single time you say it. Land 'Let that sink in' as a slow near-whisper — drop the energy completely, the eye of the storm. Then build steadily back through the solution section. Close sharp, authoritative, and confident — like someone who knows exactly what she's talking about and has no doubt.`,
+    expertVoiceDir: `28 year old Indian female, sharp and playful, explosive range from quiet sadness to maximum excitement, expert ad voice`,
   },
   {
     id: 4, filename: 'wapaci-dead-hours',
@@ -2454,21 +2454,7 @@ Because customers who feel something...
 come back.
 
 Try Wapakee free. Wapaki dot com.`,
-    expertVoiceDir: `Warm, expressive Indian female voice. English only. You have 9 lines. Take your time. Silence is part of the performance — do NOT rush.
-
-"You sent her an order confirmation." — quiet, almost disappointed. Like watching someone miss a moment. Slow.
-
-"She wanted to feel something." — pause after this. A full breath. Let it sit. This line is the whole point.
-
-"Wapakee lets you write messages that feel human." — shift completely. Warm, confident, like the answer just walked in. Smile in your voice.
-
-"Messages that get screenshotted." — pause. "Shared." — pause. "Remembered." — pause after each word. Three separate moments. Not a list. Let each one land.
-
-"Because customers who feel something..." — slow down here. Build. The ellipsis is a real pause.
-
-"come back." — land this quietly. Certain. Final. Like a fact you've seen a hundred times. No drama. Just truth.
-
-"Try Wapakee free. Wapaki dot com." — warm and direct. You've already earned it.`,
+    expertVoiceDir: `28 year old Indian female, warm and expressive, emotional pauses, soft vulnerability to quiet certainty, expert ad voice`,
   },
   {
     id: 19, filename: 'wapaci-the-proof',
@@ -2510,19 +2496,7 @@ Not a pitch.
 Real numbers. Real brands. Right now.
 
 Start free at Wapakee dot com.`,
-    expertVoiceDir: `Calm, authoritative Indian female voice. English only. No warmup. No intro. Lead with the numbers like they're facts carved in stone. You have 6 lines. Go slow. Every pause earns its keep.
-
-"WhatsApp. Ninety-eight percent open rate." — say each word like you're placing it on a table in front of them. Deliberate. Pause after.
-
-"Email. Two percent." — flat. Almost pitying. No drama. The silence after this line does all the work. Hold it.
-
-"Twenty-eight percent of abandoned carts... recovered." — slow down on 'recovered'. Land it like money appearing in an account. The ellipsis is a real pause — hold it.
-
-"Not a pitch." — firm. Short. Make eye contact through the mic. Pause.
-
-"Real numbers. Real brands. Right now." — each phrase separate, each one heavier than the last. Not fast. Punchy but deliberate.
-
-"Start free at Wapakee dot com." — calm, certain. You've already won the argument. This is just the obvious next step.`,
+    expertVoiceDir: `28 year old Indian female, calm and authoritative, measured deliberate pace, fact-driven gravitas, expert ad voice`,
   },
   {
     id: 20, filename: 'wapaci-revenue-rocket',
@@ -2568,23 +2542,7 @@ is the ignition.
 Two to four times the revenue. No extra ad spend.
 
 Wapakee dot com. Light the fuse.`,
-    expertVoiceDir: `Cinematic, powerful Indian female voice. English only. You are a launch director. You have 8 lines. Build from cold commanding to full ignition. Take your time — this ad earns its silence.
-
-"Every rocket needs three things." — slow, deliberate, like opening a strategy briefing. Pause after. Make them wait.
-
-"Fuel. Direction. Ignition." — three separate breaths. Each word is its own moment. "Fuel" — grounded. "Direction" — rising slightly. "Ignition" — sharp, like striking a match. Pause after each word.
-
-"Your brand has the fuel." — warm, validating. Directed at them personally.
-
-"WhatsApp is the direction." — clean, certain.
-
-"Wapakee..." — pause here. Real pause. Build the tension.
-
-"is the ignition." — say this like handing someone the key. Quiet confidence. This is the reveal.
-
-"Two to four times the revenue. No extra ad spend." — land each phrase like a headline. Pause between them. "No extra ad spend" — almost conspiratorial, like you're giving them a secret.
-
-"Wapakee dot com. Light the fuse." — triumphant but controlled. End with energy, not shouting.`,
+    expertVoiceDir: `28 year old Indian female, cinematic and powerful, cold commanding open builds to triumphant energy, expert ad voice`,
   },
   {
     id: 21, filename: 'wapaci-warm-cart',
@@ -2631,23 +2589,7 @@ Wapakee sends the message. Instantly.
 No lost sale.
 
 Try Wapakee free. Wapaki dot com.`,
-    expertVoiceDir: `Urgent, cinematic Indian female voice. English only. You have 8 lines. Open barely above a whisper — do not rush a single word. This ad lives in its pauses.
-
-"Someone almost bought from you." — hushed. Intimate. Like telling a secret to one person. Slow.
-
-"Twelve seconds ago." — sharp and precise. Like a timer going off. Short pause after.
-
-"The intent is still alive." — careful, almost reverent. Like holding something fragile that could break. Slower than you think.
-
-"But every minute you wait..." — build dread here. Each word heavier than the last. The ellipsis is a real pause — hold it. Let them feel the time passing.
-
-"they forget." — quiet. Flat. Final. Like watching something slip away. Do not rush away from this line.
-
-"Wapakee sends the message. Instantly." — complete pivot. Sharp, decisive, confident. Like a switch being flipped. "Instantly" lands clean.
-
-"No lost sale." — quiet satisfaction. Short. Let it breathe.
-
-"Try Wapakee free. Wapaki dot com." — warm, clear, energetic. You've earned this CTA.`,
+    expertVoiceDir: `28 year old Indian female, urgent and intimate, whisper opening builds to sharp decisive close, cinematic pauses, expert ad voice`,
   },
   {
     id: 22, filename: 'wapaci-cod-filter',
@@ -2688,19 +2630,7 @@ No — stop it.
 Less RTO. More real revenue.
 
 Try Wapakee free. Wapaki dot com.`,
-    expertVoiceDir: `Direct, sharp Indian female voice. English only. You have 6 lines. No warmup. No filler. You are talking to a founder who is losing money right now.
-
-"Every fake COD order costs you money you'll never get back." — open serious and direct, like reading out a bill they didn't expect. Slow down on "you'll never get back." Land it. Pause after.
-
-"Wapakee sends a WhatsApp before your package ships." — confident pivot. Clean. Relief in your voice. This is the fix.
-
-"Yes — ship it." — sharp. Decisive. Short pause after.
-
-"No — stop it." — even sharper. Like flipping a switch. Pause after. These two lines are punches. Let them land separately.
-
-"Less RTO. More real revenue." — staccato. Two punches. "Less RTO" — pause. "More real revenue." — heavier, land this like money hitting the table.
-
-"Try Wapakee free. Wapaki dot com." — direct, confident, final. No fluff. They already know they need this.`,
+    expertVoiceDir: `28 year old Indian female, direct and sharp, no-nonsense delivery, punchy and focused, expert ad voice`,
   },
 ]
 
@@ -2779,6 +2709,9 @@ export default function AdminAdsPage() {
     setAdDls(prev => ({ ...prev, [id]: { ...getAdDl(id), ...p } }))
   const patchExpertAdDl = (id: number, p: Partial<{ phase: ExpertPhase; pct: number; error: string | null; label: string }>) =>
     setExpertAdDls(prev => ({ ...prev, [id]: { ...getExpertAdDl(id), ...p } }))
+
+  // Which Rumik speaker to use for expert voice (try 1-4 to find the female one from their playground)
+  const [expertSpeaker, setExpertSpeaker] = useState<'speaker_1'|'speaker_2'|'speaker_3'|'speaker_4'>('speaker_1')
 
   // Two canvas refs per ad: preview (visible in card) and record (offscreen, always mounted)
   const previewRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
@@ -2962,8 +2895,10 @@ export default function AdminAdsPage() {
         body: JSON.stringify({
           model: 'mulberry',
           text: stripToneTags(ad.expertScript),
-          description: ad.expertVoiceDir ?? 'confident warm Indian female voice, English only, natural energy',
+          description: ad.expertVoiceDir ?? '28 year old Indian female, warm confident energy, clear articulation, ad voice',
           language: 'en',
+          speaker: expertSpeaker,
+          f0_up_key: 3,
         }),
       })
       if (!res.ok) { const err = await res.json().catch(() => ({ error: 'API error' })); throw new Error(err.error ?? 'Failed') }
@@ -3037,6 +2972,24 @@ export default function AdminAdsPage() {
             </div>
           </div>
         </div>
+        {/* Speaker selector — try all 4 to find the Rumik playground female voice */}
+        <div className="flex items-center gap-2">
+          <span className="text-slate-500 text-xs">Expert voice:</span>
+          {(['speaker_1','speaker_2','speaker_3','speaker_4'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setExpertSpeaker(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                expertSpeaker === s
+                  ? 'bg-pink-600/30 border-pink-500/60 text-pink-300'
+                  : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+              }`}
+            >
+              {s.replace('speaker_', 'S')}
+            </button>
+          ))}
+        </div>
+
         {/* Active encoding count badge */}
         {(() => {
           const enc = Object.values(adDls).filter(d => d.phase === 'encoding').length
