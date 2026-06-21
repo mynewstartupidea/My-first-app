@@ -1781,6 +1781,44 @@ Don't get left behind.
 
 Try Wapakee free today — wapaci dot com!`,
     voiceDir: 'serious and slow dramatic opening with heavy pauses, build suspense, then suddenly shift to excited and energetic when revealing the solution, warm and enthusiastic close',
+    expertScript: `Right now...
+
+Seventy percent of your customers...
+
+...are leaving.
+
+Without buying.
+
+A single thing.
+
+That is real money. Walking out the door.
+
+Every. Single. Day.
+
+And you...
+
+You have absolutely no way to bring them back.
+
+...
+
+Until now.
+
+Wapakee sends them a WhatsApp message — automatically. At exactly the right moment.
+
+And here is what happens next?
+
+Twenty-eight percent...
+
+...come BACK.
+
+Twenty-eight percent of your abandoned carts — recovered. Every month. On autopilot.
+
+Your competitors are already doing this.
+
+Don't get left behind.
+
+Try Wapakee free today — wapaci dot com.`,
+    expertVoiceDir: `Warm Indian female voice, English only. Start in a slow near-whisper that builds dread — like sharing a dark secret. Hold a full two-second silence after the word 'customers' and again after 'leaving'. Deliver 'Without buying. A single thing.' with heavy broken weight — each phrase lands separately, like a gut punch. Drop almost to silence before 'Until now' — then shift completely into warmth, brightness, relief — like a friend who just found the answer. Build confident energy through the WhatsApp explanation. Land 'come BACK' with explosive triumph and genuine joy — this is the emotional peak of the ad. Close with urgent warmth, like a mentor who sincerely wants you to win.`,
   },
   {
     id: 2, filename: 'wapaci-roi-machine',
@@ -1813,6 +1851,46 @@ The results speak for themselves.
 
 Start your free trial at Wapakee dot com — today!`,
     voiceDir: 'confident and curious opening, slow down on numbers so they land with weight, conversational warmth in the middle, build to high energy close, like a passionate founder sharing a breakthrough',
+    expertScript: `What...
+
+...if I told you...
+
+Five lakh rupees of abandoned carts...
+
+Could become...
+
+...one point four lakh in recovered revenue?
+
+That is not a pitch.
+
+That is the MATH.
+
+WhatsApp open rate?
+
+Ninety-eight percent.
+
+Nine. Eight. Percent.
+
+Read in under three minutes.
+
+Forty-five percent of customers... actually reply back.
+
+That is forty-seven times your investment.
+
+Every. Single. Month.
+
+The math is simple.
+
+The setup?
+
+Ten minutes.
+
+Your competitors are already using this.
+
+The results speak for themselves.
+
+Start your free trial at Wapakee dot com — today.`,
+    expertVoiceDir: `Confident, clear Indian female voice speaking English only. Open slowly with genuine wonder and curiosity — like you are about to share something that completely changed things for you. Slow way down on the numbers — each one must land with physical weight, as if you are writing it in the air. Pause a full second after 'Nine. Eight. Percent.' and let the listener absorb it. Middle section: warm and conversational, like a smart friend who did the math so you didn't have to. Build to controlled electricity at 'forty-seven times your investment' — not shouting, but thrilling and alive. Close with deep conviction — like someone who has seen these results personally and cannot believe more people don't know about this yet.`,
   },
   {
     id: 3, filename: 'wapaci-channel-wars',
@@ -1847,6 +1925,52 @@ Wapakee — WhatsApp automation for Indian D2C brands.
 
 Try it free today — wapaci dot com!`,
     voiceDir: 'start very slow and deliberate, long dramatic silence between each stat, explosive excitement on the WhatsApp reveal, thoughtful pause then warm confident close',
+    expertScript: `Quick question.
+
+Which channel...
+
+...do your customers actually read?
+
+Email?
+
+...
+
+Two percent open rate.
+
+...
+
+SMS?
+
+...
+
+Five percent.
+
+...
+
+WhatsApp?
+
+NINETY. EIGHT. PERCENT.
+
+...
+
+Let that sink in.
+
+Your customers are on WhatsApp.
+
+They read messages in under three minutes.
+
+And almost HALF of them...
+
+...reply.
+
+Stop sending emails nobody opens.
+
+Start sending WhatsApp messages that actually convert.
+
+Wapakee — WhatsApp automation for Indian D two C brands.
+
+Try it free today — wapaci dot com.`,
+    expertVoiceDir: `Sharp, intelligent Indian female voice speaking fluent English only. Open with playful provocative energy — a question that dares the listener to think. After 'actually read' hold a full two-second silence. Deliver 'Two percent' with quiet almost-sad disappointment — trailing off like reading a bad report card. Same tone for 'Five percent' — even quieter, even sadder. Then one full beat of complete silence. Then EXPLODE on 'Ninety. Eight. Percent.' — maximum energy, genuine excitement, as if this number personally thrills you every single time you say it. Land 'Let that sink in' as a slow near-whisper — drop the energy completely, the eye of the storm. Then build steadily back through the solution section. Close sharp, authoritative, and confident — like someone who knows exactly what she's talking about and has no doubt.`,
   },
   {
     id: 4, filename: 'wapaci-dead-hours',
@@ -2498,6 +2622,16 @@ export default function AdminAdsPage() {
   )
   const [dl, setDl] = useState<DlState>({ adId: null, secondsLeft: 30, done: false })
 
+  // Expert voice download state (ads 1–3)
+  type ExpertPhase = 'idle' | 'generating' | 'encoding' | 'done' | 'error'
+  const [expertDl, setExpertDl] = useState<{
+    adId: number | null; phase: ExpertPhase; secondsLeft: number; error: string | null
+  }>({ adId: null, phase: 'idle', secondsLeft: DUR, error: null })
+  const expertMrRef    = useRef<MediaRecorder | null>(null)
+  const expertChunksRef = useRef<Blob[]>([])
+  const expertTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const expertRafRef    = useRef<number>(0)
+
   // Two canvas refs per ad: preview (visible in card) and record (offscreen, always mounted)
   const previewRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
   const recordRefs  = useRef<Record<number, HTMLCanvasElement | null>>({})
@@ -2636,6 +2770,120 @@ export default function AdminAdsPage() {
     setDl({ adId: null, secondsLeft: 30, done: false })
   }
 
+  function cancelExpertDl() {
+    if (expertMrRef.current?.state !== 'inactive') expertMrRef.current?.stop()
+    cancelAnimationFrame(expertRafRef.current)
+    if (expertTimerRef.current) clearInterval(expertTimerRef.current)
+    setExpertDl({ adId: null, phase: 'idle', secondsLeft: DUR, error: null })
+  }
+
+  /* ── Expert Voice Download — generates female EN voice then encodes video ── */
+  const downloadWithExpertVoice = useCallback(async (ad: typeof ADS[0] & { expertScript?: string; expertVoiceDir?: string }) => {
+    if (expertDl.adId !== null || dl.adId !== null) return
+    if (!ad.expertScript) return
+
+    const recordCanvas = recordRefs.current[ad.id]
+    if (!recordCanvas) { alert('Canvas not ready — please refresh.'); return }
+
+    // ── Phase 1: generate expert voice ──
+    setExpertDl({ adId: ad.id, phase: 'generating', secondsLeft: DUR, error: null })
+    let expertAudioBlob: Blob | null = null
+    try {
+      const genderPart = 'warm clear Indian female voice speaking only in English'
+      const description = [genderPart, ad.expertVoiceDir ?? ''].filter(Boolean).join(', ')
+      const res = await fetch('/api/voiceover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'mulberry',
+          text: stripToneTags(ad.expertScript),
+          description,
+          language: 'en',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'API error' }))
+        throw new Error(err.error ?? 'Voice generation failed')
+      }
+      expertAudioBlob = await res.blob()
+    } catch (e: unknown) {
+      setExpertDl({ adId: null, phase: 'error', secondsLeft: DUR, error: e instanceof Error ? e.message : 'Error' })
+      return
+    }
+
+    // ── Phase 2: encode video with expert audio ──
+    setExpertDl({ adId: ad.id, phase: 'encoding', secondsLeft: DUR, error: null })
+    expertChunksRef.current = []
+
+    const audioCtx  = new AudioContext()
+    const audioDest = audioCtx.createMediaStreamDestination()
+    const master    = audioCtx.createGain(); master.gain.value = 0.9
+    master.connect(audioDest); master.connect(audioCtx.destination)
+
+    if (expertAudioBlob) {
+      try {
+        const buf = await audioCtx.decodeAudioData(await expertAudioBlob.arrayBuffer())
+        const src = audioCtx.createBufferSource(); src.buffer = buf
+        const vg  = audioCtx.createGain(); vg.gain.value = 1.15
+        src.connect(vg); vg.connect(master)
+        src.start(audioCtx.currentTime + 0.15)
+      } catch (e) { console.warn('expert voice decode:', e) }
+    }
+
+    scheduleAdAudio(audioCtx, master, ad.id)
+
+    const videoStream = recordCanvas.captureStream(30)
+    const combined    = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...audioDest.stream.getAudioTracks(),
+    ])
+
+    const mime = [
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4',
+      'video/webm;codecs=vp9,opus',
+      'video/webm',
+    ].find(m => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
+
+    const recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 20_000_000 })
+    expertMrRef.current = recorder
+    recorder.ondataavailable = e => { if (e.data.size > 0) expertChunksRef.current.push(e.data) }
+
+    recorder.onstop = () => {
+      audioCtx.close()
+      if (expertTimerRef.current) clearInterval(expertTimerRef.current)
+      cancelAnimationFrame(expertRafRef.current)
+      const blob = new Blob(expertChunksRef.current, { type: mime })
+      const url  = URL.createObjectURL(blob)
+      const ext  = mime.includes('mp4') ? 'mp4' : 'webm'
+      const a    = document.createElement('a')
+      a.href = url; a.download = `${ad.filename}-expert-voice.${ext}`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      setExpertDl({ adId: null, phase: 'done', secondsLeft: DUR, error: null })
+      setTimeout(() => setExpertDl(d => ({ ...d, phase: 'idle' })), 5000)
+    }
+
+    recorder.start(100)
+
+    let secs = DUR
+    expertTimerRef.current = setInterval(() => {
+      secs--
+      setExpertDl(d => ({ ...d, secondsLeft: secs }))
+      if (secs <= 0) { clearInterval(expertTimerRef.current!); recorder.stop() }
+    }, 1000)
+
+    const renderer = RENDERERS[ad.id]
+    const rCtx     = recordCanvas.getContext('2d')!
+    const startMs  = performance.now()
+    function expertFrame() {
+      const t = (performance.now() - startMs) / 1000
+      renderer(rCtx, t)
+      if (t < DUR + 0.5) expertRafRef.current = requestAnimationFrame(expertFrame)
+    }
+    expertRafRef.current = requestAnimationFrame(expertFrame)
+  }, [expertDl.adId, dl.adId])
+
   // Preview animation loop for all cards
   useEffect(() => {
     const handles: Record<number, number> = {}
@@ -2686,33 +2934,57 @@ export default function AdminAdsPage() {
             </div>
           </div>
         </div>
-        {dl.done && (
-          <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2">
-            <CheckCircle2 size={14} className="text-green-400" />
-            <span className="text-green-400 text-sm font-semibold">Downloaded successfully!</span>
-          </div>
-        )}
-        {dl.adId !== null && (
-          <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-            <Loader2 size={13} className="text-purple-400 animate-spin" />
-            <span className="text-slate-300 text-sm">Encoding video… <span className="font-bold tabular-nums text-white">{dl.secondsLeft}s</span></span>
-            <div className="w-24 bg-white/10 rounded-full h-1">
-              <div className="bg-purple-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - dl.secondsLeft) / DUR) * 100}%` }} />
+        <div className="flex items-center gap-3">
+          {dl.done && (
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2">
+              <CheckCircle2 size={14} className="text-green-400" />
+              <span className="text-green-400 text-sm font-semibold">Downloaded!</span>
             </div>
-            <button onClick={cancelDl} className="text-slate-600 hover:text-red-400 text-xs transition">✕</button>
-          </div>
-        )}
+          )}
+          {expertDl.phase === 'done' && (
+            <div className="flex items-center gap-2 bg-pink-500/10 border border-pink-500/20 rounded-xl px-4 py-2">
+              <CheckCircle2 size={14} className="text-pink-400" />
+              <span className="text-pink-400 text-sm font-semibold">Expert voice downloaded!</span>
+            </div>
+          )}
+          {dl.adId !== null && (
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+              <Loader2 size={13} className="text-purple-400 animate-spin" />
+              <span className="text-slate-300 text-sm">Encoding… <span className="font-bold tabular-nums text-white">{dl.secondsLeft}s</span></span>
+              <div className="w-20 bg-white/10 rounded-full h-1">
+                <div className="bg-purple-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - dl.secondsLeft) / DUR) * 100}%` }} />
+              </div>
+              <button onClick={cancelDl} className="text-slate-600 hover:text-red-400 text-xs transition">✕</button>
+            </div>
+          )}
+          {expertDl.adId !== null && expertDl.phase !== 'done' && (
+            <div className="flex items-center gap-3 bg-pink-500/[0.08] border border-pink-500/20 rounded-xl px-4 py-2">
+              <Loader2 size={13} className="text-pink-400 animate-spin" />
+              <span className="text-slate-300 text-sm">
+                {expertDl.phase === 'generating' ? 'Generating expert voice…' : <>Encoding… <span className="font-bold tabular-nums text-white">{expertDl.secondsLeft}s</span></>}
+              </span>
+              {expertDl.phase === 'encoding' && (
+                <div className="w-20 bg-white/10 rounded-full h-1">
+                  <div className="bg-pink-500 h-1 rounded-full transition-all" style={{ width: `${((DUR - expertDl.secondsLeft) / DUR) * 100}%` }} />
+                </div>
+              )}
+              <button onClick={cancelExpertDl} className="text-slate-600 hover:text-red-400 text-xs transition">✕</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Ad cards ── */}
       <div className="px-8 py-6 space-y-6">
         {ADS.map(ad => {
-          const v       = voices[ad.id]
-          const isEx    = expanded === ad.id
-          const isEncoding = dl.adId === ad.id
+          const v              = voices[ad.id]
+          const isEx           = expanded === ad.id
+          const isEncoding     = dl.adId === ad.id
+          const isExpertActive = expertDl.adId === ad.id
+          const hasExpert      = !!(ad as typeof ADS[0] & { expertScript?: string }).expertScript
 
           return (
-            <div key={ad.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+            <div key={ad.id} className={`rounded-2xl border overflow-hidden transition ${hasExpert ? 'border-pink-500/20 bg-pink-500/[0.015]' : 'border-white/[0.08] bg-white/[0.02]'}`}>
               <div className="flex">
 
                 {/* Preview canvas thumbnail — always visible */}
@@ -2728,9 +3000,22 @@ export default function AdminAdsPage() {
                       <span className="text-white text-xs font-bold tabular-nums">{dl.secondsLeft}s</span>
                     </div>
                   )}
+                  {isExpertActive && (
+                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1.5">
+                      <Loader2 size={20} className="text-pink-400 animate-spin" />
+                      <span className="text-pink-300 text-[10px] font-bold text-center px-2">
+                        {expertDl.phase === 'generating' ? 'Generating voice…' : `Encoding ${expertDl.secondsLeft}s`}
+                      </span>
+                    </div>
+                  )}
                   <div className="absolute top-2 left-2 z-10">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${ad.tagColor}`}>{ad.tag}</span>
                   </div>
+                  {hasExpert && (
+                    <div className="absolute bottom-2 right-2 z-10">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-pink-500/30 border border-pink-500/50 text-pink-300">✦ Expert</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Info + actions */}
@@ -2740,31 +3025,54 @@ export default function AdminAdsPage() {
                     <p className="text-slate-500 text-xs mt-0.5">1080×1080 · 20Mbps · 30fps · canvas encode</p>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={() => downloadVideo(ad)}
-                      disabled={dl.adId !== null}
-                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ backgroundColor: ad.accent + '25', color: ad.accent, border: `1px solid ${ad.accent}50` }}
-                    >
-                      {isEncoding
-                        ? <><Loader2 size={13} className="animate-spin" /> Encoding {dl.secondsLeft}s…</>
-                        : <><Download size={13} /> {v.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}</>
-                      }
-                    </button>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => downloadVideo(ad)}
+                        disabled={dl.adId !== null || expertDl.adId !== null}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: ad.accent + '25', color: ad.accent, border: `1px solid ${ad.accent}50` }}
+                      >
+                        {isEncoding
+                          ? <><Loader2 size={13} className="animate-spin" /> Encoding {dl.secondsLeft}s…</>
+                          : <><Download size={13} /> {v.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}</>
+                        }
+                      </button>
 
-                    <button
-                      onClick={() => setExpanded(isEx ? null : ad.id)}
-                      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition ${
-                        v.status === 'ready'
-                          ? 'bg-purple-500/15 border-purple-500/40 text-purple-300'
-                          : 'bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <Mic size={12} />
-                      {v.status === 'ready' ? '✓ Voiceover Ready' : 'Add Voiceover'}
-                      {isEx ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                    </button>
+                      <button
+                        onClick={() => setExpanded(isEx ? null : ad.id)}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition ${
+                          v.status === 'ready'
+                            ? 'bg-purple-500/15 border-purple-500/40 text-purple-300'
+                            : 'bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Mic size={12} />
+                        {v.status === 'ready' ? '✓ Voiceover Ready' : 'Add Voiceover'}
+                        {isEx ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                    </div>
+
+                    {/* Expert Voice Download — only on ads with expertScript */}
+                    {hasExpert && (
+                      <button
+                        onClick={() => downloadWithExpertVoice(ad as typeof ADS[0] & { expertScript?: string; expertVoiceDir?: string })}
+                        disabled={expertDl.adId !== null || dl.adId !== null}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed w-full justify-center"
+                        style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(139,92,246,0.15) 100%)', border: '1px solid rgba(236,72,153,0.35)', color: '#f9a8d4' }}
+                      >
+                        {isExpertActive
+                          ? expertDl.phase === 'generating'
+                            ? <><Loader2 size={13} className="animate-spin text-pink-400" /> Generating expert voice…</>
+                            : <><Loader2 size={13} className="animate-spin text-pink-400" /> Encoding {expertDl.secondsLeft}s…</>
+                          : <><Sparkles size={13} className="text-pink-400" /> Download Expert Voice MP4 · Female · English</>
+                        }
+                      </button>
+                    )}
+
+                    {expertDl.phase === 'error' && expertDl.adId === null && (
+                      <p className="text-red-400 text-xs px-1">{expertDl.error}</p>
+                    )}
                   </div>
                 </div>
               </div>
