@@ -19,8 +19,11 @@ const particles = [
   { left: '91%', top: '77%', w: 2, h: 2, dur: 5.5, delay: 1.1  },
 ]
 
-const words1 = ['Send', 'the', 'right', 'message']
-const words2 = ['at', 'the', 'right', 'time.']
+const headlineLines = [
+  { text: '98% open rate.',       color: 'text-[#25D366]' },
+  { text: 'Real conversations.',  color: 'text-white'     },
+  { text: 'Real revenue.',        color: 'text-white'     },
+]
 
 function useCountUp(target: number, start: boolean, duration = 1.8): number {
   const [val, setVal] = useState(0)
@@ -150,34 +153,29 @@ export default function Hero() {
             <span className="text-[#25D366] text-xs font-bold tracking-widest uppercase">WhatsApp Automation · 340+ businesses</span>
           </motion.div>
 
-          {/* Headline — word by word spring animation */}
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.0] tracking-tight text-white mb-2">
-            <div className="flex flex-wrap gap-x-4 mb-2">
-              {words1.map((w, i) => (
-                <motion.span
-                  key={w}
-                  initial={{ opacity: 0, y: 80, rotate: -6, filter: 'blur(12px)', scale: 1.2 }}
-                  animate={{ opacity: 1, y: 0, rotate: 0, filter: 'blur(0px)', scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 65, damping: 14, delay: 0.06 * i }}
-                  className="inline-block"
-                >
-                  {w}
-                </motion.span>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-x-4">
-              {words2.map((w, i) => (
-                <motion.span
-                  key={w}
-                  initial={{ opacity: 0, y: 80, rotate: i % 2 === 0 ? -5 : 5, filter: 'blur(12px)', scale: 1.2 }}
-                  animate={{ opacity: 1, y: 0, rotate: 0, filter: 'blur(0px)', scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 65, damping: 14, delay: 0.06 * (words1.length + i) }}
-                  className={`inline-block ${i === 1 ? 'text-shimmer' : ''}`}
-                >
-                  {w}
-                </motion.span>
-              ))}
-            </div>
+          {/* Headline — line by line spring animation */}
+          <h1 className="font-extrabold leading-[1.08] tracking-tight mb-2">
+            {headlineLines.map((line, i) => (
+              <motion.div
+                key={line.text}
+                initial={{ opacity: 0, y: 60, filter: 'blur(12px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ type: 'spring', stiffness: 60, damping: 14, delay: 0.15 * i }}
+                className={`block text-5xl md:text-6xl lg:text-7xl ${line.color}`}
+              >
+                {line.text}
+              </motion.div>
+            ))}
+            {/* Conclusion line */}
+            <motion.div
+              initial={{ opacity: 0, y: 60, filter: 'blur(12px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              transition={{ type: 'spring', stiffness: 60, damping: 14, delay: 0.15 * 3 }}
+              className="block text-3xl md:text-4xl lg:text-5xl text-slate-300 mt-1"
+            >
+              That&apos;s{' '}
+              <span className="text-shimmer font-extrabold">WhatsApp marketing.</span>
+            </motion.div>
           </h1>
 
           {/* Subline */}
@@ -187,7 +185,7 @@ export default function Hero() {
             transition={{ duration: 0.7, delay: 0.5 }}
             className="mt-6 text-lg md:text-xl text-slate-400 leading-relaxed max-w-lg"
           >
-            Cart recovery, appointment reminders, promotions and re-engagement — automated on WhatsApp. For e-commerce stores, clinics, gyms, and every business in between.
+            Wapaci automates your WhatsApp marketing so every customer gets the right message — cart recovery, appointment reminders, promotions and more. Set up in minutes.
           </motion.p>
 
           {/* CTAs */}
