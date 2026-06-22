@@ -77,7 +77,7 @@ export default function Problem() {
   const vals = [s0, s1, s2]
 
   return (
-    <section ref={ref} className="bg-[#0d1117] py-24 relative overflow-hidden">
+    <section ref={ref} className="bg-[#030812] py-28 relative overflow-hidden">
       {/* Section divider glow */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-b from-transparent via-[#25D366]/30 to-transparent" />
@@ -91,9 +91,9 @@ export default function Problem() {
 
       <div className="max-w-6xl mx-auto px-5">
         <motion.div
-          initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
-          animate={inView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
-          transition={{ duration: 0.7 }}
+          initial={{ opacity: 0, scale: 1.2, filter: 'blur(16px)' }}
+          animate={inView ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : {}}
+          transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
           className="text-center mb-16"
         >
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">The Problem</span>

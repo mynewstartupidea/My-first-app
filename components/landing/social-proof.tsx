@@ -72,7 +72,7 @@ export default function SocialProof() {
   const vals = [v0, v1, v2, v3]
 
   return (
-    <section ref={ref} className="bg-[#0a0f1a] py-24 relative overflow-hidden">
+    <section ref={ref} className="bg-[#030812] py-28 relative overflow-hidden">
 
       {/* Ambient glow */}
       <motion.div
@@ -107,9 +107,9 @@ export default function SocialProof() {
 
         {/* Section header */}
         <motion.div
-          initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
-          animate={inView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
-          transition={{ duration: 0.6, delay: 0.2 }}
+          initial={{ opacity: 0, scale: 1.2, filter: 'blur(16px)' }}
+          animate={inView ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : {}}
+          transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
           className="text-center mb-12"
         >
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">What brands say</span>

@@ -15,8 +15,26 @@
 body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background: #f1f5f9;
+  background: #030812;
   color: #1e293b;
+}
+
+/* Grain / film-noise overlay — applies globally, makes dark backgrounds feel premium */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99998;
+  opacity: 0.042;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* Hide native cursor for custom cursor — only on pointer:fine (mouse) */
+.cursor-none-global,
+.cursor-none-global * {
+  cursor: none !important;
 }
 
 /* Custom scrollbar */
@@ -65,3 +83,62 @@ body {
 }
 .animate-pulse-ring      { animation: pulse-ring      2s   ease-out infinite; }
 .animate-pulse-ring-slow { animation: pulse-ring-slow 2.8s ease-out infinite 0.7s; }
+
+/* ─── Hero 3D grid floor ─────────────────────────────────────── */
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(37, 211, 102, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 211, 102, 0.07) 1px, transparent 1px);
+  background-size: 60px 60px;
+  transform: perspective(900px) rotateX(72deg) translateY(48%);
+  transform-origin: bottom center;
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 55%);
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 55%);
+}
+
+/* ─── Aurora orbs (used by aurora-bg.tsx) ───────────────────── */
+.aurora-orb { position: absolute; border-radius: 50%; will-change: transform; }
+
+.aurora-orb-1 {
+  width: 1000px; height: 1000px;
+  top: -350px; left: -250px;
+  background: radial-gradient(circle at center, rgba(37,211,102,0.13) 0%, transparent 65%);
+  filter: blur(90px);
+  animation: aurora-drift-1 22s ease-in-out infinite alternate;
+}
+.aurora-orb-2 {
+  width: 800px; height: 800px;
+  top: 25%; right: -200px;
+  background: radial-gradient(circle at center, rgba(8,145,178,0.09) 0%, transparent 65%);
+  filter: blur(90px);
+  animation: aurora-drift-2 28s ease-in-out infinite alternate;
+}
+.aurora-orb-3 {
+  width: 700px; height: 700px;
+  bottom: 8%; left: 10%;
+  background: radial-gradient(circle at center, rgba(124,58,237,0.06) 0%, transparent 65%);
+  filter: blur(90px);
+  animation: aurora-drift-3 20s ease-in-out infinite alternate;
+}
+.aurora-orb-4 {
+  width: 600px; height: 600px;
+  top: 50%; left: 35%;
+  background: radial-gradient(circle at center, rgba(37,211,102,0.05) 0%, transparent 65%);
+  filter: blur(90px);
+  animation: aurora-drift-2 34s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes aurora-drift-1 {
+  from { transform: translate(0,   0)    scale(1); }
+  to   { transform: translate(220px, 180px) scale(1.3); }
+}
+@keyframes aurora-drift-2 {
+  from { transform: translate(0,   0)    scale(1); }
+  to   { transform: translate(-170px, 200px) scale(1.2); }
+}
+@keyframes aurora-drift-3 {
+  from { transform: translate(0,   0)    scale(1); }
+  to   { transform: translate(150px, -190px) scale(1.4); }
+}

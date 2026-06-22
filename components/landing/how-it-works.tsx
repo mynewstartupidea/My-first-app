@@ -60,14 +60,14 @@ export default function HowItWorks() {
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
   return (
-    <section id="how-it-works" ref={ref} className="bg-[#0d1117] py-24 relative overflow-hidden">
+    <section id="how-it-works" ref={ref} className="bg-[#030812] py-28 relative overflow-hidden">
       <div className="absolute right-0 top-0 w-px h-full bg-gradient-to-b from-transparent via-[#25D366]/10 to-transparent" />
 
       <div className="max-w-6xl mx-auto px-5">
         <motion.div
-          initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
-          animate={inView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
-          transition={{ duration: 0.7 }}
+          initial={{ opacity: 0, scale: 1.2, filter: 'blur(16px)' }}
+          animate={inView ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : {}}
+          transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
           className="text-center mb-16"
         >
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">How it works</span>

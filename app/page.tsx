@@ -1,3 +1,5 @@
+import AuroraBg from '@/components/landing/aurora-bg'
+import Cursor from '@/components/landing/cursor'
 import ScrollProgress from '@/components/landing/scroll-progress'
 import Navbar from '@/components/landing/navbar'
 import Hero from '@/components/landing/hero'
@@ -13,19 +15,23 @@ import Footer from '@/components/landing/footer'
 
 export default function HomePage() {
   return (
-    <main className="antialiased">
-      <ScrollProgress />
-      <Navbar />
-      <Hero />
-      <Problem />
-      <Features />
-      <HowItWorks />
-      <UseCases />
-      <SocialProof />
-      <Pricing />
-      <CtaSection />
-      <FAQ />
-      <Footer />
-    </main>
+    <>
+      <AuroraBg />
+      <Cursor />
+      <main className="antialiased relative" style={{ zIndex: 1 }}>
+        <ScrollProgress />
+        <Navbar />
+        <Hero />
+        <Problem />
+        <Features />
+        <HowItWorks />
+        <UseCases />
+        <SocialProof />
+        <Pricing />
+        <CtaSection />
+        <FAQ />
+        <Footer />
+      </main>
+    </>
   )
 }

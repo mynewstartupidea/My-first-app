@@ -10,7 +10,7 @@ export default function CtaSection() {
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
   return (
-    <section ref={ref} className="bg-[#0d1117] py-24 relative overflow-hidden">
+    <section ref={ref} className="bg-[#030812] py-28 relative overflow-hidden">
 
       {/* Large animated glow blob */}
       <motion.div
