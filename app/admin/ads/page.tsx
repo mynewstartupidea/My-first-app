@@ -6,6 +6,7 @@ import {
   AlertCircle, ChevronDown, ChevronUp, ArrowLeft, Film, RefreshCw,
   Globe, User,
 } from 'lucide-react'
+import Lottie from 'lottie-react'
 
 /* ─── Canvas dimensions ───────────────────────────────────────────── */
 const W = 1080, H = 1080
@@ -2840,6 +2841,155 @@ function buildDesc(ad: typeof ADS[0], v: VoiceState): { description: string; lan
   }
 }
 
+/* ─── Lottie Ad Preview ───────────────────────────────────────────── */
+// Merchant: Designer Boy at laptop with floating messages (D2C brand owner)
+// Customer: Friendly cartoon character waving (happy customer)
+const MERCHANT_URL = 'https://assets9.lottiefiles.com/packages/lf20_fcfjwiyb.json'
+const CUSTOMER_URL = 'https://assets9.lottiefiles.com/packages/lf20_puciaact.json'
+
+const AD_PHASES = [
+  { heading: 'Your brand sends a WhatsApp message.', sub: 'Automatically. At exactly the right moment.', accent: '#25D366' },
+  { heading: 'Your customer feels it.', sub: 'They open it. They click. They buy.', accent: '#facc15' },
+  { heading: '28% of lost carts — recovered.', sub: 'Without a single manual message.', accent: '#f472b6' },
+  { heading: 'Try Wapakee free today.', sub: 'wapaki.com', accent: '#25D366' },
+]
+
+function LottieAdPreview() {
+  const [merchantData, setMerchantData] = useState<Record<string, unknown> | null>(null)
+  const [customerData, setCustomerData] = useState<Record<string, unknown> | null>(null)
+  const [phase, setPhase] = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    fetch(MERCHANT_URL).then(r => r.json()).then(setMerchantData).catch(() => {})
+    fetch(CUSTOMER_URL).then(r => r.json()).then(setCustomerData).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setPhase(p => (p + 1) % AD_PHASES.length)
+        setVisible(true)
+      }, 350)
+    }, 4500)
+    return () => clearInterval(tick)
+  }, [])
+
+  const cur = AD_PHASES[phase]
+  const isCta = phase === AD_PHASES.length - 1
+
+  return (
+    <div
+      className="relative rounded-3xl overflow-hidden border border-white/10 w-full"
+      style={{ background: 'linear-gradient(145deg,#0a0f1a 0%,#071a0f 60%,#0a0f1a 100%)', aspectRatio: '1/1', maxWidth: 520 }}
+    >
+      {/* Grid texture */}
+      <div className="absolute inset-0 opacity-[0.03]"
+        style={{ backgroundImage:'repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 0,transparent 60px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 0,transparent 60px)' }} />
+
+      {/* Glows that shift with phase */}
+      <div className="absolute inset-0 transition-all duration-1000"
+        style={{ background: `radial-gradient(ellipse 70% 50% at 25% 45%,${cur.accent}22,transparent)` }} />
+      <div className="absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse 60% 50% at 75% 55%,rgba(37,211,102,0.1),transparent)' }} />
+
+      {/* ── Characters ── */}
+      <div className="absolute inset-x-0 top-0" style={{ height: '62%' }}>
+        {/* Merchant — left */}
+        <div className="absolute left-0 top-0 bottom-0" style={{ width: '50%' }}>
+          {merchantData
+            ? <Lottie animationData={merchantData} loop autoplay style={{ width: '100%', height: '100%' }} />
+            : <div className="w-full h-full flex items-center justify-center">
+                <Loader2 size={28} className="text-white/20 animate-spin" />
+              </div>
+          }
+        </div>
+
+        {/* Divider arrow / ping */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-1">
+          <div className="w-px flex-1" style={{ background: `linear-gradient(to bottom, transparent, ${cur.accent}80, transparent)`, height: 60 }} />
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-black font-black text-lg transition-colors duration-500"
+            style={{ background: cur.accent }}
+          >→</div>
+          <div className="w-px" style={{ background: `linear-gradient(to bottom, ${cur.accent}80, transparent)`, height: 60 }} />
+        </div>
+
+        {/* Customer — right */}
+        <div className="absolute right-0 top-0 bottom-0" style={{ width: '50%' }}>
+          {customerData
+            ? <Lottie animationData={customerData} loop autoplay style={{ width: '100%', height: '100%' }} />
+            : <div className="w-full h-full flex items-center justify-center">
+                <Loader2 size={28} className="text-white/20 animate-spin" />
+              </div>
+          }
+          {/* WhatsApp ping badge */}
+          <div
+            className="absolute top-4 right-4 rounded-xl px-2.5 py-1.5 text-xs font-bold text-black transition-all duration-500"
+            style={{ background: cur.accent, transform: phase === 1 ? 'scale(1.1)' : 'scale(1)' }}
+          >
+            ✓✓ Read
+          </div>
+        </div>
+      </div>
+
+      {/* ── Copy section ── */}
+      <div
+        className="absolute inset-x-0 bottom-0 flex flex-col items-center px-6 py-6 text-center"
+        style={{ height: '40%', background: 'linear-gradient(to top, rgba(7,11,18,0.98) 0%, rgba(7,11,18,0.85) 70%, transparent 100%)' }}
+      >
+        {/* Label pill */}
+        <div
+          className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3 transition-colors duration-500"
+          style={{ background: `${cur.accent}20`, color: cur.accent, border: `1px solid ${cur.accent}40` }}
+        >
+          {isCta ? 'wapakee · whatsapp automation' : 'wapakee · d2c'}
+        </div>
+
+        {/* Heading */}
+        <div
+          className="text-white font-black leading-tight mb-2 transition-all duration-300"
+          style={{
+            fontSize: 'clamp(15px, 3.5vw, 22px)',
+            opacity: visible ? 1 : 0,
+            transform: visible ? 'translateY(0)' : 'translateY(8px)',
+          }}
+        >
+          {cur.heading}
+        </div>
+
+        {/* Sub */}
+        <div
+          className="text-sm transition-all duration-300"
+          style={{
+            color: cur.accent,
+            opacity: visible ? 0.9 : 0,
+            transform: visible ? 'translateY(0)' : 'translateY(8px)',
+            transitionDelay: '60ms',
+          }}
+        >
+          {cur.sub}
+        </div>
+
+        {/* Phase dots */}
+        <div className="flex gap-2 mt-4">
+          {AD_PHASES.map((p, i) => (
+            <div
+              key={i}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width: i === phase ? 20 : 6, height: 6,
+                background: i === phase ? cur.accent : 'rgba(255,255,255,0.15)',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Main component ──────────────────────────────────────────────── */
 export default function AdminAdsPage() {
   const [expanded, setExpanded] = useState<number | null>(null)
@@ -3376,6 +3526,43 @@ export default function AdminAdsPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* ── Lottie Cartoon Ad ── */}
+      <div className="px-8 pb-14">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-1.5 h-6 bg-gradient-to-b from-yellow-400 to-green-500 rounded-full" />
+          <h2 className="text-white font-bold text-lg">Lottie Cartoon Ad — Live Preview</h2>
+          <span className="text-xs bg-yellow-500/15 text-yellow-400 border border-yellow-500/25 rounded-full px-3 py-1 font-medium">Animated characters · Real Lottie JSON</span>
+        </div>
+        <p className="text-slate-500 text-sm mb-8 max-w-2xl">
+          Two real Lottie characters — a D2C merchant at their laptop and a happy customer — animated and telling the Wapakee story. Cycles through 4 story phases automatically.
+        </p>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 items-start">
+          <LottieAdPreview />
+          <div className="flex flex-col gap-5 pt-4">
+            <div className="text-white font-semibold text-base">What you&apos;re seeing</div>
+            <div className="space-y-4">
+              {[
+                { color: '#25D366', label: 'Merchant character (left)', desc: 'Designer boy at a laptop — animated head bob, waving hand, floating messages. Represents the D2C brand owner running Wapakee.' },
+                { color: '#facc15', label: 'Customer character (right)', desc: 'Friendly cartoon character waving and blinking. Represents the customer who received the WhatsApp message and came back.' },
+                { color: '#f472b6', label: '4 story phases', desc: 'The copy cycles every 4.5 seconds: message sent → customer reacts → stat proof → CTA. The accent color shifts per phase.' },
+                { color: '#818cf8', label: 'Download via Remotion', desc: 'To export this as a downloadable MP4 ad, Remotion renders Lottie → video server-side. Want that set up next?' },
+              ].map(({ color, label, desc }) => (
+                <div key={label} className="flex gap-3">
+                  <div className="w-1 flex-shrink-0 rounded-full mt-1" style={{ background: color, minHeight: 40 }} />
+                  <div>
+                    <div className="text-white text-sm font-semibold">{label}</div>
+                    <div className="text-slate-500 text-xs mt-0.5 leading-relaxed">{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-slate-500 leading-relaxed">
+              Characters from <span className="text-white">LottieFiles.com</span> — free tier, publicly accessible. Swap the URLs in <span className="text-white font-mono">MERCHANT_URL</span> / <span className="text-white font-mono">CUSTOMER_URL</span> with any Lottie animation you find.
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── HTML / CSS Ad Preview Section ── */}
