@@ -161,7 +161,7 @@ export default function Hero() {
                 initial={{ opacity: 0, y: 60, filter: 'blur(12px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ type: 'spring', stiffness: 60, damping: 14, delay: 0.15 * i }}
-                className={`block text-5xl md:text-6xl lg:text-7xl ${line.color}`}
+                className={`block text-4xl md:text-5xl lg:text-[3.5rem] ${line.color}`}
               >
                 {line.text}
               </motion.div>
@@ -171,7 +171,7 @@ export default function Hero() {
               initial={{ opacity: 0, y: 60, filter: 'blur(12px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               transition={{ type: 'spring', stiffness: 60, damping: 14, delay: 0.15 * 3 }}
-              className="block text-3xl md:text-4xl lg:text-5xl text-slate-300 mt-1"
+              className="block text-2xl md:text-3xl lg:text-[2rem] text-slate-300 mt-1"
             >
               That&apos;s{' '}
               <span className="text-shimmer font-extrabold">WhatsApp marketing.</span>
