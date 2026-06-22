@@ -3380,131 +3380,274 @@ export default function AdminAdsPage() {
 
       {/* ── HTML / CSS Ad Preview Section ── */}
       <div className="px-8 pb-12">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-3">
           <div className="w-1.5 h-6 bg-gradient-to-b from-cyan-400 to-purple-500 rounded-full" />
-          <h2 className="text-white font-bold text-lg">HTML / CSS Approach — Live Preview</h2>
-          <span className="text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 rounded-full px-3 py-1 font-medium">
-            Design-first · No canvas required
-          </span>
+          <h2 className="text-white font-bold text-lg">HTML / CSS — How Far Can It Go?</h2>
+          <span className="text-xs bg-purple-500/15 text-purple-400 border border-purple-500/25 rounded-full px-3 py-1 font-medium">Pure CSS · Zero dependencies</span>
         </div>
         <p className="text-slate-500 text-sm mb-8 max-w-2xl">
-          Below is the same &ldquo;WhatsApp Chat&rdquo; concept built in HTML + CSS. Designs are easier to create and iterate — text, gradients, and animations are all just code. Download support for CSS ads requires Remotion or a recording library (coming soon).
+          This is a real illustrated human character built entirely in HTML + CSS + SVG — no images, no Lottie, no library. Every shape, animation, and expression is code.
         </p>
 
         <style>{`
-          @keyframes fadeUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-          @keyframes blink0 { 0%,66%,100%{transform:translateY(0)} 33%{transform:translateY(-6px)} }
-          @keyframes blink1 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-          @keyframes blink2 { 0%,33%,100%{transform:translateY(0)} 66%{transform:translateY(-6px)} }
-          @keyframes greenFlash { 0%{box-shadow:none} 50%{box-shadow:0 0 80px 20px rgba(37,211,102,0.35)} 100%{box-shadow:none} }
-          .css-ad-msg { animation: fadeUp 0.4s ease both }
-          .dot-0 { animation: blink0 1s ease infinite }
-          .dot-1 { animation: blink1 1s ease infinite }
-          .dot-2 { animation: blink2 1s ease infinite }
+          @keyframes charBob    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+          @keyframes charExcite { 0%,100%{transform:translateY(0) rotate(0deg)} 25%{transform:translateY(-10px) rotate(-3deg)} 75%{transform:translateY(-8px) rotate(3deg)} }
+          @keyframes screenGlow { 0%,100%{filter:drop-shadow(0 0 4px #25D366)} 50%{filter:drop-shadow(0 0 18px #25D366)} }
+          @keyframes notifPop   { 0%{opacity:0;transform:scale(0.3) translateY(8px)} 70%{transform:scale(1.2) translateY(-2px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+          @keyframes fadeUp     { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes smileGrow  { from{d:path('M 62 112 Q 80 122 98 112')} to{d:path('M 58 110 Q 80 128 102 110')} }
+          @keyframes eyebrowUp  { 0%,60%{transform:translateY(0)} 100%{transform:translateY(-4px)} }
+          @keyframes armWave    { 0%,100%{transform:rotate(0deg)} 40%{transform:rotate(-18deg)} 70%{transform:rotate(-8deg)} }
+          @keyframes dot0       { 0%,66%,100%{transform:translateY(0)} 33%{transform:translateY(-5px)} }
+          @keyframes dot1       { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+          @keyframes dot2       { 0%,33%,100%{transform:translateY(0)} 66%{transform:translateY(-5px)} }
+          @keyframes msgIn      { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes ctaGlow    { 0%,100%{box-shadow:0 0 16px 2px rgba(37,211,102,0.3)} 50%{box-shadow:0 0 32px 8px rgba(37,211,102,0.55)} }
+
+          .char-idle    { animation: charBob 2.2s ease-in-out infinite }
+          .char-excited { animation: charExcite 0.5s ease-in-out 3.4s 3 }
+          .char-screen  { animation: screenGlow 1.4s ease-in-out infinite }
+          .char-notif   { animation: notifPop 0.45s cubic-bezier(0.34,1.56,0.64,1) 2.6s both }
+          .char-arm     { animation: armWave 0.7s ease-in-out 3.4s 3; transform-origin: 118px 138px }
+          .char-brow-l  { animation: eyebrowUp 0.3s ease-out 3.2s both }
+          .char-brow-r  { animation: eyebrowUp 0.3s ease-out 3.3s both }
+          .msg-1        { animation: msgIn 0.35s ease 0.5s both }
+          .msg-2        { animation: msgIn 0.35s ease 1.6s both }
+          .msg-3        { animation: msgIn 0.35s ease 2.8s both }
+          .msg-4        { animation: msgIn 0.35s ease 4.0s both }
+          .msg-5        { animation: msgIn 0.35s ease 5.1s both }
+          .cta-bar      { animation: fadeUp 0.4s ease 6.0s both }
+          .cta-btn      { animation: ctaGlow 2s ease-in-out 6.5s infinite }
+          .tdot-0       { animation: dot0 0.9s ease infinite }
+          .tdot-1       { animation: dot1 0.9s ease infinite }
+          .tdot-2       { animation: dot2 0.9s ease infinite }
         `}</style>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* CSS Ad Preview */}
-          <div
-            className="relative rounded-3xl overflow-hidden border border-white/10"
-            style={{ background: '#0b141a', aspectRatio: '1/1', maxWidth: 480, margin: '0 auto' }}
-          >
-            {/* Wallpaper lines */}
-            <div className="absolute inset-0 opacity-[0.04]"
-              style={{ backgroundImage: 'repeating-linear-gradient(135deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '32px 32px' }} />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 items-start">
 
-            {/* Header */}
-            <div className="relative z-10 flex items-center gap-3 px-5 py-4" style={{ background: '#1f2c34' }}>
-              <div className="w-11 h-11 rounded-full bg-[#25D366] flex items-center justify-center text-white font-bold text-base flex-shrink-0">W</div>
-              <div>
-                <div className="text-[#e9edef] font-semibold text-sm">Wapakee Store</div>
-                <div className="text-[#25D366] text-xs">● online</div>
-              </div>
-            </div>
-            <div className="h-px bg-white/10" />
+          {/* ── CSS Human Character Ad ── */}
+          <div className="flex flex-col gap-3">
+            <div className="text-slate-400 text-xs font-medium uppercase tracking-widest">Pure HTML + CSS + SVG · No images</div>
+            <div
+              className="relative rounded-3xl overflow-hidden border border-white/10 w-full"
+              style={{ background: 'linear-gradient(135deg,#130822 0%,#0d1a10 100%)', aspectRatio: '1/1', maxWidth: 480 }}
+            >
+              {/* Grid texture */}
+              <div className="absolute inset-0 opacity-[0.04]"
+                style={{ backgroundImage:'repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 0,transparent 60px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 0,transparent 60px)' }} />
 
-            {/* Chat area */}
-            <div className="relative z-10 p-5 space-y-3" style={{ minHeight: 320 }}>
-              {/* Brand message */}
-              <div className="flex justify-end css-ad-msg" style={{ animationDelay: '0.6s' }}>
-                <div className="max-w-[78%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#005c4b' }}>
-                  <div>₹1,899 in your cart — still waiting 🛒</div>
-                  <div className="mt-1">Get 10% off · valid 2 hrs only</div>
-                  <div className="text-right text-[10px] text-[#8696a0] mt-1.5">2:14 PM ✓✓</div>
+              {/* Radial glow */}
+              <div className="absolute inset-0" style={{ background:'radial-gradient(ellipse 60% 50% at 30% 60%,rgba(124,58,237,0.2),transparent)' }} />
+              <div className="absolute inset-0" style={{ background:'radial-gradient(ellipse 50% 40% at 70% 50%,rgba(37,211,102,0.1),transparent)' }} />
+
+              {/* ── SVG Human Character ── */}
+              <div className="absolute" style={{ left: 20, top: 30, width: 200, height: 320 }}>
+                <svg
+                  viewBox="0 0 160 300" width="190" height="300"
+                  className="char-idle char-excited"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  {/* Shadow */}
+                  <ellipse cx="80" cy="294" rx="42" ry="7" fill="rgba(0,0,0,0.3)" />
+
+                  {/* Body / kurti */}
+                  <path d="M 32 138 Q 26 210 24 288 L 136 288 Q 134 210 128 138 Q 108 128 80 127 Q 52 128 32 138 Z" fill="url(#kurti)" />
+                  <defs>
+                    <linearGradient id="kurti" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#7C3AED" />
+                      <stop offset="100%" stopColor="#5B21B6" />
+                    </linearGradient>
+                    <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#E8A87C" />
+                      <stop offset="100%" stopColor="#D4845A" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Dupatta */}
+                  <path d="M 38 140 Q 80 158 122 140 Q 104 172 80 170 Q 56 172 38 140 Z" fill="#8B5CF6" opacity="0.65" />
+
+                  {/* Neck */}
+                  <rect x="68" y="122" width="24" height="20" rx="8" fill="url(#skin)" />
+
+                  {/* Head */}
+                  <circle cx="80" cy="88" r="46" fill="url(#skin)" />
+
+                  {/* Hair — back layer */}
+                  <ellipse cx="80" cy="50" rx="48" ry="24" fill="#1C0800" />
+                  {/* Side hair */}
+                  <path d="M 34 62 Q 27 102 30 132 Q 35 122 37 108 Q 35 90 34 75 Z" fill="#1C0800" />
+                  <path d="M 126 62 Q 133 102 130 132 Q 125 122 123 108 Q 125 90 126 75 Z" fill="#1C0800" />
+                  {/* Hair bun */}
+                  <circle cx="114" cy="46" r="17" fill="#1C0800" />
+                  <circle cx="114" cy="36" r="10" fill="#261008" />
+
+                  {/* Bindi */}
+                  <circle cx="80" cy="57" r="4.5" fill="#EF4444" />
+                  <circle cx="80" cy="57" r="2" fill="#FCA5A5" />
+
+                  {/* Eyebrows */}
+                  <path className="char-brow-l" d="M 55 74 Q 65 68 75 73" stroke="#1C0800" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+                  <path className="char-brow-r" d="M 85 73 Q 95 68 105 74" stroke="#1C0800" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+
+                  {/* Eyes */}
+                  <ellipse cx="65" cy="87" rx="7.5" ry="8.5" fill="#1C0800" />
+                  <ellipse cx="95" cy="87" rx="7.5" ry="8.5" fill="#1C0800" />
+                  <circle cx="68" cy="84" r="2.5" fill="white" />
+                  <circle cx="98" cy="84" r="2.5" fill="white" />
+                  <circle cx="69" cy="83" r="1" fill="white" opacity="0.8" />
+                  <circle cx="99" cy="83" r="1" fill="white" opacity="0.8" />
+
+                  {/* Nose */}
+                  <path d="M 80 96 Q 74 104 76 107 Q 80 109 84 107 Q 86 104 80 96 Z" fill="#C07040" />
+
+                  {/* Smile */}
+                  <path d="M 64 114 Q 80 126 96 114" stroke="#7A3E1A" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+                  <path d="M 64 114 Q 80 128 96 114 Q 80 136 64 114 Z" fill="#E87B7B" opacity="0.65" />
+
+                  {/* Earrings */}
+                  <circle cx="34" cy="94" r="5" fill="#F59E0B" />
+                  <line x1="34" y1="99" x2="34" y2="107" stroke="#F59E0B" strokeWidth="2" />
+                  <circle cx="34" cy="108" r="3.5" fill="#FCD34D" />
+                  <circle cx="126" cy="94" r="5" fill="#F59E0B" />
+                  <line x1="126" y1="99" x2="126" y2="107" stroke="#F59E0B" strokeWidth="2" />
+                  <circle cx="126" cy="108" r="3.5" fill="#FCD34D" />
+
+                  {/* Left arm — holding phone */}
+                  <path d="M 32 140 Q 6 158 2 192 Q 5 202 15 198 Q 27 178 30 158 Z" fill="url(#skin)" />
+
+                  {/* Phone (left hand) */}
+                  <g className="char-screen">
+                    <rect x="-20" y="174" width="30" height="50" rx="5" fill="#111827" />
+                    <rect x="-17" y="178" width="24" height="38" rx="3" fill="#128C7E" />
+                    {/* WhatsApp logo simplified */}
+                    <circle cx="-5" cy="197" r="9" fill="#25D366" />
+                    <path d="M -5 191 Q -11 197 -9 204 Q -7 207 -4 206 Q -1 208 3 204 Q 5 197 -5 191 Z" fill="#25D366" />
+                    <path d="M -9 204 L -13 210 L -4 207 Z" fill="#25D366" />
+                    <circle cx="-5" cy="197" r="6" fill="white" opacity="0.9" />
+                    <path d="M -8 197 Q -5 194 -2 197 Q -5 200 -8 197 Z" fill="#128C7E" />
+                  </g>
+
+                  {/* Notification badge */}
+                  <g className="char-notif">
+                    <circle cx="-5" cy="168" r="12" fill="#EF4444" />
+                    <text x="-5" y="172" textAnchor="middle" fontSize="12" fill="white" fontWeight="bold">1</text>
+                  </g>
+
+                  {/* Right arm — waving */}
+                  <g className="char-arm">
+                    <path d="M 128 140 Q 152 152 158 175 Q 154 184 145 180 Q 138 162 132 150 Z" fill="url(#skin)" />
+                    {/* Hand wave */}
+                    <ellipse cx="158" cy="178" rx="10" ry="14" fill="url(#skin)" transform="rotate(-20,158,178)" />
+                    {/* Fingers hint */}
+                    <ellipse cx="164" cy="170" rx="4" ry="8" fill="url(#skin)" transform="rotate(-30,164,170)" />
+                    <ellipse cx="168" cy="176" rx="4" ry="8" fill="url(#skin)" transform="rotate(-10,168,176)" />
+                  </g>
+                </svg>
+
+                {/* Speech bubble from character */}
+                <div
+                  className="char-notif absolute text-xs font-bold text-white px-3 py-1.5 rounded-2xl rounded-bl-none"
+                  style={{ background:'#25D366', bottom: 120, left: 120, animationDelay:'3.8s', whiteSpace:'nowrap' }}
+                >
+                  omg YES!! 🙌
+                  <div style={{ position:'absolute', bottom:-8, left:8, width:0, height:0, borderLeft:'8px solid transparent', borderRight:'4px solid transparent', borderTop:'8px solid #25D366' }} />
                 </div>
               </div>
 
-              {/* Typing indicator */}
-              <div className="flex justify-start css-ad-msg" style={{ animationDelay: '1.6s' }}>
-                <div className="rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1.5 items-center" style={{ background: '#1f2c34' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#8696a0] inline-block dot-0" />
-                  <span className="w-2 h-2 rounded-full bg-[#8696a0] inline-block dot-1" />
-                  <span className="w-2 h-2 rounded-full bg-[#8696a0] inline-block dot-2" />
+              {/* ── WhatsApp Chat (right side) ── */}
+              <div className="absolute right-0 top-0 bottom-0 flex flex-col" style={{ width:'52%', background:'rgba(11,20,26,0.96)' }}>
+                {/* Chat header */}
+                <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0" style={{ background:'#1f2c34' }}>
+                  <div className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">W</div>
+                  <div>
+                    <div className="text-[#e9edef] text-xs font-semibold leading-none">Wapakee Store</div>
+                    <div className="text-[#25D366] text-[9px] mt-0.5">● online</div>
+                  </div>
+                </div>
+                <div className="h-px" style={{ background:'rgba(255,255,255,0.08)' }} />
+
+                {/* Messages */}
+                <div className="flex-1 overflow-hidden p-3 space-y-2 text-[11px]">
+                  <div className="flex justify-end msg-1">
+                    <div className="max-w-[85%] rounded-xl rounded-tr-sm px-3 py-2 text-[#e9edef]" style={{ background:'#005c4b' }}>
+                      <div>₹1,899 waiting 🛒</div>
+                      <div className="opacity-70">10% off · 2 hrs only</div>
+                      <div className="text-[9px] text-right mt-1 opacity-50">2:14 PM ✓✓</div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-start msg-2">
+                    <div className="rounded-xl rounded-tl-sm px-3 py-2 flex gap-1 items-center" style={{ background:'#1f2c34' }}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#8696a0] tdot-0" style={{ display:'inline-block' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#8696a0] tdot-1" style={{ display:'inline-block' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#8696a0] tdot-2" style={{ display:'inline-block' }} />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-start msg-3">
+                    <div className="max-w-[85%] rounded-xl rounded-tl-sm px-3 py-2 text-[#e9edef]" style={{ background:'#1f2c34' }}>
+                      <div>omg YES ordering rn 🙌</div>
+                      <div className="text-[9px] mt-1 opacity-50">2:15 PM</div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end msg-4">
+                    <div className="max-w-[85%] rounded-xl rounded-tr-sm px-3 py-2 text-[#e9edef]" style={{ background:'#005c4b' }}>
+                      <div>Order confirmed ✅</div>
+                      <div className="text-[9px] text-right mt-1" style={{ color:'#53bdeb' }}>2:16 PM ✓✓</div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-start msg-5">
+                    <div className="rounded-xl rounded-tl-sm px-3 py-2 text-[#e9edef]" style={{ background:'#1f2c34' }}>
+                      <div>thank you!! ❤️</div>
+                      <div className="text-[9px] mt-1 opacity-50">2:16 PM</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CTA bar */}
+                <div className="p-3 cta-bar flex-shrink-0">
+                  <div
+                    className="cta-btn rounded-xl py-2.5 text-center text-black font-black text-xs"
+                    style={{ background:'#25D366' }}
+                  >
+                    Try free · wapaki.com
+                  </div>
+                  <div className="text-[9px] text-center mt-1.5 text-white/30">Wapakee sends this automatically</div>
                 </div>
               </div>
-
-              {/* Customer reply */}
-              <div className="flex justify-start css-ad-msg" style={{ animationDelay: '2.8s' }}>
-                <div className="max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#1f2c34' }}>
-                  <div>omg YES!! ordering right now 🙌</div>
-                  <div className="text-[10px] text-[#8696a0] mt-1.5">2:15 PM</div>
-                </div>
-              </div>
-
-              {/* Confirmation */}
-              <div className="flex justify-end css-ad-msg" style={{ animationDelay: '4.0s' }}>
-                <div className="max-w-[78%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#005c4b' }}>
-                  <div>Order confirmed ✅ Dispatching tomorrow!</div>
-                  <div className="text-right text-[10px] text-[#53bdeb] mt-1.5">2:16 PM ✓✓</div>
-                </div>
-              </div>
-
-              {/* Thank you */}
-              <div className="flex justify-start css-ad-msg" style={{ animationDelay: '5.2s' }}>
-                <div className="max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#1f2c34' }}>
-                  <div>Thank you so much!! ❤️</div>
-                  <div className="text-[10px] text-[#8696a0] mt-1.5">2:16 PM</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom stat bar */}
-            <div className="relative z-10 mx-5 mb-5 rounded-xl px-4 py-3 text-center css-ad-msg border border-[#25D366]/30"
-              style={{ background: 'rgba(37,211,102,0.08)', animationDelay: '6.2s' }}>
-              <div className="text-[#25D366] font-bold text-sm">28% of carts recovered · Wapakee does this automatically</div>
-              <div className="text-white/50 text-xs mt-0.5">Try free → wapaki.com</div>
             </div>
           </div>
 
-          {/* Explanation panel */}
-          <div className="flex flex-col justify-center gap-6">
+          {/* ── Explanation panel ── */}
+          <div className="flex flex-col gap-6 pt-8">
             <div>
-              <div className="text-white font-semibold text-base mb-2">Why HTML / CSS looks different</div>
+              <div className="text-white font-semibold text-base mb-2">CSS can go very far</div>
               <div className="text-slate-400 text-sm leading-relaxed">
-                The chat UI above is real HTML — actual rounded divs, real CSS animations, real fonts.
-                Canvas can simulate this but HTML lets you design it visually and iterate in seconds.
+                The woman above is entirely drawn in SVG with CSS animations — hair, bindi, earrings, kurti, arm waving, notification badge, speech bubble. No images. No Lottie. No library. Just code.
               </div>
             </div>
-            <div className="space-y-3">
+
+            <div className="space-y-4">
               {[
-                { icon: '✦', label: 'Designs in code', desc: 'Tailwind classes instead of ctx.fillRect()' },
-                { icon: '✦', label: 'Pixel-perfect typography', desc: 'System fonts, real letter-spacing, emoji support' },
-                { icon: '✦', label: 'CSS animations', desc: 'Staggered reveals, bouncing dots, fade-ups — all native' },
-                { icon: '✦', label: 'Download via Remotion', desc: 'React → MP4 with a Node.js renderer (coming soon)' },
-              ].map(({ icon, label, desc }) => (
+                { color: '#25D366', label: 'SVG illustrated humans', desc: 'Full body, face, expressions, accessories — all vector shapes animated with CSS keyframes' },
+                { color: '#F59E0B', label: 'CSS-driven emotion', desc: 'Eyebrows rise, arms wave, character jumps when the notification arrives — timed to the story' },
+                { color: '#818CF8', label: 'Real UI elements', desc: 'WhatsApp chat bubbles, typing dots, blue read receipts — actual HTML, not drawn on canvas' },
+                { color: '#F472B6', label: 'Lottie = next level', desc: 'Swap the SVG character for a Lottie JSON from lottiefiles.com — complex walk cycles, lip sync, microexpressions' },
+              ].map(({ color, label, desc }) => (
                 <div key={label} className="flex gap-3">
-                  <span className="text-cyan-400 text-sm mt-0.5 flex-shrink-0">{icon}</span>
+                  <div className="w-1 flex-shrink-0 rounded-full mt-1" style={{ background: color, minHeight: 40 }} />
                   <div>
-                    <div className="text-white text-sm font-medium">{label}</div>
-                    <div className="text-slate-500 text-xs">{desc}</div>
+                    <div className="text-white text-sm font-semibold">{label}</div>
+                    <div className="text-slate-500 text-xs mt-0.5 leading-relaxed">{desc}</div>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-              <div className="text-slate-400 text-xs">
-                <span className="text-white font-medium">Ad #23 and #24</span> in the grid above use the Canvas approach to show the same concepts — direct download, 12Mbps, works right now.
-              </div>
+
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-slate-500 leading-relaxed">
+              To download this as a video you would need <span className="text-white">Remotion</span> (React → MP4 renderer) or we add <span className="text-white">html-to-image</span> to capture frames from the DOM. Want to do that?
             </div>
           </div>
         </div>
