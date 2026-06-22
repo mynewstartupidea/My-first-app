@@ -61,9 +61,9 @@ const channels = [
 ]
 
 const stats = [
-  { prefix: '₹', target: 2.3, suffix: ' Cr', decimals: 1, label: 'Average revenue lost to abandoned carts per brand per year' },
-  { prefix: '',  target: 68,  suffix: '%',   decimals: 0, label: 'Of Indian shoppers abandon carts before checkout' },
-  { prefix: '',  target: 3,   suffix: 'x',   decimals: 0, label: 'Higher recovery rate via WhatsApp vs email' },
+  { prefix: '',  target: 80, suffix: '%',  decimals: 0, label: 'Of customer inquiries go unanswered within 24 hours' },
+  { prefix: '',  target: 98, suffix: '%',  decimals: 0, label: 'WhatsApp messages are opened — vs 20% on email' },
+  { prefix: '',  target: 3,  suffix: 'x',  decimals: 0, label: 'Higher engagement on WhatsApp than any other channel' },
 ]
 
 export default function Problem() {
@@ -98,11 +98,11 @@ export default function Problem() {
         >
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">The Problem</span>
           <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-white">
-            Your customers are on WhatsApp.<br />
-            <span className="text-slate-400">Your brand isn&apos;t.</span>
+            Your customers live on WhatsApp.<br />
+            <span className="text-slate-400">Your business isn&apos;t there yet.</span>
           </h2>
           <p className="mt-4 text-slate-400 max-w-xl mx-auto text-base">
-            Indian shoppers check WhatsApp 20+ times a day. Yet most brands still rely on email that goes to spam.
+            People check WhatsApp 20+ times a day. Yet most businesses still send emails nobody reads.
           </p>
         </motion.div>
 

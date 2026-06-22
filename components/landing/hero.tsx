@@ -19,8 +19,8 @@ const particles = [
   { left: '91%', top: '77%', w: 2, h: 2, dur: 5.5, delay: 1.1  },
 ]
 
-const words1 = ['Turn', 'abandoned', 'carts']
-const words2 = ['into', 'revenue.']
+const words1 = ['Send', 'the', 'right', 'message']
+const words2 = ['at', 'the', 'right', 'time.']
 
 function useCountUp(target: number, start: boolean, duration = 1.8): number {
   const [val, setVal] = useState(0)
@@ -147,7 +147,7 @@ export default function Hero() {
             className="inline-flex items-center gap-2 bg-[#25D366]/10 border border-[#25D366]/25 rounded-full px-4 py-1.5 mb-8"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-[#25D366] animate-pulse" />
-            <span className="text-[#25D366] text-xs font-bold tracking-widest uppercase">WhatsApp Automation · 340+ brands</span>
+            <span className="text-[#25D366] text-xs font-bold tracking-widest uppercase">WhatsApp Automation · 340+ businesses</span>
           </motion.div>
 
           {/* Headline — word by word spring animation */}
@@ -187,8 +187,7 @@ export default function Hero() {
             transition={{ duration: 0.7, delay: 0.5 }}
             className="mt-6 text-lg md:text-xl text-slate-400 leading-relaxed max-w-lg"
           >
-            Automated cart recovery, COD verification and shipping updates over WhatsApp.
-            Connects to your Shopify store in 2 minutes.
+            Appointment reminders, follow-up sequences, promotions and re-engagement — automated on WhatsApp. Works for any business. Sets up in minutes.
           </motion.p>
 
           {/* CTAs */}
@@ -256,8 +255,8 @@ export default function Hero() {
                 transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                 className="bg-[#0a1f14] border border-[#25D366]/40 rounded-xl px-3 py-2 shadow-xl shadow-black/50 whitespace-nowrap"
               >
-                <p className="text-[#25D366] text-xs font-bold">💰 ₹4,200 recovered</p>
-                <p className="text-slate-500 text-[10px]">just now via WhatsApp</p>
+                <p className="text-[#25D366] text-xs font-bold">📅 5 appointments confirmed</p>
+                <p className="text-slate-500 text-[10px]">today via WhatsApp</p>
               </motion.div>
             </motion.div>
 
@@ -273,8 +272,8 @@ export default function Hero() {
                 transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
                 className="bg-[#0d1520] border border-white/10 rounded-xl px-3 py-2 shadow-xl shadow-black/50 whitespace-nowrap"
               >
-                <p className="text-white text-xs font-semibold">📦 14 messages sent today</p>
-                <p className="text-slate-500 text-[10px]">98% delivered</p>
+                <p className="text-white text-xs font-semibold">💬 14 new replies today</p>
+                <p className="text-slate-500 text-[10px]">98% open rate</p>
               </motion.div>
             </motion.div>
 
@@ -297,11 +296,11 @@ export default function Hero() {
               {/* Chat area */}
               <div className="bg-[#0d1821] p-4 space-y-3" style={{ minHeight: 360 }}>
                 {[
-                  { side: 'left',  text: '🛒 You left something! Your cart is waiting...', delay: 0.3  },
-                  { side: 'right', text: '💚 Yes! Complete my order please',                delay: 0.7  },
-                  { side: 'left',  text: '🚀 Order #4521 shipped! Track here →',           delay: 1.1  },
-                  { side: 'right', text: '❤️ So fast! Love this brand',                    delay: 1.5  },
-                  { side: 'left',  text: '🎁 15% off your next order — use WELCOME15',    delay: 1.9  },
+                  { side: 'left',  text: '📅 Reminder: Your appointment is tomorrow at 3 PM!', delay: 0.3  },
+                  { side: 'right', text: '✅ Thanks! I\'ll be there',                        delay: 0.7  },
+                  { side: 'left',  text: '🔔 Confirmed! See you at 3 PM, Dr. Sharma',        delay: 1.1  },
+                  { side: 'right', text: '❤️ So convenient, love this service!',             delay: 1.5  },
+                  { side: 'left',  text: '🎁 Refer a friend — both get 20% off next visit',  delay: 1.9  },
                 ].map((b, i) => (
                   <motion.div
                     key={i}
@@ -340,11 +339,11 @@ export default function Hero() {
         <div className="max-w-6xl mx-auto px-5 py-5 grid grid-cols-3 gap-4 text-center">
           <div>
             <p className="text-3xl md:text-4xl font-extrabold text-white tabular-nums">₹{s1.toFixed(1)}Cr</p>
-            <p className="text-slate-500 text-xs mt-0.5">Revenue recovered</p>
+            <p className="text-slate-500 text-xs mt-0.5">Revenue generated</p>
           </div>
           <div className="border-x border-white/5">
             <p className="text-3xl md:text-4xl font-extrabold text-white tabular-nums">{Math.round(s2)}+</p>
-            <p className="text-slate-500 text-xs mt-0.5">Brands using Wapaci</p>
+            <p className="text-slate-500 text-xs mt-0.5">Businesses using Wapaci</p>
           </div>
           <div>
             <p className="text-3xl md:text-4xl font-extrabold text-[#25D366] tabular-nums">{Math.round(s3)}%</p>

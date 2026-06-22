@@ -56,8 +56,8 @@ export default function CtaSection() {
           transition={{ duration: 0.6, delay: 0.15 }}
           className="text-3xl md:text-5xl font-extrabold text-white leading-tight"
         >
-          Ready to recover revenue on{' '}
-          <span className="text-[#25D366]">autopilot?</span>
+          Ready to grow your business on{' '}
+          <span className="text-[#25D366]">WhatsApp?</span>
         </motion.h2>
 
         <motion.p
@@ -66,7 +66,7 @@ export default function CtaSection() {
           transition={{ duration: 0.6, delay: 0.25 }}
           className="mt-5 text-slate-400 text-lg leading-relaxed"
         >
-          Join 100+ Indian D2C brands already using Wapaci. Setup takes less than 10 minutes. No dev help needed.
+          Join 340+ businesses already growing with Wapaci. Works for clinics, gyms, coaches, retailers and more. Setup in under 10 minutes.
         </motion.p>
 
         <motion.div
@@ -94,7 +94,7 @@ export default function CtaSection() {
         >
           {[
             '🔒 End-to-end encrypted',
-            '🇮🇳 Made for Indian brands',
+            '🇮🇳 Made for Indian businesses',
             '✅ WhatsApp Business API',
             '⚡ 99.9% uptime',
           ].map(badge => (

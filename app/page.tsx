@@ -1,5 +1,4 @@
 import AuroraBg from '@/components/landing/aurora-bg'
-import Cursor from '@/components/landing/cursor'
 import ScrollProgress from '@/components/landing/scroll-progress'
 import Navbar from '@/components/landing/navbar'
 import Hero from '@/components/landing/hero'
@@ -17,7 +16,6 @@ export default function HomePage() {
   return (
     <>
       <AuroraBg />
-      <Cursor />
       <main className="antialiased relative" style={{ zIndex: 1 }}>
         <ScrollProgress />
         <Navbar />

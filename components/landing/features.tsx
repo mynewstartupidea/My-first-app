@@ -9,48 +9,48 @@ import {
 const features = [
   {
     icon: ShoppingCart,
-    title: 'Abandoned Cart Recovery',
-    desc: 'Automated sequences — 30 min, 1 hr, 24 hr. Customers get the exact cart they left.',
+    title: 'Appointment Reminders',
+    desc: 'Automatically remind customers before appointments. Zero no-shows, zero manual calling.',
     badge: 'Most popular',
     accent: '#f97316',
     glow: 'rgba(249,115,22,0.15)',
     border: 'rgba(249,115,22,0.2)',
-    stat: 'Up to 35% recovery rate',
+    stat: '60% fewer no-shows',
   },
   {
     icon: CreditCard,
-    title: 'COD Verification',
-    desc: 'Confirm Cash-on-Delivery orders before dispatch. Slash RTO with one automation.',
-    badge: 'RTO saver',
+    title: 'Broadcast Campaigns',
+    desc: 'Send promotions, offers and announcements to your entire customer list in one click.',
+    badge: 'Revenue driver',
     accent: '#3b82f6',
     glow: 'rgba(59,130,246,0.15)',
     border: 'rgba(59,130,246,0.2)',
-    stat: 'Cut RTO by 40%+',
+    stat: '5x higher open rate vs email',
   },
   {
     icon: Package,
-    title: 'Shipping Updates',
-    desc: 'Confirmed → Shipped → Out for delivery → Delivered. Every step, on WhatsApp.',
-    badge: 'CSAT booster',
+    title: 'Automated Follow-ups',
+    desc: 'Never lose a lead — send smart follow-up sequences to every new inquiry automatically.',
+    badge: 'Lead converter',
     accent: '#25D366',
     glow: 'rgba(37,211,102,0.15)',
     border: 'rgba(37,211,102,0.25)',
-    stat: '90%+ customer satisfaction',
+    stat: '3x higher conversion rate',
   },
   {
     icon: RefreshCw,
-    title: 'Win-back Campaigns',
-    desc: 'Re-engage lapsed customers after 30/60/90 days with personalised offers.',
-    badge: 'Revenue driver',
+    title: 'Re-engagement Campaigns',
+    desc: 'Win back dormant customers after 30/60/90 days with personalised offers and updates.',
+    badge: 'Retention booster',
     accent: '#a855f7',
     glow: 'rgba(168,85,247,0.15)',
     border: 'rgba(168,85,247,0.2)',
-    stat: '2.4x repeat purchases',
+    stat: '2.4x repeat visits',
   },
   {
     icon: Star,
-    title: 'Review Requests',
-    desc: 'Post-delivery review nudges. Build social proof on Google and Trustpilot.',
+    title: 'Review Collection',
+    desc: 'Automatically ask for a Google or Trustpilot review after every visit or service.',
     badge: 'Trust builder',
     accent: '#eab308',
     glow: 'rgba(234,179,8,0.15)',
@@ -60,7 +60,7 @@ const features = [
   {
     icon: BarChart3,
     title: 'Live Analytics',
-    desc: 'Messages sent, delivered, read rates and recovered revenue — one clean dashboard.',
+    desc: 'Track messages sent, delivered, read rates, replies and revenue — one clean dashboard.',
     badge: 'Full visibility',
     accent: '#ec4899',
     glow: 'rgba(236,72,153,0.15)',
@@ -147,10 +147,10 @@ export default function Features() {
         >
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">Features</span>
           <h2 className="mt-3 text-4xl md:text-5xl font-extrabold text-white leading-tight">
-            Everything you need to grow<br />on WhatsApp
+            One platform for every<br />WhatsApp automation
           </h2>
           <p className="mt-4 text-slate-400 max-w-lg mx-auto text-lg">
-            One platform. Set up once, earn on autopilot.
+            For clinics, gyms, coaches, retailers — any business that talks to customers.
           </p>
         </motion.div>
 

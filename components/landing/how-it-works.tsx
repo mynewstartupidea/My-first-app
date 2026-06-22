@@ -8,8 +8,8 @@ const steps = [
   {
     icon: Store,
     step: '01',
-    title: 'Connect your ecommerce store',
-    desc: 'Connect your store (Shopify, WooCommerce, or other platforms) and authorize with one click. No code, no developer needed.',
+    title: 'Add your contacts',
+    desc: 'Import your customer list, connect your CRM, or let customers opt-in directly. No code or developer needed.',
     detail: 'Takes ~2 minutes',
     color: 'bg-blue-500/10 border-blue-500/30',
     iconBg: 'bg-blue-500/15',
@@ -20,8 +20,8 @@ const steps = [
   {
     icon: Zap,
     step: '02',
-    title: 'Configure your automations',
-    desc: 'Choose which triggers to enable — cart recovery, COD verify, shipping updates, win-backs. Customize the messages.',
+    title: 'Set up your automations',
+    desc: 'Pick a trigger — new inquiry, appointment booked, no visit in 30 days — and set your message. Pre-built templates included.',
     detail: 'Pre-built templates ready',
     color: 'bg-yellow-500/10 border-yellow-500/30',
     iconBg: 'bg-yellow-500/15',
@@ -33,7 +33,7 @@ const steps = [
     icon: MessageCircle,
     step: '03',
     title: 'Wapaci sends the messages',
-    desc: 'When a customer triggers a rule, Wapaci automatically sends the right WhatsApp message at the right time.',
+    desc: 'When a customer matches your rule, Wapaci fires the right WhatsApp message at exactly the right time. 24/7, zero manual effort.',
     detail: '24/7 automated delivery',
     color: 'bg-[#25D366]/10 border-[#25D366]/30',
     iconBg: 'bg-[#25D366]/15',
@@ -44,8 +44,8 @@ const steps = [
   {
     icon: TrendingUp,
     step: '04',
-    title: 'Watch revenue recover',
-    desc: 'Track every message, click, and conversion in your dashboard. See exactly how much revenue Wapaci recovered.',
+    title: 'Watch your business grow',
+    desc: 'Track messages sent, replies, conversions and revenue in your dashboard. See exactly what\'s working.',
     detail: 'Real-time analytics',
     color: 'bg-purple-500/10 border-purple-500/30',
     iconBg: 'bg-purple-500/15',
@@ -72,10 +72,10 @@ export default function HowItWorks() {
         >
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">How it works</span>
           <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-white">
-            Live in 10 minutes. Revenue on day one.
+            Live in 10 minutes. Results from day one.
           </h2>
           <p className="mt-4 text-slate-400 max-w-xl mx-auto text-base">
-            No technical setup, no WhatsApp API complexity. We handle everything.
+            No technical setup, no WhatsApp API complexity. We handle everything behind the scenes.
           </p>
         </motion.div>
 

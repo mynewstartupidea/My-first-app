@@ -31,11 +31,6 @@ body::after {
   background-size: 160px 160px;
 }
 
-/* Hide native cursor for custom cursor — only on pointer:fine (mouse) */
-.cursor-none-global,
-.cursor-none-global * {
-  cursor: none !important;
-}
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; }

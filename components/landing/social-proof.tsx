@@ -25,40 +25,39 @@ function useCountUp(target: number, inView: boolean, duration = 1.8): number {
 
 const testimonials = [
   {
-    name: 'Rahul Mehta',
-    role: 'Founder, KidsCraft India',
-    avatar: 'RM',
+    name: 'Dr. Priya Sharma',
+    role: 'Owner, Smile Dental Clinic',
+    avatar: 'PS',
     color: 'bg-orange-500',
-    quote: 'Recovered ₹2.1L in the very first month — just from abandoned cart recovery. Setup took 7 minutes and automations were live the same day.',
+    quote: 'Our appointment no-shows dropped by 65% in the first month. Patients love the WhatsApp reminders — they feel cared for. Setup took 8 minutes.',
     stars: 5,
-    metric: '₹2.1L recovered in month 1',
+    metric: '65% fewer no-shows',
   },
   {
-    name: 'Priya Kapoor',
-    role: 'Co-founder, GlowUp Skincare',
-    avatar: 'PK',
+    name: 'Rohit Mehra',
+    role: 'Founder, Iron Republic Gym',
+    avatar: 'RM',
     color: 'bg-pink-500',
-    quote: 'Our RTO rate dropped from 28% to 11% after enabling COD verification. That single automation saves us lakhs every month. Wish we had this earlier.',
+    quote: 'Ran a win-back campaign and re-engaged 140 dormant members in 3 days. Revenue jumped that week. This thing pays for itself in hours.',
     stars: 5,
-    metric: 'RTO cut from 28% → 11%',
+    metric: '140 members re-engaged',
   },
   {
-    name: 'Arjun Singh',
-    role: 'CEO, FitLife Supplements',
+    name: 'Anjali Singh',
+    role: 'Director, Bright Minds Coaching',
     avatar: 'AS',
     color: 'bg-blue-500',
-    quote: 'We went live in under 10 minutes. Wapaci sent the first cart recovery message that evening. By next morning, 3 customers had already come back and purchased.',
+    quote: 'Every new inquiry now gets a follow-up sequence automatically on WhatsApp. Our conversion rate doubled in the first month. I wish I had this years ago.',
     stars: 5,
-    metric: '10 min setup, sales by evening',
+    metric: '2x conversion rate',
   },
 ]
 
-// prefix, target, suffix, decimals
 const statsConfig = [
   { prefix: '',  target: 1.2, suffix: 'M+', decimals: 1, label: 'WhatsApp messages sent' },
-  { prefix: '',  target: 340, suffix: '+',  decimals: 0, label: 'Ecommerce brands' },
-  { prefix: '',  target: 34,  suffix: '%',  decimals: 0, label: 'Avg cart recovery rate' },
-  { prefix: '₹', target: 8.4, suffix: 'Cr', decimals: 1, label: 'Revenue recovered for brands' },
+  { prefix: '',  target: 340, suffix: '+',  decimals: 0, label: 'Businesses on Wapaci' },
+  { prefix: '',  target: 65,  suffix: '%',  decimals: 0, label: 'Avg reduction in no-shows' },
+  { prefix: '₹', target: 8.4, suffix: 'Cr', decimals: 1, label: 'Revenue generated for customers' },
 ]
 
 export default function SocialProof() {
@@ -87,7 +86,7 @@ export default function SocialProof() {
 
       <div className="max-w-6xl mx-auto px-5 relative z-10">
 
-        {/* Stats row — count-up */}
+        {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-20">
           {statsConfig.map((s, i) => (
             <motion.div
@@ -112,9 +111,9 @@ export default function SocialProof() {
           transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
           className="text-center mb-12"
         >
-          <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">What brands say</span>
+          <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">What people say</span>
           <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-white">
-            Real results from real brands
+            Real results from real businesses
           </h2>
         </motion.div>
 
@@ -129,7 +128,6 @@ export default function SocialProof() {
               whileHover={{ y: -4, scale: 1.02 }}
               className="group bg-white/[0.03] border border-white/[0.08] hover:border-[#25D366]/20 rounded-2xl p-6 flex flex-col transition-all duration-300 hover:shadow-xl hover:shadow-green-500/10"
             >
-              {/* Stars */}
               <div className="flex items-center gap-1 mb-4">
                 {Array.from({ length: t.stars }).map((_, j) => (
                   <Star key={j} className="w-4 h-4 text-[#25D366] fill-[#25D366]" />
