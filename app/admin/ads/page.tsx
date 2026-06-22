@@ -1783,43 +1783,17 @@ Don't get left behind.
 
 Try Wapakee free today — wapaki dot com!`,
     voiceDir: 'serious and slow dramatic opening with heavy pauses, build suspense, then suddenly shift to excited and energetic when revealing the solution, warm and enthusiastic close',
-    expertScript: `Right now...
+    expertScript: `[sad] Seventy percent of your customers are leaving without buying.
 
-Seventy percent of your customers...
+[whisper] Every. Single. Day.
 
-...are leaving.
+[neutral] Until now.
 
-Without buying.
+[excited] Wapakee sends a WhatsApp — automatically. Twenty-eight percent come back.
 
-A single thing.
+[happy] Abandoned carts recovered. On autopilot.
 
-That is real money. Walking out the door.
-
-Every. Single. Day.
-
-And you...
-
-You have absolutely no way to bring them back.
-
-...
-
-Until now.
-
-Wapakee sends them a WhatsApp message — automatically. At exactly the right moment.
-
-And here is what happens next?
-
-Twenty-eight percent...
-
-...come BACK.
-
-Twenty-eight percent of your abandoned carts — recovered. Every month. On autopilot.
-
-Your competitors are already doing this.
-
-Don't get left behind.
-
-Try Wapakee free today — wapaki dot com.`,
+[excited] Try Wapakee free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, warm and emotional, dramatic build from whisper to triumph, expert ad voice`,
   },
   {
@@ -1853,45 +1827,15 @@ The results speak for themselves.
 
 Start your free trial at Wapakee dot com — today!`,
     voiceDir: 'confident and curious opening, slow down on numbers so they land with weight, conversational warmth in the middle, build to high energy close, like a passionate founder sharing a breakthrough',
-    expertScript: `What...
+    expertScript: `[neutral] What if five lakh in abandoned carts...
 
-...if I told you...
+[excited] became one point four lakh in recovered revenue?
 
-Five lakh rupees of abandoned carts...
+[excited] WhatsApp open rate? Ninety-eight percent.
 
-Could become...
+[happy] Forty-seven times your investment. Every single month.
 
-...one point four lakh in recovered revenue?
-
-That is not a pitch.
-
-That is the MATH.
-
-WhatsApp open rate?
-
-Ninety-eight percent.
-
-Nine. Eight. Percent.
-
-Read in under three minutes.
-
-Forty-five percent of customers... actually reply back.
-
-That is forty-seven times your investment.
-
-Every. Single. Month.
-
-The math is simple.
-
-The setup?
-
-Ten minutes.
-
-Your competitors are already using this.
-
-The results speak for themselves.
-
-Start your free trial at Wapakee dot com — today.`,
+[excited] Start free at Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, confident and clear, wonder-filled curiosity, builds to electric conviction, expert ad voice`,
   },
   {
@@ -1927,51 +1871,17 @@ Wapakee — WhatsApp automation for Indian D2C brands.
 
 Try it free today — wapaki dot com!`,
     voiceDir: 'start very slow and deliberate, long dramatic silence between each stat, explosive excitement on the WhatsApp reveal, thoughtful pause then warm confident close',
-    expertScript: `Quick question.
+    expertScript: `[neutral] How many of your emails actually get read?
 
-Which channel...
+[sad] Two percent.
 
-...do your customers actually read?
+[excited] WhatsApp? Ninety. Eight. Percent.
 
-Email?
+[whisper] Let that sink in.
 
-...
+[happy] Stop emailing. Start converting on WhatsApp.
 
-Two percent open rate.
-
-...
-
-SMS?
-
-...
-
-Five percent.
-
-...
-
-WhatsApp?
-
-NINETY. EIGHT. PERCENT.
-
-...
-
-Let that sink in.
-
-Your customers are on WhatsApp.
-
-They read messages in under three minutes.
-
-And almost HALF of them...
-
-...reply.
-
-Stop sending emails nobody opens.
-
-Start sending WhatsApp messages that actually convert.
-
-Wapakee — WhatsApp automation for Indian D two C brands.
-
-Try it free today — wapaki dot com.`,
+[excited] Try Wapakee free — wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, sharp and playful, explosive range from quiet sadness to maximum excitement, expert ad voice`,
   },
   {
@@ -2437,23 +2347,17 @@ Messages that feel human... create customers who feel loyal.
 
 Try Wapakee free — wapaki dot com!`,
     voiceDir: 'warm and personable from the first word, playful contrast between cold and warm messaging, genuinely excited and enthusiastic for the good example message, genuine and heartfelt close',
-    expertScript: `You sent her an order confirmation.
+    expertScript: `[sad] You sent her an order confirmation.
 
-She wanted to feel something.
+[whisper] She wanted to feel something.
 
-Wapakee lets you write messages that feel human.
+[happy] Wapakee lets you write messages that feel human.
 
-Messages that get screenshotted.
+[excited] Messages that get screenshotted. Shared. Remembered.
 
-Shared.
+[neutral] Because customers who feel something... [happy] come back.
 
-Remembered.
-
-Because customers who feel something...
-
-come back.
-
-Try Wapakee free. Wapaki dot com.`,
+[excited] Try Wapakee free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, warm and expressive, emotional pauses, soft vulnerability to quiet certainty, expert ad voice`,
   },
   {
@@ -2485,17 +2389,17 @@ The math is simple. The setup is ten minutes. The results are real.
 
 Start your free trial at wapaki dot com.`,
     voiceDir: 'confident and measured, let each stat land with weight and a brief pause, speak like someone presenting undeniable evidence, serious and credible throughout, matter-of-fact but compelling close',
-    expertScript: `WhatsApp. Ninety-eight percent open rate.
+    expertScript: `[excited] WhatsApp. Ninety-eight percent open rate.
 
-Email. Two percent.
+[sad] Email. Two percent.
 
-Twenty-eight percent of abandoned carts... recovered.
+[excited] Twenty-eight percent of abandoned carts — recovered.
 
-Not a pitch.
+[neutral] Not a pitch.
 
-Real numbers. Real brands. Right now.
+[happy] Real numbers. Real brands. Right now.
 
-Start free at Wapakee dot com.`,
+[excited] Start free at Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, calm and authoritative, measured deliberate pace, fact-driven gravitas, expert ad voice`,
   },
   {
@@ -2527,21 +2431,19 @@ Ignite your revenue with Wapakee.
 
 Try it free — wapaki dot com!`,
     voiceDir: 'cinematic and epic from the first word, deliberate and weighty on the three things, build momentum and energy steadily, reach a thrilling peak at the launch metaphor, triumphant and inspiring close',
-    expertScript: `Every rocket needs three things.
+    expertScript: `[neutral] Every rocket needs three things.
 
-Fuel. Direction. Ignition.
+[excited] Fuel. Direction. Ignition.
 
-Your brand has the fuel.
+[neutral] Your brand has the fuel. WhatsApp is the direction.
 
-WhatsApp is the direction.
+[whisper] Wapakee...
 
-Wapakee...
+[excited] is the ignition.
 
-is the ignition.
+[happy] Two to four times the revenue. Zero extra ad spend.
 
-Two to four times the revenue. No extra ad spend.
-
-Wapakee dot com. Light the fuse.`,
+[excited] Light the fuse. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, cinematic and powerful, cold commanding open builds to triumphant energy, expert ad voice`,
   },
   {
@@ -2574,21 +2476,15 @@ while they still want to buy.
 Save warm carts automatically.
 Try Wapakee free today — wapaki dot com!`,
     voiceDir: 'urgent, cinematic, crisp Indian ecommerce ad voice; pause hard after the first line, then build speed and confidence; make the cart is still warm feel important; energetic CTA',
-    expertScript: `Someone almost bought from you.
+    expertScript: `[whisper] Someone almost bought from you. Twelve seconds ago.
 
-Twelve seconds ago.
+[sad] Every minute you wait... they forget.
 
-The intent is still alive.
+[excited] Wapakee sends the message. Instantly.
 
-But every minute you wait...
+[happy] No lost sale.
 
-they forget.
-
-Wapakee sends the message. Instantly.
-
-No lost sale.
-
-Try Wapakee free. Wapaki dot com.`,
+[excited] Try Wapakee free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, urgent and intimate, whisper opening builds to sharp decisive close, cinematic pauses, expert ad voice`,
   },
   {
@@ -2619,17 +2515,15 @@ More confirmed revenue.
 Confirm COD on WhatsApp.
 Try Wapakee free today — wapaki dot com!`,
     voiceDir: 'direct, sharp, business-focused Indian founder tone; serious on the pain, confident on the solution, punchy pacing, strong closing CTA',
-    expertScript: `Every fake COD order costs you money you'll never get back.
+    expertScript: `[angry] Every fake COD order costs you money you'll never get back.
 
-Wapakee sends a WhatsApp before your package ships.
+[neutral] Wapakee sends a WhatsApp before your package ships.
 
-Yes — ship it.
+[excited] Yes — ship it. [angry] No — stop it.
 
-No — stop it.
+[happy] Less RTO. More real revenue.
 
-Less RTO. More real revenue.
-
-Try Wapakee free. Wapaki dot com.`,
+[excited] Try Wapakee free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, direct and sharp, no-nonsense delivery, punchy and focused, expert ad voice`,
   },
 ]
@@ -2656,10 +2550,10 @@ type DlState = {
   done:        boolean
 }
 
-/* ─── Strip [tone] tags — only used with Muga; Mulberry ignores them or reads them literally ── */
+/* ─── Strip [tone] tags for display and mulberry calls (muga keeps them) ── */
 function stripToneTags(text: string): string {
   return text
-    .replace(/\[(serious|excited|emotional|happy|conversational|sad|angry|calm)\]\s*/gi, '')
+    .replace(/\[(serious|excited|emotional|happy|conversational|sad|angry|calm|neutral|whisper)\]\s*/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -2709,9 +2603,6 @@ export default function AdminAdsPage() {
     setAdDls(prev => ({ ...prev, [id]: { ...getAdDl(id), ...p } }))
   const patchExpertAdDl = (id: number, p: Partial<{ phase: ExpertPhase; pct: number; error: string | null; label: string }>) =>
     setExpertAdDls(prev => ({ ...prev, [id]: { ...getExpertAdDl(id), ...p } }))
-
-  // Which Rumik speaker to use for expert voice (try 1-4 to find the female one from their playground)
-  const [expertSpeaker, setExpertSpeaker] = useState<'speaker_1'|'speaker_2'|'speaker_3'|'speaker_4'>('speaker_1')
 
   // Two canvas refs per ad: preview (visible in card) and record (offscreen, always mounted)
   const previewRefs = useRef<Record<number, HTMLCanvasElement | null>>({})
@@ -2893,12 +2784,8 @@ export default function AdminAdsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'mulberry',
-          text: stripToneTags(ad.expertScript),
-          description: ad.expertVoiceDir ?? '28 year old Indian female, warm confident energy, clear articulation, ad voice',
-          language: 'en',
-          speaker: expertSpeaker,
-          f0_up_key: 3,
+          model: 'muga',
+          text: ad.expertScript,
         }),
       })
       if (!res.ok) { const err = await res.json().catch(() => ({ error: 'API error' })); throw new Error(err.error ?? 'Failed') }
@@ -2972,24 +2859,6 @@ export default function AdminAdsPage() {
             </div>
           </div>
         </div>
-        {/* Speaker selector — try all 4 to find the Rumik playground female voice */}
-        <div className="flex items-center gap-2">
-          <span className="text-slate-500 text-xs">Expert voice:</span>
-          {(['speaker_1','speaker_2','speaker_3','speaker_4'] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => setExpertSpeaker(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                expertSpeaker === s
-                  ? 'bg-pink-600/30 border-pink-500/60 text-pink-300'
-                  : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
-              }`}
-            >
-              {s.replace('speaker_', 'S')}
-            </button>
-          ))}
-        </div>
-
         {/* Active encoding count badge */}
         {(() => {
           const enc = Object.values(adDls).filter(d => d.phase === 'encoding').length
