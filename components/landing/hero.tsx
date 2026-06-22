@@ -1,7 +1,8 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import Link from 'next/link'
+import { useEffect, useRef } from 'react'
 import { ArrowRight, CheckCircle2, Zap } from 'lucide-react'
 
 const bubbles = [
@@ -10,6 +11,18 @@ const bubbles = [
   { side: 'left',  text: '🚀 Your order #4521 has been shipped! Track here →', delay: 1.1, top: '46%' },
   { side: 'right', text: '❤️ Love this brand! So fast!', delay: 1.5, top: '58%' },
   { side: 'left',  text: '🎁 Special offer just for you — 15% off your next order', delay: 1.9, top: '71%' },
+]
+
+// Floating particle positions (deterministic, no random — avoids hydration mismatch)
+const particles = [
+  { left: '8%',  top: '22%', size: 3, dur: 4.2, delay: 0   },
+  { left: '18%', top: '65%', size: 2, dur: 5.5, delay: 0.8 },
+  { left: '72%', top: '15%', size: 2, dur: 3.8, delay: 1.2 },
+  { left: '85%', top: '55%', size: 3, dur: 5.0, delay: 0.4 },
+  { left: '45%', top: '80%', size: 2, dur: 4.6, delay: 1.6 },
+  { left: '62%', top: '35%', size: 2, dur: 3.5, delay: 0.9 },
+  { left: '30%', top: '12%', size: 3, dur: 4.9, delay: 0.2 },
+  { left: '92%', top: '75%', size: 2, dur: 5.2, delay: 1.0 },
 ]
 
 function ChatBubble({ side, text, delay, top }: { side: string; text: string; delay: number; top: string }) {
@@ -38,18 +51,86 @@ function ChatBubble({ side, text, delay, top }: { side: string; text: string; de
 }
 
 export default function Hero() {
+  // Mouse parallax — useMotionValue avoids React re-renders on every mouse move
+  const rawX = useMotionValue(0)
+  const rawY = useMotionValue(0)
+  const blob1X = useSpring(useTransform(rawX, [-1, 1], [-35, 35]), { stiffness: 40, damping: 20 })
+  const blob1Y = useSpring(useTransform(rawY, [-1, 1], [-25, 25]), { stiffness: 40, damping: 20 })
+  const blob2X = useSpring(useTransform(rawX, [-1, 1], [25, -25]), { stiffness: 30, damping: 20 })
+  const blob2Y = useSpring(useTransform(rawY, [-1, 1], [20, -20]), { stiffness: 30, damping: 20 })
+  const partX  = useSpring(useTransform(rawX, [-1, 1], [-12, 12]), { stiffness: 60, damping: 25 })
+  const partY  = useSpring(useTransform(rawY, [-1, 1], [-8,  8]),  { stiffness: 60, damping: 25 })
+
+  // 3D tilt on phone mockup
+  const tiltX = useSpring(useTransform(rawY, [-1, 1], [6, -6]),  { stiffness: 80, damping: 25 })
+  const tiltY = useSpring(useTransform(rawX, [-1, 1], [-6, 6]),  { stiffness: 80, damping: 25 })
+
+  const sectionRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    const handleMouse = (e: MouseEvent) => {
+      const rect = section.getBoundingClientRect()
+      rawX.set(((e.clientX - rect.left) / rect.width  - 0.5) * 2)
+      rawY.set(((e.clientY - rect.top)  / rect.height - 0.5) * 2)
+    }
+    const handleLeave = () => { rawX.set(0); rawY.set(0) }
+    section.addEventListener('mousemove', handleMouse)
+    section.addEventListener('mouseleave', handleLeave)
+    return () => {
+      section.removeEventListener('mousemove', handleMouse)
+      section.removeEventListener('mouseleave', handleLeave)
+    }
+  }, [rawX, rawY])
+
   return (
-    <section className="relative min-h-screen bg-[#0a0f1a] flex items-center overflow-hidden pt-16">
-      {/* Background gradient blobs */}
+    <section ref={sectionRef} className="relative min-h-screen bg-[#0a0f1a] flex items-center overflow-hidden pt-16">
+
+      {/* ── Background layer ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-[#25D366]/8 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-[500px] h-[500px] bg-[#128C7E]/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-[#25D366]/3 rounded-full blur-3xl" />
-        {/* Grid */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%2325D366%22 fill-opacity=%220.03%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-50" />
+
+        {/* Blob 1 — top right, mouse-driven + slow infinite float */}
+        <motion.div
+          style={{ x: blob1X, y: blob1Y }}
+          animate={{ scale: [1, 1.15, 0.95, 1], opacity: [0.6, 0.9, 0.7, 0.6] }}
+          transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-[#25D366]/10 rounded-full blur-3xl"
+        />
+
+        {/* Blob 2 — bottom left, opposite mouse direction */}
+        <motion.div
+          style={{ x: blob2X, y: blob2Y }}
+          animate={{ scale: [1, 1.1, 1.2, 1], opacity: [0.5, 0.7, 0.5] }}
+          transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut', delay: 3 }}
+          className="absolute -bottom-40 -left-40 w-[500px] h-[500px] bg-[#128C7E]/12 rounded-full blur-3xl"
+        />
+
+        {/* Blob 3 — centre, slow pulse */}
+        <motion.div
+          animate={{ scale: [1, 1.25, 1], opacity: [0.2, 0.45, 0.2] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 5 }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[450px] bg-[#25D366]/4 rounded-full blur-3xl"
+        />
+
+        {/* Subtle grid */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%2325D366%22 fill-opacity=%220.03%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-40" />
+
+        {/* Floating particles — mouse-offset */}
+        {particles.map((p, i) => (
+          <motion.div
+            key={i}
+            className="absolute rounded-full bg-[#25D366] pointer-events-none"
+            style={{ left: p.left, top: p.top, x: partX, y: partY, width: p.size, height: p.size }}
+            animate={{ opacity: [0.2, 0.7, 0.2], scale: [1, 1.3, 1] }}
+            transition={{ duration: p.dur, repeat: Infinity, ease: 'easeInOut', delay: p.delay }}
+          />
+        ))}
       </div>
 
+      {/* ── Main content ── */}
       <div className="max-w-6xl mx-auto px-5 py-20 grid lg:grid-cols-2 gap-12 items-center relative z-10">
+
         {/* Left — copy */}
         <div>
           <motion.div
@@ -69,22 +150,23 @@ export default function Hero() {
             className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight tracking-tight"
           >
             Recover Revenue on{' '}
-            <span className="relative">
-              <span className="text-[#25D366]">WhatsApp</span>
+            <span className="relative inline-block">
+              {/* Shimmer gradient text */}
+              <span className="text-shimmer">WhatsApp</span>
               <motion.span
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
-                transition={{ duration: 0.6, delay: 0.8 }}
-                className="absolute -bottom-1 left-0 right-0 h-0.5 bg-[#25D366]/40 origin-left rounded-full"
+                transition={{ duration: 0.7, delay: 0.9 }}
+                className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-[#25D366]/0 via-[#25D366]/60 to-[#25D366]/0 origin-left rounded-full"
               />
             </span>
             <br />— on autopilot
           </motion.h1>
 
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.25 }}
+            initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.7, delay: 0.25 }}
             className="mt-5 text-lg text-slate-400 leading-relaxed max-w-lg"
           >
             Send automated cart recovery, COD verification, shipping updates and upsells via WhatsApp. Built for ecommerce brands — connects to your store in 2 minutes.
@@ -116,14 +198,14 @@ export default function Hero() {
           >
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-7 py-3.5 rounded-2xl text-base transition shadow-xl shadow-green-500/25 group"
+              className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-7 py-3.5 rounded-2xl text-base transition shadow-xl shadow-green-500/30 hover:shadow-green-500/50 hover:scale-[1.03] active:scale-[0.98] group"
             >
               Start for free
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
             </Link>
             <a
               href="#how-it-works"
-              className="inline-flex items-center justify-center gap-2 text-slate-300 hover:text-white border border-white/10 hover:border-white/20 px-7 py-3.5 rounded-2xl text-base transition font-semibold bg-white/5 hover:bg-white/8"
+              className="inline-flex items-center justify-center gap-2 text-slate-300 hover:text-white border border-white/10 hover:border-[#25D366]/40 px-7 py-3.5 rounded-2xl text-base transition font-semibold bg-white/5 hover:bg-white/8"
             >
               See how it works
             </a>
@@ -139,47 +221,62 @@ export default function Hero() {
           </motion.p>
         </div>
 
-        {/* Right — WhatsApp chat mockup */}
+        {/* Right — WhatsApp chat mockup with 3D tilt */}
         <motion.div
           initial={{ opacity: 0, x: 40 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.7, delay: 0.2 }}
+          style={{ rotateX: tiltX, rotateY: tiltY, transformStyle: 'preserve-3d', perspective: '1200px' }}
           className="hidden lg:flex items-center justify-center"
         >
-          <div className="w-[340px] rounded-3xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10">
-            {/* Phone status bar */}
-            <div className="bg-[#075E54] px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#25D366] rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0">
-                  W
+          <div className="relative w-[340px]">
+            {/* Glow halo behind phone */}
+            <motion.div
+              animate={{ opacity: [0.4, 0.8, 0.4], scale: [0.98, 1.04, 0.98] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute inset-0 rounded-3xl bg-[#25D366]/15 blur-2xl -z-10"
+            />
+
+            <div className="w-full rounded-3xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10 ring-1 ring-[#25D366]/10">
+              {/* Phone status bar */}
+              <div className="bg-[#075E54] px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-10 h-10 bg-[#25D366] rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0">
+                      W
+                    </div>
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-[#075E54]" />
+                  </div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">Wapaci Bot</p>
+                    <p className="text-green-200 text-xs">Online · typically replies instantly</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-white font-semibold text-sm">Wapaci Bot</p>
-                  <p className="text-green-200 text-xs">Online</p>
+              </div>
+
+              {/* Chat area */}
+              <div
+                className="bg-[#0d1821] relative"
+                style={{
+                  minHeight: 420,
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg opacity='0.03' xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath fill='%2325D366' d='M0 0h40v40H0zm40 40h40v40H40z'/%3E%3C/svg%3E\")",
+                }}
+              >
+                <div className="relative p-4" style={{ minHeight: 420 }}>
+                  {bubbles.map((b, i) => (
+                    <ChatBubble key={i} {...b} />
+                  ))}
                 </div>
               </div>
-            </div>
-            {/* Chat area */}
-            <div
-              className="bg-[#0d1821] relative"
-              style={{
-                minHeight: 420,
-                backgroundImage: "url(\"data:image/svg+xml,%3Csvg opacity='0.03' xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath fill='%2325D366' d='M0 0h40v40H0zm40 40h40v40H40z'/%3E%3C/svg%3E\")",
-              }}
-            >
-              <div className="relative p-4" style={{ minHeight: 420 }}>
-                {bubbles.map((b, i) => (
-                  <ChatBubble key={i} {...b} />
-                ))}
-              </div>
-            </div>
-            {/* Input area */}
-            <div className="bg-[#1a2330] px-4 py-3 flex items-center gap-2">
-              <div className="flex-1 bg-[#2a3441] rounded-full px-4 py-2 text-slate-500 text-sm">
-                Reply to customer...
-              </div>
-              <div className="w-9 h-9 bg-[#25D366] rounded-full flex items-center justify-center flex-shrink-0">
-                <ArrowRight className="w-4 h-4 text-white" />
+
+              {/* Input area */}
+              <div className="bg-[#1a2330] px-4 py-3 flex items-center gap-2">
+                <div className="flex-1 bg-[#2a3441] rounded-full px-4 py-2 text-slate-500 text-sm">
+                  Reply to customer...
+                </div>
+                <div className="w-9 h-9 bg-[#25D366] rounded-full flex items-center justify-center flex-shrink-0 shadow-md shadow-green-500/30">
+                  <ArrowRight className="w-4 h-4 text-white" />
+                </div>
               </div>
             </div>
           </div>
@@ -190,10 +287,10 @@ export default function Hero() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 1 }}
+        transition={{ delay: 2.2, duration: 1 }}
         className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1"
       >
-        <span className="text-slate-600 text-xs">Scroll to explore</span>
+        <span className="text-slate-600 text-xs tracking-widest uppercase">Scroll</span>
         <motion.div
           animate={{ y: [0, 8, 0] }}
           transition={{ repeat: Infinity, duration: 1.5 }}

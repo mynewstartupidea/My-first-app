@@ -1,3 +1,4 @@
+import ScrollProgress from '@/components/landing/scroll-progress'
 import Navbar from '@/components/landing/navbar'
 import Hero from '@/components/landing/hero'
 import Problem from '@/components/landing/problem'
@@ -13,6 +14,7 @@ import Footer from '@/components/landing/footer'
 export default function HomePage() {
   return (
     <main className="antialiased">
+      <ScrollProgress />
       <Navbar />
       <Hero />
       <Problem />

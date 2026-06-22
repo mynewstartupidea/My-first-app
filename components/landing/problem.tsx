@@ -1,9 +1,27 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { useInView } from 'framer-motion'
-import { useRef } from 'react'
+import { motion, useInView } from 'framer-motion'
+import { useRef, useState, useEffect } from 'react'
 import { Mail, MessageSquare, Phone } from 'lucide-react'
+
+function useCountUp(target: number, inView: boolean, duration = 1.8): number {
+  const [val, setVal] = useState(0)
+  const started = useRef(false)
+  useEffect(() => {
+    if (!inView || started.current) return
+    started.current = true
+    let t0: number | null = null
+    const tick = (ts: number) => {
+      if (!t0) t0 = ts
+      const p = Math.min((ts - t0) / (duration * 1000), 1)
+      const e = 1 - Math.pow(1 - p, 3)
+      setVal(e * target)
+      if (p < 1) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, [inView, target, duration])
+  return val
+}
 
 const channels = [
   {
@@ -43,26 +61,39 @@ const channels = [
 ]
 
 const stats = [
-  { value: '₹2.3 Cr', label: 'Average revenue lost to abandoned carts per brand per year' },
-  { value: '68%', label: 'Of Indian shoppers abandon carts before checkout' },
-  { value: '3x', label: 'Higher recovery rate via WhatsApp vs email' },
+  { prefix: '₹', target: 2.3, suffix: ' Cr', decimals: 1, label: 'Average revenue lost to abandoned carts per brand per year' },
+  { prefix: '',  target: 68,  suffix: '%',   decimals: 0, label: 'Of Indian shoppers abandon carts before checkout' },
+  { prefix: '',  target: 3,   suffix: 'x',   decimals: 0, label: 'Higher recovery rate via WhatsApp vs email' },
 ]
 
 export default function Problem() {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
+  const s0 = useCountUp(stats[0].target, inView, 2)
+  const s1 = useCountUp(stats[1].target, inView, 2)
+  const s2 = useCountUp(stats[2].target, inView, 1.4)
+
+  const vals = [s0, s1, s2]
+
   return (
     <section ref={ref} className="bg-[#0d1117] py-24 relative overflow-hidden">
+      {/* Section divider glow */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-b from-transparent via-[#25D366]/30 to-transparent" />
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : {}}
+          transition={{ duration: 1.5 }}
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[250px] bg-[#25D366]/3 rounded-full blur-3xl"
+        />
       </div>
 
       <div className="max-w-6xl mx-auto px-5">
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
+          initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
+          animate={inView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
+          transition={{ duration: 0.7 }}
           className="text-center mb-16"
         >
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">The Problem</span>
@@ -80,17 +111,18 @@ export default function Problem() {
           {channels.map((c, i) => (
             <motion.div
               key={c.name}
-              initial={{ opacity: 0, y: 30 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: 0.1 * i }}
+              initial={{ opacity: 0, y: 40, filter: 'blur(6px)', scale: 0.97 }}
+              animate={inView ? { opacity: 1, y: 0, filter: 'blur(0px)', scale: 1 } : {}}
+              transition={{ duration: 0.55, delay: 0.12 * i, ease: [0.25, 0.1, 0.25, 1] }}
+              whileHover={{ y: -3, scale: 1.02 }}
               className={`
-                relative rounded-2xl border p-6
+                relative rounded-2xl border p-6 transition-shadow duration-300
                 bg-gradient-to-b ${c.color} ${c.border}
-                ${c.highlight ? 'ring-1 ring-[#25D366]/40 shadow-xl shadow-green-500/10' : ''}
+                ${c.highlight ? 'ring-1 ring-[#25D366]/40 shadow-2xl shadow-green-500/15 hover:shadow-green-500/25' : 'hover:shadow-xl hover:shadow-white/5'}
               `}
             >
               {c.highlight && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#25D366] text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#25D366] text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg whitespace-nowrap">
                   Wapaci uses this
                 </div>
               )}
@@ -119,17 +151,19 @@ export default function Problem() {
           ))}
         </div>
 
-        {/* Stats */}
+        {/* Stats with count-up */}
         <div className="grid md:grid-cols-3 gap-6 border-t border-white/5 pt-12">
           {stats.map((s, i) => (
             <motion.div
-              key={s.value}
-              initial={{ opacity: 0, y: 20 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: 0.2 + 0.1 * i }}
+              key={s.label}
+              initial={{ opacity: 0, y: 24, filter: 'blur(4px)' }}
+              animate={inView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
+              transition={{ duration: 0.5, delay: 0.3 + 0.1 * i }}
               className="text-center"
             >
-              <p className="text-4xl font-extrabold text-[#25D366]">{s.value}</p>
+              <p className="text-4xl md:text-5xl font-extrabold text-[#25D366] tabular-nums">
+                {s.prefix}{vals[i].toFixed(s.decimals)}{s.suffix}
+              </p>
               <p className="text-slate-400 text-sm mt-2 max-w-xs mx-auto">{s.label}</p>
             </motion.div>
           ))}

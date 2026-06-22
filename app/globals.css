@@ -37,3 +37,31 @@ body {
   50%       { box-shadow: 0 0 0 8px rgba(37, 211, 102, 0); }
 }
 .animate-pulse-green { animation: pulse-green 2s infinite; }
+
+/* ─── Landing page enhancements ─────────────────────────────────────── */
+
+/* Shimmer gradient text — used on hero headline */
+@keyframes shimmer {
+  0%   { background-position: 0% center; }
+  100% { background-position: -200% center; }
+}
+.text-shimmer {
+  background: linear-gradient(90deg, #25D366 0%, #a3f4c5 45%, #25D366 60%, #128C7E 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s linear infinite;
+}
+
+/* Pulsing concentric rings — used on CTA icon */
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.5; }
+  100% { transform: scale(1.9); opacity: 0;   }
+}
+@keyframes pulse-ring-slow {
+  0%   { transform: scale(1);   opacity: 0.3; }
+  100% { transform: scale(2.4); opacity: 0;   }
+}
+.animate-pulse-ring      { animation: pulse-ring      2s   ease-out infinite; }
+.animate-pulse-ring-slow { animation: pulse-ring-slow 2.8s ease-out infinite 0.7s; }
