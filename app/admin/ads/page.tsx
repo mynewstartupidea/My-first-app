@@ -1739,6 +1739,190 @@ function renderAd22(ctx: CanvasRenderingContext2D, t: number) {
   }
 }
 
+/* ─── Ad 23: The Switch — Email 2% vs WhatsApp 98% ───────────────── */
+function renderAd23(ctx: CanvasRenderingContext2D, t: number) {
+  const sw = pr(t, 5.8, 8.0)
+  ctx.fillStyle = `rgb(${Math.round(7 + sw)},${Math.round(9 + 5 * sw)},${Math.round(18 - 5 * sw)})`
+  ctx.fillRect(0, 0, W, H)
+  grid(ctx)
+
+  const eA = t < 5.5 ? pr(t, 0, 1) : 1 - pr(t, 5.5, 7.5)
+  const wA = t < 7.0 ? pr(t, 6.5, 8.0) : t > 21 ? 1 - pr(t, 21, 23) : 1
+
+  glow(ctx, 200, 200, 560, '100,116,139', 0.15 * eA)
+  glow(ctx, W / 2, H / 2, 700, '37,211,102', 0.22 * wA)
+  glow(ctx, W / 2, H / 2, 340, '37,211,102', 0.12 * wA)
+
+  // EMAIL scene
+  if (eA > 0.005) {
+    const lf = eA * pr(t, 0.3, 1.2)
+    ctx.globalAlpha = lf
+    rr(ctx, W / 2 - 72, 216, 144, 44, 22, 'rgba(100,116,139,0.15)', 'rgba(100,116,139,0.35)')
+    ctx.globalAlpha = 1
+    txt(ctx, 'EMAIL', W / 2, 238, { size: 20, color: '#64748b', weight: '800', alpha: lf })
+    const ec = Math.min(2, Math.floor(pr(t, 0.5, 3.5) * 2.5))
+    txt(ctx, `${ec}%`, W / 2, 488, { size: 200, color: '#ef4444', weight: '900', alpha: eA * pr(t, 0.5, 1.5) })
+    txt(ctx, 'open rate', W / 2, 626, { size: 38, color: '#475569', weight: '300', alpha: eA * pr(t, 1.2, 2.5) })
+    const ebw = pr(t, 2, 4.5) * 0.02 * 480
+    ctx.globalAlpha = eA * pr(t, 2, 4)
+    rr(ctx, W / 2 - 240, 716, 480, 12, 6, 'rgba(71,85,105,0.25)')
+    if (ebw > 0.5) rr(ctx, W / 2 - 240, 716, ebw, 12, 6, '#ef4444')
+    ctx.globalAlpha = 1
+    txt(ctx, '1 in 50 customers opens it', W / 2, 766, { size: 28, color: '#334155', weight: '400', alpha: eA * pr(t, 3.5, 5) })
+  }
+
+  // White flash transition
+  if (t > 5.3 && t < 7.2) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.sin(Math.PI * cl((t - 5.3) / 1.9)) * 0.88})`
+    ctx.fillRect(0, 0, W, H)
+  }
+
+  // WHATSAPP scene
+  if (wA > 0.005) {
+    const lf = wA * pr(t, 7.2, 8.2)
+    ctx.globalAlpha = lf
+    rr(ctx, W / 2 - 122, 216, 244, 44, 22, 'rgba(37,211,102,0.12)', 'rgba(37,211,102,0.4)')
+    ctx.globalAlpha = 1
+    txt(ctx, 'WHATSAPP', W / 2, 238, { size: 20, color: '#25D366', weight: '800', alpha: lf })
+    const wc = Math.min(98, Math.floor(pr(t, 7.3, 11.5) * 100))
+    txt(ctx, `${wc}%`, W / 2, 488, { size: 200, color: '#fff', weight: '900', alpha: wA * pr(t, 7.3, 8.2) })
+    glow(ctx, W / 2, 488, 200, '37,211,102', 0.14 * wA * pr(t, 11.5, 14))
+    txt(ctx, 'open rate', W / 2, 626, { size: 38, color: '#25D366', weight: '300', alpha: wA * pr(t, 8.2, 9.5) })
+    const wbw = Math.min(pr(t, 9, 13) * 0.98 * 480, 480)
+    ctx.globalAlpha = wA * pr(t, 8.5, 9.5)
+    rr(ctx, W / 2 - 240, 716, 480, 12, 6, 'rgba(37,211,102,0.15)')
+    if (wbw > 0.5) rr(ctx, W / 2 - 240, 716, wbw, 12, 6, '#25D366')
+    ctx.globalAlpha = 1
+    txt(ctx, '49× more reach than email', W / 2, 766, { size: 28, color: '#4ade80', weight: '400', alpha: wA * pr(t, 12, 14) })
+  }
+
+  // STATS scene (15–23.5s)
+  if (t > 15 && t < 23.5) {
+    const sA = pr(t, 15, 16.5)
+    ctx.fillStyle = `rgba(7,11,18,${sA * 0.96})`; ctx.fillRect(0, 0, W, H)
+    grid(ctx)
+    glow(ctx, W / 2, H / 2, 560, '37,211,102', 0.1 * sA)
+    const stats = [
+      { n: '28%', l: 'cart recovery rate',   c: '#25D366', d: 16.0, y: 290 },
+      { n: '67%', l: 'COD orders confirmed', c: '#facc15', d: 17.2, y: 510 },
+      { n: '30%', l: 'customers win back',   c: '#f472b6', d: 18.4, y: 730 },
+    ]
+    stats.forEach(({ n, l, c, d, y }) => {
+      const f = pr(t, d, d + 0.7) * (t < 22 ? 1 : 1 - pr(t, 22, 23.5))
+      const dy = 30 * (1 - pr(t, d, d + 0.5))
+      txt(ctx, n, W / 2 - 60, y + dy, { size: 88, color: c, weight: '900', alpha: f })
+      txt(ctx, l, W / 2 - 60, y + 70 + dy, { size: 26, color: '#94a3b8', weight: '400', alpha: f })
+    })
+  }
+
+  // CTA (22–30s)
+  if (t > 22) {
+    const f = pr(t, 22, 23.5)
+    ctx.fillStyle = `rgba(4,10,7,${f})`; ctx.fillRect(0, 0, W, H)
+    grid(ctx)
+    glow(ctx, W / 2, H / 2, 700, '37,211,102', 0.2 * f)
+    txt(ctx, 'Wapakee', W / 2, 380, { size: 110, color: '#fff', weight: '900', alpha: f * pr(t, 22.5, 24) })
+    txt(ctx, 'WhatsApp automation for Indian D2C', W / 2, 488, { size: 30, color: '#25D366', weight: '400', alpha: f * pr(t, 23, 24.5) })
+    txt(ctx, 'Stop losing sales to email silence.', W / 2, 590, { size: 34, color: '#475569', weight: '400', alpha: f * pr(t, 23.5, 25.5) })
+    const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 1.8)
+    glow(ctx, W / 2, 748, 190, '37,211,102', (0.1 + 0.06 * pulse) * f * pr(t, 25, 27))
+    ctx.globalAlpha = f * pr(t, 25, 27)
+    rr(ctx, W / 2 - 225, 710, 450, 76, 38, '#25D366')
+    ctx.globalAlpha = 1
+    txt(ctx, 'Try free · wapaki.com', W / 2, 748, { size: 28, color: '#000', weight: '800', alpha: f * pr(t, 25, 27) })
+  }
+}
+
+/* ─── Ad 24: The Chat — WhatsApp Conversation UI ─────────────────── */
+function renderAd24(ctx: CanvasRenderingContext2D, t: number) {
+  // WhatsApp dark bg
+  ctx.fillStyle = '#0b141a'; ctx.fillRect(0, 0, W, H)
+
+  // Subtle wallpaper texture
+  const fade = pr(t, 0, 0.8)
+  ctx.globalAlpha = 0.035 * fade
+  for (let i = -W; i < W + H; i += 44) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + H, H)
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke()
+  }
+  ctx.globalAlpha = 1
+
+  // HEADER
+  const hA = pr(t, 0.3, 1.2)
+  ctx.globalAlpha = hA
+  ctx.fillStyle = '#1f2c34'; ctx.fillRect(0, 0, W, 132)
+  ctx.beginPath(); ctx.arc(88, 66, 38, 0, Math.PI * 2)
+  ctx.fillStyle = '#25D366'; ctx.fill()
+  ctx.globalAlpha = 1
+  txt(ctx, 'W', 88, 66, { size: 28, color: '#fff', weight: '800', alpha: hA })
+  txt(ctx, 'Wapakee Store', 156, 48, { size: 28, color: '#e9edef', weight: '600', align: 'left', alpha: hA })
+  txt(ctx, '● online', 160, 85, { size: 20, color: '#25D366', weight: '400', align: 'left', alpha: hA * 0.8 })
+  ctx.globalAlpha = hA * 0.1; ctx.fillStyle = '#fff'; ctx.fillRect(0, 131, W, 1); ctx.globalAlpha = 1
+
+  // Typing dots helper
+  function dots(x: number, y: number, a: number) {
+    if (a < 0.01) return
+    ctx.globalAlpha = a
+    rr(ctx, x, y, 110, 62, 31, '#1f2c34')
+    ;[-26, 0, 26].forEach((ox, i) => {
+      const b = (Math.sin(t * 6 + i * 1.1) * 0.5 + 0.5) * 6
+      ctx.beginPath(); ctx.arc(x + 55 + ox, y + 32 - b, 9, 0, Math.PI * 2)
+      ctx.fillStyle = '#8696a0'; ctx.fill()
+    })
+    ctx.globalAlpha = 1
+  }
+
+  // Chat bubble helper — right = brand (green), left = customer (dark)
+  function bubble(lines: string[], x: number, y: number, w: number, isRight: boolean, a: number, time: string) {
+    if (a < 0.01) return
+    const h2 = 56 + (lines.length - 1) * 38
+    ctx.globalAlpha = a
+    rr(ctx, x, y, w, h2, 18, isRight ? '#005c4b' : '#1f2c34')
+    ctx.globalAlpha = 1
+    lines.forEach((ln, i) => txt(ctx, ln, x + w / 2, y + 32 + i * 38, { size: 24, color: '#e9edef', weight: '400', alpha: a }))
+    txt(ctx, time, x + w - 16, y + h2 - 18, { size: 18, color: '#8696a0', weight: '400', align: 'right', alpha: a * 0.8 })
+  }
+
+  // BRAND TYPING (t 3–5s)
+  dots(W - 180, 168, pr(t, 3, 3.6) * (1 - pr(t, 4.7, 5.3)))
+
+  // BRAND MSG 1 (t 5–9s)
+  bubble(['₹1,899 in your cart — still waiting 🛒', 'Get 10% off · valid 2 hrs only'], W - 720, 154, 682, true, pr(t, 5, 5.8), '2:14 PM')
+
+  // CUSTOMER TYPING (t 9–12s)
+  dots(80, 408, pr(t, 9, 9.6) * (1 - pr(t, 11.5, 12.2)))
+
+  // CUSTOMER REPLY (t 12–16s)
+  bubble(['omg YES!! ordering right now 🙌'], 80, 396, 580, false, pr(t, 12, 12.8), '2:15 PM')
+
+  // GREEN FLASH on reply
+  if (t > 12 && t < 15) glow(ctx, W / 2, H / 2, 700, '37,211,102', Math.sin(Math.PI * cl((t - 12) / 3)) * 0.18)
+
+  // BRAND CONFIRM (t 15–20s)
+  bubble(['Order confirmed ✅  Dispatching tomorrow!'], W - 740, 520, 700, true, pr(t, 15, 15.8), '2:16 PM')
+
+  // CUSTOMER THANKS (t 17–21s)
+  bubble(['Thank you so much!! ❤️'], 80, 638, 440, false, pr(t, 17, 17.8), '2:16 PM')
+
+  // STATS OVERLAY (t 21–30s)
+  if (t > 21) {
+    const oA = pr(t, 21, 22.5)
+    ctx.fillStyle = `rgba(7,11,18,${oA * 0.92})`; ctx.fillRect(0, 0, W, H)
+    grid(ctx)
+    glow(ctx, W / 2, H / 2, 620, '37,211,102', 0.18 * oA)
+    txt(ctx, 'Wapakee sent that message.', W / 2, 310, { size: 42, color: '#fff', weight: '700', alpha: oA * pr(t, 21.5, 23) })
+    txt(ctx, 'Automatically.', W / 2, 378, { size: 42, color: '#25D366', weight: '700', alpha: oA * pr(t, 22, 23.5) })
+    txt(ctx, '28% of abandoned carts recovered', W / 2, 500, { size: 32, color: '#94a3b8', weight: '400', alpha: oA * pr(t, 22.5, 24) })
+    txt(ctx, 'on every store using Wapakee.', W / 2, 550, { size: 32, color: '#94a3b8', weight: '400', alpha: oA * pr(t, 22.5, 24) })
+    const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 1.8)
+    glow(ctx, W / 2, 720, 190, '37,211,102', (0.1 + 0.06 * pulse) * oA * pr(t, 25, 27))
+    ctx.globalAlpha = oA * pr(t, 25, 27)
+    rr(ctx, W / 2 - 240, 678, 480, 80, 40, '#25D366')
+    ctx.globalAlpha = 1
+    txt(ctx, 'Try free · wapaki.com', W / 2, 718, { size: 30, color: '#000', weight: '800', alpha: oA * pr(t, 25, 27) })
+  }
+}
+
 const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => void> = {
   1: renderAd1, 2: renderAd2, 3: renderAd3,
   4: renderAd4, 5: renderAd5, 6: renderAd6, 7: renderAd7,
@@ -1746,6 +1930,7 @@ const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => vo
   12: renderAd12, 13: renderAd13, 14: renderAd14, 15: renderAd15,
   16: renderAd16, 17: renderAd17, 18: renderAd18, 19: renderAd19,
   20: renderAd20, 21: renderAd21, 22: renderAd22,
+  23: renderAd23, 24: renderAd24,
 }
 
 /* ─── Ad definitions ──────────────────────────────────────────────── */
@@ -2526,6 +2711,86 @@ Try Wapakee free today — wapaki dot com!`,
 [excited] Try Wapakee free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, direct and sharp, no-nonsense delivery, punchy and focused, expert ad voice`,
   },
+  {
+    id: 23, filename: 'wapaci-the-switch',
+    title: 'The Switch — Email 2% vs WhatsApp 98%',
+    tag: 'Comparison', tagColor: 'bg-green-500/20 text-green-400 border-green-500/30',
+    accent: '#25D366',
+    defaultScript: `Your emails are being ignored.
+
+Two percent open rate.
+
+Two percent.
+
+WhatsApp? Ninety-eight percent.
+
+Your customers read WhatsApp messages in under three minutes.
+
+Forty-five percent reply.
+
+That is forty-nine times more reach than email.
+
+Wapakee connects your store to WhatsApp automation in ten minutes.
+
+Cart recovery. COD confirmation. Win-back campaigns.
+
+All automatic.
+
+Try Wapakee free — wapaki dot com.`,
+    voiceDir: 'start flat and disappointed on the email stats, pause for effect, then completely shift energy at WhatsApp — excited and bright, build to a confident close',
+    expertScript: `[sad] Two percent.
+
+[whisper] That's your email open rate.
+
+[sad] Two percent of customers even see it.
+
+[excited] WhatsApp? Ninety. Eight. Percent.
+
+[happy] Forty-nine times more reach. Same customers.
+
+[excited] Wapakee puts your brand on WhatsApp — automatically.
+
+[excited] Try free. Wapaki dot com.`,
+    expertVoiceDir: `28 year old Indian female, opens flat and disappointed, then explodes into excitement, sharp contrast delivery, expert ad voice`,
+  },
+  {
+    id: 24, filename: 'wapaci-the-chat',
+    title: 'The Chat — See It Working',
+    tag: 'Product Demo', tagColor: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+    accent: '#06b6d4',
+    defaultScript: `This is what Wapakee looks like.
+
+A customer adds to cart. Leaves. Forgets.
+
+Wapakee detects it. Sends a WhatsApp message automatically.
+
+Hey — your order is waiting. Here is ten percent off. Two hours only.
+
+And then... the customer replies.
+
+And buys.
+
+That is twenty-eight percent of your abandoned carts. Recovered. Every month.
+
+Wapakee does this while you sleep.
+
+Try it free at wapaki dot com.`,
+    voiceDir: 'conversational and genuine, paint the scene like a story being told, warm and believable, excited at the reply moment, confident and warm close',
+    expertScript: `[neutral] A customer adds to cart. Leaves. Forgets.
+
+[excited] Wapakee sends a WhatsApp — automatically.
+
+[happy] Ten percent off. Two hours only.
+
+[excited] They reply. They buy.
+
+[happy] Twenty-eight percent of your carts. Recovered.
+
+[excited] While you sleep.
+
+[excited] Try free. Wapaki dot com.`,
+    expertVoiceDir: `28 year old Indian female, storytelling warmth, genuine and believable, excited at the conversion moment, expert ad voice`,
+  },
 ]
 
 /* ─── Types ────────────────────────────────────────────────────────── */
@@ -3111,6 +3376,138 @@ export default function AdminAdsPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* ── HTML / CSS Ad Preview Section ── */}
+      <div className="px-8 pb-12">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-1.5 h-6 bg-gradient-to-b from-cyan-400 to-purple-500 rounded-full" />
+          <h2 className="text-white font-bold text-lg">HTML / CSS Approach — Live Preview</h2>
+          <span className="text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 rounded-full px-3 py-1 font-medium">
+            Design-first · No canvas required
+          </span>
+        </div>
+        <p className="text-slate-500 text-sm mb-8 max-w-2xl">
+          Below is the same &ldquo;WhatsApp Chat&rdquo; concept built in HTML + CSS. Designs are easier to create and iterate — text, gradients, and animations are all just code. Download support for CSS ads requires Remotion or a recording library (coming soon).
+        </p>
+
+        <style>{`
+          @keyframes fadeUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+          @keyframes blink0 { 0%,66%,100%{transform:translateY(0)} 33%{transform:translateY(-6px)} }
+          @keyframes blink1 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+          @keyframes blink2 { 0%,33%,100%{transform:translateY(0)} 66%{transform:translateY(-6px)} }
+          @keyframes greenFlash { 0%{box-shadow:none} 50%{box-shadow:0 0 80px 20px rgba(37,211,102,0.35)} 100%{box-shadow:none} }
+          .css-ad-msg { animation: fadeUp 0.4s ease both }
+          .dot-0 { animation: blink0 1s ease infinite }
+          .dot-1 { animation: blink1 1s ease infinite }
+          .dot-2 { animation: blink2 1s ease infinite }
+        `}</style>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* CSS Ad Preview */}
+          <div
+            className="relative rounded-3xl overflow-hidden border border-white/10"
+            style={{ background: '#0b141a', aspectRatio: '1/1', maxWidth: 480, margin: '0 auto' }}
+          >
+            {/* Wallpaper lines */}
+            <div className="absolute inset-0 opacity-[0.04]"
+              style={{ backgroundImage: 'repeating-linear-gradient(135deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '32px 32px' }} />
+
+            {/* Header */}
+            <div className="relative z-10 flex items-center gap-3 px-5 py-4" style={{ background: '#1f2c34' }}>
+              <div className="w-11 h-11 rounded-full bg-[#25D366] flex items-center justify-center text-white font-bold text-base flex-shrink-0">W</div>
+              <div>
+                <div className="text-[#e9edef] font-semibold text-sm">Wapakee Store</div>
+                <div className="text-[#25D366] text-xs">● online</div>
+              </div>
+            </div>
+            <div className="h-px bg-white/10" />
+
+            {/* Chat area */}
+            <div className="relative z-10 p-5 space-y-3" style={{ minHeight: 320 }}>
+              {/* Brand message */}
+              <div className="flex justify-end css-ad-msg" style={{ animationDelay: '0.6s' }}>
+                <div className="max-w-[78%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#005c4b' }}>
+                  <div>₹1,899 in your cart — still waiting 🛒</div>
+                  <div className="mt-1">Get 10% off · valid 2 hrs only</div>
+                  <div className="text-right text-[10px] text-[#8696a0] mt-1.5">2:14 PM ✓✓</div>
+                </div>
+              </div>
+
+              {/* Typing indicator */}
+              <div className="flex justify-start css-ad-msg" style={{ animationDelay: '1.6s' }}>
+                <div className="rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1.5 items-center" style={{ background: '#1f2c34' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#8696a0] inline-block dot-0" />
+                  <span className="w-2 h-2 rounded-full bg-[#8696a0] inline-block dot-1" />
+                  <span className="w-2 h-2 rounded-full bg-[#8696a0] inline-block dot-2" />
+                </div>
+              </div>
+
+              {/* Customer reply */}
+              <div className="flex justify-start css-ad-msg" style={{ animationDelay: '2.8s' }}>
+                <div className="max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#1f2c34' }}>
+                  <div>omg YES!! ordering right now 🙌</div>
+                  <div className="text-[10px] text-[#8696a0] mt-1.5">2:15 PM</div>
+                </div>
+              </div>
+
+              {/* Confirmation */}
+              <div className="flex justify-end css-ad-msg" style={{ animationDelay: '4.0s' }}>
+                <div className="max-w-[78%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#005c4b' }}>
+                  <div>Order confirmed ✅ Dispatching tomorrow!</div>
+                  <div className="text-right text-[10px] text-[#53bdeb] mt-1.5">2:16 PM ✓✓</div>
+                </div>
+              </div>
+
+              {/* Thank you */}
+              <div className="flex justify-start css-ad-msg" style={{ animationDelay: '5.2s' }}>
+                <div className="max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-[#e9edef]" style={{ background: '#1f2c34' }}>
+                  <div>Thank you so much!! ❤️</div>
+                  <div className="text-[10px] text-[#8696a0] mt-1.5">2:16 PM</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom stat bar */}
+            <div className="relative z-10 mx-5 mb-5 rounded-xl px-4 py-3 text-center css-ad-msg border border-[#25D366]/30"
+              style={{ background: 'rgba(37,211,102,0.08)', animationDelay: '6.2s' }}>
+              <div className="text-[#25D366] font-bold text-sm">28% of carts recovered · Wapakee does this automatically</div>
+              <div className="text-white/50 text-xs mt-0.5">Try free → wapaki.com</div>
+            </div>
+          </div>
+
+          {/* Explanation panel */}
+          <div className="flex flex-col justify-center gap-6">
+            <div>
+              <div className="text-white font-semibold text-base mb-2">Why HTML / CSS looks different</div>
+              <div className="text-slate-400 text-sm leading-relaxed">
+                The chat UI above is real HTML — actual rounded divs, real CSS animations, real fonts.
+                Canvas can simulate this but HTML lets you design it visually and iterate in seconds.
+              </div>
+            </div>
+            <div className="space-y-3">
+              {[
+                { icon: '✦', label: 'Designs in code', desc: 'Tailwind classes instead of ctx.fillRect()' },
+                { icon: '✦', label: 'Pixel-perfect typography', desc: 'System fonts, real letter-spacing, emoji support' },
+                { icon: '✦', label: 'CSS animations', desc: 'Staggered reveals, bouncing dots, fade-ups — all native' },
+                { icon: '✦', label: 'Download via Remotion', desc: 'React → MP4 with a Node.js renderer (coming soon)' },
+              ].map(({ icon, label, desc }) => (
+                <div key={label} className="flex gap-3">
+                  <span className="text-cyan-400 text-sm mt-0.5 flex-shrink-0">{icon}</span>
+                  <div>
+                    <div className="text-white text-sm font-medium">{label}</div>
+                    <div className="text-slate-500 text-xs">{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <div className="text-slate-400 text-xs">
+                <span className="text-white font-medium">Ad #23 and #24</span> in the grid above use the Canvas approach to show the same concepts — direct download, 12Mbps, works right now.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="px-8 pb-10">
