@@ -25,10 +25,19 @@ function useCountUp(target: number, inView: boolean, duration = 1.8): number {
 
 const testimonials = [
   {
+    name: 'Rahul Mehta',
+    role: 'Founder, KidsCraft India (D2C)',
+    avatar: 'RM',
+    color: 'bg-orange-500',
+    quote: 'Recovered ₹2.1L in the very first month just from cart recovery. Setup took 7 minutes and automations were live the same evening.',
+    stars: 5,
+    metric: '₹2.1L recovered in month 1',
+  },
+  {
     name: 'Dr. Priya Sharma',
     role: 'Owner, Smile Dental Clinic',
     avatar: 'PS',
-    color: 'bg-orange-500',
+    color: 'bg-blue-500',
     quote: 'Our appointment no-shows dropped by 65% in the first month. Patients love the WhatsApp reminders — they feel cared for. Setup took 8 minutes.',
     stars: 5,
     metric: '65% fewer no-shows',
@@ -36,20 +45,11 @@ const testimonials = [
   {
     name: 'Rohit Mehra',
     role: 'Founder, Iron Republic Gym',
-    avatar: 'RM',
+    avatar: 'RH',
     color: 'bg-pink-500',
     quote: 'Ran a win-back campaign and re-engaged 140 dormant members in 3 days. Revenue jumped that week. This thing pays for itself in hours.',
     stars: 5,
     metric: '140 members re-engaged',
-  },
-  {
-    name: 'Anjali Singh',
-    role: 'Director, Bright Minds Coaching',
-    avatar: 'AS',
-    color: 'bg-blue-500',
-    quote: 'Every new inquiry now gets a follow-up sequence automatically on WhatsApp. Our conversion rate doubled in the first month. I wish I had this years ago.',
-    stars: 5,
-    metric: '2x conversion rate',
   },
 ]
 

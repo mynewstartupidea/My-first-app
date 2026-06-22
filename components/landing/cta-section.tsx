@@ -66,7 +66,7 @@ export default function CtaSection() {
           transition={{ duration: 0.6, delay: 0.25 }}
           className="mt-5 text-slate-400 text-lg leading-relaxed"
         >
-          Join 340+ businesses already growing with Wapaci. Works for clinics, gyms, coaches, retailers and more. Setup in under 10 minutes.
+          Join 340+ businesses growing with Wapaci — from e-commerce stores and clinics to gyms and coaching centres. Setup in under 10 minutes.
         </motion.p>
 
         <motion.div

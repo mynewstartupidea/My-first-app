@@ -187,7 +187,7 @@ export default function Hero() {
             transition={{ duration: 0.7, delay: 0.5 }}
             className="mt-6 text-lg md:text-xl text-slate-400 leading-relaxed max-w-lg"
           >
-            Appointment reminders, follow-up sequences, promotions and re-engagement — automated on WhatsApp. Works for any business. Sets up in minutes.
+            Cart recovery, appointment reminders, promotions and re-engagement — automated on WhatsApp. For e-commerce stores, clinics, gyms, and every business in between.
           </motion.p>
 
           {/* CTAs */}

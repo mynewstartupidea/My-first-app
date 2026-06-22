@@ -9,38 +9,38 @@ import {
 const features = [
   {
     icon: ShoppingCart,
-    title: 'Appointment Reminders',
-    desc: 'Automatically remind customers before appointments. Zero no-shows, zero manual calling.',
-    badge: 'Most popular',
+    title: 'Abandoned Cart Recovery',
+    desc: 'Automatically follow up with shoppers who left without buying. 30 min, 1 hr, 24 hr sequences.',
+    badge: 'For e-commerce',
     accent: '#f97316',
     glow: 'rgba(249,115,22,0.15)',
     border: 'rgba(249,115,22,0.2)',
-    stat: '60% fewer no-shows',
+    stat: 'Up to 35% recovery rate',
   },
   {
     icon: CreditCard,
-    title: 'Broadcast Campaigns',
-    desc: 'Send promotions, offers and announcements to your entire customer list in one click.',
-    badge: 'Revenue driver',
+    title: 'Appointment Reminders',
+    desc: 'Automatically remind customers before appointments. Works for clinics, gyms, salons and more.',
+    badge: 'For service businesses',
     accent: '#3b82f6',
     glow: 'rgba(59,130,246,0.15)',
     border: 'rgba(59,130,246,0.2)',
-    stat: '5x higher open rate vs email',
+    stat: '60% fewer no-shows',
   },
   {
     icon: Package,
-    title: 'Automated Follow-ups',
-    desc: 'Never lose a lead — send smart follow-up sequences to every new inquiry automatically.',
-    badge: 'Lead converter',
+    title: 'Broadcasts & Promotions',
+    desc: 'Send offers, announcements and updates to your entire customer list in one click.',
+    badge: 'For every business',
     accent: '#25D366',
     glow: 'rgba(37,211,102,0.15)',
     border: 'rgba(37,211,102,0.25)',
-    stat: '3x higher conversion rate',
+    stat: '5x open rate vs email',
   },
   {
     icon: RefreshCw,
     title: 'Re-engagement Campaigns',
-    desc: 'Win back dormant customers after 30/60/90 days with personalised offers and updates.',
+    desc: 'Win back dormant customers after 30/60/90 days with personalised messages and offers.',
     badge: 'Retention booster',
     accent: '#a855f7',
     glow: 'rgba(168,85,247,0.15)',
@@ -50,7 +50,7 @@ const features = [
   {
     icon: Star,
     title: 'Review Collection',
-    desc: 'Automatically ask for a Google or Trustpilot review after every visit or service.',
+    desc: 'Automatically ask for a Google or Trustpilot review after every purchase or visit.',
     badge: 'Trust builder',
     accent: '#eab308',
     glow: 'rgba(234,179,8,0.15)',
@@ -150,7 +150,7 @@ export default function Features() {
             One platform for every<br />WhatsApp automation
           </h2>
           <p className="mt-4 text-slate-400 max-w-lg mx-auto text-lg">
-            For clinics, gyms, coaches, retailers — any business that talks to customers.
+            E-commerce stores, clinics, gyms, coaching centres — any business that has customers.
           </p>
         </motion.div>
 
