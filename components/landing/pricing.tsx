@@ -56,7 +56,6 @@ const plans = [
     messages: '25,000 messages / month',
     features: [
       'Everything in Growth',
-      'Up to 3 business accounts',
       'Customer segmentation',
       'Dedicated onboarding',
       'WhatsApp API consultation',
