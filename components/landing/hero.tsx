@@ -150,7 +150,7 @@ export default function Hero() {
             className="inline-flex items-center gap-2 bg-[#25D366]/10 border border-[#25D366]/25 rounded-full px-4 py-1.5 mb-8"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-[#25D366] animate-pulse" />
-            <span className="text-[#25D366] text-xs font-bold tracking-widest uppercase">WhatsApp Automation · 340+ businesses</span>
+            <span className="text-[#25D366] text-xs font-bold tracking-widest uppercase">WhatsApp Marketing · 340+ businesses</span>
           </motion.div>
 
           {/* Headline — line by line spring animation */}

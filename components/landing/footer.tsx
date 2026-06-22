@@ -15,7 +15,7 @@ export default function Footer() {
               <span className="text-white font-bold text-xl">Wapaci</span>
             </Link>
             <p className="text-slate-500 text-sm max-w-xs leading-relaxed">
-              WhatsApp revenue automation for ecommerce brands. Recover carts, verify COD, update customers — all on autopilot.
+              WhatsApp marketing automation for businesses of every kind — e-commerce, clinics, gyms, coaches and more. All on autopilot.
             </p>
           </div>
 
@@ -63,7 +63,7 @@ export default function Footer() {
 
         <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-slate-600 text-xs">
-            © {new Date().getFullYear()} Wapaci. All rights reserved. Built for Indian D2C brands.
+            © {new Date().getFullYear()} Wapaci. All rights reserved. Built for Indian businesses.
           </p>
           <div className="flex items-center gap-4">
             <span className="text-slate-600 text-xs">🇮🇳 Made in India</span>

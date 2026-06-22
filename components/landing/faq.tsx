@@ -8,27 +8,27 @@ import { ChevronDown } from 'lucide-react'
 const faqs = [
   {
     q: 'Do I need a WhatsApp Business API account?',
-    a: 'No. Wapaci is an official Meta Business Partner and manages the WhatsApp Business API directly — no third-party BSP required. Just connect your ecommerce store and you\'re ready to go.',
+    a: 'No. Wapaci is an official Meta Business Partner and manages the WhatsApp Business API directly — no third-party BSP required. Just connect Wapaci to your business and you\'re ready to go.',
   },
   {
     q: 'Will my customers receive spam?',
-    a: 'Never. All messages are sent only to customers who have opted in via your store\'s checkout or signup flows. We follow WhatsApp\'s strict messaging policies. Your reputation stays intact.',
+    a: 'Never. All messages are sent only to customers who have opted in — via checkout, booking flows, or signup forms. We follow WhatsApp\'s strict messaging policies. Your reputation stays intact.',
   },
   {
     q: 'How does pricing work?',
     a: 'You pay per message sent, with a low base platform fee. There are no hidden costs, no setup fees, and no long-term contracts. Start free and scale as you grow.',
   },
   {
-    q: 'Which ecommerce platforms does Wapaci work with?',
-    a: 'Wapaci works with all major ecommerce platforms — Shopify (all plans including Basic, Advanced, and Plus), WooCommerce, and more integrations coming soon. All you need is a live online store.',
+    q: 'Which platforms and tools does Wapaci integrate with?',
+    a: 'Wapaci integrates with Shopify, WooCommerce, and popular CRM and booking tools — with more integrations coming soon. If you already have a customer list, you can get started right away.',
   },
   {
     q: 'How long does setup take?',
-    a: 'Most brands go live in under 10 minutes. Connect your ecommerce store, enable the automations you want, and Wapaci handles the rest. No developer required.',
+    a: 'Most businesses go live in under 10 minutes. Connect your tools, enable the automations you want, and Wapaci handles the rest. No developer required.',
   },
   {
     q: 'Can I customise the message templates?',
-    a: 'Yes, fully. Every message template — cart recovery, COD verification, shipping updates, win-back campaigns — can be customised with your brand\'s tone and language, including Hindi and Hinglish.',
+    a: 'Yes, fully. Every message template — appointment reminders, cart recovery, broadcast campaigns, win-back messages — can be customised with your tone and language, including Hindi and Hinglish.',
   },
   {
     q: 'Is customer data safe?',
