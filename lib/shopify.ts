@@ -1,7 +1,7 @@
 import crypto from 'crypto'
-import { getAppUrl } from '@/lib/get-app-url'
 
 const SHOPIFY_API_VERSION = '2025-01'
+const SHOPIFY_APP_URL = 'https://app.wapaci.com'
 
 // Reject any shop that isn't a valid *.myshopify.com domain
 export function validateShopDomain(shop: string): boolean {
@@ -67,7 +67,7 @@ export function getShopifyOAuthUrl(shop: string, state: string): string {
 }
 
 export function getShopifyRedirectUri(): string {
-  return `${getAppUrl()}/api/shopify/callback`
+  return `${SHOPIFY_APP_URL}/api/shopify/callback`
 }
 
 export async function exchangeCodeForToken(shop: string, code: string): Promise<string> {
