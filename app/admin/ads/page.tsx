@@ -660,6 +660,17 @@ function scheduleAdAudio(audioCtx: AudioContext, master: GainNode, adId: number)
       ticker(audioCtx, master, now + 20.1, 8, .13); hit(audioCtx, master, now + 22.4, 'green')
       whooshFx(audioCtx, master, now + 25.25); hit(audioCtx, master, now + 27.2, 'orange'); cashFx(audioCtx, master, now + 28.6)
       break
+    case 25: // Cinematic Storybook — warm 3D family-film feel
+      pad(audioCtx, master, [131, 196, 247, 330], 'triangle', .017, 1.6, 28.5)
+      arpNote(audioCtx, master, [330, 392, 494, 587, 659, 784], 220, 'sine', .022, 3)
+      hit(audioCtx, master, now + .45, 'blue')
+      whooshFx(audioCtx, master, now + 5.8)
+      waPing(audioCtx, master, now + 10.4); waPing(audioCtx, master, now + 12.3)
+      cashFx(audioCtx, master, now + 16.7); hit(audioCtx, master, now + 18.4, 'green')
+      ticker(audioCtx, master, now + 20.5, 9, .12)
+      whooshFx(audioCtx, master, now + 24.2); hit(audioCtx, master, now + 25.3, 'green')
+      cashFx(audioCtx, master, now + 27.2); cashFx(audioCtx, master, now + 29.1)
+      break
     default:
       pad(audioCtx, master, [131, 165, 196, 262], 'triangle', .018)
   }
@@ -1924,6 +1935,153 @@ function renderAd24(ctx: CanvasRenderingContext2D, t: number) {
   }
 }
 
+/* ─── Ad 25: Cinematic Storybook — premium cartoon motion ────────── */
+function renderAd25(ctx: CanvasRenderingContext2D, t: number) {
+  const sky = ctx.createLinearGradient(0, 0, 0, H)
+  sky.addColorStop(0, '#07111f')
+  sky.addColorStop(.42, '#123a36')
+  sky.addColorStop(1, '#0b1512')
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H)
+
+  const warm = t > 8 ? pr(t, 8, 14) : 0
+  glow(ctx, 270, 190, 640, '96,165,250', .09)
+  glow(ctx, 820, 260, 620, '251,191,36', (.06 + .11 * warm))
+  glow(ctx, W / 2, 840, 700, '37,211,102', .05 + .12 * pr(t, 16, 22))
+
+  // Painted shop interior with parallax camera drift.
+  const cam = Math.sin(t * .22) * 16
+  ctx.save()
+  ctx.translate(cam, 0)
+  rr(ctx, 88, 665, 910, 215, 32, '#16251c', 'rgba(255,255,255,.06)')
+  ctx.fillStyle = '#0b1410'; ctx.fillRect(0, 850, W, 230)
+  ctx.fillStyle = '#f5c16c'
+  ctx.globalAlpha = .9
+  ctx.beginPath(); ctx.arc(780, 176, 72, 0, Math.PI * 2); ctx.fill()
+  ctx.globalAlpha = 1
+  ;[150, 380, 620, 860].forEach((x, i) => {
+    ctx.globalAlpha = .38 + .12 * Math.sin(t + i)
+    rr(ctx, x, 705, 90, 88, 14, i % 2 ? '#eab308' : '#e879f9')
+    rr(ctx, x + 22, 650, 48, 62, 9, '#f8fafc')
+  })
+  ctx.globalAlpha = 1
+  ctx.restore()
+
+  function coin(x: number, y: number, s: number, a: number) {
+    ctx.save(); ctx.globalAlpha = a
+    const g = ctx.createRadialGradient(x - s * .2, y - s * .25, 1, x, y, s)
+    g.addColorStop(0, '#fff7ad'); g.addColorStop(.45, '#facc15'); g.addColorStop(1, '#b45309')
+    ctx.fillStyle = g
+    ctx.beginPath(); ctx.ellipse(x, y, s, s * .75, 0, 0, Math.PI * 2); ctx.fill()
+    txt(ctx, '₹', x, y + s * .02, { size: s * 1.05, color: '#78350f', weight: '900', alpha: a })
+    ctx.restore()
+  }
+
+  function drawPhone(x: number, y: number, s: number, a: number, active = false) {
+    ctx.save(); ctx.globalAlpha = a
+    rr(ctx, x, y, 210 * s, 360 * s, 32 * s, '#101820', 'rgba(255,255,255,.2)', 2)
+    rr(ctx, x + 13 * s, y + 22 * s, 184 * s, 316 * s, 22 * s, '#0b141a')
+    ctx.fillStyle = '#128C7E'; ctx.fillRect(x + 13 * s, y + 22 * s, 184 * s, 58 * s)
+    txt(ctx, 'Wapakee Store', x + 105 * s, y + 52 * s, { size: 16 * s, color: '#fff', weight: '800', alpha: a })
+    const msgA = active ? pr(t, 10, 11.2) : .45
+    rr(ctx, x + 38 * s, y + 112 * s, 132 * s, 54 * s, 16 * s, '#005c4b')
+    txt(ctx, 'Still want it?', x + 104 * s, y + 139 * s, { size: 14 * s, color: '#e9edef', weight: '600', alpha: a * msgA })
+    rr(ctx, x + 34 * s, y + 186 * s, 142 * s, 54 * s, 16 * s, '#1f2c34')
+    txt(ctx, 'Yes! ordering', x + 105 * s, y + 213 * s, { size: 14 * s, color: '#e9edef', weight: '600', alpha: a * pr(t, 13, 14.2) })
+    rr(ctx, x + 50 * s, y + 266 * s, 110 * s, 40 * s, 20 * s, '#25D366')
+    txt(ctx, 'PAID', x + 105 * s, y + 286 * s, { size: 15 * s, color: '#06220f', weight: '900', alpha: a * pr(t, 15.7, 17) })
+    ctx.restore()
+  }
+
+  function drawCharacter(x: number, y: number, s: number, mood: number, a: number) {
+    ctx.save(); ctx.globalAlpha = a
+    const bob = Math.sin(t * 2.2) * 7 * s
+    ctx.translate(x, y + bob)
+    ctx.scale(s, s)
+    ctx.fillStyle = 'rgba(0,0,0,.25)'
+    ctx.beginPath(); ctx.ellipse(0, 255, 98, 20, 0, 0, Math.PI * 2); ctx.fill()
+    const dress = ctx.createLinearGradient(-80, 80, 70, 250)
+    dress.addColorStop(0, '#34d399'); dress.addColorStop(1, '#047857')
+    ctx.fillStyle = dress
+    ctx.beginPath(); ctx.moveTo(-74, 250); ctx.quadraticCurveTo(-52, 108, 0, 104); ctx.quadraticCurveTo(52, 108, 74, 250); ctx.closePath(); ctx.fill()
+    ctx.fillStyle = '#d98b57'; rr(ctx, -23, 72, 46, 48, 19, '#d98b57')
+    const skin = ctx.createRadialGradient(-20, -30, 8, 0, 0, 78)
+    skin.addColorStop(0, '#ffd0a8'); skin.addColorStop(1, '#d98653')
+    ctx.fillStyle = skin
+    ctx.beginPath(); ctx.arc(0, 32, 70, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#23110a'
+    ctx.beginPath(); ctx.ellipse(0, -12, 78, 44, 0, Math.PI, 0); ctx.fill()
+    ctx.beginPath(); ctx.arc(52, -25, 24, 0, Math.PI * 2); ctx.fill()
+    const eyeY = 34 - mood * 4
+    ;[-24, 24].forEach(ex => {
+      ctx.fillStyle = '#180a05'; ctx.beginPath(); ctx.ellipse(ex, eyeY, 8, mood > .5 ? 12 : 8, 0, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex + 3, eyeY - 4, 2.5, 0, Math.PI * 2); ctx.fill()
+    })
+    ctx.strokeStyle = '#6b2f16'; ctx.lineWidth = 4; ctx.lineCap = 'round'
+    ctx.beginPath()
+    if (mood > .5) ctx.arc(0, 58, 22, 0, Math.PI)
+    else ctx.arc(0, 68, 18, Math.PI, 0)
+    ctx.stroke()
+    ctx.strokeStyle = '#d98653'; ctx.lineWidth = 22
+    ctx.beginPath(); ctx.moveTo(-58, 118); ctx.quadraticCurveTo(-128, 160, -112 + mood * 18, 218 - mood * 42); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(58, 118); ctx.bezierCurveTo(118, 140 - mood * 8, 112, 92 - mood * 55, 120, 56 - mood * 30); ctx.stroke()
+    ctx.restore()
+  }
+
+  // Scene 1: lonely abandoned cart.
+  if (t < 7.2) {
+    const f = t < .7 ? pr(t, 0, .7) : 1 - pr(t, 6.4, 7.2)
+    txt(ctx, 'A customer almost bought...', W / 2, 190, { size: 42, color: '#dbeafe', weight: '800', alpha: f * pr(t, .4, 1.2) })
+    txt(ctx, 'then vanished.', W / 2, 250, { size: 64, color: '#fca5a5', weight: '900', alpha: f * pr(t, 1.4, 2.6) })
+    drawCharacter(335, 430, 1.12, 0, f)
+    drawPhone(650, 315, 1.15, f * pr(t, 2.5, 3.5))
+    txt(ctx, '₹4,199 sitting in an abandoned cart', W / 2, 794, { size: 28, color: '#94a3b8', weight: '600', alpha: f * pr(t, 3.4, 4.8) })
+  }
+
+  // Scene 2: Wapaci sends the right message.
+  if (t >= 6.4 && t < 18.8) {
+    const lt = t - 6.4, f = lt < .8 ? pr(lt, 0, .8) : 1 - pr(lt, 11.4, 12.4)
+    glow(ctx, W / 2, H / 2, 700, '37,211,102', .16 * f * pr(lt, 0, 2))
+    txt(ctx, 'Wapakee notices instantly.', W / 2, 176, { size: 42, color: '#bbf7d0', weight: '900', alpha: f * pr(lt, 0, 1.2) })
+    drawPhone(426, 255, 1.1, f, true)
+    ;[0, 1, 2].forEach(i => {
+      const a = f * pr(lt, 2.5 + i * .45, 3.3 + i * .45)
+      const y = 760 - i * 74
+      rr(ctx, 250 + i * 46, y, 580, 52, 26, 'rgba(37,211,102,.12)', 'rgba(37,211,102,.35)')
+      txt(ctx, ['detects cart', 'sends WhatsApp', 'brings them back'][i], 540, y + 26, { size: 22, color: '#dcfce7', weight: '800', alpha: a })
+    })
+  }
+
+  // Scene 3: delighted buyer and recovered revenue.
+  if (t >= 16.8 && t < 24.8) {
+    const lt = t - 16.8, f = lt < .8 ? pr(lt, 0, .8) : 1 - pr(lt, 7, 8)
+    drawCharacter(340, 430, 1.18, 1, f)
+    drawPhone(652, 330, .95, f, true)
+    for (let i = 0; i < 14; i++) {
+      const drop = ((lt * 120 + i * 37) % 460)
+      coin(210 + (i * 53) % 620, 290 + drop, 18 + (i % 3) * 5, f * Math.max(0, 1 - drop / 520) * pr(lt, .6, 2))
+    }
+    txt(ctx, 'Order recovered', W / 2, 202, { size: 34, color: '#fef3c7', weight: '800', alpha: f * pr(lt, .4, 1.2) })
+    txt(ctx, '₹4,199', W / 2, 282, { size: 100, color: '#facc15', weight: '900', alpha: f * pr(lt, .8, 1.8) })
+    txt(ctx, 'while your team was busy elsewhere', W / 2, 808, { size: 28, color: '#94a3b8', weight: '600', alpha: f * pr(lt, 2.4, 3.5) })
+  }
+
+  // Scene 4: CTA.
+  if (t >= 23.8) {
+    const lt = t - 23.8, f = pr(lt, 0, 1.1)
+    ctx.fillStyle = `rgba(4,10,7,${f * .88})`; ctx.fillRect(0, 0, W, H)
+    grid(ctx, 'rgba(37,211,102,.03)')
+    glow(ctx, W / 2, H / 2, 760, '37,211,102', .24 * f)
+    txt(ctx, 'Make every cart', W / 2, 346, { size: 64, color: '#fff', weight: '900', alpha: f })
+    txt(ctx, 'feel remembered.', W / 2, 430, { size: 64, color: '#25D366', weight: '900', alpha: f })
+    txt(ctx, 'Cart recovery, COD confirmation, win-back flows.', W / 2, 534, { size: 27, color: '#94a3b8', weight: '500', alpha: f * pr(lt, .5, 1.4) })
+    ctx.globalAlpha = f * pr(lt, 1, 2)
+    rr(ctx, W / 2 - 230, 642, 460, 84, 42, '#25D366')
+    ctx.globalAlpha = 1
+    txt(ctx, 'Try Wapakee free →', W / 2, 684, { size: 29, color: '#03130a', weight: '900', alpha: f * pr(lt, 1, 2) })
+    txt(ctx, 'wapaci.com', W / 2, 786, { size: 25, color: '#64748b', weight: '600', alpha: f * pr(lt, 1.6, 2.6) })
+  }
+}
+
 const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => void> = {
   1: renderAd1, 2: renderAd2, 3: renderAd3,
   4: renderAd4, 5: renderAd5, 6: renderAd6, 7: renderAd7,
@@ -1931,7 +2089,7 @@ const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => vo
   12: renderAd12, 13: renderAd13, 14: renderAd14, 15: renderAd15,
   16: renderAd16, 17: renderAd17, 18: renderAd18, 19: renderAd19,
   20: renderAd20, 21: renderAd21, 22: renderAd22,
-  23: renderAd23, 24: renderAd24,
+  23: renderAd23, 24: renderAd24, 25: renderAd25,
 }
 
 /* ─── Ad definitions ──────────────────────────────────────────────── */
@@ -2791,6 +2949,53 @@ Try it free at wapaki dot com.`,
 
 [excited] Try free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, storytelling warmth, genuine and believable, excited at the conversion moment, expert ad voice`,
+  },
+  {
+    id: 25, filename: 'wapaci-cinematic-storybook',
+    title: 'Cinematic Storybook — Premium Cartoon',
+    tag: 'Premium Ad', tagColor: 'bg-lime-500/20 text-lime-300 border-lime-500/30',
+    accent: '#25D366',
+    defaultScript: `A customer almost bought from you.
+
+The cart was full.
+The intent was real.
+
+Then life interrupted.
+
+Most brands let that moment disappear.
+
+Wapakee does not.
+
+It notices the abandoned cart instantly.
+It sends a warm WhatsApp message.
+The customer feels remembered.
+
+And comes back.
+
+That is not another notification.
+That is revenue recovered with care.
+
+Cart recovery. COD confirmation. Win-back flows.
+All on WhatsApp. All automatic.
+
+Make every cart feel remembered.
+
+Try Wapakee free — wapaki dot com.`,
+    voiceDir: 'cinematic warm family-film inspired ad voice, gentle emotional opening, wonder and care in the middle, bright triumphant lift when the customer comes back, polished premium close',
+    expertScript: `[soft] A customer almost bought from you.
+
+[sad] Then life interrupted.
+
+[neutral] Most brands let that moment disappear.
+
+[happy] Wapakee does not.
+
+[excited] It sends a warm WhatsApp. The customer feels remembered. And comes back.
+
+[happy] Revenue recovered with care.
+
+[excited] Try Wapakee free. Wapaki dot com.`,
+    expertVoiceDir: `28 year old Indian female, cinematic and warm, family-film trailer energy without being childish, soft emotional opening to bright triumphant close, expert ad voice`,
   },
 ]
 
