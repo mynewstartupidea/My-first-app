@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { getAppUrl } from '@/lib/get-app-url'
 
 const SHOPIFY_API_VERSION = '2025-01'
 
@@ -47,11 +48,26 @@ export function verifyShopifyOAuthCallback(searchParams: URLSearchParams): boole
 }
 
 export function getShopifyOAuthUrl(shop: string, state: string): string {
-  const apiKey   = process.env.SHOPIFY_API_KEY!
-  const scopes   = process.env.SHOPIFY_SCOPES!
-  const redirect = `${process.env.NEXT_PUBLIC_APP_URL}/api/shopify/callback`
+  const apiKey   = process.env.SHOPIFY_API_KEY
+  const scopes   = process.env.SHOPIFY_SCOPES
+  const redirect = getShopifyRedirectUri()
 
-  return `https://${shop}/admin/oauth/authorize?client_id=${apiKey}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirect)}&state=${state}`
+  if (!apiKey || !scopes) {
+    throw new Error('Shopify app is not configured')
+  }
+
+  const params = new URLSearchParams({
+    client_id: apiKey,
+    scope: scopes,
+    redirect_uri: redirect,
+    state,
+  })
+
+  return `https://${shop}/admin/oauth/authorize?${params.toString()}`
+}
+
+export function getShopifyRedirectUri(): string {
+  return `${getAppUrl()}/api/shopify/callback`
 }
 
 export async function exchangeCodeForToken(shop: string, code: string): Promise<string> {

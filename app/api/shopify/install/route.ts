@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getShopifyOAuthUrl, validateShopDomain, signOAuthState } from '@/lib/shopify'
+import { getShopifyOAuthUrl, getShopifyRedirectUri, validateShopDomain, signOAuthState } from '@/lib/shopify'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
@@ -10,8 +10,17 @@ export async function GET(request: Request) {
   if (!validateShopDomain(shop)) {
     return NextResponse.json({ error: 'Invalid shop domain — must be *.myshopify.com' }, { status: 400 })
   }
-  if (!process.env.SHOPIFY_API_KEY) {
-    return NextResponse.json({ error: 'Shopify app not configured. Add SHOPIFY_API_KEY to environment variables.' }, { status: 500 })
+  const missing = [
+    ['SHOPIFY_API_KEY', process.env.SHOPIFY_API_KEY],
+    ['SHOPIFY_API_SECRET', process.env.SHOPIFY_API_SECRET],
+    ['SHOPIFY_SCOPES', process.env.SHOPIFY_SCOPES],
+  ].filter(([, value]) => !value).map(([key]) => key)
+
+  if (missing.length > 0) {
+    return NextResponse.json({
+      error: `Shopify app not configured. Missing: ${missing.join(', ')}`,
+      redirect_uri: getShopifyRedirectUri(),
+    }, { status: 500 })
   }
 
   const supabase = await createClient()
