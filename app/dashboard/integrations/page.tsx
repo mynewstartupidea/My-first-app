@@ -101,7 +101,17 @@ function IntegrationsInner() {
   useEffect(() => {
     const status = searchParams.get('shopify')
     if (status === 'connected') showToast('Shopify store connected successfully!')
-    if (status === 'error')     showToast('Could not connect to Shopify. Please try again.', false)
+    const errors: Record<string, string> = {
+      error: 'Could not connect to Shopify. Please try again.',
+      invalid_callback: 'Shopify did not return the required OAuth details.',
+      invalid_hmac: 'Shopify callback signature could not be verified.',
+      invalid_state: 'Shopify security state expired. Please try connecting again.',
+      token_failed: 'Shopify approved the app, but token exchange failed. Check API key and secret.',
+      shop_failed: 'Shopify connected, but shop details could not be fetched. Check app scopes.',
+      store_failed: 'Shopify connected, but we could not save the store. Please contact support.',
+      oauth_failed: 'Shopify connected, but setup could not finish. Please try again.',
+    }
+    if (status && errors[status]) showToast(errors[status], false)
   }, [searchParams, showToast])
 
   const isShopifyConnected = !!store?.shopify_domain

@@ -38,7 +38,9 @@ export function verifyShopifyOAuthCallback(searchParams: URLSearchParams): boole
   const hmac = searchParams.get('hmac')
   if (!hmac) return false
   const parts: string[] = []
-  searchParams.forEach((value, key) => { if (key !== 'hmac') parts.push(`${key}=${value}`) })
+  searchParams.forEach((value, key) => {
+    if (key !== 'hmac' && key !== 'signature') parts.push(`${key}=${value}`)
+  })
   parts.sort()
   const expected = crypto.createHmac('sha256', secret).update(parts.join('&')).digest('hex')
   const a = Buffer.from(expected, 'hex')
@@ -70,6 +72,10 @@ export function getShopifyRedirectUri(): string {
   return `${SHOPIFY_APP_URL}/api/shopify/callback`
 }
 
+export function getShopifyAppUrl(): string {
+  return SHOPIFY_APP_URL
+}
+
 export async function exchangeCodeForToken(shop: string, code: string): Promise<string> {
   const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: 'POST',
@@ -80,7 +86,7 @@ export async function exchangeCodeForToken(shop: string, code: string): Promise<
       code,
     }),
   })
-  if (!res.ok) throw new Error('Failed to exchange code for token')
+  if (!res.ok) throw new Error(`Failed to exchange code for token: ${res.status} ${await res.text()}`)
   const data = await res.json()
   return data.access_token
 }
@@ -89,7 +95,7 @@ export async function getShopDetails(shop: string, token: string) {
   const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`, {
     headers: { 'X-Shopify-Access-Token': token },
   })
-  if (!res.ok) throw new Error('Failed to fetch shop details')
+  if (!res.ok) throw new Error(`Failed to fetch shop details: ${res.status} ${await res.text()}`)
   const { shop: details } = await res.json()
   return details
 }

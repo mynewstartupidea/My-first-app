@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
-import { exchangeCodeForToken, getShopDetails, registerWebhooks, verifyShopifyOAuthCallback, verifyOAuthState } from '@/lib/shopify'
+import { exchangeCodeForToken, getShopDetails, getShopifyAppUrl, registerWebhooks, verifyShopifyOAuthCallback, verifyOAuthState } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
+
+function redirectWithStatus(origin: string, returnTo: string, status: string) {
+  const baseUrl = returnTo.startsWith('/') ? `${origin}${returnTo}` : `${origin}/dashboard/integrations`
+  const dest = new URL(baseUrl)
+  dest.searchParams.set('shopify', status)
+  return NextResponse.redirect(dest.toString())
+}
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -12,13 +19,13 @@ export async function GET(request: Request) {
 
   if (!code || !shop || !state) {
     console.error('[Shopify OAuth] missing code/shop/state params')
-    return NextResponse.redirect(`${origin}/dashboard/integrations?shopify=error`)
+    return redirectWithStatus(origin, '/dashboard/integrations', 'invalid_callback')
   }
 
   // Verify Shopify's HMAC signature on the callback parameters
   if (!verifyShopifyOAuthCallback(searchParams)) {
     console.error('[Shopify OAuth] HMAC verification failed — possible forgery')
-    return NextResponse.redirect(`${origin}/dashboard/integrations?shopify=error`)
+    return redirectWithStatus(origin, '/dashboard/integrations', 'invalid_hmac')
   }
 
   let userId: string
@@ -26,24 +33,36 @@ export async function GET(request: Request) {
   const decoded = verifyOAuthState(state)
   if (!decoded) {
     console.error('[Shopify OAuth] invalid or tampered state param')
-    return NextResponse.redirect(`${origin}/dashboard/integrations?shopify=error`)
+    return redirectWithStatus(origin, '/dashboard/integrations', 'invalid_state')
   }
   userId  = decoded.userId
   if (decoded.returnTo) returnTo = decoded.returnTo
 
   try {
     // 1. Exchange code for access token
-    const accessToken = await exchangeCodeForToken(shop, code)
+    let accessToken: string
+    try {
+      accessToken = await exchangeCodeForToken(shop, code)
+    } catch (err) {
+      console.error('[Shopify OAuth] token exchange failed:', err)
+      return redirectWithStatus(origin, returnTo, 'token_failed')
+    }
     console.log('[Shopify OAuth] token exchange: OK')
 
     // 2. Fetch shop details
-    const shopDetails = await getShopDetails(shop, accessToken) as {
-      name: string; email?: string; currency?: string
+    let shopDetails: { name: string; email?: string; currency?: string }
+    try {
+      shopDetails = await getShopDetails(shop, accessToken) as {
+        name: string; email?: string; currency?: string
+      }
+    } catch (err) {
+      console.error('[Shopify OAuth] shop details failed:', err)
+      return redirectWithStatus(origin, returnTo, 'shop_failed')
     }
     console.log(`[Shopify OAuth] shop name: ${shopDetails.name}`)
 
     // 3. Register webhooks
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? origin
+    const appUrl = getShopifyAppUrl()
     await registerWebhooks(shop, accessToken, appUrl)
     console.log('[Shopify OAuth] webhooks registered')
 
@@ -76,7 +95,10 @@ export async function GET(request: Request) {
     if (byDomain) {
       const { data, error } = await supabase
         .from('stores').update(shopifyPayload).eq('id', byDomain.id).select('id').single()
-      if (error) throw error
+      if (error) {
+        console.error('[Shopify OAuth] store update failed:', error)
+        return redirectWithStatus(origin, returnTo, 'store_failed')
+      }
       storeId = data.id
       console.log('[Shopify OAuth] updated existing store (same domain):', storeId)
     } else {
@@ -88,13 +110,19 @@ export async function GET(request: Request) {
       if (existing) {
         const { data, error } = await supabase
           .from('stores').update(shopifyPayload).eq('id', existing.id).select('id').single()
-        if (error) throw error
+        if (error) {
+          console.error('[Shopify OAuth] store upgrade failed:', error)
+          return redirectWithStatus(origin, returnTo, 'store_failed')
+        }
         storeId = data.id
         console.log('[Shopify OAuth] upgraded existing mock store:', storeId)
       } else {
         const { data, error } = await supabase
           .from('stores').insert({ user_id: userId, ...shopifyPayload }).select('id').single()
-        if (error) throw error
+        if (error) {
+          console.error('[Shopify OAuth] store insert failed:', error)
+          return redirectWithStatus(origin, returnTo, 'store_failed')
+        }
         storeId = data.id
         console.log('[Shopify OAuth] created new store:', storeId)
       }
@@ -121,6 +149,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(dest.toString())
   } catch (err) {
     console.error('[Shopify OAuth] error:', err)
-    return NextResponse.redirect(`${origin}/dashboard/integrations?shopify=error`)
+    return redirectWithStatus(origin, returnTo, 'oauth_failed')
   }
 }
