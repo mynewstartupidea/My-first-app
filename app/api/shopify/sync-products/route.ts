@@ -31,7 +31,9 @@ export async function POST() {
       { headers }
     )
     if (!countRes.ok) {
-      throw new Error(`Shopify products/count returned ${countRes.status}`)
+      const body = await countRes.text()
+      console.error(`[sync-products] 403 body: ${body}`)
+      throw new Error(`Shopify products/count returned ${countRes.status}: ${body}`)
     }
     const { count } = await countRes.json() as { count: number }
 
