@@ -746,9 +746,9 @@ function SettingsInner() {
               </div>
             </div>
 
-            {!store.shopify_domain && (
+            {store.shopify_domain && (
               <div className="border-t border-slate-100 pt-4">
-                <p className="text-sm font-medium text-slate-700 mb-2">Connect Shopify (optional)</p>
+                <p className="text-sm font-medium text-slate-700 mb-2">Connect a different Shopify store</p>
                 <div className="flex gap-2">
                   <input value={shopifyDomain} onChange={e => setShopifyDomain(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleConnectShopify()}
