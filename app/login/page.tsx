@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAppUrl } from '@/lib/get-app-url'
 import { MessageCircle, Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
@@ -9,15 +9,16 @@ import Link from 'next/link'
 
 type Mode = 'signin' | 'signup' | 'forgot'
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode]         = useState<Mode>('signin')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState('')
-  const router = useRouter()
-  const supabase = createClient()
+  const router      = useRouter()
+  const searchParams = useSearchParams()
+  const supabase    = createClient()
 
   function reset() { setError(''); setSuccess(''); setPassword('') }
 
@@ -52,7 +53,8 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
     if (error) { setError(error.message); return }
-    router.push('/dashboard')
+    const returnTo = searchParams.get('returnTo') ?? '/dashboard'
+    router.push(returnTo)
     router.refresh()
   }
 
@@ -178,5 +180,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

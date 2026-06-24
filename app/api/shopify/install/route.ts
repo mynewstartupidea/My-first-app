@@ -25,7 +25,12 @@ export async function GET(request: Request) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.redirect(new URL('/login', request.url))
+  if (!user) {
+    // Preserve the full install URL so after login the OAuth flow continues automatically
+    const returnTo = searchParams.get('returnTo') ?? '/dashboard/integrations'
+    const resumeUrl = `/api/shopify/install?shop=${encodeURIComponent(shop)}&returnTo=${encodeURIComponent(returnTo)}`
+    return NextResponse.redirect(new URL(`/login?returnTo=${encodeURIComponent(resumeUrl)}`, request.url))
+  }
 
   const returnTo  = searchParams.get('returnTo') ?? '/dashboard/integrations'
   const state     = signOAuthState({ userId: user.id, shop, returnTo })
