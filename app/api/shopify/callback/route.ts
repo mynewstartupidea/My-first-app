@@ -6,11 +6,11 @@ function redirectWithStatus(origin: string, returnTo: string, status: string) {
   // Errors always land on integrations — it shows the correct error toast for every code.
   // Success goes to returnTo (which now defaults to integrations anyway).
   const isSuccess = status === 'connected'
-  const basePath  = isSuccess
-    ? (returnTo.startsWith('/') ? returnTo : '/dashboard/integrations')
-    : '/dashboard/integrations'
+  const safeReturnTo = returnTo.startsWith('/') ? returnTo : '/dashboard/integrations'
+  const basePath  = isSuccess ? '/shopify/complete' : '/dashboard/integrations'
   const dest = new URL(`${origin}${basePath}`)
   dest.searchParams.set('shopify', status)
+  if (isSuccess) dest.searchParams.set('returnTo', safeReturnTo)
   return NextResponse.redirect(dest.toString())
 }
 
