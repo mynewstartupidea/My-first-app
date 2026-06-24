@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-const SHOPIFY_API_VERSION = '2026-04'
+const SHOPIFY_API_VERSION = '2024-10'
 const SHOPIFY_APP_URL = 'https://app.wapaci.com'
 
 // Reject any shop that isn't a valid *.myshopify.com domain
