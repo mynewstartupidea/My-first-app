@@ -91,7 +91,6 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       const data = await res.json() as UploadResult
       setResult(data)
       setState('done')
-      onSuccess()
     } catch {
       setError('Network error. Check your connection and try again.')
       setState('error')
@@ -232,7 +231,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                   className="flex-1 text-sm font-medium border border-slate-200 text-slate-600 py-2 rounded-xl hover:bg-slate-50 transition">
                   Upload Another
                 </button>
-                <button onClick={onClose}
+                <button onClick={onSuccess}
                   className="flex-1 text-sm font-medium bg-[#25D366] text-white py-2 rounded-xl hover:bg-[#1aad54] transition">
                   Done
                 </button>
@@ -273,7 +272,7 @@ export default function ContactsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
     const { data: store } = await supabase
       .from('stores').select('id').eq('user_id', user.id).eq('is_active', true)
       .order('created_at', { ascending: true }).limit(1).maybeSingle()
@@ -417,55 +416,67 @@ export default function ContactsPage() {
           {loading ? (
             <div className="flex items-center justify-center h-40"><Loader2 size={20} className="animate-spin text-[#25D366]" /></div>
           ) : displayed.length === 0 ? (
-            <div className="py-16 text-center">
-              <Users size={32} className="text-slate-200 mx-auto mb-2" />
-              <p className="text-slate-400 text-sm">No contacts found</p>
-              <button
-                onClick={() => setShowUpload(true)}
-                className="mt-4 flex items-center gap-1.5 text-xs font-medium text-[#25D366] border border-[#25D366]/30 px-4 py-2 rounded-xl hover:bg-[#25D366]/5 transition mx-auto">
-                <Upload size={12} /> Upload Contacts
-              </button>
+            <div className="py-16 text-center px-4">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Users size={24} className="text-slate-300" />
+              </div>
+              <p className="text-slate-700 font-medium text-sm">
+                {customers.length === 0 ? 'No contacts yet' : 'No contacts match this filter'}
+              </p>
+              <p className="text-slate-400 text-xs mt-1 max-w-xs mx-auto">
+                {customers.length === 0
+                  ? 'Upload a CSV or VCF file to import your customer contacts.'
+                  : 'Try selecting a different segment or clearing your search.'}
+              </p>
+              {customers.length === 0 && (
+                <button
+                  onClick={() => setShowUpload(true)}
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-4 py-2 rounded-xl hover:bg-[#1aad54] transition">
+                  <Upload size={13} /> Upload Contacts
+                </button>
+              )}
             </div>
           ) : (
             <>
               {/* Column headers */}
-              <div className="hidden lg:grid grid-cols-[auto_1fr_150px_80px_100px_80px_40px] gap-4 px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+              <div className="grid grid-cols-[auto_1fr_140px_70px_90px] md:grid-cols-[auto_1fr_160px_80px_110px_90px] gap-3 px-4 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100 bg-slate-50/60">
                 <div className="w-4" />
-                <div>Contact</div><div>Phone</div><div>Orders</div><div>Revenue</div><div>WhatsApp</div><div />
+                <div>Contact</div>
+                <div>Phone</div>
+                <div className="text-center">Orders</div>
+                <div>Revenue</div>
+                <div className="hidden md:block">WhatsApp</div>
               </div>
               <div className="divide-y divide-slate-50">
                 {displayed.slice(0, 100).map(c => (
                   <div key={c.id}
-                    className={cn('flex lg:grid lg:grid-cols-[auto_1fr_150px_80px_100px_80px_40px] items-center gap-4 px-4 py-3 hover:bg-slate-50/70 transition',
+                    className={cn('grid grid-cols-[auto_1fr_140px_70px_90px] md:grid-cols-[auto_1fr_160px_80px_110px_90px] items-center gap-3 px-4 py-3 hover:bg-slate-50/60 transition',
                       selected.has(c.id) ? 'bg-[#25D366]/5' : '')}>
                     <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
                       className="rounded border-slate-300 text-[#25D366] focus:ring-[#25D366]" />
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', avatarColor(c.phone))}>
                         {(c.name ?? c.phone).slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{c.name ?? '—'}</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{c.name ?? <span className="text-slate-400 italic">No name</span>}</p>
                         <p className="text-xs text-slate-400 truncate">{c.email ?? ''}</p>
                       </div>
                     </div>
-                    <div className="hidden lg:flex items-center gap-1 text-xs text-slate-600">
-                      <Phone size={11} className="text-slate-400 flex-shrink-0" />
-                      <span className="truncate">{c.phone}</span>
+                    <div className="flex items-center gap-1 text-xs text-slate-600 min-w-0">
+                      <Phone size={10} className="text-slate-400 flex-shrink-0" />
+                      <span className="truncate font-mono">{c.phone}</span>
                     </div>
-                    <div className="hidden lg:flex items-center gap-1 text-sm font-semibold text-slate-700">
-                      <ShoppingBag size={12} className="text-slate-400" /> {c.total_orders}
+                    <div className="flex items-center justify-center gap-1 text-sm font-semibold text-slate-700">
+                      <ShoppingBag size={11} className="text-slate-400" /> {c.total_orders}
                     </div>
-                    <div className="hidden lg:block text-sm font-semibold text-emerald-600">{formatCurrency(c.total_spent)}</div>
-                    <div className="hidden lg:block">
+                    <div className="text-sm font-semibold text-emerald-600">{formatCurrency(c.total_spent)}</div>
+                    <div className="hidden md:block">
                       <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full',
-                        c.whatsapp_opt_in ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500')}>
-                        {c.whatsapp_opt_in ? 'Opted in' : 'Opted out'}
+                        c.whatsapp_opt_in ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400')}>
+                        {c.whatsapp_opt_in ? 'Opted in' : 'Not opted'}
                       </span>
                     </div>
-                    <button className="hidden lg:block text-slate-400 hover:text-slate-600 transition">
-                      <MoreVertical size={14} />
-                    </button>
                   </div>
                 ))}
               </div>
