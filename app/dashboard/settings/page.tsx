@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { hasShopifyConnection, pickPreferredStore } from '@/lib/store-selection'
 import {
@@ -128,6 +128,7 @@ function SettingsInner() {
   const [sendingInvite, setSendingInvite]     = useState(false)
   const [removingId, setRemovingId]           = useState<string | null>(null)
 
+  const router  = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const urlError   = searchParams.get('error')
   const urlSuccess = searchParams.get('connected')
@@ -314,6 +315,7 @@ function SettingsInner() {
 
     setShopifyDomain('')
     await loadData()
+    router.refresh()  // re-renders server components so sidebar updates immediately
     showToast('Shopify store disconnected')
   }
 

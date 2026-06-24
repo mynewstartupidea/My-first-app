@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Plug, CheckCircle2, MessageCircle, Zap, AlertCircle,
@@ -75,6 +75,7 @@ function IntegrationsInner() {
   const [domain, setDomain]             = useState('')
   const [connecting, setConnecting]     = useState(false)
 
+  const router  = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
   const showToast = useCallback((msg: string, ok = true) => {
@@ -159,6 +160,7 @@ function IntegrationsInner() {
     setDisconnecting(false)
     if (res.ok) {
       await loadStore()
+      router.refresh()  // re-renders server components so sidebar updates immediately
       showToast('Shopify disconnected. You can reconnect anytime.')
     } else {
       showToast('Failed to disconnect. Please try again.', false)
