@@ -254,26 +254,12 @@ function SettingsInner() {
   }, [activeTab, loadMembers])
 
   // ── Store actions ─────────────────────────────────────────────────────────────
-  async function handleConnectShopify() {
+  function handleConnectShopify() {
     if (!shopifyDomain.trim()) return
     let domain = shopifyDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
     if (!domain.includes('.myshopify.com')) domain = `${domain}.myshopify.com`
     setConnecting(true)
-    try {
-      const installUrl = `/api/shopify/install?shop=${encodeURIComponent(domain)}&returnTo=/dashboard/integrations`
-      const res = await fetch(installUrl, { redirect: 'manual' })
-      if (res.type === 'opaqueredirect' || res.status === 0 || (res.status >= 300 && res.status < 400)) {
-        window.location.href = installUrl
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      const msg = data.error ?? 'Failed to initiate Shopify connection'
-      setConnecting(false)
-      showToast(msg, false)
-      if (msg.toLowerCase().includes('not configured')) setShowGuide(true)
-    } catch {
-      window.location.href = `/api/shopify/install?shop=${encodeURIComponent(domain)}&returnTo=/dashboard/integrations`
-    }
+    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(domain)}&returnTo=/dashboard/integrations`
   }
 
   async function saveWhatsApp() {

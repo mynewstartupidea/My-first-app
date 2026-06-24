@@ -25,10 +25,12 @@ export async function GET(request: Request) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  console.log(`[Shopify install] shop=${shop} user=${user?.id ?? 'null'} cookies=${request.headers.get('cookie') ? 'present' : 'missing'}`)
   if (!user) {
     // Preserve the full install URL so after login the OAuth flow continues automatically
     const returnTo = searchParams.get('returnTo') ?? '/dashboard/integrations'
     const resumeUrl = `/api/shopify/install?shop=${encodeURIComponent(shop)}&returnTo=${encodeURIComponent(returnTo)}`
+    console.log(`[Shopify install] unauthenticated — redirecting to login with returnTo`)
     return NextResponse.redirect(new URL(`/login?returnTo=${encodeURIComponent(resumeUrl)}`, request.url))
   }
 
