@@ -54,16 +54,8 @@ export async function GET(request: Request) {
     }
     console.log('[Shopify OAuth] token exchange: OK')
 
-    // 2. Fetch shop details
-    let shopDetails: { name: string; email?: string; currency?: string }
-    try {
-      shopDetails = await getShopDetails(shop, accessToken) as {
-        name: string; email?: string; currency?: string
-      }
-    } catch (err) {
-      console.error('[Shopify OAuth] shop details failed:', err)
-      return redirectWithStatus(origin, returnTo, 'shop_failed')
-    }
+    // 2. Fetch shop details (never throws — falls back to domain-derived name)
+    const shopDetails = await getShopDetails(shop, accessToken)
     console.log(`[Shopify OAuth] shop name: ${shopDetails.name}`)
 
     // 3. Register webhooks

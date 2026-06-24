@@ -90,13 +90,39 @@ export async function exchangeCodeForToken(shop: string, code: string): Promise<
   return data.access_token
 }
 
-export async function getShopDetails(shop: string, token: string) {
-  const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`, {
-    headers: { 'X-Shopify-Access-Token': token },
-  })
-  if (!res.ok) throw new Error(`Failed to fetch shop details: ${res.status} ${await res.text()}`)
-  const { shop: details } = await res.json()
-  return details
+export async function getShopDetails(shop: string, token: string): Promise<{ name: string; email?: string; currency?: string }> {
+  // Try GraphQL first (Shopify's current recommended API)
+  try {
+    const gqlRes = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: '{ shop { name email currencyCode } }' }),
+    })
+    if (gqlRes.ok) {
+      const { data } = await gqlRes.json() as { data?: { shop?: { name: string; email: string; currencyCode: string } } }
+      if (data?.shop?.name) {
+        return { name: data.shop.name, email: data.shop.email, currency: data.shop.currencyCode }
+      }
+    }
+  } catch { /* fall through */ }
+
+  // Fall back to REST
+  try {
+    const restRes = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`, {
+      headers: { 'X-Shopify-Access-Token': token },
+    })
+    if (restRes.ok) {
+      const { shop: details } = await restRes.json() as { shop: { name: string; email?: string; currency?: string } }
+      if (details?.name) return details
+    }
+  } catch { /* fall through */ }
+
+  // Last resort: derive name from the shop domain so the connection still succeeds
+  const derived = shop.replace('.myshopify.com', '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  return { name: derived, currency: 'INR' }
 }
 
 export async function registerWebhooks(shop: string, token: string, appUrl: string) {
