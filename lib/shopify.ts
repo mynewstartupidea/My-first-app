@@ -1,6 +1,5 @@
 import crypto from 'crypto'
-
-const SHOPIFY_API_VERSION = '2025-01'
+const SHOPIFY_API_VERSION = '2026-04'
 const SHOPIFY_APP_URL = 'https://app.wapaci.com'
 
 // Reject any shop that isn't a valid *.myshopify.com domain
@@ -106,6 +105,8 @@ export async function registerWebhooks(shop: string, token: string, appUrl: stri
     { topic: 'checkouts/update',  address: `${appUrl}/api/shopify/webhooks` },
     { topic: 'orders/create',     address: `${appUrl}/api/shopify/webhooks` },
     { topic: 'orders/fulfilled',  address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'orders/updated',    address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'app/uninstalled',   address: `${appUrl}/api/shopify/webhooks` },
   ]
 
   for (const webhook of webhooks) {

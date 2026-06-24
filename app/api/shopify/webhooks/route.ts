@@ -37,6 +37,12 @@ export async function POST(request: Request) {
       case 'orders/fulfilled':
         await handleOrderFulfilled(supabase, store, payload)
         break
+      case 'orders/updated':
+        await handleOrderUpdated(supabase, store, payload)
+        break
+      case 'app/uninstalled':
+        await supabase.from('stores').update({ is_active: false, shopify_access_token: null, updated_at: new Date().toISOString() }).eq('shopify_domain', shopDomain)
+        break
     }
   } catch (err) {
     console.error(`Webhook error [${topic}]:`, err)
@@ -288,6 +294,32 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
       context: { order_id: order.id },
       status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
     })
+  }
+}
+
+// ─── orders/updated ──────────────────────────────────────────────────────────
+
+async function handleOrderUpdated(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
+  const fulfillmentStatus = String(order.fulfillment_status ?? '')
+  const financialStatus   = String(order.financial_status   ?? '')
+  const orderId           = String(order.id ?? '')
+
+  // Keep customer record in sync with latest order state
+  const now = new Date().toISOString()
+  if (financialStatus === 'refunded' || financialStatus === 'voided' || String(order.cancelled_at ?? '')) {
+    await supabase.from('messages')
+      .update({ status: 'cancelled', updated_at: now })
+      .eq('store_id', store.id)
+      .eq('bsp_message_id', orderId)
+      .eq('status', 'pending')
+  }
+
+  // Mark automation jobs for this order as delivered when fulfillment is done
+  if (fulfillmentStatus === 'fulfilled') {
+    await supabase.from('automation_jobs')
+      .update({ context: { order_id: orderId, delivery_status: 'fulfilled' } })
+      .eq('store_id', store.id)
+      .contains('context', { order_id: orderId })
   }
 }
 
