@@ -51,11 +51,9 @@ function LoginForm() {
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) { setError(error.message); return }
+    if (error) { setLoading(false); setError(error.message); return }
     const returnTo = searchParams.get('returnTo') ?? '/dashboard'
-    router.push(returnTo)
-    router.refresh()
+    window.location.href = returnTo
   }
 
   const titles: Record<Mode, { h: string; sub: string; btn: string }> = {
