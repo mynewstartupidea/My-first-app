@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAppUrl } from '@/lib/get-app-url'
@@ -18,9 +18,39 @@ function LoginForm() {
   const [success, setSuccess]   = useState('')
   const router      = useRouter()
   const searchParams = useSearchParams()
-  const supabase    = createClient()
+  const supabase    = useMemo(() => createClient(), [])
+  const returnTo    = searchParams.get('returnTo')
+
+  function safeReturnTo() {
+    const target = returnTo ?? '/dashboard'
+    return target.startsWith('/') ? target : '/dashboard'
+  }
 
   function reset() { setError(''); setSuccess(''); setPassword('') }
+
+  useEffect(() => {
+    if (!returnTo) return
+    let cancelled = false
+
+    async function continueIfSignedIn() {
+      const { data } = await supabase.auth.getSession()
+      let session = data.session
+
+      if (!session) {
+        const refreshed = await supabase.auth.refreshSession().catch(() => null)
+        session = refreshed?.data.session ?? null
+      }
+
+      if (!cancelled && session) {
+        router.replace(safeReturnTo())
+      }
+    }
+
+    continueIfSignedIn()
+    return () => {
+      cancelled = true
+    }
+  }, [returnTo, router, supabase])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -52,8 +82,7 @@ function LoginForm() {
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setLoading(false); setError(error.message); return }
-    const returnTo = searchParams.get('returnTo') ?? '/dashboard'
-    window.location.href = returnTo
+    window.location.href = safeReturnTo()
   }
 
   const titles: Record<Mode, { h: string; sub: string; btn: string }> = {
