@@ -1,0 +1,37 @@
+name = "Wapaci"
+client_id = "c42e4458f03c2c2f1d9e8805cf79a6d3"
+application_url = "https://app.wapaci.com"
+embedded = false
+
+[access_scopes]
+scopes = "write_checkouts,read_customers,read_fulfillments,read_inventory,read_locations,read_orders,read_products"
+
+[auth]
+redirect_urls = [
+  "https://app.wapaci.com/api/shopify/callback"
+]
+
+[webhooks]
+api_version = "2026-04"
+
+[[webhooks.subscriptions]]
+topics = [
+  "app/uninstalled",
+  "checkouts/create",
+  "checkouts/update",
+  "orders/create",
+  "orders/fulfilled",
+  "orders/updated"
+]
+uri = "https://app.wapaci.com/api/shopify/webhooks"
+
+[[webhooks.subscriptions]]
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]
+uri = "https://app.wapaci.com/api/shopify/webhooks"
+
+[build]
+automatically_update_urls_on_dev = false
