@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/sidebar'
 import { getUserRole } from '@/lib/get-user-role'
+import { pickPreferredStore } from '@/lib/store-selection'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -14,11 +15,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .select('shop_name, plan, shopify_domain')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .order('shopify_domain', { ascending: true, nullsFirst: false })
-    .limit(1)
-  const store = storeRows?.[0] ?? null
+    .order('connected_at', { ascending: false, nullsFirst: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .limit(10)
+  const store = pickPreferredStore(storeRows)
 
-  const displayName = store?.shopify_domain ? store.shop_name : null
+  const displayName = store?.shopify_domain ? (store.shop_name ?? store.shopify_domain) : null
   const role        = await getUserRole(user.id, user.email ?? '')
 
   return (

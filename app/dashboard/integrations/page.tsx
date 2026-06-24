@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { pickPreferredStore } from '@/lib/store-selection'
 import type { Store } from '@/types'
 
 const OTHER_INTEGRATIONS = [
@@ -90,9 +91,10 @@ function IntegrationsInner() {
       .select('*')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .order('shopify_domain', { ascending: true, nullsFirst: false })
-      .limit(1)
-    setStore(data?.[0] ?? null)
+      .order('connected_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(10)
+    setStore(pickPreferredStore(data))
     setLoadingStore(false)
   }, [supabase])
 

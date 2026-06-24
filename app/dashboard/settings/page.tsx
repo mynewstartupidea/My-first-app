@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { hasShopifyConnection, pickPreferredStore } from '@/lib/store-selection'
 import {
   Store, MessageCircle, Loader2, Save, CheckCircle2,
   AlertCircle, ExternalLink, Trash2, Info, ChevronDown, ChevronUp,
@@ -141,17 +142,25 @@ function SettingsInner() {
   const loadData = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
     setUserEmail(user.email ?? '')
     const { data: sRows } = await supabase
       .from('stores').select('*').eq('user_id', user.id).eq('is_active', true)
-      .order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1)
-    const s = sRows?.[0] ?? null
+      .order('connected_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(10)
+    const s = pickPreferredStore(sRows)
     if (s) {
       setStore(s)
       setStoreNameEdit(s.shop_name ?? '')
       setWaNumber(s.whatsapp_number ?? '')
       setWaApiKey(s.whatsapp_api_key ?? '')
+      if (s.shopify_domain) setShopifyDomain('')
+    } else {
+      setStore(null)
+      setStoreNameEdit('')
+      setWaNumber('')
+      setWaApiKey('')
     }
 
     // Load WhatsApp account (for Meta status + token type)
@@ -291,11 +300,20 @@ function SettingsInner() {
   }
 
   async function disconnectStore() {
-    if (!store) return
-    if (!confirm(`Disconnect ${store.shop_name ?? store.shopify_domain ?? 'this store'}? All automations will stop.`)) return
-    await supabase.from('stores').update({ is_active: false }).eq('id', store.id)
-    setStore(null)
-    showToast('Store disconnected')
+    const connectedStore = store
+    if (!connectedStore?.shopify_domain) return
+    if (!confirm(`Disconnect ${connectedStore.shop_name ?? connectedStore.shopify_domain ?? 'this store'}? Automations will stop, but your Wapaci store and WhatsApp settings are kept.`)) return
+
+    const res = await fetch('/api/shopify/disconnect', { method: 'POST' })
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    if (!res.ok) {
+      showToast(data.error ?? 'Failed to disconnect Shopify', false)
+      return
+    }
+
+    setShopifyDomain('')
+    await loadData()
+    showToast('Shopify store disconnected')
   }
 
   async function syncProducts() {
@@ -626,6 +644,7 @@ function SettingsInner() {
   const planMeta = PLAN_META[currentPlan] ?? PLAN_META.trial
   const statusMeta = STATUS_META[billing?.status ?? 'trialing'] ?? STATUS_META.trialing
   const usagePct = billing ? Math.min(100, Math.round((billing.messages_used / billing.messages_limit) * 100)) : 0
+  const isShopifyConnected = hasShopifyConnection(store)
 
   const TABS = [
     { id: 'account',  label: 'Account',   icon: Store       },
@@ -707,7 +726,7 @@ function SettingsInner() {
                 <div>
                   <p className="font-semibold text-green-800">{store.shop_name ?? store.shopify_domain ?? 'My Store'}</p>
                   <p className="text-green-600 text-sm">
-                    {store.shopify_domain
+                    {isShopifyConnected
                       ? store.shopify_domain
                       : <span className="italic text-green-500">Mock store — no Shopify connected</span>}
                   </p>
@@ -726,7 +745,7 @@ function SettingsInner() {
                   )}
                 </div>
               </div>
-              {store.shopify_domain && (
+              {isShopifyConnected && (
                 <a href={`https://${store.shopify_domain}/admin`} target="_blank" rel="noopener noreferrer"
                   className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-100 transition">
                   <ExternalLink className="w-4 h-4" />
@@ -746,7 +765,7 @@ function SettingsInner() {
               </div>
             </div>
 
-            {!store.shopify_domain && (
+            {!isShopifyConnected && (
               <div className="border-t border-slate-100 pt-4">
                 <p className="text-sm font-medium text-slate-700 mb-2">Connect Shopify</p>
                 <div className="flex gap-2">
@@ -762,7 +781,7 @@ function SettingsInner() {
               </div>
             )}
 
-            {store.shopify_domain && (
+            {isShopifyConnected && (
               <div className="flex items-center gap-3 flex-wrap">
                 <button onClick={syncProducts} disabled={syncingProducts}
                   className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-xl transition border border-blue-200">

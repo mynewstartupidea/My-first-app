@@ -7,15 +7,20 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { timeAgo } from '@/lib/utils'
+import { pickPreferredStore } from '@/lib/store-selection'
 
 export default async function ShopifyPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: store } = await supabase
+  const { data: storeRows } = await supabase
     .from('stores').select('*').eq('user_id', user.id).eq('is_active', true)
-    .order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
+    .order('connected_at', { ascending: false, nullsFirst: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .limit(10)
+  const preferredStore = pickPreferredStore(storeRows)
+  const store = preferredStore?.shopify_domain ? preferredStore : null
 
   const [custRes, orderRes, autoRes] = await Promise.all([
     store ? supabase.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),

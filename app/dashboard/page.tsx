@@ -9,6 +9,7 @@ import {
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import Link from 'next/link'
 import WhatsAppStatusBanner from '@/components/whatsapp-status-banner'
+import { pickPreferredStore } from '@/lib/store-selection'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -20,9 +21,10 @@ export default async function DashboardPage() {
     .select('*')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .order('shopify_domain', { ascending: true, nullsFirst: false })
-    .limit(1)
-  let store = storeRows?.[0] ?? null
+    .order('connected_at', { ascending: false, nullsFirst: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .limit(10)
+  let store = pickPreferredStore(storeRows)
 
   if (!store) {
     try {
