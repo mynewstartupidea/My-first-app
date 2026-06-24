@@ -56,8 +56,14 @@ export async function POST(req: NextRequest) {
   } else if (campaign.audience === 'inactive_90') {
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
     query = query.or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
+  } else if (campaign.audience === 'vip') {
+    query = query.gte('total_spent', 5000)
+  } else if (campaign.audience === 'repeat_buyers') {
+    query = query.gte('total_orders', 2)
+  } else if (campaign.audience === 'first_time') {
+    query = query.eq('total_orders', 1)
   }
-  // 'all' and 'opted_in' → already filtered to whatsapp_opt_in = true
+  // 'all' and 'opted_in' → already filtered to whatsapp_opt_in = true above
 
   const { data: customers } = await query.limit(1000)
   if (!customers || customers.length === 0) {

@@ -214,20 +214,35 @@ export async function POST(request: Request) {
   let skipped = 0
 
   if (toInsert.length > 0) {
-    const { data: inserted } = await supabase
+    // Count existing contacts before insert so we can compute saved/skipped accurately.
+    // Supabase's upsert with ignoreDuplicates:true uses ON CONFLICT DO NOTHING,
+    // which can return 0 rows even when rows were inserted in some PostgREST versions.
+    const phones = toInsert.map(r => r.phone)
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('phone')
+      .eq('store_id', store!.id)
+      .in('phone', phones)
+    skipped = existing?.length ?? 0
+
+    const { error: upsertError } = await supabase
       .from('customers')
       .upsert(toInsert, { onConflict: 'store_id,phone', ignoreDuplicates: true })
-      .select('id')
-    saved   = inserted?.length ?? 0
-    skipped = toInsert.length - saved
+    if (upsertError) {
+      console.error('[contacts/upload] upsert error:', upsertError.message, 'store_id:', store!.id)
+      return NextResponse.json({ error: 'Failed to save contacts: ' + upsertError.message }, { status: 500 })
+    }
+    saved = toInsert.length - skipped
   }
 
+  console.log(`[contacts/upload] store=${store!.id} found=${contacts.length} valid=${uniquePhones.length} whatsapp=${whatsappSet.size} saved=${saved} skipped=${skipped}`)
+
   return NextResponse.json({
-    found:            contacts.length,         // raw phone-like tokens found
-    valid:            uniquePhones.length,     // unique 10-digit Indian numbers
-    whatsapp:         whatsappSet.size,        // confirmed WA numbers (or all if unchecked)
-    saved,                                     // newly added to DB
-    skipped,                                   // already existed
+    found:            contacts.length,
+    valid:            uniquePhones.length,
+    whatsapp:         whatsappSet.size,
+    saved,
+    skipped,
     whatsapp_checked: whatsappChecked,
   })
 }

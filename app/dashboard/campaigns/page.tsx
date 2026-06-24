@@ -234,7 +234,24 @@ function CreateCampaignModal({
           {/* Step 3: Audience */}
           {step === 'audience' && (
             <div>
-              <p className="text-sm font-semibold text-slate-700 mb-3">Select your audience</p>
+              <p className="text-sm font-semibold text-slate-700 mb-1">Who receives this campaign?</p>
+              <p className="text-xs text-slate-400 mb-3">Recipients are pulled from your uploaded contacts.</p>
+
+              {/* No contacts warning */}
+              {(customerCounts['all'] ?? 0) === 0 && (
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-3">
+                  <AlertCircle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">No contacts yet</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Upload your customer contacts first so this campaign has recipients.</p>
+                    <a href="/dashboard/contacts" target="_blank"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 underline mt-1.5">
+                      Go to Contacts → Upload
+                    </a>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 {AUDIENCE_CONFIG.map(a => {
                   const count = customerCounts[a.id] ?? 0
@@ -247,13 +264,26 @@ function CreateCampaignModal({
                         <p className="text-sm font-semibold text-slate-800">{a.label}</p>
                         <p className="text-xs text-slate-400">{a.desc}</p>
                       </div>
-                      <span className={cn('text-sm font-bold flex-shrink-0', audience === a.id ? 'text-[#25D366]' : 'text-slate-400')}>
-                        {count.toLocaleString()}
-                      </span>
+                      <div className="text-right flex-shrink-0">
+                        <span className={cn('text-sm font-bold block', audience === a.id ? 'text-[#25D366]' : count > 0 ? 'text-slate-700' : 'text-slate-300')}>
+                          {count.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-slate-400">contacts</span>
+                      </div>
                     </label>
                   )
                 })}
               </div>
+
+              {/* Reach summary */}
+              {(customerCounts[audience] ?? 0) > 0 && (
+                <div className="mt-3 flex items-center gap-2 bg-[#25D366]/8 border border-[#25D366]/20 rounded-xl px-4 py-2.5">
+                  <Users size={13} className="text-[#25D366]" />
+                  <p className="text-sm text-slate-700">
+                    <span className="font-bold text-[#25D366]">{(customerCounts[audience] ?? 0).toLocaleString()}</span> contacts will receive this message
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
