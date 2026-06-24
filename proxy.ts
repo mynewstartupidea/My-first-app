@@ -3,10 +3,31 @@ import { createServerClient } from '@supabase/ssr'
 
 export default async function proxy(request: NextRequest) {
   const host       = request.headers.get('host') ?? ''
+  const hostname   = host.split(':')[0]
   const { pathname } = request.nextUrl
 
+  const isPublicDomain = hostname === 'wapaci.com' || hostname === 'www.wapaci.com'
+  const isAppRoute =
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/shopify') ||
+    pathname.startsWith('/api/shopify')
+
+  // ── Public domain app routes → app subdomain ──────────────────────────────
+  // Marketing pages stay on wapaci.com/www; authenticated app flows use one
+  // canonical host so cookies and redirects cannot bounce between domains.
+  if (isPublicDomain && isAppRoute) {
+    const url = request.nextUrl.clone()
+    url.hostname = 'app.wapaci.com'
+    url.protocol = 'https'
+    return NextResponse.redirect(url)
+  }
+
   // ── Admin domain — route EVERYTHING to /admin/* ────────────────────────────
-  if (host === 'admin.wapaci.com') {
+  if (hostname === 'admin.wapaci.com') {
     // Public: admin login page
     if (pathname === '/login' || pathname === '/admin/login') {
       return NextResponse.rewrite(new URL('/admin/login', request.url))
@@ -23,7 +44,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   // ── App domain — redirect root to /login ──────────────────────────────────
-  if (host === 'app.wapaci.com' && pathname === '/') {
+  if (hostname === 'app.wapaci.com' && pathname === '/') {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
