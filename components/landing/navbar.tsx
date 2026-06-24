@@ -35,15 +35,18 @@ export default function Navbar() {
             { href: '#features', label: 'Features' },
             { href: '#how-it-works', label: 'How it works' },
             { href: '#use-cases', label: 'Use Cases' },
+            { href: '/pricing', label: 'Pricing' },
             { href: '#faq', label: 'FAQ' },
           ].map(({ href, label }) => (
-            <a
-              key={href}
-              href={href}
-              className="text-slate-400 hover:text-white text-sm font-medium transition"
-            >
-              {label}
-            </a>
+            href.startsWith('/') ? (
+              <Link key={href} href={href} className="text-slate-400 hover:text-white text-sm font-medium transition">
+                {label}
+              </Link>
+            ) : (
+              <a key={href} href={href} className="text-slate-400 hover:text-white text-sm font-medium transition">
+                {label}
+              </a>
+            )
           ))}
         </nav>
 
@@ -76,16 +79,18 @@ export default function Navbar() {
             { href: '#features', label: 'Features' },
             { href: '#how-it-works', label: 'How it works' },
             { href: '#use-cases', label: 'Use Cases' },
+            { href: '/pricing', label: 'Pricing' },
             { href: '#faq', label: 'FAQ' },
           ].map(({ href, label }) => (
-            <a
-              key={href}
-              href={href}
-              onClick={() => setOpen(false)}
-              className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition"
-            >
-              {label}
-            </a>
+            href.startsWith('/') ? (
+              <Link key={href} href={href} onClick={() => setOpen(false)} className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition">
+                {label}
+              </Link>
+            ) : (
+              <a key={href} href={href} onClick={() => setOpen(false)} className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition">
+                {label}
+              </a>
+            )
           ))}
           <div className="pt-2 flex flex-col gap-2 border-t border-white/10">
             <Link href="/login" className="text-sm text-slate-400 hover:text-white py-1 transition">

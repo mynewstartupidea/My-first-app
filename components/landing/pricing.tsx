@@ -14,7 +14,7 @@ const plans = [
     desc: 'Perfect for new businesses getting started with WhatsApp.',
     highlight: false,
     cta: 'Get started',
-    messages: '500 messages / month',
+    messages: '2,000 messages / month',
     features: [
       'Abandoned cart recovery',
       'COD verification',
@@ -27,13 +27,13 @@ const plans = [
   {
     key: 'growth',
     name: 'Growth',
-    price: '₹2,999',
+    price: '₹2,499',
     period: '/ month',
     desc: 'For growing businesses ready to unlock full automation.',
     highlight: true,
     badge: 'Most popular',
     cta: 'Get started',
-    messages: '5,000 messages / month',
+    messages: '8,000 messages / month',
     features: [
       'Everything in Starter',
       'Win-back campaigns',
@@ -46,9 +46,9 @@ const plans = [
     ],
   },
   {
-    key: 'pro',
-    name: 'Pro',
-    price: '₹7,999',
+    key: 'scale',
+    name: 'Scale',
+    price: '₹5,999',
     period: '/ month',
     desc: 'For high-volume businesses that need maximum scale.',
     highlight: false,
