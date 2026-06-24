@@ -259,7 +259,7 @@ function SettingsInner() {
     let domain = shopifyDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
     if (!domain.includes('.myshopify.com')) domain = `${domain}.myshopify.com`
     setConnecting(true)
-    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(domain)}&returnTo=/dashboard/integrations`
+    window.location.href = `/dashboard/shopify/connect?shop=${encodeURIComponent(domain)}&returnTo=/dashboard/integrations`
   }
 
   async function saveWhatsApp() {

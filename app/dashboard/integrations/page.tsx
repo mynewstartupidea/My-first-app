@@ -125,7 +125,7 @@ function IntegrationsInner() {
     setConnecting(true)
     let shop = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
     if (!shop.includes('.myshopify.com')) shop = `${shop}.myshopify.com`
-    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(shop)}&returnTo=/dashboard/integrations`
+    window.location.href = `/dashboard/shopify/connect?shop=${encodeURIComponent(shop)}&returnTo=/dashboard/integrations`
   }
 
   async function handleTestConnection() {

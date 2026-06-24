@@ -7,7 +7,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
   FileText, ShoppingBag, BarChart2, UserCheck, Code2,
   Settings, LogOut, MessageCircle, Store,
-  ChevronRight, LifeBuoy
+  ChevronRight, LifeBuoy, Plug
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/user-role'
@@ -20,7 +20,8 @@ const NAV = [
   { href: '/dashboard/campaigns',   icon: Megaphone,       label: 'Campaigns'   },
   { href: '/dashboard/automations', icon: Zap,             label: 'Automations' },
   { href: '/dashboard/templates',   icon: FileText,        label: 'Templates'   },
-  { href: '/dashboard/shopify',     icon: ShoppingBag,     label: 'Shopify'     },
+  { href: '/dashboard/shopify',      icon: ShoppingBag,     label: 'Shopify'     },
+  { href: '/dashboard/integrations', icon: Plug,            label: 'Integrations' },
   { href: '/dashboard/analytics',   icon: BarChart2,       label: 'Analytics'   },
 ]
 
