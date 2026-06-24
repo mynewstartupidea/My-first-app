@@ -746,9 +746,9 @@ function SettingsInner() {
               </div>
             </div>
 
-            {store.shopify_domain && (
+            {!store.shopify_domain && (
               <div className="border-t border-slate-100 pt-4">
-                <p className="text-sm font-medium text-slate-700 mb-2">Connect a different Shopify store</p>
+                <p className="text-sm font-medium text-slate-700 mb-2">Connect Shopify</p>
                 <div className="flex gap-2">
                   <input value={shopifyDomain} onChange={e => setShopifyDomain(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleConnectShopify()}
@@ -762,20 +762,20 @@ function SettingsInner() {
               </div>
             )}
 
-            <div className="flex items-center gap-3 flex-wrap">
-              {store.shopify_domain && (
+            {store.shopify_domain && (
+              <div className="flex items-center gap-3 flex-wrap">
                 <button onClick={syncProducts} disabled={syncingProducts}
                   className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-xl transition border border-blue-200">
                   {syncingProducts
                     ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Syncing…</>
                     : <><RefreshCw className="w-3.5 h-3.5" /> Sync Products</>}
                 </button>
-              )}
-              <button onClick={disconnectStore}
-                className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition">
-                <Trash2 className="w-3.5 h-3.5" /> Disconnect store
-              </button>
-            </div>
+                <button onClick={disconnectStore}
+                  className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition">
+                  <Trash2 className="w-3.5 h-3.5" /> Disconnect store
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
