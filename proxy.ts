@@ -47,7 +47,10 @@ export default async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getSession reads the JWT from cookies — no network call, works reliably on edge.
+  // Route handlers and server components use getUser() for actual data-level security.
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
 
   // ── Admin routes: require the configured admin email ──────────────────────
   const adminEmail = process.env.ADMIN_EMAIL ?? 'vaibhavsin9574395@gmail.com'
