@@ -3,8 +3,13 @@ import { exchangeCodeForToken, getShopDetails, getShopifyAppUrl, registerWebhook
 import { createServiceClient } from '@/lib/supabase/server'
 
 function redirectWithStatus(origin: string, returnTo: string, status: string) {
-  const baseUrl = returnTo.startsWith('/') ? `${origin}${returnTo}` : `${origin}/dashboard/integrations`
-  const dest = new URL(baseUrl)
+  // Errors always land on integrations — it shows the correct error toast for every code.
+  // Success goes to returnTo (which now defaults to integrations anyway).
+  const isSuccess = status === 'connected'
+  const basePath  = isSuccess
+    ? (returnTo.startsWith('/') ? returnTo : '/dashboard/integrations')
+    : '/dashboard/integrations'
+  const dest = new URL(`${origin}${basePath}`)
   dest.searchParams.set('shopify', status)
   return NextResponse.redirect(dest.toString())
 }
@@ -142,11 +147,8 @@ export async function GET(request: Request) {
     await supabase.rpc('create_default_automations', { p_store_id: storeId })
 
     // 6. Redirect with success flag
-    const baseUrl = returnTo.startsWith('/') ? `${origin}${returnTo}` : `${origin}/dashboard/integrations`
-    const dest = new URL(baseUrl)
-    dest.searchParams.set('shopify', 'connected')
-    console.log('[Shopify OAuth] redirect →', dest.toString())
-    return NextResponse.redirect(dest.toString())
+    console.log('[Shopify OAuth] success — redirecting to integrations')
+    return redirectWithStatus(origin, returnTo, 'connected')
   } catch (err) {
     console.error('[Shopify OAuth] error:', err)
     return redirectWithStatus(origin, returnTo, 'oauth_failed')
