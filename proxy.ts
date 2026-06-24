@@ -59,7 +59,8 @@ export default async function proxy(request: NextRequest) {
 
   // ── App routes: require any authenticated user ─────────────────────────────
   if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding'))) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const returnTo = request.nextUrl.pathname + request.nextUrl.search
+    return NextResponse.redirect(new URL(`/login?returnTo=${encodeURIComponent(returnTo)}`, request.url))
   }
 
   // ── Redirect logged-in users away from login/signup ───────────────────────

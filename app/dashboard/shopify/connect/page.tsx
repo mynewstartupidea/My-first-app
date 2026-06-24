@@ -24,9 +24,11 @@ export default async function ConnectShopifyPage({ searchParams }: Props) {
   }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  console.log(`[shopify/connect] shop=${shop} user=${user?.id ?? 'null'} error=${error?.message ?? 'none'}`)
 
   if (!user) {
+    console.log('[shopify/connect] no user — redirecting to login')
     redirect('/login')
   }
 
