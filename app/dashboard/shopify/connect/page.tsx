@@ -3,11 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { getShopifyOAuthUrl, validateShopDomain, signOAuthState } from '@/lib/shopify'
 
 interface Props {
-  searchParams: Promise<{ shop?: string; returnTo?: string }>
+  searchParams: Promise<{ shop?: string; returnTo?: string; popup?: string }>
 }
 
 export default async function ConnectShopifyPage({ searchParams }: Props) {
-  const { shop, returnTo = '/dashboard/integrations' } = await searchParams
+  const { shop, returnTo = '/dashboard/integrations', popup } = await searchParams
 
   if (!shop || !validateShopDomain(shop)) {
     redirect('/dashboard/integrations?shopify=invalid_shop')
@@ -32,7 +32,7 @@ export default async function ConnectShopifyPage({ searchParams }: Props) {
     redirect('/login')
   }
 
-  const state = signOAuthState({ userId: user.id, shop, returnTo })
+  const state = signOAuthState({ userId: user.id, shop, returnTo, popup: popup === '1' ? '1' : '' })
   const oauthUrl = getShopifyOAuthUrl(shop, state)
 
   redirect(oauthUrl)

@@ -14,6 +14,18 @@ function redirectWithStatus(origin: string, returnTo: string, status: string) {
   return NextResponse.redirect(dest.toString())
 }
 
+function redirectWithPopupStatus(origin: string, returnTo: string, status: string, popup: string) {
+  const response = redirectWithStatus(origin, returnTo, status)
+  if (status !== 'connected' || popup !== '1') return response
+
+  const location = response.headers.get('location')
+  if (!location) return response
+
+  const dest = new URL(location)
+  dest.searchParams.set('popup', '1')
+  return NextResponse.redirect(dest.toString())
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code  = searchParams.get('code')
@@ -42,6 +54,7 @@ export async function GET(request: Request) {
   }
   userId  = decoded.userId
   if (decoded.returnTo) returnTo = decoded.returnTo
+  const popup = decoded.popup === '1' ? '1' : ''
 
   try {
     // 1. Exchange code for access token
@@ -140,7 +153,7 @@ export async function GET(request: Request) {
 
     // 6. Redirect with success flag
     console.log('[Shopify OAuth] success — redirecting to integrations')
-    return redirectWithStatus(origin, returnTo, 'connected')
+    return redirectWithPopupStatus(origin, returnTo, 'connected', popup)
   } catch (err) {
     console.error('[Shopify OAuth] error:', err)
     return redirectWithStatus(origin, returnTo, 'oauth_failed')

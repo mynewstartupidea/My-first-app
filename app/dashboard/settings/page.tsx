@@ -259,7 +259,9 @@ function SettingsInner() {
     let domain = shopifyDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
     if (!domain.includes('.myshopify.com')) domain = `${domain}.myshopify.com`
     setConnecting(true)
-    window.location.href = `/dashboard/shopify/connect?shop=${encodeURIComponent(domain)}&returnTo=/dashboard/integrations`
+    const url = `/dashboard/shopify/connect?shop=${encodeURIComponent(domain)}&returnTo=/dashboard/settings?tab=store&popup=1`
+    const popup = window.open(url, 'wapaci-shopify-connect', 'width=960,height=760')
+    if (!popup) window.location.href = url
   }
 
   async function saveWhatsApp() {

@@ -102,6 +102,38 @@ function IntegrationsInner() {
   useEffect(() => { loadStore() }, [loadStore])
 
   useEffect(() => {
+    function handleShopifyMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return
+      if (event.data?.type !== 'SHOPIFY_CONNECTED') return
+      setConnecting(false)
+      showToast('Shopify store connected successfully!')
+      loadStore()
+      router.refresh()
+    }
+
+    window.addEventListener('message', handleShopifyMessage)
+    return () => window.removeEventListener('message', handleShopifyMessage)
+  }, [loadStore, router, showToast])
+
+  useEffect(() => {
+    if (!connecting) return
+    const interval = window.setInterval(async () => {
+      const res = await fetch('/api/shopify/test-connection')
+      if (res.ok) {
+        const data = await res.json().catch(() => null) as { connected?: boolean } | null
+        if (data?.connected) {
+          setConnecting(false)
+          showToast('Shopify store connected successfully!')
+          await loadStore()
+          router.refresh()
+        }
+      }
+    }, 3000)
+
+    return () => window.clearInterval(interval)
+  }, [connecting, loadStore, router, showToast])
+
+  useEffect(() => {
     const status = searchParams.get('shopify')
     if (status === 'connected') showToast('Shopify store connected successfully!')
     const errors: Record<string, string> = {
@@ -125,7 +157,9 @@ function IntegrationsInner() {
     setConnecting(true)
     let shop = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
     if (!shop.includes('.myshopify.com')) shop = `${shop}.myshopify.com`
-    window.location.href = `/dashboard/shopify/connect?shop=${encodeURIComponent(shop)}&returnTo=/dashboard/integrations`
+    const url = `/dashboard/shopify/connect?shop=${encodeURIComponent(shop)}&returnTo=/dashboard/integrations&popup=1`
+    const popup = window.open(url, 'wapaci-shopify-connect', 'width=960,height=760')
+    if (!popup) window.location.href = url
   }
 
   async function handleTestConnection() {

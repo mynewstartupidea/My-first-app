@@ -24,7 +24,15 @@ function ShopifyCompleteInner() {
     async function continueToApp() {
       const status = searchParams.get('shopify') ?? 'connected'
       const returnTo = searchParams.get('returnTo') ?? '/dashboard/integrations'
+      const isPopup = searchParams.get('popup') === '1'
       const destination = buildDestination(returnTo, status)
+
+      if (isPopup && window.opener) {
+        window.opener.postMessage({ type: 'SHOPIFY_CONNECTED', destination }, window.location.origin)
+        setMessage('Shopify connected. You can close this tab.')
+        window.setTimeout(() => window.close(), 1000)
+        return
+      }
 
       await supabase.auth.getSession()
       const { data } = await supabase.auth.refreshSession()
