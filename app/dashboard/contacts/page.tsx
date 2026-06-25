@@ -2,22 +2,17 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
-  Users, Search, Filter, Download, Tag, Upload,
-  Loader2, ShoppingBag, Phone, TrendingUp, Check,
-  Star, RefreshCw, MoreVertical, X, FileText,
-  MessageCircle, Plus, AlertCircle, CheckCircle2
+  Users, Search, Upload, Loader2, Phone,
+  X, FileText, AlertCircle, CheckCircle2,
+  MessageCircle, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/utils'
 
-interface Customer {
+interface Contact {
   id: string
   phone: string
   name: string | null
   email: string | null
-  total_orders: number
-  total_spent: number
-  last_order_at: string | null
   whatsapp_opt_in: boolean
   created_at: string
 }
@@ -31,62 +26,39 @@ interface UploadResult {
   whatsapp_checked: boolean
 }
 
-const SEGMENTS = [
-  { id: 'all',       label: 'All Contacts',   filter: (_c: Customer) => true },
-  { id: 'opted_in',  label: 'WhatsApp Opt-in', filter: (c: Customer) => c.whatsapp_opt_in },
-  { id: 'vip',       label: 'VIP (₹5k+)',      filter: (c: Customer) => c.total_spent >= 5000 },
-  { id: 'repeat',    label: 'Repeat Buyers',   filter: (c: Customer) => c.total_orders >= 2 },
-  { id: 'inactive',  label: 'Inactive 30d',    filter: (c: Customer) => {
-    if (!c.last_order_at) return true
-    return Date.now() - new Date(c.last_order_at).getTime() > 30 * 86400000
-  }},
-  { id: 'new',       label: 'First-time',      filter: (c: Customer) => c.total_orders <= 1 },
-]
-
-function avatarColor(phone: string) {
-  const colors = ['bg-violet-100 text-violet-600','bg-blue-100 text-blue-600',
-    'bg-emerald-100 text-emerald-600','bg-orange-100 text-orange-600',
-    'bg-pink-100 text-pink-600','bg-cyan-100 text-cyan-600']
-  return colors[phone.charCodeAt(phone.length - 1) % colors.length]
-}
+type UploadState = 'idle' | 'reading' | 'uploading' | 'done' | 'error'
 
 // ─── Upload Modal ──────────────────────────────────────────────────────────────
 
-type UploadState = 'idle' | 'reading' | 'uploading' | 'done' | 'error'
-
-function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [state, setState] = useState<UploadState>('idle')
-  const [result, setResult] = useState<UploadResult | null>(null)
-  const [error, setError]   = useState('')
+function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [state, setState]     = useState<UploadState>('idle')
+  const [result, setResult]   = useState<UploadResult | null>(null)
+  const [error, setError]     = useState('')
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function processFile(file: File) {
     const ext = file.name.toLowerCase().split('.').pop() ?? ''
     if (!['csv', 'txt', 'vcf'].includes(ext)) {
-      setError('Unsupported file type. Please upload a CSV, TXT, or VCF file.')
+      setError('Please upload a CSV, TXT, or VCF file.')
       setState('error')
       return
     }
-
     try {
       setState('reading')
       const content = await file.text()
-
       setState('uploading')
       const res = await fetch('/api/contacts/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, filename: file.name }),
       })
-
       if (!res.ok) {
         const body = await res.json() as { error?: string }
         setError(body.error ?? 'Upload failed. Please try again.')
         setState('error')
         return
       }
-
       const data = await res.json() as UploadResult
       setResult(data)
       setState('done')
@@ -97,21 +69,13 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   }
 
   function onDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setDragOver(false)
+    e.preventDefault(); setDragOver(false)
     const file = e.dataTransfer.files[0]
     if (file) processFile(file)
   }
 
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) processFile(file)
-  }
-
   function reset() {
-    setState('idle')
-    setResult(null)
-    setError('')
+    setState('idle'); setResult(null); setError('')
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -119,7 +83,6 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
@@ -134,7 +97,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
 
         <div className="p-6">
 
-          {/* IDLE — drop zone */}
+          {/* IDLE */}
           {state === 'idle' && (
             <>
               <div
@@ -143,36 +106,28 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 onDrop={onDrop}
                 onClick={() => fileRef.current?.click()}
                 className={cn(
-                  'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition',
-                  dragOver
-                    ? 'border-[#25D366] bg-[#25D366]/5'
-                    : 'border-slate-200 hover:border-[#25D366]/50 hover:bg-slate-50/70'
+                  'border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition',
+                  dragOver ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-[#25D366]/50 hover:bg-slate-50'
                 )}>
                 <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
                   <FileText size={22} className="text-slate-400" />
                 </div>
-                <p className="text-sm font-medium text-slate-700">Drag & drop your file here</p>
+                <p className="text-sm font-semibold text-slate-700">Drop your file here</p>
                 <p className="text-xs text-slate-400 mt-1">or click to browse</p>
-                <p className="text-[11px] text-slate-400 mt-3 bg-slate-100 rounded-lg px-3 py-1.5 inline-block">
-                  CSV · TXT · VCF supported
+                <p className="text-[11px] text-slate-400 mt-3 bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5 inline-block">
+                  CSV · TXT · VCF
                 </p>
               </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv,.txt,.vcf"
-                className="hidden"
-                onChange={onFileChange}
-              />
+              <input ref={fileRef} type="file" accept=".csv,.txt,.vcf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }} />
               <p className="text-[11px] text-slate-400 text-center mt-3">
-                We&apos;ll automatically find all Indian mobile numbers and check which ones have WhatsApp.
+                We&apos;ll find all Indian mobile numbers and check which ones have WhatsApp.
               </p>
             </>
           )}
 
           {/* READING */}
           {state === 'reading' && (
-            <div className="text-center py-8">
+            <div className="text-center py-10">
               <Loader2 size={32} className="animate-spin text-[#25D366] mx-auto mb-3" />
               <p className="text-sm font-medium text-slate-700">Reading file…</p>
             </div>
@@ -180,11 +135,11 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
 
           {/* UPLOADING */}
           {state === 'uploading' && (
-            <div className="text-center py-8">
+            <div className="text-center py-10">
               <div className="w-14 h-14 rounded-full bg-[#25D366]/10 flex items-center justify-center mx-auto mb-3">
                 <MessageCircle size={24} className="text-[#25D366] animate-pulse" />
               </div>
-              <p className="text-sm font-medium text-slate-700">Checking WhatsApp numbers…</p>
+              <p className="text-sm font-semibold text-slate-700">Checking WhatsApp numbers…</p>
               <p className="text-xs text-slate-400 mt-1">This may take a few seconds</p>
             </div>
           )}
@@ -193,45 +148,50 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           {state === 'done' && result && (
             <div>
               <div className="flex items-center gap-2 mb-5">
-                <CheckCircle2 size={20} className="text-[#25D366]" />
+                <div className="w-8 h-8 rounded-full bg-[#25D366]/10 flex items-center justify-center">
+                  <CheckCircle2 size={16} className="text-[#25D366]" />
+                </div>
                 <p className="font-semibold text-slate-800">Upload complete!</p>
               </div>
 
-              <div className="space-y-3 mb-5">
-                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-slate-50">
-                  <span className="text-xs text-slate-500">Phone numbers found in file</span>
+              <div className="space-y-2 mb-5">
+                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-sm text-slate-500">Phone numbers found</span>
                   <span className="text-sm font-bold text-slate-800">{result.found.toLocaleString()}</span>
                 </div>
-                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-blue-50">
-                  <span className="text-xs text-blue-700">Valid Indian mobile numbers</span>
+                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-blue-50 border border-blue-100">
+                  <span className="text-sm text-blue-700">Valid Indian numbers</span>
                   <span className="text-sm font-bold text-blue-700">{result.valid.toLocaleString()}</span>
                 </div>
-                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-[#25D366]/10">
-                  <span className="text-xs text-[#128C7E] font-medium">
-                    Have WhatsApp
-                    {!result.whatsapp_checked && <span className="ml-1 text-[10px] opacity-70">(estimated)</span>}
-                  </span>
-                  <span className="text-sm font-bold text-[#128C7E]">{result.whatsapp.toLocaleString()}</span>
+                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20">
+                  <div>
+                    <span className="text-sm font-semibold text-[#128C7E]">On WhatsApp</span>
+                    {!result.whatsapp_checked && <span className="ml-1.5 text-[10px] text-[#128C7E]/60">(estimated)</span>}
+                    <p className="text-[11px] text-[#128C7E]/70 mt-0.5">These contacts can receive your campaigns</p>
+                  </div>
+                  <span className="text-lg font-bold text-[#128C7E]">{result.whatsapp.toLocaleString()}</span>
                 </div>
-                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-emerald-50">
-                  <span className="text-xs text-emerald-700">New contacts saved</span>
-                  <span className="text-sm font-bold text-emerald-700">{result.saved.toLocaleString()}</span>
-                </div>
+                {result.saved > 0 && (
+                  <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <span className="text-sm text-emerald-700">New contacts added</span>
+                    <span className="text-sm font-bold text-emerald-700">+{result.saved.toLocaleString()}</span>
+                  </div>
+                )}
                 {result.skipped > 0 && (
-                  <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-slate-50">
-                    <span className="text-xs text-slate-500">Already in contacts (skipped)</span>
-                    <span className="text-sm font-bold text-slate-500">{result.skipped.toLocaleString()}</span>
+                  <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-sm text-slate-400">Already in your contacts</span>
+                    <span className="text-sm font-bold text-slate-400">{result.skipped.toLocaleString()}</span>
                   </div>
                 )}
               </div>
 
               <div className="flex gap-2">
                 <button onClick={reset}
-                  className="flex-1 text-sm font-medium border border-slate-200 text-slate-600 py-2 rounded-xl hover:bg-slate-50 transition">
+                  className="flex-1 text-sm font-medium border border-slate-200 text-slate-600 py-2.5 rounded-xl hover:bg-slate-50 transition">
                   Upload Another
                 </button>
-                <button onClick={onSuccess}
-                  className="flex-1 text-sm font-medium bg-[#25D366] text-white py-2 rounded-xl hover:bg-[#1aad54] transition">
+                <button onClick={onDone}
+                  className="flex-1 text-sm font-semibold bg-[#25D366] text-white py-2.5 rounded-xl hover:bg-[#1aad54] transition">
                   Done
                 </button>
               </div>
@@ -241,12 +201,12 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           {/* ERROR */}
           {state === 'error' && (
             <div>
-              <div className="flex items-center gap-2 p-4 rounded-xl bg-red-50 mb-5">
-                <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100 mb-5">
+                <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-600">{error}</p>
               </div>
               <button onClick={reset}
-                className="w-full text-sm font-medium border border-slate-200 text-slate-600 py-2 rounded-xl hover:bg-slate-50 transition">
+                className="w-full text-sm font-medium border border-slate-200 text-slate-600 py-2.5 rounded-xl hover:bg-slate-50 transition">
                 Try Again
               </button>
             </div>
@@ -257,261 +217,223 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   )
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
+type Filter = 'all' | 'whatsapp' | 'no_whatsapp'
+
+function avatarInitials(contact: Contact) {
+  if (contact.name) return contact.name.slice(0, 2).toUpperCase()
+  return contact.phone.slice(-2)
+}
+
+const AVATAR_COLORS = [
+  'bg-violet-100 text-violet-600',
+  'bg-blue-100 text-blue-600',
+  'bg-emerald-100 text-emerald-600',
+  'bg-orange-100 text-orange-600',
+  'bg-pink-100 text-pink-600',
+  'bg-cyan-100 text-cyan-600',
+]
+
+function avatarColor(phone: string) {
+  return AVATAR_COLORS[phone.charCodeAt(phone.length - 1) % AVATAR_COLORS.length]
+}
 
 export default function ContactsPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const [contacts, setContacts]   = useState<Contact[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
-  const [segment, setSegment]     = useState('all')
-  const [selected, setSelected]   = useState<Set<string>>(new Set())
+  const [filter, setFilter]       = useState<Filter>('all')
   const [showUpload, setShowUpload] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/contacts')
-      if (!res.ok) { setLoading(false); return }
-      const data = await res.json() as { contacts: Customer[] }
-      setCustomers(data.contacts ?? [])
-    } catch {
-      // network error — keep existing list
-    }
+      if (res.ok) {
+        const data = await res.json() as { contacts: Contact[] }
+        setContacts(data.contacts ?? [])
+      }
+    } catch { /* keep existing */ }
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const seg = SEGMENTS.find(s => s.id === segment) ?? SEGMENTS[0]
-  const displayed = customers.filter(c => {
-    if (!seg.filter(c)) return false
-    if (!search) return true
-    const s = search.toLowerCase()
-    return c.phone.includes(s) || c.name?.toLowerCase().includes(s) || c.email?.toLowerCase().includes(s)
-  })
-
   const stats = useMemo(() => ({
-    total:   customers.length,
-    optIn:   customers.filter(c => c.whatsapp_opt_in).length,
-    vip:     customers.filter(c => c.total_spent >= 5000).length,
-    revenue: customers.reduce((s, c) => s + c.total_spent, 0),
-  }), [customers])
+    total:    contacts.length,
+    whatsapp: contacts.filter(c => c.whatsapp_opt_in).length,
+  }), [contacts])
 
-  function toggleSelect(id: string) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
+  const displayed = useMemo(() => {
+    return contacts.filter(c => {
+      if (filter === 'whatsapp' && !c.whatsapp_opt_in) return false
+      if (filter === 'no_whatsapp' && c.whatsapp_opt_in) return false
+      if (search) {
+        const s = search.toLowerCase()
+        return c.phone.includes(s) || c.name?.toLowerCase().includes(s) || c.email?.toLowerCase().includes(s)
+      }
+      return true
+    })
+  }, [contacts, filter, search])
 
-  function exportCSV() {
-    const rows = [['Name','Phone','Email','Orders','Spent','WhatsApp']]
-    displayed.forEach(c => rows.push([c.name??'',c.phone,c.email??'',
-      String(c.total_orders),String(c.total_spent),c.whatsapp_opt_in?'Yes':'No']))
-    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = 'wapaci-contacts.csv'; a.click()
-  }
-
-  function sendBulkCampaign() {
-    if (selected.size === 0) return
-    // Placeholder: navigate to campaign creator with selected phones pre-filled
-    const phones = customers
-      .filter(c => selected.has(c.id))
-      .map(c => c.phone)
-      .join(',')
-    window.location.href = `/dashboard/campaigns/new?phones=${encodeURIComponent(phones)}`
-  }
+  const hasContacts = contacts.length > 0
 
   return (
     <>
       {showUpload && (
         <UploadModal
           onClose={() => setShowUpload(false)}
-          onSuccess={() => { setShowUpload(false); load() }}
+          onDone={() => { setShowUpload(false); load() }}
         />
       )}
 
-      <div className="p-6 lg:p-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-6 lg:p-8 max-w-5xl mx-auto">
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Contacts</h1>
-            <p className="text-slate-500 text-sm mt-0.5">{stats.total.toLocaleString()} contacts · {stats.optIn.toLocaleString()} WhatsApp opt-in</p>
+            {hasContacts ? (
+              <p className="text-slate-500 text-sm mt-1">
+                <span className="font-semibold text-slate-700">{stats.total.toLocaleString()}</span> contacts ·{' '}
+                <span className="font-semibold text-[#25D366]">{stats.whatsapp.toLocaleString()}</span> on WhatsApp
+              </p>
+            ) : (
+              <p className="text-slate-400 text-sm mt-1">Upload your customer phone numbers to get started</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={load} className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
-              <RefreshCw size={13} /> Refresh
+            <button onClick={load}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition" title="Refresh">
+              <RefreshCw size={15} />
             </button>
-            <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
-              <Download size={13} /> Export CSV
-            </button>
-            <button
-              onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-3 py-2 rounded-xl hover:bg-[#1aad54] transition">
+            <button onClick={() => setShowUpload(true)}
+              className="flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-4 py-2 rounded-xl hover:bg-[#1aad54] transition shadow-sm">
               <Upload size={14} /> Upload Contacts
             </button>
           </div>
         </div>
 
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: 'Total Contacts',  value: stats.total.toLocaleString(),    icon: Users,       cls: 'text-blue-600 bg-blue-50' },
-            { label: 'WhatsApp Opt-in', value: stats.optIn.toLocaleString(),    icon: Check,       cls: 'text-emerald-600 bg-emerald-50' },
-            { label: 'VIP Customers',   value: stats.vip.toLocaleString(),      icon: Star,        cls: 'text-amber-600 bg-amber-50' },
-            { label: 'Total Revenue',   value: formatCurrency(stats.revenue),   icon: TrendingUp,  cls: 'text-purple-600 bg-purple-50' },
-          ].map(s => (
-            <div key={s.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-slate-500 text-xs font-medium">{s.label}</p>
-                <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center', s.cls.split(' ')[1])}>
-                  <s.icon size={13} className={s.cls.split(' ')[0]} />
-                </div>
-              </div>
-              <p className="text-xl font-bold text-slate-900">{s.value}</p>
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-60">
+            <Loader2 size={24} className="animate-spin text-[#25D366]" />
+          </div>
+        ) : !hasContacts ? (
 
-        {/* Table */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-5">
-          {/* Segment tabs */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 overflow-x-auto">
-            <Filter size={13} className="text-slate-400 flex-shrink-0" />
-            {SEGMENTS.map(s => (
-              <button key={s.id} onClick={() => setSegment(s.id)}
-                className={cn('flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition whitespace-nowrap',
-                  segment === s.id ? 'bg-[#25D366] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
-                {s.label}
-                <span className={cn('ml-1.5', segment === s.id ? 'opacity-70' : 'text-slate-400')}>
-                  {customers.filter(s.filter).length}
-                </span>
-              </button>
-            ))}
+          /* ── Empty state ── */
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-[#25D366]/10 flex items-center justify-center mb-4">
+              <Users size={28} className="text-[#25D366]" />
+            </div>
+            <h2 className="text-lg font-semibold text-slate-800 mb-1">No contacts yet</h2>
+            <p className="text-slate-400 text-sm max-w-xs mb-6">
+              Upload a CSV or VCF file with your customers&apos; phone numbers. We&apos;ll automatically check which ones are on WhatsApp.
+            </p>
+            <button onClick={() => setShowUpload(true)}
+              className="flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-6 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
+              <Upload size={16} /> Upload Contacts
+            </button>
+            <p className="text-xs text-slate-300 mt-4">Supports CSV · TXT · VCF</p>
           </div>
 
-          {/* Search + bulk actions */}
-          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 bg-slate-50/50">
-            <div className="relative flex-1 max-w-xs">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts…"
-                className="w-full pl-7 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 bg-white" />
-            </div>
-            {selected.size > 0 && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-xs text-slate-500">{selected.size} selected</span>
-                <button className="flex items-center gap-1 text-xs font-medium bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg hover:bg-slate-200 transition cursor-default opacity-60" title="Tag feature coming soon">
-                  <Tag size={11} /> Tag
-                </button>
-                <button
-                  onClick={sendBulkCampaign}
-                  className="flex items-center gap-1 text-xs font-medium bg-blue-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-700 transition">
-                  <MessageCircle size={11} /> Campaign
-                </button>
-              </div>
-            )}
-          </div>
+        ) : (
 
-          {loading ? (
-            <div className="flex items-center justify-center h-40"><Loader2 size={20} className="animate-spin text-[#25D366]" /></div>
-          ) : displayed.length === 0 ? (
-            <div className="py-16 text-center px-4">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                <Users size={24} className="text-slate-300" />
+          /* ── Contacts list ── */
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+
+            {/* Stats bar */}
+            <div className="grid grid-cols-2 border-b border-slate-100">
+              <div className="px-6 py-4 border-r border-slate-100">
+                <p className="text-xs font-medium text-slate-400 mb-1">Total contacts</p>
+                <p className="text-2xl font-bold text-slate-800">{stats.total.toLocaleString()}</p>
               </div>
-              <p className="text-slate-700 font-medium text-sm">
-                {customers.length === 0 ? 'No contacts yet' : 'No contacts match this filter'}
-              </p>
-              <p className="text-slate-400 text-xs mt-1 max-w-xs mx-auto">
-                {customers.length === 0
-                  ? 'Upload a CSV or VCF file to import your customer contacts.'
-                  : 'Try selecting a different segment or clearing your search.'}
-              </p>
-              {customers.length === 0 && (
-                <button
-                  onClick={() => setShowUpload(true)}
-                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-4 py-2 rounded-xl hover:bg-[#1aad54] transition">
-                  <Upload size={13} /> Upload Contacts
+              <div className="px-6 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-1">On WhatsApp <span className="text-slate-300">— can receive campaigns</span></p>
+                <p className="text-2xl font-bold text-[#25D366]">{stats.whatsapp.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* Filters + Search */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+                {([
+                  { id: 'all',          label: `All (${contacts.length})` },
+                  { id: 'whatsapp',     label: `WhatsApp (${stats.whatsapp})` },
+                  { id: 'no_whatsapp',  label: `Not on WA (${stats.total - stats.whatsapp})` },
+                ] as { id: Filter; label: string }[]).map(f => (
+                  <button key={f.id} onClick={() => setFilter(f.id)}
+                    className={cn('text-xs font-medium px-3 py-1.5 rounded-md transition whitespace-nowrap',
+                      filter === f.id ? 'bg-[#25D366] text-white' : 'text-slate-500 hover:text-slate-700')}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative flex-1 max-w-xs">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by name or phone…"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/30" />
+              </div>
+              {search && (
+                <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600">
+                  <X size={14} />
                 </button>
               )}
             </div>
-          ) : (
-            <>
-              {/* Column headers */}
-              <div className="grid grid-cols-[auto_1fr_140px_70px_90px] md:grid-cols-[auto_1fr_160px_80px_110px_90px] gap-3 px-4 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100 bg-slate-50/60">
-                <div className="w-4" />
-                <div>Contact</div>
-                <div>Phone</div>
-                <div className="text-center">Orders</div>
-                <div>Revenue</div>
-                <div className="hidden md:block">WhatsApp</div>
-              </div>
+
+            {/* Column headers */}
+            <div className="grid grid-cols-[1fr_160px_100px] gap-4 px-5 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-50 bg-slate-50/30">
+              <div>Contact</div>
+              <div>Phone</div>
+              <div>WhatsApp</div>
+            </div>
+
+            {/* Rows */}
+            {displayed.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-400">No contacts match your search</div>
+            ) : (
               <div className="divide-y divide-slate-50">
-                {displayed.slice(0, 100).map(c => (
-                  <div key={c.id}
-                    className={cn('grid grid-cols-[auto_1fr_140px_70px_90px] md:grid-cols-[auto_1fr_160px_80px_110px_90px] items-center gap-3 px-4 py-3 hover:bg-slate-50/60 transition',
-                      selected.has(c.id) ? 'bg-[#25D366]/5' : '')}>
-                    <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
-                      className="rounded border-slate-300 text-[#25D366] focus:ring-[#25D366]" />
-                    <div className="flex items-center gap-2.5 min-w-0">
+                {displayed.slice(0, 200).map(c => (
+                  <div key={c.id} className="grid grid-cols-[1fr_160px_100px] items-center gap-4 px-5 py-3 hover:bg-slate-50/60 transition">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', avatarColor(c.phone))}>
-                        {(c.name ?? c.phone).slice(0, 2).toUpperCase()}
+                        {avatarInitials(c)}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{c.name ?? <span className="text-slate-400 italic">No name</span>}</p>
-                        <p className="text-xs text-slate-400 truncate">{c.email ?? ''}</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">
+                          {c.name ?? <span className="text-slate-400 italic font-normal">No name</span>}
+                        </p>
+                        {c.email && <p className="text-xs text-slate-400 truncate">{c.email}</p>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-slate-600 min-w-0">
-                      <Phone size={10} className="text-slate-400 flex-shrink-0" />
-                      <span className="truncate font-mono">{c.phone}</span>
+                    <div className="flex items-center gap-1.5 text-sm text-slate-600 font-mono min-w-0">
+                      <Phone size={11} className="text-slate-300 flex-shrink-0" />
+                      <span className="truncate text-xs">{c.phone}</span>
                     </div>
-                    <div className="flex items-center justify-center gap-1 text-sm font-semibold text-slate-700">
-                      <ShoppingBag size={11} className="text-slate-400" /> {c.total_orders}
-                    </div>
-                    <div className="text-sm font-semibold text-emerald-600">{formatCurrency(c.total_spent)}</div>
-                    <div className="hidden md:block">
-                      <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full',
-                        c.whatsapp_opt_in ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400')}>
-                        {c.whatsapp_opt_in ? 'Opted in' : 'Not opted'}
+                    <div>
+                      <span className={cn('inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full',
+                        c.whatsapp_opt_in
+                          ? 'bg-[#25D366]/10 text-[#128C7E]'
+                          : 'bg-slate-100 text-slate-400')}>
+                        {c.whatsapp_opt_in
+                          ? <><MessageCircle size={9} /> Yes</>
+                          : 'No'}
                       </span>
                     </div>
                   </div>
                 ))}
               </div>
-              {displayed.length > 100 && (
-                <div className="px-4 py-3 border-t border-slate-100 text-center">
-                  <p className="text-xs text-slate-400">Showing 100 of {displayed.length}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            )}
 
-        {/* Smart segments */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-              <Filter size={14} className="text-[#25D366]" /> Smart Segments
-            </h2>
-            <button className="flex items-center gap-1.5 text-xs font-medium text-slate-400 cursor-not-allowed" title="Coming soon">
-              <Plus size={12} /> Create Segment
-            </button>
+            {displayed.length > 200 && (
+              <div className="px-5 py-3 border-t border-slate-100 text-center text-xs text-slate-400">
+                Showing 200 of {displayed.length.toLocaleString()} — use search to narrow down
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            {SEGMENTS.slice(1).map(s => {
-              const count = customers.filter(s.filter).length
-              return (
-                <div key={s.id} className="p-4 rounded-xl border border-slate-100 hover:border-[#25D366]/30 transition">
-                  <p className="text-xl font-bold text-slate-900">{count.toLocaleString()}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 mb-3">{s.label}</p>
-                  <button onClick={() => setSegment(s.id)}
-                    className="text-[11px] font-medium text-[#25D366] hover:underline flex items-center gap-1">
-                    View segment →
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        )}
       </div>
     </>
   )
