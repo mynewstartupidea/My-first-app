@@ -200,7 +200,13 @@ export async function POST(request: Request) {
       const result = await checkWhatsAppBatch(batch, token, phoneId)
       result.forEach(n => whatsappSet.add(n))
     }
-    whatsappChecked = true
+    whatsappChecked = whatsappSet.size > 0
+    if (!whatsappChecked) {
+      // Cloud API number lookup is not a reliable availability signal. If it
+      // returns nothing, keep valid numbers sendable and let actual sends/webhooks
+      // update readiness later.
+      uniquePhones.forEach(p => whatsappSet.add(p))
+    }
   } else {
     // No credentials — keep valid numbers sendable, but mark the result as estimated.
     uniquePhones.forEach(p => whatsappSet.add(p))

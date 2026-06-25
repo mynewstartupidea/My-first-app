@@ -40,6 +40,23 @@ export async function POST(req: NextRequest) {
     .from('stores').select('*').eq('id', campaign.store_id).single()
   if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
 
+  let apiKeyOverride: string | undefined = store.whatsapp_api_key ?? undefined
+  let phoneNumberIdOverride: string | undefined = undefined
+
+  if (store.whatsapp_bsp === 'meta') {
+    const { data: wa } = await supabase
+      .from('whatsapp_accounts')
+      .select('phone_number_id, access_token')
+      .eq('user_id', user.id)
+      .eq('status', 'connected')
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+
+    apiKeyOverride        = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? wa?.access_token ?? apiKeyOverride
+    phoneNumberIdOverride = wa?.phone_number_id ?? undefined
+  }
+
   // Fetch audience
   let query = supabase
     .from('customers')
@@ -81,14 +98,19 @@ export async function POST(req: NextRequest) {
       .replace(/\{\{name\}\}/g, customer.name ?? 'there')
 
     const result = await sendWhatsAppMessage({
-      to:     customer.phone,
-      message: personalizedMessage,
-      bsp:    store.whatsapp_bsp,
-      apiKey: store.whatsapp_api_key ?? undefined,
+      to:            customer.phone,
+      message:       personalizedMessage,
+      bsp:           store.whatsapp_bsp,
+      apiKey:        apiKeyOverride,
+      phoneNumberId: phoneNumberIdOverride,
     })
 
     if (result.success) {
       sentCount++
+      await supabase
+        .from('customers')
+        .update({ whatsapp_opt_in: true })
+        .eq('id', customer.id)
       // Log the message
       await supabase.from('messages').insert({
         store_id:       store.id,
@@ -101,6 +123,14 @@ export async function POST(req: NextRequest) {
       })
     } else {
       failedCount++
+      const notReachable =
+        /not registered on WhatsApp|invalid phone number/i.test(result.error ?? '')
+      if (notReachable) {
+        await supabase
+          .from('customers')
+          .update({ whatsapp_opt_in: false })
+          .eq('id', customer.id)
+      }
     }
   }
 
