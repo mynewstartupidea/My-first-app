@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Users, Search, Upload, Loader2, Phone,
   X, FileText, AlertCircle, CheckCircle2,
-  MessageCircle, RefreshCw
+  MessageCircle, RefreshCw, Send, ArrowRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -26,11 +26,20 @@ interface UploadResult {
   whatsapp_checked: boolean
 }
 
+interface Campaign {
+  id: string
+  name: string
+  status: string
+  sent_count: number
+  failed_count?: number
+  created_at: string
+}
+
 type UploadState = 'idle' | 'reading' | 'uploading' | 'done' | 'error'
 
 // ─── Upload Modal ──────────────────────────────────────────────────────────────
 
-function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result: UploadResult) => void }) {
   const [state, setState]     = useState<UploadState>('idle')
   const [result, setResult]   = useState<UploadResult | null>(null)
   const [error, setError]     = useState('')
@@ -190,7 +199,7 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
                   className="flex-1 text-sm font-medium border border-slate-200 text-slate-600 py-2.5 rounded-xl hover:bg-slate-50 transition">
                   Upload Another
                 </button>
-                <button onClick={onDone}
+                <button onClick={() => onDone(result)}
                   className="flex-1 text-sm font-semibold bg-[#25D366] text-white py-2.5 rounded-xl hover:bg-[#1aad54] transition">
                   Done
                 </button>
@@ -211,6 +220,131 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
               </button>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Broadcast Modal ──────────────────────────────────────────────────────────
+
+function BroadcastModal({
+  whatsappCount,
+  onClose,
+  onSent,
+}: {
+  whatsappCount: number
+  onClose: () => void
+  onSent: (result: { sentCount: number; failedCount: number }) => void
+}) {
+  const [name, setName] = useState('Uploaded contacts campaign')
+  const [message, setMessage] = useState('Hi {{name}}, we have an update from our store. Reply here if you need help.')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+
+  async function sendNow() {
+    if (!message.trim()) {
+      setError('Write a WhatsApp message first.')
+      return
+    }
+    setSending(true)
+    setError('')
+
+    const createRes = await fetch('/api/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name.trim() || 'Uploaded contacts campaign',
+        message: message.trim(),
+        audience: 'all',
+      }),
+    })
+    const created = await createRes.json().catch(() => ({})) as { campaign?: { id: string }; error?: string }
+    if (!createRes.ok || !created.campaign?.id) {
+      setError(created.error ?? 'Could not create campaign.')
+      setSending(false)
+      return
+    }
+
+    const sendRes = await fetch('/api/campaigns/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaign_id: created.campaign.id }),
+    })
+    const sent = await sendRes.json().catch(() => ({})) as { sentCount?: number; failedCount?: number; error?: string }
+    setSending(false)
+
+    if (!sendRes.ok) {
+      setError(sent.error ?? 'Could not send campaign.')
+      return
+    }
+
+    onSent({ sentCount: sent.sentCount ?? 0, failedCount: sent.failedCount ?? 0 })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
+              <Send size={15} className="text-[#25D366]" />
+            </div>
+            <h2 className="font-semibold text-slate-900">Send WhatsApp message</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 px-4 py-3">
+            <p className="text-sm font-semibold text-[#128C7E]">
+              {whatsappCount.toLocaleString()} WhatsApp-ready contacts will receive this message
+            </p>
+            <p className="text-xs text-[#128C7E]/70 mt-1">
+              Use {'{{name}}'} to personalize the message for saved contact names.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Campaign name</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">WhatsApp message</label>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              rows={6}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 resize-none"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">Avoid spammy language. Send only to customers who expect your updates.</p>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2">
+              <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose}
+              className="flex-1 text-sm font-medium border border-slate-200 text-slate-600 py-2.5 rounded-xl hover:bg-slate-50 transition">
+              Cancel
+            </button>
+            <button onClick={sendNow} disabled={sending || whatsappCount === 0}
+              className="flex-1 inline-flex items-center justify-center gap-2 text-sm font-semibold bg-[#25D366] text-white py-2.5 rounded-xl hover:bg-[#1aad54] disabled:opacity-50 transition">
+              {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {sending ? 'Sending...' : 'Send now'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -241,18 +375,29 @@ function avatarColor(phone: string) {
 
 export default function ContactsPage() {
   const [contacts, setContacts]   = useState<Contact[]>([])
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [filter, setFilter]       = useState<Filter>('all')
   const [showUpload, setShowUpload] = useState(false)
+  const [showBroadcast, setShowBroadcast] = useState(false)
+  const [lastUpload, setLastUpload] = useState<UploadResult | null>(null)
+  const [sendResult, setSendResult] = useState<{ sentCount: number; failedCount: number } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/contacts')
-      if (res.ok) {
-        const data = await res.json() as { contacts: Contact[] }
+      const [contactsRes, campaignsRes] = await Promise.all([
+        fetch('/api/contacts'),
+        fetch('/api/campaigns'),
+      ])
+      if (contactsRes.ok) {
+        const data = await contactsRes.json() as { contacts: Contact[] }
         setContacts(data.contacts ?? [])
+      }
+      if (campaignsRes.ok) {
+        const data = await campaignsRes.json() as { campaigns: Campaign[] }
+        setCampaigns(data.campaigns ?? [])
       }
     } catch { /* keep existing */ }
     setLoading(false)
@@ -260,10 +405,16 @@ export default function ContactsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const stats = useMemo(() => ({
-    total:    contacts.length,
-    whatsapp: contacts.filter(c => c.whatsapp_opt_in).length,
-  }), [contacts])
+  const stats = useMemo(() => {
+    const sent = campaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0)
+    const completed = campaigns.filter(c => c.status === 'completed').length
+    return {
+      total:    contacts.length,
+      whatsapp: contacts.filter(c => c.whatsapp_opt_in).length,
+      completed,
+      sent,
+    }
+  }, [contacts, campaigns])
 
   const displayed = useMemo(() => {
     return contacts.filter(c => {
@@ -284,7 +435,22 @@ export default function ContactsPage() {
       {showUpload && (
         <UploadModal
           onClose={() => setShowUpload(false)}
-          onDone={() => { setShowUpload(false); load() }}
+          onDone={(result) => {
+            setLastUpload(result)
+            setShowUpload(false)
+            load()
+          }}
+        />
+      )}
+      {showBroadcast && (
+        <BroadcastModal
+          whatsappCount={stats.whatsapp}
+          onClose={() => setShowBroadcast(false)}
+          onSent={(result) => {
+            setSendResult(result)
+            setShowBroadcast(false)
+            load()
+          }}
         />
       )}
 
@@ -312,8 +478,43 @@ export default function ContactsPage() {
               className="flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-4 py-2 rounded-xl hover:bg-[#1aad54] transition shadow-sm">
               <Upload size={14} /> Upload Contacts
             </button>
+            <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0}
+              className="flex items-center gap-2 text-sm font-semibold bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">
+              <Send size={14} /> Send WhatsApp
+            </button>
           </div>
         </div>
+
+        {(lastUpload || sendResult) && (
+          <div className="mb-5 space-y-3">
+            {lastUpload && (
+              <div className="bg-white border border-[#25D366]/20 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 size={20} className="text-[#25D366] mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Last upload saved {lastUpload.saved.toLocaleString()} new contacts</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {lastUpload.found.toLocaleString()} found · {lastUpload.valid.toLocaleString()} valid · {lastUpload.whatsapp.toLocaleString()} WhatsApp-ready
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#128C7E] hover:text-[#075E54] disabled:opacity-50 whitespace-nowrap">
+                  Send them a message <ArrowRight size={14} />
+                </button>
+              </div>
+            )}
+            {sendResult && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-3">
+                <MessageCircle size={19} className="text-emerald-600 flex-shrink-0" />
+                <p className="text-sm text-emerald-800">
+                  Campaign finished: <span className="font-bold">{sendResult.sentCount.toLocaleString()}</span> sent
+                  {sendResult.failedCount > 0 && <> · <span className="font-bold">{sendResult.failedCount.toLocaleString()}</span> failed</>}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center h-60">
@@ -340,17 +541,54 @@ export default function ContactsPage() {
         ) : (
 
           /* ── Contacts list ── */
+          <div className="space-y-5">
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <Upload size={14} className="text-[#25D366]" />
+                <p className="text-xs font-semibold text-slate-500">1. Upload contacts</p>
+              </div>
+              <p className="text-sm text-slate-700">Import CSV, TXT, or VCF files with customer phone numbers.</p>
+            </div>
+            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageCircle size={14} className="text-[#25D366]" />
+                <p className="text-xs font-semibold text-slate-500">2. Verify reachability</p>
+              </div>
+              <p className="text-sm text-slate-700">{stats.whatsapp.toLocaleString()} contacts are ready for WhatsApp campaigns.</p>
+            </div>
+            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <Send size={14} className="text-[#25D366]" />
+                <p className="text-xs font-semibold text-slate-500">3. Send message</p>
+              </div>
+              <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#128C7E] hover:text-[#075E54] disabled:opacity-50">
+                Start WhatsApp campaign <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
 
             {/* Stats bar */}
-            <div className="grid grid-cols-2 border-b border-slate-100">
+            <div className="grid grid-cols-2 lg:grid-cols-4 border-b border-slate-100">
               <div className="px-6 py-4 border-r border-slate-100">
                 <p className="text-xs font-medium text-slate-400 mb-1">Total contacts</p>
                 <p className="text-2xl font-bold text-slate-800">{stats.total.toLocaleString()}</p>
               </div>
-              <div className="px-6 py-4">
+              <div className="px-6 py-4 border-r border-slate-100">
                 <p className="text-xs font-medium text-slate-400 mb-1">On WhatsApp <span className="text-slate-300">— can receive campaigns</span></p>
                 <p className="text-2xl font-bold text-[#25D366]">{stats.whatsapp.toLocaleString()}</p>
+              </div>
+              <div className="px-6 py-4 border-r border-slate-100">
+                <p className="text-xs font-medium text-slate-400 mb-1">Messages sent</p>
+                <p className="text-2xl font-bold text-slate-800">{stats.sent.toLocaleString()}</p>
+              </div>
+              <div className="px-6 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-1">Completed campaigns</p>
+                <p className="text-2xl font-bold text-slate-800">{stats.completed.toLocaleString()}</p>
               </div>
             </div>
 
@@ -432,6 +670,7 @@ export default function ContactsPage() {
                 Showing 200 of {displayed.length.toLocaleString()} — use search to narrow down
               </div>
             )}
+          </div>
           </div>
         )}
       </div>
