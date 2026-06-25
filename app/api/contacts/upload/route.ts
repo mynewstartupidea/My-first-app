@@ -152,10 +152,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'content and filename are required' }, { status: 400 })
   }
 
-  // Get or create store
-  let { data: store } = await supabase
+  // Get or create store — same ordering as /api/contacts GET so they always use the same store
+  let { data: storeRow } = await supabase
     .from('stores').select('id').eq('user_id', user.id).eq('is_active', true)
-    .order('created_at', { ascending: true }).limit(1).maybeSingle()
+    .order('connected_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(1).maybeSingle()
+  let store = storeRow
 
   if (!store) {
     const { data: newStore, error: storeErr } = await supabase

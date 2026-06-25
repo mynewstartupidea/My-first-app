@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import {
   Users, Search, Filter, Download, Tag, Upload,
   Loader2, ShoppingBag, Phone, TrendingUp, Check,
@@ -267,21 +266,19 @@ export default function ContactsPage() {
   const [segment, setSegment]     = useState('all')
   const [selected, setSelected]   = useState<Set<string>>(new Set())
   const [showUpload, setShowUpload] = useState(false)
-  const supabase = useMemo(() => createClient(), [])
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-    const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true)
-      .order('created_at', { ascending: true }).limit(1).maybeSingle()
-    if (!store) { setLoading(false); return }
-    const { data } = await supabase.from('customers').select('*').eq('store_id', store.id)
-      .order('total_spent', { ascending: false }).limit(500)
-    setCustomers(data ?? [])
+    try {
+      const res = await fetch('/api/contacts')
+      if (!res.ok) { setLoading(false); return }
+      const data = await res.json() as { contacts: Customer[] }
+      setCustomers(data.contacts ?? [])
+    } catch {
+      // network error — keep existing list
+    }
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
