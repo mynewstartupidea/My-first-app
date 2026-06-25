@@ -273,3 +273,11 @@ CREATE TABLE IF NOT EXISTS cancellation_feedback (
 ALTER TABLE cancellation_feedback ENABLE ROW LEVEL SECURITY;
 -- Only the service role writes here; no user-facing reads needed
 CREATE POLICY "cancel_feedback_insert" ON cancellation_feedback FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- ─── Expand campaigns audience check constraint ───────────────────────────────
+-- Add vip, repeat_buyers, first_time audience values that were missing from the
+-- original CHECK constraint but are used by the campaign builder UI.
+
+ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS campaigns_audience_check;
+ALTER TABLE campaigns ADD CONSTRAINT campaigns_audience_check
+  CHECK (audience IN ('all','opted_in','inactive_30','inactive_60','inactive_90','vip','repeat_buyers','first_time'));

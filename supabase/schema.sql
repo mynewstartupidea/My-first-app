@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
   store_id        UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
   name            TEXT NOT NULL,
   message         TEXT NOT NULL DEFAULT '',
-  audience        TEXT NOT NULL DEFAULT 'opted_in' CHECK (audience IN ('all','opted_in','inactive_30','inactive_60','inactive_90')),
+  audience        TEXT NOT NULL DEFAULT 'opted_in' CHECK (audience IN ('all','opted_in','inactive_30','inactive_60','inactive_90','vip','repeat_buyers','first_time')),
   status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','scheduled','running','completed','failed')),
   scheduled_at    TIMESTAMPTZ,
   sent_count      INTEGER DEFAULT 0,
