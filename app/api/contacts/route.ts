@@ -1,22 +1,23 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { pickPreferredStore } from '@/lib/store-selection'
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get the user's active store — same logic as upload API
+  // Get the user's active store — same preferred-store logic as upload/campaign APIs
   const { data: stores } = await supabase
     .from('stores')
-    .select('id, shop_name, shopify_domain')
+    .select('id, shop_name, shopify_domain, connected_at, updated_at, created_at')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(5)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .limit(10)
 
-  const store = stores?.[0] ?? null
+  const store = pickPreferredStore(stores)
   console.log(`[contacts/list] user=${user.id} stores_found=${stores?.length ?? 0} using_store=${store?.id ?? 'none'}`)
 
   if (!store) {

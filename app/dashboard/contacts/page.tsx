@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Users, Search, Upload, Loader2, Phone,
   X, FileText, AlertCircle, CheckCircle2,
-  MessageCircle, RefreshCw, Send, ArrowRight
+  MessageCircle, RefreshCw, Send, ArrowRight,
+  FolderOpen, ShieldCheck, ListChecks, Info
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,12 +19,19 @@ interface Contact {
 }
 
 interface UploadResult {
+  filename?: string
+  uploaded_at?: string
   found: number
   valid: number
   whatsapp: number
   saved: number
   skipped: number
   whatsapp_checked: boolean
+}
+
+interface UploadHistory extends UploadResult {
+  id: string
+  label: string
 }
 
 interface Campaign {
@@ -174,12 +182,24 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
                 </div>
                 <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20">
                   <div>
-                    <span className="text-sm font-semibold text-[#128C7E]">On WhatsApp</span>
+                    <span className="text-sm font-semibold text-[#128C7E]">WhatsApp-ready</span>
                     {!result.whatsapp_checked && <span className="ml-1.5 text-[10px] text-[#128C7E]/60">(estimated)</span>}
-                    <p className="text-[11px] text-[#128C7E]/70 mt-0.5">These contacts can receive your campaigns</p>
+                    <p className="text-[11px] text-[#128C7E]/70 mt-0.5">
+                      {result.whatsapp_checked
+                        ? 'Verified with Meta before campaign sending'
+                        : 'Meta verification was unavailable, so valid numbers are estimated'}
+                    </p>
                   </div>
                   <span className="text-lg font-bold text-[#128C7E]">{result.whatsapp.toLocaleString()}</span>
                 </div>
+                {result.whatsapp_checked && result.valid > 0 && result.whatsapp === 0 && (
+                  <div className="flex items-start gap-2 py-2.5 px-4 rounded-xl bg-amber-50 border border-amber-100">
+                    <Info size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-700">
+                      We saved the valid contacts, but Meta did not confirm any number as WhatsApp-ready.
+                    </p>
+                  </div>
+                )}
                 {result.saved > 0 && (
                   <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-emerald-50 border border-emerald-100">
                     <span className="text-sm text-emerald-700">New contacts added</span>
@@ -373,6 +393,13 @@ function avatarColor(phone: string) {
   return AVATAR_COLORS[phone.charCodeAt(phone.length - 1) % AVATAR_COLORS.length]
 }
 
+const UPLOAD_HISTORY_KEY = 'wapaci_contact_upload_history'
+
+function uploadLabel(result: UploadResult) {
+  if (result.filename) return result.filename.replace(/\.[^.]+$/, '')
+  return `Upload ${new Date().toLocaleDateString()}`
+}
+
 export default function ContactsPage() {
   const [contacts, setContacts]   = useState<Contact[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -382,6 +409,7 @@ export default function ContactsPage() {
   const [showUpload, setShowUpload] = useState(false)
   const [showBroadcast, setShowBroadcast] = useState(false)
   const [lastUpload, setLastUpload] = useState<UploadResult | null>(null)
+  const [uploadHistory, setUploadHistory] = useState<UploadHistory[]>([])
   const [sendResult, setSendResult] = useState<{ sentCount: number; failedCount: number } | null>(null)
 
   const load = useCallback(async () => {
@@ -404,6 +432,27 @@ export default function ContactsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(UPLOAD_HISTORY_KEY)
+      if (saved) setUploadHistory(JSON.parse(saved) as UploadHistory[])
+    } catch { /* local history is optional */ }
+  }, [])
+
+  function rememberUpload(result: UploadResult) {
+    const item: UploadHistory = {
+      ...result,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      label: uploadLabel(result),
+      uploaded_at: result.uploaded_at ?? new Date().toISOString(),
+    }
+    setUploadHistory(prev => {
+      const next = [item, ...prev].slice(0, 6)
+      try { window.localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
 
   const stats = useMemo(() => {
     const sent = campaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0)
@@ -429,6 +478,11 @@ export default function ContactsPage() {
   }, [contacts, filter, search])
 
   const hasContacts = contacts.length > 0
+  const sendDisabledReason = stats.whatsapp === 0
+    ? stats.total > 0
+      ? 'No WhatsApp-ready contacts yet. Upload with WhatsApp verification or connect WhatsApp correctly.'
+      : 'Upload contacts before sending a WhatsApp message.'
+    : ''
 
   return (
     <>
@@ -437,6 +491,7 @@ export default function ContactsPage() {
           onClose={() => setShowUpload(false)}
           onDone={(result) => {
             setLastUpload(result)
+            rememberUpload(result)
             setShowUpload(false)
             load()
           }}
@@ -454,7 +509,7 @@ export default function ContactsPage() {
         />
       )}
 
-      <div className="p-6 lg:p-8 max-w-5xl mx-auto">
+      <div className="p-6 lg:p-8 max-w-6xl mx-auto">
 
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
@@ -478,10 +533,65 @@ export default function ContactsPage() {
               className="flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-4 py-2 rounded-xl hover:bg-[#1aad54] transition shadow-sm">
               <Upload size={14} /> Upload Contacts
             </button>
-            <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0}
+            <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0} title={sendDisabledReason || 'Send WhatsApp message'}
               className="flex items-center gap-2 text-sm font-semibold bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">
               <Send size={14} /> Send WhatsApp
             </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-5 mb-5">
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-slate-900">Contact workspace</p>
+                <p className="text-sm text-slate-500 mt-1">Upload customer files, verify reachability, then send a WhatsApp campaign.</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 flex items-center justify-center flex-shrink-0">
+                <ListChecks size={18} className="text-[#25D366]" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3">
+              <div className="p-5 border-b sm:border-b-0 sm:border-r border-slate-100">
+                <p className="text-xs font-medium text-slate-400 mb-1">Saved contacts</p>
+                <p className="text-3xl font-bold text-slate-900">{stats.total.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-1">Every valid number is saved</p>
+              </div>
+              <div className="p-5 border-b sm:border-b-0 sm:border-r border-slate-100">
+                <p className="text-xs font-medium text-slate-400 mb-1">WhatsApp-ready</p>
+                <p className="text-3xl font-bold text-[#25D366]">{stats.whatsapp.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-1">Eligible for campaigns</p>
+              </div>
+              <div className="p-5">
+                <p className="text-xs font-medium text-slate-400 mb-1">Messages sent</p>
+                <p className="text-3xl font-bold text-slate-900">{stats.sent.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-1">{stats.completed.toLocaleString()} completed campaigns</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
+            <div className="flex items-start gap-3">
+              <div className={cn(
+                'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+                stats.whatsapp > 0 ? 'bg-[#25D366]/10' : 'bg-amber-50'
+              )}>
+                {stats.whatsapp > 0 ? <ShieldCheck size={17} className="text-[#25D366]" /> : <Info size={17} className="text-amber-600" />}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900">
+                  {stats.whatsapp > 0 ? 'Ready to send' : 'Why sending is disabled'}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {stats.whatsapp > 0
+                    ? `${stats.whatsapp.toLocaleString()} contacts are marked WhatsApp-ready.`
+                    : sendDisabledReason}
+                </p>
+                <p className="text-xs text-slate-400 mt-3">
+                  WhatsApp readiness is checked with the connected Meta WhatsApp Business API. If credentials are unavailable, uploads are treated as estimated.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -498,7 +608,7 @@ export default function ContactsPage() {
                     </p>
                   </div>
                 </div>
-                <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0}
+                <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0} title={sendDisabledReason || 'Send this list a message'}
                   className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#128C7E] hover:text-[#075E54] disabled:opacity-50 whitespace-nowrap">
                   Send them a message <ArrowRight size={14} />
                 </button>
@@ -523,19 +633,68 @@ export default function ContactsPage() {
         ) : !hasContacts ? (
 
           /* ── Empty state ── */
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-[#25D366]/10 flex items-center justify-center mb-4">
-              <Users size={28} className="text-[#25D366]" />
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="p-7 border-b lg:border-b-0 lg:border-r border-slate-100">
+                <div className="w-14 h-14 rounded-2xl bg-[#25D366]/10 flex items-center justify-center mb-5">
+                  <Users size={24} className="text-[#25D366]" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 mb-2">Build your WhatsApp audience</h2>
+                <p className="text-sm text-slate-500 leading-6 mb-6">
+                  Upload customer phone numbers from CSV, TXT, or VCF files. Wapaci saves valid contacts first, then marks which ones are ready for WhatsApp campaigns.
+                </p>
+                <button onClick={() => setShowUpload(true)}
+                  className="inline-flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
+                  <Upload size={16} /> Upload Contacts
+                </button>
+                <p className="text-xs text-slate-400 mt-3">Supports CSV, TXT, and VCF files with Indian mobile numbers.</p>
+              </div>
+
+              <div className="p-7 bg-slate-50/60">
+                <p className="text-sm font-bold text-slate-900 mb-4">How this section works</p>
+                <div className="space-y-3">
+                  {[
+                    ['Upload a list', 'Drop a file with customer names and phone numbers.'],
+                    ['Save valid contacts', 'Valid numbers are stored even if WhatsApp verification returns zero.'],
+                    ['Send only when ready', 'The send button unlocks after contacts are WhatsApp-ready.'],
+                  ].map(([title, desc], index) => (
+                    <div key={title} className="flex gap-3 rounded-xl bg-white border border-slate-100 p-3">
+                      <div className="w-7 h-7 rounded-lg bg-[#25D366]/10 text-[#128C7E] text-xs font-bold flex items-center justify-center flex-shrink-0">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{title}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {uploadHistory.length > 0 && (
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Recent upload lists</p>
+                    <div className="space-y-2">
+                      {uploadHistory.slice(0, 3).map(item => (
+                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-100 p-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                              <FolderOpen size={15} className="text-blue-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{item.label}</p>
+                              <p className="text-xs text-slate-400">{item.valid.toLocaleString()} valid · {item.saved.toLocaleString()} new · {item.whatsapp.toLocaleString()} WhatsApp-ready</p>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">
+                            {new Date(item.uploaded_at ?? Date.now()).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <h2 className="text-lg font-semibold text-slate-800 mb-1">No contacts yet</h2>
-            <p className="text-slate-400 text-sm max-w-xs mb-6">
-              Upload a CSV or VCF file with your customers&apos; phone numbers. We&apos;ll automatically check which ones are on WhatsApp.
-            </p>
-            <button onClick={() => setShowUpload(true)}
-              className="flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-6 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
-              <Upload size={16} /> Upload Contacts
-            </button>
-            <p className="text-xs text-slate-300 mt-4">Supports CSV · TXT · VCF</p>
           </div>
 
         ) : (
@@ -563,12 +722,56 @@ export default function ContactsPage() {
                 <Send size={14} className="text-[#25D366]" />
                 <p className="text-xs font-semibold text-slate-500">3. Send message</p>
               </div>
-              <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0}
+              <button onClick={() => setShowBroadcast(true)} disabled={stats.whatsapp === 0} title={sendDisabledReason || 'Start WhatsApp campaign'}
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#128C7E] hover:text-[#075E54] disabled:opacity-50">
                 Start WhatsApp campaign <ArrowRight size={14} />
               </button>
             </div>
           </div>
+
+          {uploadHistory.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Recent upload lists</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Use these summaries to keep track of each batch you imported.</p>
+                </div>
+                <button onClick={() => setShowUpload(true)}
+                  className="text-xs font-semibold text-[#128C7E] hover:text-[#075E54]">
+                  Add another list
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {uploadHistory.slice(0, 3).map(item => (
+                  <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center">
+                        <FolderOpen size={15} className="text-blue-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{item.label}</p>
+                        <p className="text-[11px] text-slate-400">{new Date(item.uploaded_at ?? Date.now()).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg bg-white border border-slate-100 px-2 py-2">
+                        <p className="text-sm font-bold text-slate-800">{item.valid.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-400">valid</p>
+                      </div>
+                      <div className="rounded-lg bg-white border border-slate-100 px-2 py-2">
+                        <p className="text-sm font-bold text-emerald-600">{item.saved.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-400">new</p>
+                      </div>
+                      <div className="rounded-lg bg-white border border-slate-100 px-2 py-2">
+                        <p className="text-sm font-bold text-[#25D366]">{item.whatsapp.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-400">WA</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
 
@@ -598,7 +801,7 @@ export default function ContactsPage() {
                 {([
                   { id: 'all',          label: `All (${contacts.length})` },
                   { id: 'whatsapp',     label: `WhatsApp (${stats.whatsapp})` },
-                  { id: 'no_whatsapp',  label: `Not on WA (${stats.total - stats.whatsapp})` },
+                  { id: 'no_whatsapp',  label: `Not ready (${stats.total - stats.whatsapp})` },
                 ] as { id: Filter; label: string }[]).map(f => (
                   <button key={f.id} onClick={() => setFilter(f.id)}
                     className={cn('text-xs font-medium px-3 py-1.5 rounded-md transition whitespace-nowrap',
@@ -625,7 +828,7 @@ export default function ContactsPage() {
             <div className="grid grid-cols-[1fr_160px_100px] gap-4 px-5 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-50 bg-slate-50/30">
               <div>Contact</div>
               <div>Phone</div>
-              <div>WhatsApp</div>
+              <div>Status</div>
             </div>
 
             {/* Rows */}
@@ -656,8 +859,8 @@ export default function ContactsPage() {
                           ? 'bg-[#25D366]/10 text-[#128C7E]'
                           : 'bg-slate-100 text-slate-400')}>
                         {c.whatsapp_opt_in
-                          ? <><MessageCircle size={9} /> Yes</>
-                          : 'No'}
+                          ? <><MessageCircle size={9} /> Ready</>
+                          : 'Not ready'}
                       </span>
                     </div>
                   </div>

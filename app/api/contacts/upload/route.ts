@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { pickPreferredStore } from '@/lib/store-selection'
 
 // Normalize a raw phone string to 10-digit Indian mobile, or null
 function normalizePhone(raw: string): string | null {
@@ -152,19 +153,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'content and filename are required' }, { status: 400 })
   }
 
-  // Get or create store — same ordering as /api/contacts GET so they always use the same store
-  let { data: storeRow } = await supabase
-    .from('stores').select('id').eq('user_id', user.id).eq('is_active', true)
+  // Get or create store — use the same preferred-store logic as contacts/campaigns
+  const { data: stores } = await supabase
+    .from('stores')
+    .select('id, shopify_domain, connected_at, updated_at, created_at')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(1).maybeSingle()
-  let store = storeRow
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .limit(10)
+  let store = pickPreferredStore(stores)
 
   if (!store) {
     const { data: newStore, error: storeErr } = await supabase
       .from('stores')
       .insert({ user_id: user.id, shop_name: 'My Business', is_active: true })
-      .select('id').single()
+      .select('id, shopify_domain, connected_at, updated_at, created_at').single()
     if (storeErr || !newStore) {
       return NextResponse.json({ error: 'Could not find or create a store for this account' }, { status: 500 })
     }
@@ -198,17 +202,17 @@ export async function POST(request: Request) {
     }
     whatsappChecked = true
   } else {
-    // No credentials — add all valid Indian numbers (WhatsApp check skipped)
+    // No credentials — keep valid numbers sendable, but mark the result as estimated.
     uniquePhones.forEach(p => whatsappSet.add(p))
   }
 
-  // Build upsert payload — match phone to name from contacts list
+  // Build upsert payload — save every valid contact. WhatsApp eligibility is separate.
   const phoneToName = new Map(contacts.map(c => [c.phone, c.name]))
-  const toInsert = [...whatsappSet].map(phone => ({
+  const toInsert = uniquePhones.map(phone => ({
     store_id: store!.id,
     phone: `+91${phone}`,
     name: phoneToName.get(phone) ?? null,
-    whatsapp_opt_in: true,
+    whatsapp_opt_in: whatsappChecked ? whatsappSet.has(phone) : true,
     total_orders: 0,
     total_spent: 0,
   }))
@@ -241,6 +245,8 @@ export async function POST(request: Request) {
   console.log(`[contacts/upload] store=${store!.id} found=${contacts.length} valid=${uniquePhones.length} whatsapp=${whatsappSet.size} saved=${saved} skipped=${skipped}`)
 
   return NextResponse.json({
+    filename:         body.filename,
+    uploaded_at:      new Date().toISOString(),
     found:            contacts.length,
     valid:            uniquePhones.length,
     whatsapp:         whatsappSet.size,
