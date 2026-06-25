@@ -62,25 +62,27 @@ export async function POST(req: NextRequest) {
     .from('customers')
     .select('id, phone, name')
     .eq('store_id', store.id)
-    .eq('whatsapp_opt_in', true)
 
-  if (campaign.audience === 'inactive_30') {
+  if (campaign.audience === 'opted_in') {
+    query = query.eq('whatsapp_opt_in', true)
+  } else if (campaign.audience === 'inactive_30') {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    query = query.or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
+    query = query.eq('whatsapp_opt_in', true).or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
   } else if (campaign.audience === 'inactive_60') {
     const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
-    query = query.or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
+    query = query.eq('whatsapp_opt_in', true).or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
   } else if (campaign.audience === 'inactive_90') {
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-    query = query.or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
+    query = query.eq('whatsapp_opt_in', true).or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
   } else if (campaign.audience === 'vip') {
-    query = query.gte('total_spent', 5000)
+    query = query.eq('whatsapp_opt_in', true).gte('total_spent', 5000)
   } else if (campaign.audience === 'repeat_buyers') {
-    query = query.gte('total_orders', 2)
+    query = query.eq('whatsapp_opt_in', true).gte('total_orders', 2)
   } else if (campaign.audience === 'first_time') {
-    query = query.eq('total_orders', 1)
+    query = query.eq('whatsapp_opt_in', true).eq('total_orders', 1)
   }
-  // 'all' and 'opted_in' → already filtered to whatsapp_opt_in = true above
+  // 'all' intentionally includes all synced contacts. Actual send failures will
+  // update whatsapp_opt_in for numbers Meta reports as invalid/not registered.
 
   const { data: customers } = await query.limit(1000)
   if (!customers || customers.length === 0) {
