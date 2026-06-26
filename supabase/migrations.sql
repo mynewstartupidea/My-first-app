@@ -274,6 +274,15 @@ ALTER TABLE cancellation_feedback ENABLE ROW LEVEL SECURITY;
 -- Only the service role writes here; no user-facing reads needed
 CREATE POLICY "cancel_feedback_insert" ON cancellation_feedback FOR INSERT WITH CHECK (user_id = auth.uid());
 
+-- ─── Expand automations type check constraint ────────────────────────────────
+-- Original constraint only had 4 types. UI has 8: post_purchase_upsell,
+-- win_back, review_request, repeat_purchase were added but not in live DB.
+
+ALTER TABLE automations DROP CONSTRAINT IF EXISTS automations_type_check;
+ALTER TABLE automations ADD CONSTRAINT automations_type_check
+  CHECK (type IN ('abandoned_cart','cod_verification','order_confirmation','shipping_update',
+                  'post_purchase_upsell','win_back','review_request','repeat_purchase'));
+
 -- ─── Expand campaigns audience check constraint ───────────────────────────────
 -- Add vip, repeat_buyers, first_time audience values that were missing from the
 -- original CHECK constraint but are used by the campaign builder UI.
