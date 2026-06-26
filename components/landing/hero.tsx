@@ -20,9 +20,9 @@ const particles = [
 ]
 
 const headlineLines = [
-  { text: '98% open rate.',       color: 'text-[#25D366]' },
-  { text: 'Real conversations.',  color: 'text-white'     },
-  { text: 'Real revenue.',        color: 'text-white'     },
+  { text: 'High open rates.',             color: 'text-[#25D366]' },
+  { text: 'Real customer conversations.', color: 'text-white'     },
+  { text: 'More revenue.',                color: 'text-white'     },
 ]
 
 function useCountUp(target: number, start: boolean, duration = 1.8): number {
