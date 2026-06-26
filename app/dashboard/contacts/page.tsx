@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Users, Search, Upload, Loader2, Phone, X, FileText, AlertCircle,
-  CheckCircle2, MessageCircle, RefreshCw, Send, FolderOpen, Edit3
+  CheckCircle2, MessageCircle, RefreshCw, Send, FolderOpen, Edit3, ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -370,6 +370,7 @@ export default function ContactsPage() {
   const [showBroadcast, setShowBroadcast] = useState(false)
   const [lastUpload, setLastUpload] = useState<UploadResult | null>(null)
   const [lists, setLists] = useState<ContactList[]>([])
+  const [activeListId, setActiveListId] = useState<string | null>(null)
   const [editingListId, setEditingListId] = useState<string | null>(null)
   const [editingLabel, setEditingLabel] = useState('')
   const [sendResult, setSendResult] = useState<{ sentCount: number; failedCount: number } | null>(null)
@@ -415,6 +416,7 @@ export default function ContactsPage() {
       uploaded_at: result.uploaded_at ?? new Date().toISOString(),
     }
     persistLists([item, ...lists].slice(0, 8))
+    setActiveListId(item.id)
   }
 
   function renameList(id: string, label: string) {
@@ -439,20 +441,34 @@ export default function ContactsPage() {
     })
   }, [contacts, search])
 
-  const listCards: ContactList[] = lists.length > 0
-    ? lists
-    : stats.total > 0
-      ? [{
-          id: 'all',
-          label: 'All synced contacts',
-          found: stats.total,
-          valid: stats.total,
-          whatsapp: stats.total,
-          saved: stats.total,
-          skipped: 0,
-          whatsapp_checked: false,
-        }]
-      : []
+  const listCards = useMemo<ContactList[]>(() => {
+    if (lists.length > 0) return lists
+    if (stats.total === 0) return []
+
+    return [{
+      id: 'all',
+      label: 'All synced contacts',
+      found: stats.total,
+      valid: stats.total,
+      whatsapp: stats.total,
+      saved: stats.total,
+      skipped: 0,
+      whatsapp_checked: false,
+    }]
+  }, [lists, stats.total])
+
+  const activeList = listCards.find(item => item.id === activeListId) ?? listCards[0] ?? null
+  const listCardsKey = listCards.map(item => item.id).join('|')
+
+  useEffect(() => {
+    if (listCards.length === 0) {
+      if (activeListId) setActiveListId(null)
+      return
+    }
+    if (!activeListId || !listCards.some(item => item.id === activeListId)) {
+      setActiveListId(listCards[0].id)
+    }
+  }, [activeListId, listCardsKey, listCards])
 
   return (
     <>
@@ -534,39 +550,74 @@ export default function ContactsPage() {
                 </button>
               ) : (
                 <div className="space-y-2">
-                  {listCards.map(item => (
-                    <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-white border border-slate-100 flex items-center justify-center flex-shrink-0">
-                          <FolderOpen size={16} className="text-blue-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          {editingListId === item.id ? (
-                            <form onSubmit={e => { e.preventDefault(); renameList(item.id, editingLabel) }}>
-                              <input
-                                autoFocus
-                                value={editingLabel}
-                                onChange={e => setEditingLabel(e.target.value)}
-                                onBlur={() => renameList(item.id, editingLabel)}
-                                className="w-full text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-[#25D366]/20"
-                              />
-                            </form>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-slate-800 truncate">{item.label}</p>
-                              {item.id !== 'all' && (
-                                <button onClick={() => { setEditingListId(item.id); setEditingLabel(item.label) }}
-                                  className="text-slate-300 hover:text-slate-500 flex-shrink-0">
-                                  <Edit3 size={12} />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          <p className="text-xs text-slate-400 mt-0.5">{item.valid.toLocaleString()} contacts</p>
+                  {listCards.map(item => {
+                    const isActive = activeList?.id === item.id
+                    return (
+                      <div
+                        key={item.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setActiveListId(item.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setActiveListId(item.id)
+                          }
+                        }}
+                        className={cn(
+                          'group rounded-xl border p-3 cursor-pointer transition outline-none focus:ring-2 focus:ring-[#25D366]/20',
+                          isActive
+                            ? 'border-[#25D366]/30 bg-[#25D366]/5 shadow-sm'
+                            : 'border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200'
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-white border border-slate-100 flex items-center justify-center flex-shrink-0">
+                            <FolderOpen size={16} className="text-blue-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            {editingListId === item.id ? (
+                              <form
+                                onClick={event => event.stopPropagation()}
+                                onSubmit={e => { e.preventDefault(); renameList(item.id, editingLabel) }}
+                              >
+                                <input
+                                  autoFocus
+                                  value={editingLabel}
+                                  onChange={e => setEditingLabel(e.target.value)}
+                                  onBlur={() => renameList(item.id, editingLabel)}
+                                  className="w-full text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-[#25D366]/20"
+                                />
+                              </form>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{item.label}</p>
+                                {item.id !== 'all' && (
+                                  <button
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setEditingListId(item.id)
+                                      setEditingLabel(item.label)
+                                    }}
+                                    className="text-slate-300 hover:text-slate-500 flex-shrink-0">
+                                    <Edit3 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            <p className="text-xs text-slate-400 mt-0.5">{item.valid.toLocaleString()} contacts</p>
+                          </div>
+                          <ChevronRight
+                            size={15}
+                            className={cn(
+                              'mt-3 flex-shrink-0 transition',
+                              isActive ? 'text-[#25D366]' : 'text-slate-300 group-hover:text-slate-500'
+                            )}
+                          />
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -576,9 +627,13 @@ export default function ContactsPage() {
             <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-bold text-slate-900">Contact library</p>
+                  <p className="text-sm font-bold text-slate-900">
+                    {activeList ? activeList.label : 'Contact library'}
+                  </p>
                   <p className="text-xs text-slate-400 mt-1">
-                    {stats.sent.toLocaleString()} messages sent · {stats.completed.toLocaleString()} completed campaigns
+                    {activeList
+                      ? `${activeList.valid.toLocaleString()} contacts in this list · ${stats.total.toLocaleString()} total synced`
+                      : `${stats.sent.toLocaleString()} messages sent · ${stats.completed.toLocaleString()} completed campaigns`}
                   </p>
                 </div>
                 <div className="relative w-full max-w-xs">
@@ -630,15 +685,39 @@ export default function ContactsPage() {
               </div>
             ) : stats.total === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-[#25D366]/10 flex items-center justify-center mx-auto mb-4">
-                  <Users size={24} className="text-[#25D366]" />
-                </div>
-                <h2 className="text-lg font-semibold text-slate-900">No contacts yet</h2>
-                <p className="text-sm text-slate-400 mt-2 mb-6">Upload a sheet to create your first contact list.</p>
-                <button onClick={() => setShowUpload(true)}
-                  className="inline-flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
-                  <Upload size={16} /> Upload Contacts
-                </button>
+                {activeList ? (
+                  <>
+                    <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                      <FolderOpen size={24} className="text-blue-600" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-slate-900">{activeList.label}</h2>
+                    <p className="text-sm text-slate-400 mt-2 mb-6">
+                      {activeList.valid.toLocaleString()} contacts were found in this uploaded list. Refresh if the contacts do not appear yet.
+                    </p>
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={load}
+                        className="inline-flex items-center gap-2 text-sm font-semibold border border-slate-200 text-slate-700 px-5 py-3 rounded-xl hover:bg-slate-50 transition">
+                        <RefreshCw size={16} /> Refresh
+                      </button>
+                      <button onClick={() => setShowUpload(true)}
+                        className="inline-flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
+                        <Upload size={16} /> Upload
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 rounded-2xl bg-[#25D366]/10 flex items-center justify-center mx-auto mb-4">
+                      <Users size={24} className="text-[#25D366]" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-slate-900">No contacts yet</h2>
+                    <p className="text-sm text-slate-400 mt-2 mb-6">Upload a sheet to create your first contact list.</p>
+                    <button onClick={() => setShowUpload(true)}
+                      className="inline-flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
+                      <Upload size={16} /> Upload Contacts
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
