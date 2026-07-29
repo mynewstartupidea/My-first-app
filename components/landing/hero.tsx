@@ -20,9 +20,7 @@ const particles = [
 ]
 
 const headlineLines = [
-  { text: 'High open rates.',             color: 'text-[#25D366]' },
-  { text: 'Real customer conversations.', color: 'text-white'     },
-  { text: 'More revenue.',                color: 'text-white'     },
+  { text: 'Grow on WhatsApp.', color: 'text-white' },
 ]
 
 function useCountUp(target: number, start: boolean, duration = 1.8): number {
@@ -166,16 +164,6 @@ export default function Hero() {
                 {line.text}
               </motion.div>
             ))}
-            {/* Conclusion line */}
-            <motion.div
-              initial={{ opacity: 0, y: 60, filter: 'blur(12px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              transition={{ type: 'spring', stiffness: 60, damping: 14, delay: 0.15 * 3 }}
-              className="block text-2xl md:text-3xl lg:text-[2rem] text-slate-300 mt-1"
-            >
-              That&apos;s{' '}
-              <span className="text-shimmer font-extrabold">WhatsApp marketing.</span>
-            </motion.div>
           </h1>
 
           {/* Subline */}
@@ -216,7 +204,7 @@ export default function Hero() {
             transition={{ duration: 0.6, delay: 0.9 }}
             className="mt-4 text-slate-600 text-sm"
           >
-            No credit card · Free trial · Cancel anytime
+            No credit card required · Free account
           </motion.p>
         </div>
 
