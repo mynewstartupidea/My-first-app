@@ -103,7 +103,7 @@ function LoginForm() {
             </div>
             <h1 className="text-3xl font-bold text-white">Wapaci</h1>
           </Link>
-          <p className="text-green-100 mt-1 text-sm">WhatsApp Automation for Ecommerce Brands</p>
+          <p className="text-green-100 mt-1 text-sm">Grow on WhatsApp.</p>
         </div>
 
         {/* Card */}

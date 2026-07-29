@@ -130,7 +130,7 @@ export default function SignupPage() {
             </div>
             <h1 className="text-2xl font-bold text-white">Wapaci</h1>
           </Link>
-          <p className="text-green-100 mt-1 text-sm">WhatsApp Automation for Ecommerce Brands</p>
+          <p className="text-green-100 mt-1 text-sm">Grow on WhatsApp.</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
@@ -274,7 +274,7 @@ export default function SignupPage() {
         </div>
 
         <p className="text-center text-green-200 text-xs mt-5">
-          No credit card required · 14-day free trial · Cancel anytime
+          No credit card required · Free account
         </p>
       </div>
     </div>
