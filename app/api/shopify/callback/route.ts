@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { exchangeCodeForToken, getShopDetails, getShopifyAppUrl, registerWebhooks, verifyShopifyOAuthCallback, verifyOAuthState } from '@/lib/shopify'
+import { exchangeCodeForToken, getShopDetails, getShopifyAppUrl, registerWebhooks, syncShopifyCustomers, verifyShopifyOAuthCallback, verifyOAuthState } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
 
 function redirectWithStatus(origin: string, returnTo: string, status: string) {
@@ -151,7 +151,12 @@ export async function GET(request: Request) {
     // 6. Ensure default automations exist
     await supabase.rpc('create_default_automations', { p_store_id: storeId })
 
-    // 6. Redirect with success flag
+    // 7. Backfill existing customers (up to 1 000 — 4 pages × 250)
+    syncShopifyCustomers(shop, accessToken, storeId, supabase, 4).catch(e =>
+      console.error('[Shopify OAuth] customer sync error:', e)
+    )
+
+    // 8. Redirect with success flag
     console.log('[Shopify OAuth] success — redirecting to integrations')
     return redirectWithPopupStatus(origin, returnTo, 'connected', popup)
   } catch (err) {

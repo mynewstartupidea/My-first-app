@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Plug, CheckCircle2, MessageCircle, Zap, AlertCircle,
-  Loader2, ExternalLink, RefreshCw, Unplug, Package,
+  Loader2, ExternalLink, RefreshCw, Unplug, Package, Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -33,14 +33,6 @@ const OTHER_INTEGRATIONS = [
     href: '/dashboard/settings?tab=whatsapp',
   },
   {
-    id: 'razorpay',
-    name: 'Razorpay',
-    desc: 'Send payment links and transaction notifications via WhatsApp.',
-    logo: '💳',
-    status: 'coming_soon',
-    category: 'Payments',
-  },
-  {
     id: 'shiprocket',
     name: 'Shiprocket',
     desc: 'Trigger WhatsApp shipping updates automatically from Shiprocket.',
@@ -58,7 +50,7 @@ const OTHER_INTEGRATIONS = [
   },
 ] as const
 
-const categories = ['All', 'Ecommerce', 'Messaging', 'Payments', 'Logistics'] as const
+const categories = ['All', 'Ecommerce', 'Messaging', 'Logistics'] as const
 
 // ─── Main inner component ─────────────────────────────────────────────────────
 
@@ -70,6 +62,7 @@ function IntegrationsInner() {
   const [toast, setToast]               = useState<{ msg: string; ok: boolean } | null>(null)
   const [testing, setTesting]           = useState(false)
   const [syncing, setSyncing]           = useState(false)
+  const [syncingCustomers, setSyncingCustomers] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string>('All')
   const [domain, setDomain]             = useState('')
@@ -187,6 +180,18 @@ function IntegrationsInner() {
     }
   }
 
+  async function handleSyncCustomers() {
+    setSyncingCustomers(true)
+    const res  = await fetch('/api/shopify/sync-customers', { method: 'POST' })
+    const data = await res.json() as { synced?: number; skipped?: number; error?: string }
+    setSyncingCustomers(false)
+    if (res.ok) {
+      showToast(`Imported ${data.synced} customer${data.synced !== 1 ? 's' : ''} with phone numbers.`)
+    } else {
+      showToast(data.error ?? 'Sync failed', false)
+    }
+  }
+
   async function handleDisconnect() {
     if (!confirm(`Disconnect ${store?.shopify_domain}?\n\nAutomations will stop. Your WhatsApp settings, conversations, and analytics are kept.`)) return
     setDisconnecting(true)
@@ -289,6 +294,16 @@ function IntegrationsInner() {
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <Package className="w-3.5 h-3.5" />}
               Sync Products
+            </button>
+            <button
+              onClick={handleSyncCustomers}
+              disabled={syncingCustomers}
+              className="flex items-center gap-2 text-sm font-medium text-green-700 bg-white border border-green-200 hover:bg-green-50 px-3 py-2 rounded-xl transition"
+            >
+              {syncingCustomers
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Users className="w-3.5 h-3.5" />}
+              Sync Customers
             </button>
             <button
               onClick={handleDisconnect}

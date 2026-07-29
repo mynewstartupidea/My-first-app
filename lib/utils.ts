@@ -29,3 +29,15 @@ export function timeAgo(date: string) {
 export function renderTemplate(template: string, vars: Record<string, string>) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
 }
+
+// Returns a 10-digit Indian mobile number or null
+export function normalizeIndianPhone(raw: string): string | null {
+  if (!raw) return null
+  const digits = raw.replace(/^[''"`\s]+/, '').trim().replace(/[\s\-\.\(\)\/\\+]/g, '').replace(/\D/g, '')
+  let ten: string | null = null
+  if (digits.length === 10) ten = digits
+  else if (digits.length === 12 && digits.startsWith('91')) ten = digits.slice(2)
+  else if (digits.length === 11 && digits.startsWith('0')) ten = digits.slice(1)
+  else if (digits.length === 13 && digits.startsWith('091')) ten = digits.slice(3)
+  return ten && /^[6-9]\d{9}$/.test(ten) ? ten : null
+}

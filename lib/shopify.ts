@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { normalizeIndianPhone } from '@/lib/utils'
 const SHOPIFY_API_VERSION = '2024-10'
 const SHOPIFY_APP_URL = 'https://app.wapaci.com'
 
@@ -145,6 +146,77 @@ export async function registerWebhooks(shop: string, token: string, appUrl: stri
       body: JSON.stringify({ webhook }),
     })
   }
+}
+
+interface ShopifyCustomer {
+  id: number
+  first_name?: string
+  last_name?: string
+  email?: string
+  phone?: string
+  orders_count?: number
+  total_spent?: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function syncShopifyCustomers(
+  shop: string,
+  token: string,
+  storeId: string,
+  supabase: any,
+  maxPages = 4,
+): Promise<{ synced: number; skipped: number }> {
+  const headers = { 'X-Shopify-Access-Token': token }
+  let synced = 0
+  let skipped = 0
+  let nextUrl: string | null =
+    `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/customers.json` +
+    `?limit=250&fields=id,first_name,last_name,email,phone,orders_count,total_spent`
+  let page = 0
+
+  while (nextUrl && page < maxPages) {
+    const currentUrl = nextUrl
+    const shopRes = await fetch(currentUrl, { headers })
+    if (!shopRes.ok) {
+      console.error(`[syncShopifyCustomers] Shopify returned ${shopRes.status}`)
+      break
+    }
+
+    const { customers } = await shopRes.json() as { customers: ShopifyCustomer[] }
+
+    const toUpsert: Record<string, unknown>[] = []
+    for (const c of customers) {
+      const ten = normalizeIndianPhone(c.phone ?? '')
+      if (!ten) { skipped++; continue }
+      toUpsert.push({
+        store_id:            storeId,
+        phone:               `+91${ten}`,
+        shopify_customer_id: String(c.id),
+        name:                [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
+        email:               c.email ?? null,
+        whatsapp_opt_in:     true,
+        total_orders:        c.orders_count ?? 0,
+        total_spent:         parseFloat(c.total_spent ?? '0'),
+      })
+    }
+
+    if (toUpsert.length > 0) {
+      const { error } = await supabase
+        .from('customers')
+        .upsert(toUpsert, { onConflict: 'store_id,phone', ignoreDuplicates: true })
+      if (error) console.error('[syncShopifyCustomers] upsert error:', error.message)
+      else synced += toUpsert.length
+    }
+
+    // Follow Shopify's Link header for pagination
+    const linkHeader: string = shopRes.headers.get('link') ?? ''
+    const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/)
+    nextUrl = nextMatch ? nextMatch[1] : null
+    page++
+  }
+
+  console.log(`[syncShopifyCustomers] shop=${shop} synced=${synced} skipped=${skipped} pages=${page}`)
+  return { synced, skipped }
 }
 
 export function verifyShopifyWebhook(body: string, hmacHeader: string): boolean {
