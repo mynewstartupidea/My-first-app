@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { normalizeIndianPhone } from '@/lib/utils'
-const SHOPIFY_API_VERSION = '2024-10'
+const SHOPIFY_API_VERSION = '2026-07'
 const SHOPIFY_APP_URL = 'https://app.wapaci.com'
 
 // Reject any shop that isn't a valid *.myshopify.com domain
