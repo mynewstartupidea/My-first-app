@@ -1,22 +1,24 @@
 name = "Wapaci"
-client_id = "c42e4458f03c2c2f1d9e8805cf79a6d3"
+client_id = "d23312df272281710a330b54c7561013"
 application_url = "https://app.wapaci.com"
 embedded = false
 
 [access_scopes]
-scopes = "write_checkouts,read_customers,read_fulfillments,read_inventory,read_locations,read_orders,read_products"
+scopes = "write_checkouts,read_checkouts,read_customers,write_customers,write_draft_orders,read_draft_orders,read_fulfillments,read_inventory,read_orders,write_orders,read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://app.wapaci.com/api/shopify/callback"
+  "https://app.wapaci.com/api/shopify/callback",
+  "https://app.wapaci.com/api/shopify/billing/callback"
 ]
 
 [webhooks]
-api_version = "2026-04"
+api_version = "2026-07"
 
 [[webhooks.subscriptions]]
 topics = [
   "app/uninstalled",
+  "app_subscriptions/update",
   "checkouts/create",
   "checkouts/update",
   "orders/create",
@@ -32,6 +34,9 @@ compliance_topics = [
   "shop/redact"
 ]
 uri = "https://app.wapaci.com/api/shopify/webhooks"
+
+[pos]
+embedded = false
 
 [build]
 automatically_update_urls_on_dev = false
