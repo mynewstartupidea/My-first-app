@@ -156,7 +156,23 @@ export async function GET(request: Request) {
       console.error('[Shopify OAuth] customer sync error:', e)
     )
 
-    // 8. Redirect with success flag
+    // 8. Check if user already has Shopify billing; if not, send to pricing page
+    const { data: billing } = await supabase
+      .from('billing')
+      .select('status, billing_provider')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const hasShopifyBilling = billing?.billing_provider === 'shopify' &&
+      (billing?.status === 'active' || billing?.status === 'trialing')
+
+    if (!hasShopifyBilling) {
+      const pricingUrl = `${origin}/shopify/pricing?shop=${encodeURIComponent(shop)}`
+      console.log('[Shopify OAuth] no billing — redirecting to pricing')
+      return NextResponse.redirect(pricingUrl)
+    }
+
+    // 9. Redirect with success flag
     console.log('[Shopify OAuth] success — redirecting to integrations')
     return redirectWithPopupStatus(origin, returnTo, 'connected', popup)
   } catch (err) {

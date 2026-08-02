@@ -42,7 +42,25 @@ export async function POST(request: Request) {
         break
       case 'app/uninstalled':
         await supabase.from('stores').update({ is_active: false, shopify_access_token: null, updated_at: new Date().toISOString() }).eq('shopify_domain', shopDomain)
+        await supabase.from('billing').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('billing_provider', 'shopify')
+          .in('user_id', (await supabase.from('stores').select('user_id').eq('shopify_domain', shopDomain).then(r => r.data?.map(s => s.user_id) ?? [])))
         break
+      case 'app_subscriptions/update': {
+        const sub = payload as { app_subscription?: { status?: string; admin_graphql_api_id?: string } }
+        const subStatus = sub.app_subscription?.status
+        const subId     = sub.app_subscription?.admin_graphql_api_id
+        if (subId) {
+          const dbStatus = subStatus === 'ACTIVE' ? 'active'
+            : subStatus === 'PENDING' ? 'trialing'
+            : subStatus === 'CANCELLED' || subStatus === 'DECLINED' ? 'cancelled'
+            : null
+          if (dbStatus) {
+            await supabase.from('billing').update({ status: dbStatus, updated_at: new Date().toISOString() })
+              .eq('shopify_subscription_id', subId)
+          }
+        }
+        break
+      }
     }
   } catch (err) {
     console.error(`Webhook error [${topic}]:`, err)

@@ -128,12 +128,13 @@ export async function getShopDetails(shop: string, token: string): Promise<{ nam
 
 export async function registerWebhooks(shop: string, token: string, appUrl: string) {
   const webhooks = [
-    { topic: 'checkouts/create',  address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'checkouts/update',  address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'orders/create',     address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'orders/fulfilled',  address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'orders/updated',    address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'app/uninstalled',   address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'checkouts/create',          address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'checkouts/update',          address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'orders/create',             address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'orders/fulfilled',          address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'orders/updated',            address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'app/uninstalled',           address: `${appUrl}/api/shopify/webhooks` },
+    { topic: 'app_subscriptions/update',  address: `${appUrl}/api/shopify/webhooks` },
   ]
 
   for (const webhook of webhooks) {

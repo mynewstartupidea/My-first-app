@@ -290,3 +290,11 @@ ALTER TABLE automations ADD CONSTRAINT automations_type_check
 ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS campaigns_audience_check;
 ALTER TABLE campaigns ADD CONSTRAINT campaigns_audience_check
   CHECK (audience IN ('all','opted_in','inactive_30','inactive_60','inactive_90','vip','repeat_buyers','first_time'));
+
+-- ─── Shopify Billing ─────────────────────────────────────────────────────────
+-- Add shopify_subscription_id to billing table for Shopify App Store billing.
+
+ALTER TABLE billing ADD COLUMN IF NOT EXISTS shopify_subscription_id TEXT;
+
+-- Register app_subscriptions/update as a valid webhook topic
+-- (no schema change needed — topic is stored in the webhook registration call)
