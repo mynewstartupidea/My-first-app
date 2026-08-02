@@ -40,6 +40,23 @@ export async function POST(request: Request) {
       case 'orders/updated':
         await handleOrderUpdated(supabase, store, payload)
         break
+      case 'customers/data_request':
+        // Shopify GDPR: customer requested their data — acknowledge receipt (no PII stored beyond phone/email)
+        console.log(`[webhook] customers/data_request for ${shopDomain}`)
+        break
+      case 'customers/redact':
+        // Shopify GDPR: delete customer data
+        await supabase.from('customers').delete()
+          .eq('store_id', store.id)
+          .eq('phone', `+91${String((payload as Record<string, unknown>).phone ?? '').replace(/\D/g, '')}`)
+        console.log(`[webhook] customers/redact for ${shopDomain}`)
+        break
+      case 'shop/redact':
+        // Shopify GDPR: merchant uninstalled 48h+ ago, delete all shop data
+        await supabase.from('customers').delete().eq('store_id', store.id)
+        await supabase.from('automation_jobs').delete().eq('store_id', store.id)
+        console.log(`[webhook] shop/redact for ${shopDomain}`)
+        break
       case 'app/uninstalled':
         await supabase.from('stores').update({ is_active: false, shopify_access_token: null, updated_at: new Date().toISOString() }).eq('shopify_domain', shopDomain)
         await supabase.from('billing').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('billing_provider', 'shopify')
