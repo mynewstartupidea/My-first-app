@@ -11,6 +11,7 @@ function PricingContent() {
   const router       = useRouter()
   const shop         = searchParams.get('shop') ?? ''
   const declined     = searchParams.get('declined') === '1'
+  const isChange     = searchParams.get('change') === '1'
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError]     = useState('')
 
@@ -55,10 +56,10 @@ function PricingContent() {
           <span className="text-white text-xl font-bold">Wapaci</span>
         </Link>
         <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">
-          Choose your plan
+          {isChange ? 'Change your plan' : 'Choose your plan'}
         </h1>
         <p className="text-green-100 text-sm sm:text-base max-w-md mx-auto">
-          {TRIAL_DAYS}-day free trial · {TRIAL_MESSAGES} messages included · Cancel anytime
+          {isChange ? 'Switch plans anytime — changes take effect immediately.' : `${TRIAL_DAYS}-day free trial · ${TRIAL_MESSAGES} messages included · Cancel anytime`}
         </p>
         {declined && (
           <p className="mt-4 text-sm bg-white/20 text-white rounded-xl px-4 py-2 inline-block">
