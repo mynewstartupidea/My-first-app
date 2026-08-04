@@ -571,7 +571,7 @@ function SettingsInner() {
     { id: 'account',  label: 'Account',   icon: Store       },
     { id: 'store',    label: 'Store',      icon: Store       },
     { id: 'whatsapp', label: 'WhatsApp',   icon: MessageCircle },
-    { id: 'billing',  label: 'Usage',      icon: CreditCard  },
+    { id: 'billing',  label: 'Billing',     icon: CreditCard  },
     { id: 'team',     label: 'Team',       icon: Users       },
     { id: 'security', label: 'Security',   icon: Shield      },
   ] as const
