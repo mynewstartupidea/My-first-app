@@ -1078,14 +1078,12 @@ function SettingsInner() {
                     {planPrice && <p className="text-slate-500 text-sm">{planPrice}</p>}
                     {shopifyPlan && <p className="text-slate-400 text-xs mt-0.5">{shopifyPlan.orders}</p>}
                   </div>
-                  {changePlanHref && (
-                    <Link
-                      href={changePlanHref}
-                      className="flex items-center gap-1 text-sm font-medium text-[#25D366] hover:text-[#128C7E] transition"
-                    >
-                      Change plan <ArrowUpRight className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
+                  <Link
+                    href={changePlanHref ?? '/dashboard/billing'}
+                    className="flex items-center gap-1 text-sm font-medium text-[#25D366] hover:text-[#128C7E] transition"
+                  >
+                    Change plan <ArrowUpRight className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
 
                 {/* Usage bar */}
@@ -1126,10 +1124,10 @@ function SettingsInner() {
                     </div>
                   ))}
                 </div>
-                {changePlanHref && billing?.plan_name !== 'enterprise' && (
+                {billing?.plan_name !== 'enterprise' && (
                   <div className="mt-4 pt-4 border-t border-slate-100">
                     <Link
-                      href={changePlanHref}
+                      href={changePlanHref ?? '/dashboard/billing'}
                       className="inline-flex items-center gap-1.5 text-sm font-medium bg-[#25D366] hover:bg-[#128C7E] text-white px-4 py-2 rounded-xl transition"
                     >
                       Upgrade plan <ArrowUpRight className="w-3.5 h-3.5" />
