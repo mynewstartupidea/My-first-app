@@ -52,6 +52,12 @@ async function processMetaCode(
   const tokenType: 'user_token' | 'system_user_token' =
     systemUserToken && assignedSystemUser ? 'system_user_token' : 'user_token'
 
+  if (tokenType === 'user_token') {
+    // This means one of: META_SYSTEM_USER_ACCESS_TOKEN not set, or assignSystemUserToWABA failed.
+    // The merchant's token will expire in 60 days. Set the two META_SYSTEM_USER_* env vars to fix this.
+    console.warn(`[Meta callback] WARNING: storing 60-day user token for user=${userId}. Set META_SYSTEM_USER_ID + META_SYSTEM_USER_ACCESS_TOKEN in Vercel to use permanent tokens.`)
+  }
+
   const service    = createServiceClient()
   const authClient = await createClient()
 
