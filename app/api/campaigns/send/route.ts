@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   // Check billing quota before doing anything else
   const { data: remaining } = await supabase.rpc('get_messages_remaining', { p_user_id: user.id })
   if ((remaining ?? 0) <= 0) {
-    return NextResponse.json({ error: 'Monthly free message limit reached.' }, { status: 403 })
+    return NextResponse.json({ error: 'Monthly message limit reached. Upgrade your plan for more messages.' }, { status: 403 })
   }
 
   const { data: campaign, error: cErr } = await supabase

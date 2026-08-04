@@ -251,21 +251,57 @@ function WhatsAppStep({
 
   async function launchSignup() {
     if (!window.FB) { setError('Facebook SDK not ready — refresh and try again.'); return }
+    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
+    if (!configId) { setError('WhatsApp signup not configured. Please contact support.'); return }
     setConnecting(true)
     setError('')
 
-    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
-    const fbLoginOpts: Record<string, unknown> = {
-      response_type: 'code',
+    const fbLoginOpts = {
+      config_id:                      configId,
+      response_type:                  'code',
       override_default_response_type: true,
-      extras: { setup: {}, featureType: '', sessionInfoVersion: '2', ...(configId ? { setup: { config_id: configId } } : {}) },
+      extras:                         { sessionInfoVersion: 2 },
     }
 
+    // Safety timeout — reset if FB never fires the callback
+    const timeoutId = setTimeout(() => {
+      setConnecting(false)
+      setError('Connection timed out. Please try again.')
+    }, 5 * 60 * 1000)
+
     window.FB.login(async (response) => {
-      const code = response?.authResponse?.code
+      clearTimeout(timeoutId)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = response as any
+      const code = raw?.authResponse?.code as string | undefined
+
+      // Extract sessionInfo — Meta places it in different locations across SDK versions
+      const candidateInfo =
+        raw?.authResponse?.sessionInfo ??
+        raw?.authResponse?.session_info ??
+        raw?.sessionInfo ??
+        raw?.session_info ??
+        null
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function hasWabaFields(x: any) { return !!(x?.wabaID || x?.waba_id || x?.phoneNumberID || x?.phone_number_id) }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function normalise(x: any) {
+        if (!x) return null
+        return {
+          businessID:         x.businessID         ?? x.business_id         ?? undefined,
+          wabaID:             x.wabaID              ?? x.waba_id             ?? undefined,
+          phoneNumberID:      x.phoneNumberID       ?? x.phone_number_id     ?? undefined,
+          displayPhoneNumber: x.displayPhoneNumber  ?? x.display_phone_number ?? undefined,
+        }
+      }
+      const sessionInfo = hasWabaFields(candidateInfo) ? normalise(candidateInfo) : null
+
       if (!code) {
         setConnecting(false)
-        if (response?.status !== 'not_authorized') setError('WhatsApp connection cancelled.')
+        const status = response?.status ?? ''
+        if (status !== 'unknown' && status !== '') setError('WhatsApp connection cancelled.')
         return
       }
 
@@ -273,19 +309,17 @@ function WhatsAppStep({
         const res  = await fetch('/api/meta/callback', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ code }),
+          body:    JSON.stringify({ code, sessionInfo }),
         })
         const data = await res.json() as { ok: boolean; phone?: string; error?: string }
         if (!data.ok) { setError(data.error ?? 'Connection failed. Try again.'); setConnecting(false); return }
 
-        // Mark store's BSP
         if (storeId) {
           await supabase.from('stores').update({ whatsapp_bsp: 'meta', updated_at: new Date().toISOString() }).eq('id', storeId)
         }
         setPhone(data.phone ?? '')
         setConnected(true)
         setConnecting(false)
-        // Auto-advance after 1.5 s so user sees the success state
         setTimeout(onNext, 1500)
       } catch {
         setError('Network error. Please try again.')

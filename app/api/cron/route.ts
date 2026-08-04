@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       if (remainingCache[ownerId] <= 0) {
         await supabase.from('automation_jobs').update({
           status: 'failed',
-          error_message: 'Monthly free message limit reached.',
+          error_message: 'Monthly message limit reached.',
         }).eq('id', job.id)
         failed++
         continue
