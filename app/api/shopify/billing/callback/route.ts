@@ -70,5 +70,18 @@ export async function GET(request: Request) {
   }, { onConflict: 'user_id' })
 
   console.log(`[billing/callback] store=${store.id} plan=${planId} status=${dbStatus}`)
-  return NextResponse.redirect(`${APP_URL}/dashboard?billing=success&plan=${planId}`)
+
+  // Route new merchants (no WhatsApp connected yet) through onboarding.
+  // Returning merchants go straight to dashboard.
+  const { data: wa } = await supabase
+    .from('whatsapp_accounts')
+    .select('id')
+    .eq('user_id', store.user_id)
+    .maybeSingle()
+
+  const destination = wa
+    ? `${APP_URL}/dashboard?billing=success&plan=${planId}`
+    : `${APP_URL}/onboarding?billing=success&plan=${planId}`
+
+  return NextResponse.redirect(destination)
 }

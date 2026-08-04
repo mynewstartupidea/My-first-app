@@ -10,7 +10,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import Image from 'next/image'
 
 type Step = 'welcome' | 'connect_store' | 'whatsapp' | 'automations' | 'done'
 
@@ -73,9 +72,9 @@ function WelcomeStep({ email, onNext }: { email: string; onNext: () => void }) {
 
       <div className="grid grid-cols-1 gap-3 mb-8 text-left">
         {[
-          { icon: Store,         text: 'Connect your Shopify or WooCommerce store' },
-          { icon: MessageCircle, text: 'Link your WhatsApp Business account'         },
-          { icon: Zap,           text: 'Enable abandoned cart & COD automations'     },
+          { icon: Store,         text: 'Connect your Shopify store'              },
+          { icon: MessageCircle, text: 'Link your WhatsApp Business account'     },
+          { icon: Zap,           text: 'Enable abandoned cart & COD automations' },
         ].map(({ icon: Icon, text }, i) => (
           <div key={i} className="flex items-center gap-3 bg-slate-50 rounded-xl p-4">
             <div className="w-8 h-8 bg-[#25D366]/10 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -208,6 +207,16 @@ function ConnectStoreStep({
 
 // ─── WhatsApp step ────────────────────────────────────────────────────────────
 
+declare global {
+  interface Window {
+    FB?: {
+      init: (o: object) => void
+      login: (cb: (r: { authResponse?: { code?: string } | null; status?: string }) => void, opts: object) => void
+    }
+    fbAsyncInit?: () => void
+  }
+}
+
 function WhatsAppStep({
   storeId, onNext, onSkip
 }: {
@@ -215,18 +224,88 @@ function WhatsAppStep({
   onNext: () => void
   onSkip: () => void
 }) {
-  const [saving, setSaving] = useState(false)
+  const [fbReady,    setFbReady]    = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [connected,  setConnected]  = useState(false)
+  const [phone,      setPhone]      = useState('')
+  const [error,      setError]      = useState('')
   const supabase = useMemo(() => createClient(), [])
 
-  async function handleSave() {
-    if (!storeId) { onNext(); return }
-    setSaving(true)
-    await supabase.from('stores').update({
-      whatsapp_bsp: 'meta',
-      updated_at:   new Date().toISOString(),
-    }).eq('id', storeId)
-    setSaving(false)
-    onNext()
+  // Load FB SDK
+  useEffect(() => {
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID
+    if (!appId) return
+    if (window.FB) { setFbReady(true); return }
+    window.fbAsyncInit = function () {
+      window.FB!.init({ appId, version: 'v22.0', xfbml: false, status: false })
+      setFbReady(true)
+    }
+    if (!document.getElementById('fb-jssdk')) {
+      const s = document.createElement('script')
+      s.id  = 'fb-jssdk'
+      s.src = 'https://connect.facebook.net/en_US/sdk.js'
+      s.async = true; s.defer = true
+      document.head.appendChild(s)
+    }
+  }, [])
+
+  async function launchSignup() {
+    if (!window.FB) { setError('Facebook SDK not ready — refresh and try again.'); return }
+    setConnecting(true)
+    setError('')
+
+    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
+    const fbLoginOpts: Record<string, unknown> = {
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: '', sessionInfoVersion: '2', ...(configId ? { setup: { config_id: configId } } : {}) },
+    }
+
+    window.FB.login(async (response) => {
+      const code = response?.authResponse?.code
+      if (!code) {
+        setConnecting(false)
+        if (response?.status !== 'not_authorized') setError('WhatsApp connection cancelled.')
+        return
+      }
+
+      try {
+        const res  = await fetch('/api/meta/callback', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ code }),
+        })
+        const data = await res.json() as { ok: boolean; phone?: string; error?: string }
+        if (!data.ok) { setError(data.error ?? 'Connection failed. Try again.'); setConnecting(false); return }
+
+        // Mark store's BSP
+        if (storeId) {
+          await supabase.from('stores').update({ whatsapp_bsp: 'meta', updated_at: new Date().toISOString() }).eq('id', storeId)
+        }
+        setPhone(data.phone ?? '')
+        setConnected(true)
+        setConnecting(false)
+        // Auto-advance after 1.5 s so user sees the success state
+        setTimeout(onNext, 1500)
+      } catch {
+        setError('Network error. Please try again.')
+        setConnecting(false)
+      }
+    }, fbLoginOpts)
+  }
+
+  if (connected) {
+    return (
+      <div className="text-center max-w-md mx-auto">
+        <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <CheckCircle2 className="w-8 h-8 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">WhatsApp connected!</h2>
+        <p className="text-slate-500 mb-2">{phone && <span className="font-semibold text-slate-700">{phone}</span>}</p>
+        <p className="text-slate-400 text-sm">Your WhatsApp Business number is ready. Moving to the next step…</p>
+        <Loader2 className="w-5 h-5 animate-spin text-[#25D366] mx-auto mt-6" />
+      </div>
+    )
   }
 
   return (
@@ -236,30 +315,20 @@ function WhatsAppStep({
       </div>
       <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Connect WhatsApp</h2>
       <p className="text-slate-500 text-center mb-8 text-sm">
-        Wapaci uses the WhatsApp Cloud API directly — no third-party provider needed.
+        Link your WhatsApp Business number via Meta Embedded Signup — takes about 2 minutes.
       </p>
 
-      {/* Info card */}
-      <div className="bg-[#25D366]/8 border border-[#25D366]/20 rounded-2xl p-5 mb-6">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 bg-[#25D366]/15 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
-            <CheckCircle2 className="w-5 h-5 text-[#25D366]" />
-          </div>
-          <div>
-            <p className="font-semibold text-slate-800 text-sm mb-1">Official Meta WhatsApp API</p>
-            <p className="text-slate-500 text-xs leading-relaxed">
-              Wapaci connects directly to the WhatsApp Cloud API via Meta Embedded Signup.
-              You&apos;ll link your WhatsApp Business number in <strong>Settings → WhatsApp</strong> right after this — it only takes 2 minutes.
-            </p>
-          </div>
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3 mb-7">
         {[
-          { icon: '🔒', label: 'No BSP needed',      desc: 'Direct Meta API' },
-          { icon: '⚡', label: '2-min setup',         desc: 'Embedded Signup' },
-          { icon: '✅', label: 'Meta verified',       desc: 'Official partner' },
+          { icon: '🔒', label: 'No BSP fee',      desc: 'Direct Meta API' },
+          { icon: '⚡', label: '2-min setup',      desc: 'Embedded Signup' },
+          { icon: '✅', label: 'Meta verified',    desc: 'Official partner' },
         ].map(f => (
           <div key={f.label} className="bg-slate-50 rounded-xl p-3 text-center">
             <div className="text-xl mb-1">{f.icon}</div>
@@ -270,15 +339,19 @@ function WhatsAppStep({
       </div>
 
       <button
-        onClick={handleSave}
-        disabled={saving}
+        onClick={launchSignup}
+        disabled={connecting || !fbReady}
         className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-semibold py-3.5 rounded-2xl transition mb-3"
       >
-        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-        {saving ? 'Saving…' : 'Got it — Continue'}
+        {connecting
+          ? <><Loader2 className="w-5 h-5 animate-spin" /> Connecting…</>
+          : !fbReady
+            ? <><Loader2 className="w-5 h-5 animate-spin" /> Loading…</>
+            : <><MessageCircle className="w-5 h-5" /> Connect WhatsApp</>
+        }
       </button>
       <button onClick={onSkip} className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 text-sm py-2 transition">
-        <SkipForward className="w-4 h-4" /> I&apos;ll configure this later
+        <SkipForward className="w-4 h-4" /> I&apos;ll connect WhatsApp later
       </button>
     </div>
   )
