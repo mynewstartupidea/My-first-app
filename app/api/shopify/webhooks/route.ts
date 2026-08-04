@@ -3,6 +3,18 @@ import { verifyShopifyWebhook } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
 
+// Normalise a raw phone string to E.164 for Indian numbers.
+// Handles: 10-digit bare, +91XXXXXXXXXX (already E.164), 91XXXXXXXXXX (country code, no +).
+// Non-Indian numbers (different length/prefix) are returned with a leading + so they
+// are at least valid E.164, avoiding double +91 prepending.
+function toE164(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 10) return `+91${digits}`
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`
+  if (digits.length > 10) return `+${digits}` // already has country code digits
+  return `+91${digits}`
+}
+
 export async function POST(request: Request) {
   const body      = await request.text()
   const hmac      = request.headers.get('X-Shopify-Hmac-Sha256') ?? ''
@@ -48,7 +60,7 @@ export async function POST(request: Request) {
         // Shopify GDPR: delete customer data
         await supabase.from('customers').delete()
           .eq('store_id', store.id)
-          .eq('phone', `+91${String((payload as Record<string, unknown>).phone ?? '').replace(/\D/g, '')}`)
+          .eq('phone', toE164(String((payload as Record<string, unknown>).phone ?? '')))
         console.log(`[webhook] customers/redact for ${shopDomain}`)
         break
       case 'shop/redact':
@@ -87,8 +99,9 @@ export async function POST(request: Request) {
 }
 
 async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, checkout: Record<string, unknown>) {
-  const phone = String(checkout.phone ?? (checkout.shipping_address as Record<string, unknown>)?.phone ?? '').replace(/\D/g, '')
-  if (!phone) return
+  const rawPhone = String(checkout.phone ?? (checkout.shipping_address as Record<string, unknown>)?.phone ?? '')
+  if (!rawPhone.replace(/\D/g, '')) return
+  const phone = toE164(rawPhone)
 
   const { data: auto } = await supabase
     .from('automations')
@@ -120,7 +133,7 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     .from('automation_jobs')
     .update({ status: 'cancelled' })
     .eq('store_id', store.id)
-    .eq('customer_phone', `+91${phone}`)
+    .eq('customer_phone', phone)
     .eq('type', 'abandoned_cart')
     .eq('status', 'pending')
 
@@ -128,7 +141,7 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     store_id:       store.id,
     automation_id:  auto.id,
     type:           'abandoned_cart',
-    customer_phone: `+91${phone}`,
+    customer_phone: phone,
     customer_name:  firstName,
     message,
     context:        { checkout_id: checkout.id, line_items: lineItems.length, checkout_url: checkoutUrl },
@@ -139,7 +152,7 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
   // Upsert customer
   await supabase.from('customers').upsert({
     store_id:      store.id,
-    phone:         `+91${phone}`,
+    phone,
     name:          firstName,
     email:         String(checkout.email ?? ''),
     whatsapp_opt_in: true,
@@ -195,8 +208,9 @@ async function attributeRevenue(
 }
 
 async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
-  const phone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '').replace(/\D/g, '')
-  if (!phone) return
+  const rawPhone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '')
+  if (!rawPhone.replace(/\D/g, '')) return
+  const phone = toE164(rawPhone)
 
   const isCOD        = String((order.payment_gateway_names as string[])?.[0] ?? '').toLowerCase().includes('cod') ||
                        String(order.payment_gateway ?? '').toLowerCase().includes('cod') ||
@@ -210,7 +224,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     .from('automation_jobs')
     .update({ status: 'cancelled' })
     .eq('store_id', store.id)
-    .eq('customer_phone', `+91${phone}`)
+    .eq('customer_phone', phone)
     .eq('type', 'abandoned_cart')
     .eq('status', 'pending')
 
@@ -226,7 +240,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     })
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: confirmAuto.id, type: 'order_confirmation',
-      customer_phone: `+91${phone}`, customer_name: firstName, message: msg,
+      customer_phone: phone, customer_name: firstName, message: msg,
       context: { order_id: order.id, order_number: orderNumber },
       status: 'pending', scheduled_at: new Date().toISOString(),
     })
@@ -245,7 +259,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
       const scheduledAt = new Date(Date.now() + codAuto.delay_minutes * 60 * 1000).toISOString()
       await supabase.from('automation_jobs').insert({
         store_id: store.id, automation_id: codAuto.id, type: 'cod_verification',
-        customer_phone: `+91${phone}`, customer_name: firstName, message: msg,
+        customer_phone: phone, customer_name: firstName, message: msg,
         context: { order_id: order.id, order_number: orderNumber, total_price: totalPrice },
         status: 'pending', scheduled_at: scheduledAt,
       })
@@ -255,26 +269,26 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
   // Revenue attribution — attribute order value to last WhatsApp message within 24h
   const orderValue = parseFloat(String(order.total_price ?? '0'))
   if (orderValue > 0) {
-    await attributeRevenue(supabase, store.id, `+91${phone}`, orderValue, order.id).catch(() => null)
+    await attributeRevenue(supabase, store.id, phone, orderValue, order.id).catch(() => null)
   }
 
   // Update customer stats
   await supabase.from('customers').upsert({
-    store_id: store.id, phone: `+91${phone}`, name: firstName,
+    store_id: store.id, phone, name: firstName,
     email: String((order.customer as Record<string, unknown>)?.email ?? order.email ?? ''),
     whatsapp_opt_in: true, total_orders: 1, last_order_at: new Date().toISOString(),
   }, { onConflict: 'store_id,phone', ignoreDuplicates: false })
 }
 
 async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
-  const phone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '').replace(/\D/g, '')
-  if (!phone) return
+  const rawPhone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '')
+  if (!rawPhone.replace(/\D/g, '')) return
+  const customerPhone = toE164(rawPhone)
 
   const firstName   = String((order.customer as Record<string, unknown>)?.first_name ?? 'there')
   const orderNumber = String(order.order_number ?? order.name ?? '')
   const fulfillments = (order.fulfillments as Record<string, unknown>[]) ?? []
   const trackingUrl  = String((fulfillments[0]?.tracking_url as string) ?? '')
-  const customerPhone = `+91${phone}`
 
   // Shipping update
   const { data: shipAuto } = await supabase
