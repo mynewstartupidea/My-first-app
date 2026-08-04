@@ -237,7 +237,7 @@ export default function SupportPage() {
       <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { icon: '📚', title: 'WhatsApp Setup Guide', desc: 'Step-by-step Meta Embedded Signup', href: '/dashboard/settings?tab=whatsapp' },
-          { icon: '💬', title: 'Usage',                 desc: 'Review free message usage',       href: '/dashboard/billing' },
+          { icon: '💬', title: 'Billing & Usage',          desc: 'View your plan and message usage',  href: '/dashboard/billing' },
           { icon: '🔌', title: 'Integrations',          desc: 'Connect Shopify and other tools', href: '/dashboard/integrations' },
         ].map(link => (
           <a key={link.title} href={link.href}

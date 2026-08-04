@@ -47,7 +47,7 @@ export default function DeveloperPage() {
   const endpoints = [
     { method: 'POST', path: '/api/whatsapp/test',  desc: 'Send a test WhatsApp message' },
     { method: 'POST', path: '/api/campaigns/send', desc: 'Trigger a campaign broadcast' },
-    { method: 'GET',  path: '/api/billing/status', desc: 'Get current free plan usage' },
+    { method: 'GET',  path: '/api/billing/status', desc: 'Get current plan usage and status' },
     { method: 'GET',  path: '/api/cron',           desc: 'Process pending automation jobs (cron)' },
   ]
 
