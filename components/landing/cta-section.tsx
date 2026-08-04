@@ -82,7 +82,7 @@ export default function CtaSection() {
             Start for free
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-150" />
           </Link>
-          <p className="text-slate-500 text-sm">No credit card · Free trial · Cancel anytime</p>
+          <p className="text-slate-500 text-sm">No credit card required · Free account</p>
         </motion.div>
 
         {/* Trust badges */}

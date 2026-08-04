@@ -59,14 +59,14 @@ export async function GET() {
     service.from('stores').select('id,user_id,shopify_domain,shop_name,plan,is_active,created_at,whatsapp_bsp,whatsapp_number'),
     service.from('automations').select('store_id,is_enabled'),
     service.from('messages').select('store_id,created_at').gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
-    service.from('billing').select('user_id,plan_name,status,amount_paise,messages_used,messages_limit,razorpay_subscription_id,next_billing_date,cancelled_at'),
+    service.from('billing').select('user_id,plan_name,status,billing_provider,amount_paise,messages_used,messages_limit,next_billing_date,cancelled_at,shopify_subscription_id'),
     service.from('organizations').select('id', { count: 'exact', head: true }),
   ])
 
   // ── Lookups ───────────────────────────────────────────────────────────────
   type ProfileRow  = { id: string; full_name: string | null; company_name: string | null; phone: string | null; team_size: string | null; email: string | null }
   type StoreRow    = { id: string; user_id: string; shopify_domain: string | null; shop_name: string | null; plan: string | null; is_active: boolean; created_at: string; whatsapp_bsp: string | null; whatsapp_number: string | null }
-  type BillingRow  = { user_id: string; plan_name: string | null; status: string | null; amount_paise: number; messages_used: number; messages_limit: number; razorpay_subscription_id: string | null; next_billing_date: string | null; cancelled_at: string | null }
+  type BillingRow  = { user_id: string; plan_name: string | null; status: string | null; billing_provider: string | null; amount_paise: number; messages_used: number; messages_limit: number; next_billing_date: string | null; cancelled_at: string | null; shopify_subscription_id: string | null }
 
   const profileById: Record<string, ProfileRow>  = {}
   for (const p of (profiles ?? []) as ProfileRow[]) profileById[p.id] = p
@@ -109,17 +109,21 @@ export async function GET() {
       billing_amount:        billing?.amount_paise ?? 0,
       messages_used:         billing?.messages_used ?? 0,
       messages_limit:        billing?.messages_limit ?? 0,
-      has_subscription:      !!(billing?.razorpay_subscription_id),
-      razorpay_sub_id:       billing?.razorpay_subscription_id ?? null,
-      next_billing_date:     billing?.next_billing_date ?? null,
-      cancelled_at:          billing?.cancelled_at ?? null,
+      has_subscription:         billing?.status === 'active' || billing?.status === 'trialing',
+      shopify_subscription_id:  billing?.shopify_subscription_id ?? null,
+      next_billing_date:        billing?.next_billing_date ?? null,
+      cancelled_at:             billing?.cancelled_at ?? null,
     }
   }).sort((a, b) => new Date(b.signed_up_at).getTime() - new Date(a.signed_up_at).getTime())
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  const weekAgo      = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const activeSubs   = (billingRows ?? []).filter((b: { status: string | null }) => b.status === 'active')
-  const mrr          = activeSubs.reduce((s: number, b: { amount_paise: number }) => s + (b.amount_paise ?? 0), 0) / 100
+  const SHOPIFY_PLAN_USD: Record<string, number> = { starter: 29, growth: 49, scale: 99, enterprise: 299 }
+  const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const activeSubs = (billingRows ?? []).filter((b: { status: string | null }) => b.status === 'active' || b.status === 'trialing')
+  const mrr        = activeSubs.reduce((s: number, b: { billing_provider: string | null; plan_name: string | null; amount_paise: number }) => {
+    if (b.billing_provider === 'shopify') return s + (SHOPIFY_PLAN_USD[b.plan_name ?? ''] ?? 0)
+    return s + (b.amount_paise ?? 0) / 100
+  }, 0)
 
   const stats = {
     total_signups:        users.length,

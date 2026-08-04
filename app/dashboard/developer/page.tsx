@@ -47,7 +47,7 @@ export default function DeveloperPage() {
   const endpoints = [
     { method: 'POST', path: '/api/whatsapp/test',  desc: 'Send a test WhatsApp message' },
     { method: 'POST', path: '/api/campaigns/send', desc: 'Trigger a campaign broadcast' },
-    { method: 'GET',  path: '/api/billing/status', desc: 'Get current billing status and usage' },
+    { method: 'GET',  path: '/api/billing/status', desc: 'Get current free plan usage' },
     { method: 'GET',  path: '/api/cron',           desc: 'Process pending automation jobs (cron)' },
   ]
 
@@ -100,7 +100,6 @@ export default function DeveloperPage() {
           {[
             { label: 'Shopify Webhooks',   url: `${BASE_URL}/api/shopify/webhooks`,  note: 'checkouts/create, orders/create, orders/fulfilled' },
             { label: 'Meta WhatsApp',      url: `${BASE_URL}/api/meta/webhook`,       note: 'messages, message_deliveries, message_reads' },
-            { label: 'Razorpay Payments',  url: `${BASE_URL}/api/razorpay/webhook`,   note: 'subscription.charged, subscription.cancelled' },
             { label: 'Vercel Cron',        url: `${BASE_URL}/api/cron`,               note: 'Every 1 minute — processes automation queue' },
           ].map(w => (
             <div key={w.label} className="rounded-xl bg-slate-50 p-3.5">

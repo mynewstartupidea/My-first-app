@@ -58,7 +58,7 @@ function Header() {
         <span className="text-white font-bold text-lg">Wapaci</span>
       </Link>
       <Link href={UTM} className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-lg shadow-green-500/30 hover:scale-[1.03] active:scale-[0.98]">
-        Start free trial <ArrowRight className="w-4 h-4" />
+        Start free <ArrowRight className="w-4 h-4" />
       </Link>
     </header>
   )
@@ -106,7 +106,7 @@ function Hero() {
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.65 }} className="flex flex-col sm:flex-row gap-3 mb-8">
             <Link href={UTM} className="group inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-7 py-4 rounded-2xl text-base transition-all duration-200 shadow-2xl shadow-green-500/40 hover:scale-[1.03] active:scale-[0.98]">
-              Own your customers — free trial <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              Own your customers — free <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </motion.div>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.8 }} className="flex flex-wrap gap-5">
@@ -285,12 +285,12 @@ function TheMath() {
           <div className="grid md:grid-cols-3 gap-6 text-center mb-8">
             <div><p className="text-slate-500 text-sm mb-2">Zomato commission rate</p><p className="text-4xl font-extrabold text-red-400">30%</p><p className="text-slate-600 text-xs mt-1">of every online order</p></div>
             <div><p className="text-slate-500 text-sm mb-2">WhatsApp direct orders</p><p className="text-4xl font-extrabold text-[#25D366]">0%</p><p className="text-slate-600 text-xs mt-1">commission taken</p></div>
-            <div><p className="text-slate-500 text-sm mb-2">Wapaci costs from</p><p className="text-4xl font-extrabold text-white">₹999</p><p className="text-slate-600 text-xs mt-1">per month flat</p></div>
+            <div><p className="text-slate-500 text-sm mb-2">Wapaci is currently</p><p className="text-4xl font-extrabold text-white">Free</p><p className="text-slate-600 text-xs mt-1">to use</p></div>
           </div>
           <div className="border-t border-white/5 pt-8 text-center space-y-2">
             <p className="text-slate-300 text-base md:text-lg">Restaurant doing <span className="text-white font-bold">₹3L/month via Zomato</span> pays <span className="text-red-400 font-bold">₹90,000 in commission monthly.</span></p>
             <p className="text-slate-300 text-base md:text-lg mt-2">Move just 30% of those orders to WhatsApp direct = <span className="text-[#25D366] font-bold text-xl">save ₹27,000/month.</span></p>
-            <p className="text-slate-500 text-sm mt-4">Wapaci costs ₹999/month. The math writes itself.</p>
+            <p className="text-slate-500 text-sm mt-4">Wapaci is free to use right now.</p>
           </div>
         </motion.div>
       </div>
@@ -385,9 +385,9 @@ function FinalCTA() {
         </motion.p>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, delay: 0.3 }} className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href={UTM} className="group inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-8 py-4 rounded-2xl text-lg transition-all duration-200 shadow-2xl shadow-green-500/40 hover:scale-[1.03] active:scale-[0.98]">
-            Start your 7-day free trial <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            Start your free account <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </Link>
-          <p className="text-slate-500 text-sm">No credit card · Cancel anytime</p>
+          <p className="text-slate-500 text-sm">No credit card required · Free account</p>
         </motion.div>
         <motion.div initial={{ opacity: 0 }} animate={inView ? { opacity: 1 } : {}} transition={{ duration: 0.8, delay: 0.5 }} className="mt-10 flex flex-wrap items-center justify-center gap-6">
           {['🔒 WhatsApp Business API', '🇮🇳 Built for Indian restaurants', '⚡ Setup in 10 minutes', '₹0 per order commission'].map(b => (

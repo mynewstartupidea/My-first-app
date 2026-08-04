@@ -1,10 +1,34 @@
-name = "Wapaci"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
 client_id = "d23312df272281710a330b54c7561013"
+name = "Wapaci"
 application_url = "https://app.wapaci.com"
 embedded = false
 
+[build]
+automatically_update_urls_on_dev = false
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  topics = [
+  "app_subscriptions/update",
+  "app/uninstalled",
+  "checkouts/create",
+  "checkouts/update",
+  "orders/create",
+  "orders/fulfilled",
+  "orders/updated"
+]
+
 [access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "write_checkouts,read_checkouts,read_customers,write_customers,write_draft_orders,read_draft_orders,read_fulfillments,read_inventory,read_orders,write_orders,read_products,write_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
@@ -12,31 +36,5 @@ redirect_urls = [
   "https://app.wapaci.com/api/shopify/billing/callback"
 ]
 
-[webhooks]
-api_version = "2026-07"
-
-[[webhooks.subscriptions]]
-topics = [
-  "app/uninstalled",
-  "app_subscriptions/update",
-  "checkouts/create",
-  "checkouts/update",
-  "orders/create",
-  "orders/fulfilled",
-  "orders/updated"
-]
-uri = "https://app.wapaci.com/api/shopify/webhooks"
-
-[[webhooks.subscriptions]]
-compliance_topics = [
-  "customers/data_request",
-  "customers/redact",
-  "shop/redact"
-]
-uri = "https://app.wapaci.com/api/shopify/webhooks"
-
 [pos]
 embedded = false
-
-[build]
-automatically_update_urls_on_dev = false

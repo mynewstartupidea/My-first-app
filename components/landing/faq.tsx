@@ -15,8 +15,8 @@ const faqs = [
     a: 'Never. All messages are sent only to customers who have opted in — via checkout, booking flows, or signup forms. We follow WhatsApp\'s strict messaging policies. Your reputation stays intact.',
   },
   {
-    q: 'How does pricing work?',
-    a: 'You pay per message sent, with a low base platform fee. There are no hidden costs, no setup fees, and no long-term contracts. Start free and scale as you grow.',
+    q: 'Is Wapaci free to use?',
+    a: 'Yes. Wapaci is currently free to use, with no Wapaci subscription fee and no off-platform app charge.',
   },
   {
     q: 'Which platforms and tools does Wapaci integrate with?',

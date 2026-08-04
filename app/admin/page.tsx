@@ -14,12 +14,13 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const PLAN_PRICES: Record<string, number> = { starter: 999, growth: 2999, pro: 7999 }
+const PLAN_PRICES: Record<string, number> = { starter: 29, growth: 49, scale: 99, enterprise: 299 }
 const PLAN_COLORS: Record<string, string> = {
-  trial:   'bg-slate-700 text-slate-300',
-  starter: 'bg-blue-900/50 text-blue-300',
-  growth:  'bg-green-900/50 text-green-300',
-  pro:     'bg-purple-900/50 text-purple-300',
+  trial:      'bg-slate-700 text-slate-300',
+  starter:    'bg-blue-900/50 text-blue-300',
+  growth:     'bg-green-900/50 text-green-300',
+  scale:      'bg-purple-900/50 text-purple-300',
+  enterprise: 'bg-amber-900/50 text-amber-300',
 }
 const STATUS_COLORS: Record<string, string> = {
   trialing:  'bg-blue-900/40 text-blue-400',
@@ -50,7 +51,7 @@ interface AdminUser {
   messages_used: number
   messages_limit: number
   has_subscription: boolean
-  razorpay_sub_id: string | null
+  shopify_subscription_id: string | null
   next_billing_date: string | null
   cancelled_at: string | null
 }
@@ -293,7 +294,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Monthly Revenue (MRR)', value: `₹${stats.mrr_inr.toLocaleString('en-IN')}`, icon: DollarSign,    color: 'text-green-400',  bg: 'bg-green-500/10',  sub: `ARR ₹${arr.toLocaleString('en-IN')}` },
+                { label: 'Monthly Revenue (MRR)', value: `$${stats.mrr_inr.toLocaleString()}`, icon: DollarSign,    color: 'text-green-400',  bg: 'bg-green-500/10',  sub: `ARR $${arr.toLocaleString()}` },
                 { label: 'Active Subscribers',    value: String(stats.active_subscriptions),           icon: Crown,         color: 'text-amber-400',  bg: 'bg-amber-500/10',  sub: `of ${stats.total_signups} total users` },
                 { label: 'Total Signups',          value: String(stats.total_signups),                 icon: Users,         color: 'text-blue-400',   bg: 'bg-blue-500/10',   sub: `+${stats.new_this_week} this week` },
                 { label: 'Email Confirmed',        value: String(stats.email_confirmed),               icon: CheckCheck,    color: 'text-[#25D366]',  bg: 'bg-[#25D366]/10',  sub: `${stats.total_signups - stats.email_confirmed} unconfirmed` },
@@ -392,7 +393,8 @@ export default function AdminPage() {
                 <option value="trial">Trial</option>
                 <option value="starter">Starter</option>
                 <option value="growth">Growth</option>
-                <option value="pro">Pro</option>
+                <option value="scale">Scale</option>
+                <option value="enterprise">Enterprise</option>
               </select>
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
                 className="bg-white/5 border border-white/10 text-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]">
@@ -549,12 +551,12 @@ export default function AdminPage() {
                                 </div>
                                 <div>
                                   <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1"><CreditCard className="w-3 h-3" /> Billing</p>
-                                  <p className="text-white">₹{PLAN_PRICES[u.billing_plan ?? ''] ?? 0}/mo</p>
+                                  <p className="text-white">${PLAN_PRICES[u.billing_plan ?? ''] ?? 0}/mo</p>
                                   {u.next_billing_date && <p className="text-slate-400 text-xs">Next: {fmtDate(u.next_billing_date)}</p>}
                                   {u.cancelled_at && <p className="text-red-400 text-xs">Cancelled: {fmtDate(u.cancelled_at)}</p>}
-                                  {u.razorpay_sub_id && (
-                                    <button onClick={() => copy(u.razorpay_sub_id!)} className="text-[10px] text-slate-500 hover:text-white flex items-center gap-1 mt-1 font-mono">
-                                      {u.razorpay_sub_id.slice(0, 20)}… <Copy className="w-2.5 h-2.5" />
+                                  {u.shopify_subscription_id && (
+                                    <button onClick={() => copy(u.shopify_subscription_id!)} className="text-[10px] text-slate-500 hover:text-white flex items-center gap-1 mt-1 font-mono">
+                                      {u.shopify_subscription_id.slice(0, 24)}… <Copy className="w-2.5 h-2.5" />
                                     </button>
                                   )}
                                 </div>
@@ -580,15 +582,15 @@ export default function AdminPage() {
             <div className="bg-white/3 border border-white/8 rounded-2xl p-6">
               <h3 className="text-slate-400 text-sm font-medium mb-4 flex items-center gap-2"><DollarSign className="w-4 h-4" /> Revenue by Plan</h3>
               <div className="space-y-4">
-                {['starter', 'growth', 'pro'].map(plan => {
-                  const count = users.filter(u => u.billing_plan === plan && u.billing_status === 'active').length
+                {['starter', 'growth', 'scale', 'enterprise'].map(plan => {
+                  const count = users.filter(u => u.billing_plan === plan && (u.billing_status === 'active' || u.billing_status === 'trialing')).length
                   const rev   = count * (PLAN_PRICES[plan] ?? 0)
                   const pct   = stats.mrr_inr ? Math.round((rev / stats.mrr_inr) * 100) : 0
                   return (
                     <div key={plan}>
                       <div className="flex items-center justify-between text-sm mb-1.5">
                         <span className="capitalize text-white font-medium">{plan}</span>
-                        <span className="text-slate-400">₹{rev.toLocaleString('en-IN')} · {count} users</span>
+                        <span className="text-slate-400">${rev.toLocaleString()} · {count} users</span>
                       </div>
                       <div className="w-full bg-white/5 rounded-full h-2">
                         <div className="h-2 rounded-full bg-[#25D366]" style={{ width: `${pct}%` }} />
@@ -599,9 +601,9 @@ export default function AdminPage() {
               </div>
               <div className="mt-6 pt-4 border-t border-white/8 space-y-2">
                 {[
-                  { label: 'MRR', val: `₹${stats.mrr_inr.toLocaleString('en-IN')}` },
-                  { label: 'ARR', val: `₹${arr.toLocaleString('en-IN')}` },
-                  { label: 'Avg revenue / subscriber', val: `₹${stats.active_subscriptions ? Math.round(stats.mrr_inr / stats.active_subscriptions).toLocaleString('en-IN') : 0}` },
+                  { label: 'MRR', val: `$${stats.mrr_inr.toLocaleString()}` },
+                  { label: 'ARR', val: `$${arr.toLocaleString()}` },
+                  { label: 'Avg revenue / subscriber', val: `$${stats.active_subscriptions ? Math.round(stats.mrr_inr / stats.active_subscriptions) : 0}` },
                 ].map(r => (
                   <div key={r.label} className="flex justify-between text-sm">
                     <span className="text-slate-400">{r.label}</span>
@@ -677,7 +679,7 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td className="py-2.5">
-                          <span className="text-green-400 font-bold">₹{PLAN_PRICES[u.billing_plan ?? ''] ?? 0}</span>
+                          <span className="text-green-400 font-bold">${PLAN_PRICES[u.billing_plan ?? ''] ?? 0}</span>
                         </td>
                         <td className="py-2.5">
                           <span className={cn('text-[10px] px-2 py-0.5 rounded-full capitalize', STATUS_COLORS[u.billing_status ?? ''] ?? 'bg-slate-700 text-slate-400')}>
@@ -845,15 +847,16 @@ export default function AdminPage() {
               <select value={newPlan} onChange={e => setNewPlan(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] mb-4">
                 <option value="trial">Trial (free)</option>
-                <option value="starter">Starter — ₹999/mo</option>
-                <option value="growth">Growth — ₹2,999/mo</option>
-                <option value="pro">Pro — ₹7,999/mo</option>
+                <option value="starter">Starter — $29/mo</option>
+                <option value="growth">Growth — $49/mo</option>
+                <option value="scale">Scale — $99/mo</option>
+                <option value="enterprise">Enterprise — $299/mo</option>
               </select>
             )}
 
             {actionType === 'cancel' && (
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4 text-xs text-amber-300">
-                This will cancel their Razorpay subscription at end of current billing cycle. They keep access until then.
+                This will mark their subscription as cancelled. They keep access until the end of their current billing cycle.
               </div>
             )}
 

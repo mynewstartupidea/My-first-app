@@ -58,7 +58,7 @@ function Header() {
         <span className="text-white font-bold text-lg">Wapaci</span>
       </Link>
       <Link href={UTM} className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-lg shadow-green-500/30 hover:scale-[1.03] active:scale-[0.98]">
-        Start free trial <ArrowRight className="w-4 h-4" />
+        Start free <ArrowRight className="w-4 h-4" />
       </Link>
     </header>
   )
@@ -106,7 +106,7 @@ function Hero() {
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.65 }} className="flex flex-col sm:flex-row gap-3 mb-8">
             <Link href={UTM} className="group inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-7 py-4 rounded-2xl text-base transition-all duration-200 shadow-2xl shadow-green-500/40 hover:scale-[1.03] active:scale-[0.98]">
-              Fill your batches — free trial <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              Fill your batches — free <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </motion.div>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.8 }} className="flex flex-wrap gap-5">
@@ -289,13 +289,13 @@ function TheMath() {
           <div className="grid md:grid-cols-3 gap-6 text-center mb-8">
             <div><p className="text-slate-500 text-sm mb-2">Industry demo show-up rate</p><p className="text-4xl font-extrabold text-red-400">35%</p><p className="text-slate-600 text-xs mt-1">without reminders</p></div>
             <div><p className="text-slate-500 text-sm mb-2">Show-up rate with Wapaci</p><p className="text-4xl font-extrabold text-[#25D366]">78%</p><p className="text-slate-600 text-xs mt-1">WhatsApp reminders work</p></div>
-            <div><p className="text-slate-500 text-sm mb-2">Wapaci costs from</p><p className="text-4xl font-extrabold text-white">₹999</p><p className="text-slate-600 text-xs mt-1">per month</p></div>
+            <div><p className="text-slate-500 text-sm mb-2">Wapaci is currently</p><p className="text-4xl font-extrabold text-white">Free</p><p className="text-slate-600 text-xs mt-1">to use</p></div>
           </div>
           <div className="border-t border-white/5 pt-8 text-center space-y-2">
             <p className="text-slate-300 text-base md:text-lg">200 demo registrations. At 35% show-up = <span className="text-red-400 font-bold">70 students</span> in the room.</p>
             <p className="text-slate-300 text-base md:text-lg mt-2">At 78% show-up = <span className="text-[#25D366] font-bold">156 students</span> — more than double. Same leads, same demos.</p>
             <p className="text-slate-300 text-base md:text-lg mt-2">At ₹30,000/student, that's <span className="text-[#25D366] font-bold text-xl">₹25,80,000 in extra enrolments</span> per batch.</p>
-            <p className="text-slate-500 text-sm mt-4">From ₹999/month. The ROI doesn't need a calculator.</p>
+            <p className="text-slate-500 text-sm mt-4">Wapaci is free to use right now.</p>
           </div>
         </motion.div>
       </div>
@@ -390,9 +390,9 @@ function FinalCTA() {
         </motion.p>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, delay: 0.3 }} className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href={UTM} className="group inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-8 py-4 rounded-2xl text-lg transition-all duration-200 shadow-2xl shadow-green-500/40 hover:scale-[1.03] active:scale-[0.98]">
-            Start your 7-day free trial <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            Start your free account <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </Link>
-          <p className="text-slate-500 text-sm">No credit card · Cancel anytime</p>
+          <p className="text-slate-500 text-sm">No credit card required · Free account</p>
         </motion.div>
         <motion.div initial={{ opacity: 0 }} animate={inView ? { opacity: 1 } : {}} transition={{ duration: 0.8, delay: 0.5 }} className="mt-10 flex flex-wrap items-center justify-center gap-6">
           {['🔒 WhatsApp Business API', '🇮🇳 Built for Indian institutes', '⚡ Setup in 10 minutes', '✅ Works for all coaching types'].map(b => (

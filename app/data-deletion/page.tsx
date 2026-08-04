@@ -101,7 +101,7 @@ export default function DataDeletionPage() {
             <li>Your Meta access token, WABA ID, and phone number ID</li>
             <li>Your connected Shopify store data and access tokens</li>
             <li>All customer records, message logs, and analytics data associated with your account</li>
-            <li>Your billing history (financial records may be retained as required by law)</li>
+            <li>Your account usage history</li>
             <li>All automation configurations and templates</li>
           </ul>
           <p>Data shared with Meta (e.g. messages sent via the WhatsApp Cloud API) is governed by <a href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noopener noreferrer" className="text-[#25D366] hover:underline">Meta&apos;s Privacy Policy</a>. You should also revoke Wapaci&apos;s access from your <a href="https://www.facebook.com/settings?tab=applications" target="_blank" rel="noopener noreferrer" className="text-[#25D366] hover:underline">Facebook App Settings</a>.</p>
@@ -119,7 +119,7 @@ export default function DataDeletionPage() {
 
         <Section title="5. Deletion Timeline">
           <p>We will complete all verified deletion requests within <strong className="text-slate-300">30 days</strong> of confirmation. We will send a confirmation email once deletion is complete.</p>
-          <p>Some data may be retained longer where required by applicable law (e.g. billing records for tax compliance) or to prevent fraud.</p>
+          <p>Some data may be retained longer where required by applicable law or to prevent fraud.</p>
         </Section>
 
         <Section title="6. Contact">

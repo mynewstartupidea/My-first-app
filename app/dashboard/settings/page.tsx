@@ -7,9 +7,11 @@ import { hasShopifyConnection, pickPreferredStore } from '@/lib/store-selection'
 import {
   Store, MessageCircle, Loader2, Save, CheckCircle2,
   AlertCircle, ExternalLink, Trash2, Info, ChevronDown, ChevronUp,
-  CreditCard, Users, Shield, Crown, Zap, TrendingUp,
-  UserPlus, Trash, Mail, Lock, RefreshCw, XCircle
+  CreditCard, Users, Shield,
+  UserPlus, Mail, Lock, RefreshCw, XCircle, ArrowUpRight
 } from 'lucide-react'
+import { SHOPIFY_PLANS } from '@/lib/shopify-billing'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import type { Store as StoreType } from '@/types'
 
@@ -18,14 +20,11 @@ import type { Store as StoreType } from '@/types'
 interface BillingStatus {
   plan_name: string
   status: string
+  billing_provider: string
   messages_limit: number
   messages_used: number
   messages_remaining: number
-  next_billing_date: string | null
   current_period_end: string | null
-  razorpay_subscription_id: string | null
-  amount_paise: number
-  cancelled_at: string | null
 }
 
 interface TeamMember {
@@ -46,17 +45,10 @@ const SHOPIFY_ERROR_MESSAGES: Record<string, string> = {
   not_configured:   'Shopify app credentials are not configured yet. Follow the setup guide below.',
 }
 
-const PLAN_META = {
-  trial:   { label: 'Free Trial',   price: '₹0/mo',      msgs: '500 messages/mo',   color: 'text-slate-600', bg: 'bg-slate-100',   amount: 0      },
-  starter: { label: 'Starter',      price: '₹999/mo',    msgs: '500 messages/mo',   color: 'text-blue-600',  bg: 'bg-blue-100',    amount: 99900  },
-  growth:  { label: 'Growth',       price: '₹2,999/mo',  msgs: '5,000 messages/mo', color: 'text-green-600', bg: 'bg-green-100',   amount: 299900 },
-  pro:     { label: 'Pro',          price: '₹7,999/mo',  msgs: '25,000 messages/mo',color: 'text-purple-600',bg: 'bg-purple-100',  amount: 799900 },
-} as const
-
-type PlanKey = keyof typeof PLAN_META
+const SHOPIFY_PLAN_MAP = Object.fromEntries(SHOPIFY_PLANS.map(p => [p.id, p]))
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  trialing:  { label: 'Trial',     color: 'bg-blue-100 text-blue-700' },
+  trialing:  { label: 'Active',    color: 'bg-green-100 text-green-700' },
   active:    { label: 'Active',    color: 'bg-green-100 text-green-700' },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700' },
   past_due:  { label: 'Past Due',  color: 'bg-amber-100 text-amber-700' },
@@ -117,9 +109,6 @@ function SettingsInner() {
   // Billing
   const [billing, setBilling]                 = useState<BillingStatus | null>(null)
   const [loadingBilling, setLoadingBilling]   = useState(false)
-  const [subscribing, setSubscribing]         = useState<string | null>(null)
-  const [cancelling, setCancelling]           = useState(false)
-
   // Team
   const [members, setMembers]                 = useState<TeamMember[]>([])
   const [loadingMembers, setLoadingMembers]   = useState(false)
@@ -525,69 +514,6 @@ function SettingsInner() {
     }
   }
 
-  // ── Billing actions ───────────────────────────────────────────────────────────
-  async function handleSubscribe(plan: string) {
-    setSubscribing(plan)
-    const res = await fetch('/api/billing/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      setSubscribing(null)
-      showToast(data.error ?? 'Failed to start subscription', false)
-      return
-    }
-
-    // Load Razorpay.js if not already loaded
-    await new Promise<void>((resolve) => {
-      if ((window as unknown as { Razorpay?: unknown }).Razorpay) { resolve(); return }
-      const script = document.createElement('script')
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-      script.onload = () => resolve()
-      script.onerror = () => resolve()
-      document.head.appendChild(script)
-    })
-
-    const RazorpayClass = (window as unknown as { Razorpay?: new (opts: unknown) => { open(): void } }).Razorpay
-    if (!RazorpayClass) {
-      setSubscribing(null)
-      showToast('Could not load payment gateway. Check your connection.', false)
-      return
-    }
-
-    const rzp = new RazorpayClass({
-      key:             data.key_id,
-      subscription_id: data.subscription_id,
-      name:            'Wapaci',
-      description:     `${data.label} Plan – Monthly`,
-      image:           '/logo.png',
-      handler:         async () => {
-        showToast('Payment successful! Activating your plan…')
-        await loadBilling()
-      },
-      prefill:         { email: userEmail },
-      theme:           { color: '#25D366' },
-      modal: {
-        ondismiss: () => setSubscribing(null),
-      },
-    })
-    rzp.open()
-    setSubscribing(null)
-  }
-
-  async function handleCancel() {
-    if (!confirm('Cancel your subscription? You keep access until the end of this billing period.')) return
-    setCancelling(true)
-    const res = await fetch('/api/billing/cancel', { method: 'POST' })
-    const data = await res.json()
-    setCancelling(false)
-    if (!res.ok) { showToast(data.error ?? 'Failed to cancel', false); return }
-    showToast('Subscription cancelled. Access continues until period end.')
-    await loadBilling()
-  }
-
   // ── Team actions ──────────────────────────────────────────────────────────────
   async function handleInvite() {
     if (!inviteEmail.trim()) return
@@ -631,17 +557,21 @@ function SettingsInner() {
     </div>
   )
 
-  const currentPlan = (billing?.plan_name ?? 'trial') as PlanKey
-  const planMeta = PLAN_META[currentPlan] ?? PLAN_META.trial
-  const statusMeta = STATUS_META[billing?.status ?? 'trialing'] ?? STATUS_META.trialing
-  const usagePct = billing ? Math.min(100, Math.round((billing.messages_used / billing.messages_limit) * 100)) : 0
+  const shopifyPlan  = SHOPIFY_PLAN_MAP[billing?.plan_name ?? '']
+  const planLabel    = shopifyPlan?.name ?? (billing?.plan_name === 'trial' || !billing ? 'Trial' : billing.plan_name)
+  const planPrice    = shopifyPlan ? `$${shopifyPlan.price}/mo` : null
+  const statusMeta   = STATUS_META[billing?.status ?? 'trialing'] ?? STATUS_META.trialing
+  const usagePct     = billing ? Math.min(100, Math.round((billing.messages_used / billing.messages_limit) * 100)) : 0
   const isShopifyConnected = hasShopifyConnection(store)
+  const changePlanHref = store?.shopify_domain
+    ? `/shopify/pricing?shop=${encodeURIComponent(store.shopify_domain)}&change=1`
+    : null
 
   const TABS = [
     { id: 'account',  label: 'Account',   icon: Store       },
     { id: 'store',    label: 'Store',      icon: Store       },
     { id: 'whatsapp', label: 'WhatsApp',   icon: MessageCircle },
-    { id: 'billing',  label: 'Billing',    icon: CreditCard  },
+    { id: 'billing',  label: 'Usage',      icon: CreditCard  },
     { id: 'team',     label: 'Team',       icon: Users       },
     { id: 'security', label: 'Security',   icon: Shield      },
   ] as const
@@ -662,7 +592,7 @@ function SettingsInner() {
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 text-sm mt-1">Manage your account, store, billing, and team</p>
+        <p className="text-slate-500 text-sm mt-1">Manage your account, store, usage, and team</p>
       </div>
 
       {/* Tab navigation */}
@@ -695,7 +625,7 @@ function SettingsInner() {
           </div>
           <div>
             <p className="font-medium text-slate-800">{userEmail}</p>
-            <p className="text-slate-400 text-xs">Account email · {planMeta.label} plan</p>
+            <p className="text-slate-400 text-xs">Account email · {planLabel} plan</p>
           </div>
         </div>
       </section>
@@ -1127,8 +1057,8 @@ function SettingsInner() {
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                    <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center">
-                      <Crown className="w-3.5 h-3.5 text-amber-600" />
+                    <div className="w-7 h-7 bg-[#25D366]/10 rounded-lg flex items-center justify-center">
+                      <CreditCard className="w-3.5 h-3.5 text-[#25D366]" />
                     </div>
                     Current Plan
                   </h2>
@@ -1137,43 +1067,33 @@ function SettingsInner() {
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl mb-4">
+                <div className="flex items-start justify-between p-4 bg-slate-50 rounded-xl mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-bold text-slate-900 text-lg">{planMeta.label}</p>
+                      <p className="font-bold text-slate-900 text-lg">{planLabel}</p>
                       <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', statusMeta.color)}>
                         {statusMeta.label}
                       </span>
                     </div>
-                    <p className="text-slate-500 text-sm">{planMeta.msgs} · {planMeta.price}</p>
-                    {billing?.current_period_end && (
-                      <p className="text-slate-400 text-xs mt-0.5">
-                        Period ends {new Date(billing.current_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    )}
-                    {billing?.next_billing_date && billing.status === 'active' && (
-                      <p className="text-slate-400 text-xs mt-0.5">
-                        Next billing: {new Date(billing.next_billing_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    )}
-                    {billing?.cancelled_at && (
-                      <p className="text-red-500 text-xs mt-0.5">
-                        Cancelled — access continues until period end
-                      </p>
-                    )}
+                    {planPrice && <p className="text-slate-500 text-sm">{planPrice}</p>}
+                    {shopifyPlan && <p className="text-slate-400 text-xs mt-0.5">{shopifyPlan.orders}</p>}
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-slate-900">{planMeta.price}</p>
-                    {currentPlan !== 'trial' && <p className="text-xs text-slate-400">per month</p>}
-                  </div>
+                  {changePlanHref && (
+                    <Link
+                      href={changePlanHref}
+                      className="flex items-center gap-1 text-sm font-medium text-[#25D366] hover:text-[#128C7E] transition"
+                    >
+                      Change plan <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
                 </div>
 
                 {/* Usage bar */}
-                <div className="mb-5">
+                <div className="mb-2">
                   <div className="flex items-center justify-between text-sm mb-1.5">
                     <span className="text-slate-600 font-medium">Messages this month</span>
                     <span className="text-slate-500 font-medium">
-                      {billing?.messages_used ?? 0} / {billing?.messages_limit?.toLocaleString('en-IN') ?? 500}
+                      {(billing?.messages_used ?? 0).toLocaleString()} / {(billing?.messages_limit ?? 500) >= 999_999_999 ? 'Unlimited' : (billing?.messages_limit ?? 500).toLocaleString()}
                     </span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2">
@@ -1184,91 +1104,39 @@ function SettingsInner() {
                   </div>
                   <div className="flex items-center justify-between mt-1">
                     <p className="text-xs text-slate-400">Resets on the 1st of each month</p>
-                    <p className="text-xs text-slate-500 font-medium">{billing?.messages_remaining ?? 500} remaining</p>
+                    <p className="text-xs text-slate-500 font-medium">{(billing?.messages_remaining ?? 500).toLocaleString()} remaining</p>
                   </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  {billing?.status !== 'cancelled' && billing?.razorpay_subscription_id && (
-                    <button onClick={handleCancel} disabled={cancelling}
-                      className="text-red-500 hover:text-red-700 text-sm font-medium px-4 py-2.5 rounded-xl transition hover:bg-red-50 border border-red-200">
-                      {cancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : 'Cancel subscription'}
-                    </button>
-                  )}
                 </div>
               </section>
 
-              {/* Plan selection */}
+              {/* Included features */}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">
-                  {billing?.status === 'active' ? 'Change Plan' : 'Choose a Plan'}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {(Object.entries(PLAN_META).filter(([k]) => k !== 'trial') as [PlanKey, typeof PLAN_META[PlanKey]][]).map(([key, plan]) => {
-                    const isCurrent = key === currentPlan && currentPlan !== 'trial'
-                    const isLoading = subscribing === key
-                    return (
-                      <div key={key} className={cn(
-                        'rounded-2xl border-2 p-5 transition flex flex-col',
-                        isCurrent ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200'
-                      )}>
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-bold text-slate-900">{plan.label}</p>
-                          {isCurrent && <span className="text-[10px] bg-[#25D366] text-white px-2 py-0.5 rounded-full font-semibold">Current</span>}
-                        </div>
-                        <p className="text-2xl font-bold text-slate-900 mb-1">{plan.price}</p>
-                        <p className="text-slate-500 text-sm mb-4">{plan.msgs}</p>
-                        <div className="space-y-1.5 flex-1">
-                          {[
-                            plan.msgs,
-                            'Abandoned cart recovery',
-                            'COD verification',
-                            key !== 'starter' ? 'Campaign broadcasts' : null,
-                            key === 'pro' ? 'Priority support' : null,
-                          ].filter(Boolean).map(f => (
-                            <div key={f} className="flex items-center gap-2 text-sm text-slate-600">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" /> {f}
-                            </div>
-                          ))}
-                        </div>
-                        {!isCurrent && (
-                          <button
-                            onClick={() => handleSubscribe(key)}
-                            disabled={isLoading || !!subscribing}
-                            className={cn(
-                              'w-full mt-4 text-sm font-medium py-2.5 rounded-xl transition flex items-center justify-center gap-2',
-                              key === 'pro'
-                                ? 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50'
-                                : 'bg-[#25D366] hover:bg-[#128C7E] text-white disabled:opacity-50'
-                            )}
-                          >
-                            {isLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing…</> : (
-                              currentPlan !== 'trial' && planMeta.amount > (PLAN_META[key].amount) ? 'Downgrade' : 'Upgrade'
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
+                <h3 className="font-semibold text-slate-800 mb-4">Included in your plan</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {[
+                    'Abandoned cart recovery',
+                    'COD verification',
+                    'Order and shipping updates',
+                    'Campaign broadcasts',
+                    'Analytics dashboard',
+                    'Email & chat support',
+                  ].map(feature => (
+                    <div key={feature} className="flex items-center gap-2 text-sm text-slate-600">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" /> {feature}
+                    </div>
+                  ))}
                 </div>
-                <p className="text-xs text-slate-400 mt-4 flex items-center gap-1.5">
-                  <Shield className="w-3 h-3" /> Payments processed securely via Razorpay. Cancel anytime.
-                </p>
-              </section>
-
-              {/* Subscription ID (for support) */}
-              {billing?.razorpay_subscription_id && (
-                <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                  <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-slate-400" /> Subscription Details
-                  </h3>
-                  <div className="text-xs text-slate-500 font-mono bg-slate-50 p-3 rounded-xl break-all">
-                    {billing.razorpay_subscription_id}
+                {changePlanHref && billing?.plan_name !== 'enterprise' && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <Link
+                      href={changePlanHref}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium bg-[#25D366] hover:bg-[#128C7E] text-white px-4 py-2 rounded-xl transition"
+                    >
+                      Upgrade plan <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
-                  <p className="text-xs text-slate-400 mt-2">Share this ID with support for billing queries.</p>
-                </section>
-              )}
+                )}
+              </section>
             </>
           )}
         </div>

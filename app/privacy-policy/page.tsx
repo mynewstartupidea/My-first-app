@@ -55,7 +55,7 @@ export default function PrivacyPolicyPage() {
         </div>
 
         <Section title="1. Information We Collect">
-          <p><strong className="text-slate-300">Account data:</strong> When you create a Wapaci account, we collect your email address, name, and billing information.</p>
+          <p><strong className="text-slate-300">Account data:</strong> When you create a Wapaci account, we collect your email address and name.</p>
           <p><strong className="text-slate-300">Ecommerce store data:</strong> When you connect your store (Shopify, WooCommerce, etc.), we access order data, customer details, cart information, and product data needed to power automations. We only request the permissions necessary to run your configured automations.</p>
           <p><strong className="text-slate-300">Customer data:</strong> We process your customers&apos; names, phone numbers, and order details to send WhatsApp messages on your behalf. We act as a data processor for this information — you remain the data controller.</p>
           <p><strong className="text-slate-300">Message data:</strong> We store records of WhatsApp messages sent through our platform including delivery status, timestamps, and response data to power analytics and reporting.</p>
@@ -69,8 +69,8 @@ export default function PrivacyPolicyPage() {
             <li>Deliver WhatsApp automation messages to your customers</li>
             <li>Sync customer and order information from your ecommerce platform</li>
             <li>Provide your analytics dashboard and performance reports</li>
-            <li>Process payments and manage your subscription</li>
-            <li>Send account notifications, invoices, and product updates</li>
+            <li>Manage your free account and usage limits</li>
+            <li>Send account notifications and product updates</li>
             <li>Investigate and prevent fraud, abuse, or policy violations</li>
             <li>Improve and develop the Wapaci platform</li>
           </ul>
@@ -83,7 +83,6 @@ export default function PrivacyPolicyPage() {
             <li><strong className="text-slate-300">WhatsApp / Meta Cloud API:</strong> Messages are sent directly via the WhatsApp Cloud API. Wapaci is an official Meta Business Partner — no third-party BSP is involved.</li>
             <li><strong className="text-slate-300">Ecommerce platforms (Shopify, WooCommerce):</strong> We connect to your store via official APIs using OAuth tokens.</li>
             <li><strong className="text-slate-300">Supabase:</strong> Our database and authentication infrastructure. Data is encrypted at rest.</li>
-            <li><strong className="text-slate-300">Payment processors:</strong> We use industry-standard payment providers for billing. We do not store card details.</li>
           </ul>
         </Section>
 

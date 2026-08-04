@@ -3,7 +3,7 @@ import { MessageCircle, Mail, ArrowRight } from 'lucide-react'
 
 export const metadata = {
   title: 'Contact Us – Wapaci',
-  description: 'Get in touch with the Wapaci team for support, sales, or billing questions.',
+  description: 'Get in touch with the Wapaci team for support, account, or usage questions.',
 }
 
 function NavBar() {
@@ -38,14 +38,14 @@ const contacts = [
   {
     label: 'Sales',
     email: 'support@wapaci.com',
-    desc: 'Discuss pricing, plans, or get help choosing the right option for your store.',
+    desc: 'Get help choosing the right setup for your store.',
     color: 'bg-blue-500/10 border-blue-500/20',
     accent: 'text-blue-400',
   },
   {
-    label: 'Billing & Refunds',
+    label: 'Account & Usage',
     email: 'support@wapaci.com',
-    desc: 'Invoice queries, subscription changes, and refund requests.',
+    desc: 'Questions about your free account, usage limits, and store setup.',
     color: 'bg-purple-500/10 border-purple-500/20',
     accent: 'text-purple-400',
   },
@@ -95,7 +95,7 @@ export default function ContactPage() {
         <div className="bg-white/3 border border-white/8 rounded-2xl p-6 text-center">
           <p className="text-slate-300 font-medium">Typical response time</p>
           <p className="text-slate-500 text-sm mt-2 leading-relaxed">
-            Support & billing: within 24 hours on business days.<br />
+            Support and account questions: within 24 hours on business days.<br />
             Sales enquiries: within a few hours during IST business hours (Mon–Sat, 10am–7pm).
           </p>
         </div>

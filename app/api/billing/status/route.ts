@@ -8,30 +8,29 @@ export async function GET() {
 
   const { data: billing } = await supabase
     .from('billing')
-    .select('*')
+    .select('plan_name, status, billing_provider, messages_limit, messages_used')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (!billing) {
-    // No billing record — return free trial defaults
     return NextResponse.json({
-      plan_name:                'trial',
-      status:                   'trialing',
-      messages_limit:           500,
-      messages_used:            0,
-      messages_remaining:       500,
-      next_billing_date:        null,
-      current_period_end:       null,
-      current_period_start:     null,
-      razorpay_subscription_id: null,
-      razorpay_customer_id:     null,
-      amount_paise:             0,
-      cancelled_at:             null,
+      plan_name:        'free',
+      status:           'active',
+      billing_provider: 'shopify',
+      messages_limit:   500,
+      messages_used:    0,
+      messages_remaining: 500,
+      current_period_end: null,
     })
   }
 
   return NextResponse.json({
-    ...billing,
-    messages_remaining: Math.max(0, (billing.messages_limit ?? 500) - (billing.messages_used ?? 0)),
+    plan_name:           billing.plan_name ?? 'free',
+    status:              billing.status ?? 'active',
+    billing_provider:    billing.billing_provider ?? 'shopify',
+    messages_limit:      billing.messages_limit ?? 500,
+    messages_used:       billing.messages_used ?? 0,
+    messages_remaining:  Math.max(0, (billing.messages_limit ?? 500) - (billing.messages_used ?? 0)),
+    current_period_end:  null,
   })
 }

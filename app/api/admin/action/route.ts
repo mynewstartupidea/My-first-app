@@ -4,10 +4,8 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vaibhavsin9574395@gmail.com'
 
 const PLAN_LIMITS: Record<string, number> = {
-  trial: 500, starter: 500, growth: 5000, pro: 25000,
-}
-const PLAN_AMOUNTS: Record<string, number> = {
-  trial: 0, starter: 99900, growth: 299900, pro: 799900,
+  free: 500, trial: 500,
+  starter: 5_000, growth: 15_000, scale: 50_000, enterprise: 999_999_999,
 }
 
 export async function POST(request: Request) {
@@ -29,9 +27,8 @@ export async function POST(request: Request) {
     await service.from('billing').upsert({
       user_id,
       plan_name:      plan,
-      status:         plan === 'trial' ? 'trialing' : 'active',
+      status:         'active',
       messages_limit: PLAN_LIMITS[plan] ?? 500,
-      amount_paise:   PLAN_AMOUNTS[plan] ?? 0,
       updated_at:     new Date().toISOString(),
     }, { onConflict: 'user_id' })
 
@@ -46,22 +43,6 @@ export async function POST(request: Request) {
   }
 
   if (action === 'cancel_subscription') {
-    const { data: billing } = await service
-      .from('billing')
-      .select('razorpay_subscription_id, status')
-      .eq('user_id', user_id)
-      .maybeSingle()
-
-    if (billing?.razorpay_subscription_id) {
-      const rzAuth = `Basic ${Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64')}`
-      const rzRes  = await fetch(
-        `https://api.razorpay.com/v1/subscriptions/${billing.razorpay_subscription_id}/cancel`,
-        { method: 'POST', headers: { Authorization: rzAuth, 'Content-Type': 'application/json' }, body: JSON.stringify({ cancel_at_cycle_end: 1 }) }
-      )
-      const rzData = await rzRes.json()
-      if (!rzRes.ok) return NextResponse.json({ error: rzData.error?.description ?? 'Razorpay cancel failed' }, { status: 500 })
-    }
-
     await service.from('billing').update({
       status:       'cancelled',
       cancelled_at: new Date().toISOString(),

@@ -21,7 +21,7 @@ interface Ticket {
 
 const CATEGORIES = [
   { value: 'general',   label: 'General Question' },
-  { value: 'billing',   label: 'Billing & Plans' },
+  { value: 'billing',   label: 'Usage & Account' },
   { value: 'whatsapp',  label: 'WhatsApp Connection' },
   { value: 'campaigns', label: 'Campaigns & Automations' },
   { value: 'shopify',   label: 'Shopify Integration' },
@@ -237,7 +237,7 @@ export default function SupportPage() {
       <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { icon: '📚', title: 'WhatsApp Setup Guide', desc: 'Step-by-step Meta Embedded Signup', href: '/dashboard/settings?tab=whatsapp' },
-          { icon: '💳', title: 'Billing & Plans',       desc: 'Manage subscription and usage',   href: '/dashboard/billing' },
+          { icon: '💬', title: 'Usage',                 desc: 'Review free message usage',       href: '/dashboard/billing' },
           { icon: '🔌', title: 'Integrations',          desc: 'Connect Shopify and other tools', href: '/dashboard/integrations' },
         ].map(link => (
           <a key={link.title} href={link.href}

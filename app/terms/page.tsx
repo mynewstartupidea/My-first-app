@@ -71,11 +71,10 @@ export default function TermsPage() {
           <p>If you suspect your account has been compromised, contact us immediately at <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">support@wapaci.com</a>.</p>
         </Section>
 
-        <Section title="3. Subscription and Billing">
-          <p>Wapaci is offered on a subscription basis. By subscribing, you authorise us to charge your payment method on a recurring basis (monthly or annually, depending on your plan).</p>
-          <p>Prices are stated exclusive of applicable taxes. Taxes are added at checkout where required by law.</p>
-          <p>We reserve the right to change our pricing. We will give you at least 30 days&apos; notice of any price changes via email before they take effect.</p>
-          <p>For cancellation and refund terms, please refer to our <Link href="/refund-policy" className="text-[#25D366] hover:underline">Refund Policy</Link>.</p>
+        <Section title="3. Fees">
+          <p>Wapaci is currently free to use. We do not charge a Wapaci subscription fee or collect app payments outside Shopify.</p>
+          <p>External services you connect, such as WhatsApp / Meta or your ecommerce platform, may charge their own fees under their own terms.</p>
+          <p>If Wapaci introduces paid app plans in the future, any Shopify App Store distributed version will use Shopify App Pricing or the Shopify Billing API where required by Shopify policy.</p>
         </Section>
 
         <Section title="4. WhatsApp and Meta Compliance">
@@ -87,7 +86,7 @@ export default function TermsPage() {
             <li>Ensuring message templates comply with WhatsApp&apos;s template approval requirements</li>
             <li>Not sending promotional messages to customers who have not consented to receive them</li>
           </ul>
-          <p>Violations of WhatsApp&apos;s policies that result in account suspension or restrictions are not grounds for a refund.</p>
+          <p>Violations of WhatsApp&apos;s policies may result in account suspension or restrictions.</p>
         </Section>
 
         <Section title="5. Ecommerce Integrations">
@@ -115,7 +114,7 @@ export default function TermsPage() {
         </Section>
 
         <Section title="9. Termination">
-          <p>We reserve the right to suspend or terminate your account immediately if you breach these Terms, violate WhatsApp&apos;s policies, or engage in fraudulent activity. You may also terminate your account at any time by cancelling your subscription.</p>
+          <p>We reserve the right to suspend or terminate your account immediately if you breach these Terms, violate WhatsApp&apos;s policies, or engage in fraudulent activity. You may also request account deletion at any time.</p>
         </Section>
 
         <Section title="10. Limitation of Liability">
