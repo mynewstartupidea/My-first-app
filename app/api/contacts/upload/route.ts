@@ -187,7 +187,7 @@ export async function POST(request: Request) {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  const token   = wa?.access_token ?? process.env.META_ACCESS_TOKEN
+  const token   = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? wa?.access_token ?? process.env.META_ACCESS_TOKEN
   const phoneId = wa?.phone_number_id ?? process.env.META_PHONE_NUMBER_ID
 
   let whatsappSet = new Set<string>()
