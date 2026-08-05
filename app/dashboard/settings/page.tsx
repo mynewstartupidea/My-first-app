@@ -1057,7 +1057,7 @@ function SettingsInner() {
             </div>
           ) : (
             <>
-              {/* Current plan */}
+              {/* Current plan + usage */}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold text-slate-800 flex items-center gap-2">
@@ -1082,16 +1082,10 @@ function SettingsInner() {
                     {planPrice && <p className="text-slate-500 text-sm">{planPrice}</p>}
                     {shopifyPlan && <p className="text-slate-400 text-xs mt-0.5">{shopifyPlan.orders}</p>}
                   </div>
-                  <Link
-                    href={changePlanHref ?? '/dashboard/billing'}
-                    className="flex items-center gap-1 text-sm font-medium text-[#25D366] hover:text-[#128C7E] transition"
-                  >
-                    Change plan <ArrowUpRight className="w-3.5 h-3.5" />
-                  </Link>
                 </div>
 
                 {/* Usage bar */}
-                <div className="mb-2">
+                <div>
                   <div className="flex items-center justify-between text-sm mb-1.5">
                     <span className="text-slate-600 font-medium">Messages this month</span>
                     <span className="text-slate-500 font-medium">
@@ -1111,33 +1105,82 @@ function SettingsInner() {
                 </div>
               </section>
 
-              {/* Included features */}
+              {/* All plans comparison */}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Included in your plan</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {[
-                    'Abandoned cart recovery',
-                    'COD verification',
-                    'Order and shipping updates',
-                    'Campaign broadcasts',
-                    'Analytics dashboard',
-                    'Email & chat support',
-                  ].map(feature => (
-                    <div key={feature} className="flex items-center gap-2 text-sm text-slate-600">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" /> {feature}
-                    </div>
-                  ))}
+                <h3 className="font-semibold text-slate-800 mb-1">All Plans</h3>
+                <p className="text-slate-400 text-xs mb-5">7-day free trial on all plans. Billed monthly via Shopify.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                  {SHOPIFY_PLANS.map(plan => {
+                    const isCurrent = billing?.plan_name === plan.id
+                    const isRecommended = plan.recommended
+                    const href = store?.shopify_domain
+                      ? `/shopify/pricing?shop=${encodeURIComponent(store.shopify_domain)}&change=1`
+                      : '/shopify/pricing'
+                    return (
+                      <div
+                        key={plan.id}
+                        className={cn(
+                          'relative rounded-xl border p-4 flex flex-col gap-3 transition',
+                          isCurrent
+                            ? 'border-[#25D366] bg-[#25D366]/5'
+                            : isRecommended
+                              ? 'border-blue-200 bg-blue-50/50'
+                              : 'border-slate-100 bg-slate-50/50'
+                        )}
+                      >
+                        {isRecommended && !isCurrent && (
+                          <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-blue-500 text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                            Most popular
+                          </span>
+                        )}
+                        {isCurrent && (
+                          <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-[#25D366] text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                            Current plan
+                          </span>
+                        )}
+                        <div>
+                          <p className="font-bold text-slate-900">{plan.name}</p>
+                          <p className="text-2xl font-bold text-slate-900 mt-1">
+                            ${plan.price}<span className="text-sm font-normal text-slate-400">/mo</span>
+                          </p>
+                        </div>
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" />
+                            {plan.messages === -1 ? 'Unlimited messages' : `${plan.messages.toLocaleString()} messages/mo`}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" />
+                            {plan.orders}
+                          </div>
+                          {['Abandoned cart recovery', 'Order updates', 'Campaign broadcasts', 'Analytics'].map(f => (
+                            <div key={f} className="flex items-center gap-1.5 text-xs text-slate-600">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" />
+                              {f}
+                            </div>
+                          ))}
+                        </div>
+                        {isCurrent ? (
+                          <div className="text-center text-xs font-semibold text-[#25D366] py-2">Active</div>
+                        ) : (
+                          <Link
+                            href={href}
+                            className={cn(
+                              'text-center text-xs font-semibold py-2 px-3 rounded-lg transition',
+                              isRecommended
+                                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                                : 'bg-[#25D366] hover:bg-[#128C7E] text-white'
+                            )}
+                          >
+                            {billing?.plan_name && billing.plan_name !== 'trial' && SHOPIFY_PLANS.findIndex(p => p.id === plan.id) < SHOPIFY_PLANS.findIndex(p => p.id === billing?.plan_name)
+                              ? 'Downgrade'
+                              : 'Upgrade'}
+                          </Link>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-                {billing?.plan_name !== 'enterprise' && (
-                  <div className="mt-4 pt-4 border-t border-slate-100">
-                    <Link
-                      href={changePlanHref ?? '/dashboard/billing'}
-                      className="inline-flex items-center gap-1.5 text-sm font-medium bg-[#25D366] hover:bg-[#128C7E] text-white px-4 py-2 rounded-xl transition"
-                    >
-                      Upgrade plan <ArrowUpRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                )}
               </section>
             </>
           )}
