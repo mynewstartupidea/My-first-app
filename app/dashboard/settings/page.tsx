@@ -200,8 +200,8 @@ function SettingsInner() {
     if (urlTab === 'whatsapp') setActiveTab('whatsapp')
     else if (urlTab === 'team') setActiveTab('team')
     else if (urlTab === 'store') setActiveTab('store')
-    else if (urlTab === 'developer') setActiveTab('developer')
     else if (urlTab === 'billing') setActiveTab('billing')
+    else if (urlTab === 'security') setActiveTab('security')
   }, [urlTab])
 
   useEffect(() => {
