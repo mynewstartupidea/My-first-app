@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   if (!validateShopDomain(shop)) {
     return NextResponse.json({ error: 'Invalid shop domain — must be *.myshopify.com' }, { status: 400 })
   }
+
   const missing = [
     ['SHOPIFY_API_KEY', process.env.SHOPIFY_API_KEY],
     ['SHOPIFY_API_SECRET', process.env.SHOPIFY_API_SECRET],
@@ -23,20 +24,21 @@ export async function GET(request: Request) {
     }, { status: 500 })
   }
 
+  const returnTo = searchParams.get('returnTo') ?? '/dashboard'
+
+  // If the merchant is already signed into Wapaci, include their userId so the
+  // callback can link the store to their account without creating a new one.
+  // If they are not signed in (fresh App Store install), we omit userId and the
+  // callback will auto-create/find their account using the shop email.
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  console.log(`[Shopify install] shop=${shop} user=${user?.id ?? 'null'} cookies=${request.headers.get('cookie') ? 'present' : 'missing'}`)
-  if (!user) {
-    // Preserve the full install URL so after login the OAuth flow continues automatically
-    const returnTo = searchParams.get('returnTo') ?? '/dashboard/integrations'
-    const resumeUrl = `/api/shopify/install?shop=${encodeURIComponent(shop)}&returnTo=${encodeURIComponent(returnTo)}`
-    console.log(`[Shopify install] unauthenticated — redirecting to login with returnTo`)
-    return NextResponse.redirect(new URL(`/login?returnTo=${encodeURIComponent(resumeUrl)}`, request.url))
-  }
+  console.log(`[Shopify install] shop=${shop} user=${user?.id ?? 'new-merchant'}`)
 
-  const returnTo  = searchParams.get('returnTo') ?? '/dashboard/integrations'
-  const state     = signOAuthState({ userId: user.id, shop, returnTo })
-  const oauthUrl  = getShopifyOAuthUrl(shop, state)
+  const statePayload: Record<string, string> = { shop, returnTo }
+  if (user) statePayload.userId = user.id
+
+  const state    = signOAuthState(statePayload)
+  const oauthUrl = getShopifyOAuthUrl(shop, state)
 
   return NextResponse.redirect(oauthUrl)
 }
