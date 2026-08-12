@@ -98,9 +98,9 @@ export async function GET(request: Request) {
         .maybeSingle()
 
       if (existingStore?.user_id) {
-        // Re-install: reuse existing account
+        // Re-install: reuse existing account, still need magic link (no browser session yet)
         userId = existingStore.user_id
-        isBrandNewMerchant = false
+        isBrandNewMerchant = true  // still need magic link to sign them in
         console.log('[Shopify OAuth] re-install — reusing existing user:', userId)
 
         // Get their email for magic link

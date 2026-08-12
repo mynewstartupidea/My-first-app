@@ -79,8 +79,14 @@ export async function POST(request: Request) {
   )
 
   if (!gqlRes.ok) {
-    console.error('[billing/create] Shopify GQL error', gqlRes.status)
-    return NextResponse.json({ error: 'Shopify API error' }, { status: 502 })
+    const errBody = await gqlRes.text().catch(() => '(unreadable)')
+    console.error('[billing/create] Shopify GQL HTTP error', gqlRes.status, errBody)
+    const hint = gqlRes.status === 401
+      ? 'Store token expired — please reconnect Shopify.'
+      : gqlRes.status === 403
+        ? 'App billing not enabled — check Partners Dashboard billing configuration.'
+        : `Shopify returned ${gqlRes.status}.`
+    return NextResponse.json({ error: hint }, { status: 502 })
   }
 
   const gqlData = await gqlRes.json() as {
