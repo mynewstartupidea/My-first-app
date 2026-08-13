@@ -127,24 +127,36 @@ export async function getShopDetails(shop: string, token: string): Promise<{ nam
 }
 
 export async function registerWebhooks(shop: string, token: string, appUrl: string) {
-  const webhooks = [
-    { topic: 'checkouts/create',          address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'checkouts/update',          address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'orders/create',             address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'orders/fulfilled',          address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'orders/updated',            address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'app/uninstalled',           address: `${appUrl}/api/shopify/webhooks` },
-    { topic: 'app_subscriptions/update',  address: `${appUrl}/api/shopify/webhooks` },
+  const TOPICS = [
+    'checkouts/create',
+    'checkouts/update',
+    'orders/create',
+    'orders/fulfilled',
+    'orders/updated',
+    'app/uninstalled',
+    'app_subscriptions/update',
   ]
+  const address = `${appUrl}/api/shopify/webhooks`
 
-  for (const webhook of webhooks) {
+  // Fetch existing webhooks to avoid registering duplicates
+  const listRes = await fetch(
+    `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/webhooks.json?limit=250`,
+    { headers: { 'X-Shopify-Access-Token': token } }
+  )
+  const existingTopics = new Set<string>()
+  if (listRes.ok) {
+    const { webhooks: existing } = await listRes.json() as { webhooks: { topic: string; address: string }[] }
+    for (const w of existing ?? []) {
+      if (w.address === address) existingTopics.add(w.topic)
+    }
+  }
+
+  for (const topic of TOPICS) {
+    if (existingTopics.has(topic)) continue
     await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/webhooks.json`, {
       method: 'POST',
-      headers: {
-        'X-Shopify-Access-Token': token,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ webhook }),
+      headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhook: { topic, address } }),
     })
   }
 }
