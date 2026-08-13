@@ -1162,6 +1162,13 @@ function SettingsInner() {
                         </div>
                         {isCurrent ? (
                           <div className="text-center text-xs font-semibold text-[#25D366] py-2">Active</div>
+                        ) : !store?.shopify_domain ? (
+                          <Link
+                            href="/dashboard/settings?tab=store"
+                            className="text-center text-xs font-semibold py-2 px-3 rounded-lg transition bg-slate-200 hover:bg-slate-300 text-slate-600"
+                          >
+                            Connect Shopify first
+                          </Link>
                         ) : (
                           <Link
                             href={href}
