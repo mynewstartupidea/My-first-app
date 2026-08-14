@@ -1,0 +1,122 @@
+const FB_API_VERSION = 'v19.0'
+const FB_BASE = `https://graph.facebook.com/${FB_API_VERSION}`
+
+export interface FBPage {
+  id: string
+  name: string
+  access_token: string
+}
+
+export interface FBLeadForm {
+  id: string
+  name: string
+  status: string
+}
+
+export interface FBLead {
+  id: string
+  created_time: string
+  field_data: { name: string; values: string[] }[]
+}
+
+export function getFacebookOAuthUrl(state: string): string {
+  const appId    = process.env.FACEBOOK_APP_ID
+  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com'
+  const redirect = `${appUrl}/api/facebook/callback`
+  const scopes   = 'pages_show_list,leads_retrieval,pages_manage_metadata'
+
+  return (
+    `https://www.facebook.com/${FB_API_VERSION}/dialog/oauth?` +
+    new URLSearchParams({ client_id: appId!, redirect_uri: redirect, scope: scopes, state, response_type: 'code' })
+  )
+}
+
+export async function exchangeFBCode(code: string): Promise<string> {
+  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com'
+  const redirect = `${appUrl}/api/facebook/callback`
+  const params   = new URLSearchParams({
+    client_id:     process.env.FACEBOOK_APP_ID!,
+    client_secret: process.env.FACEBOOK_APP_SECRET!,
+    redirect_uri:  redirect,
+    code,
+  })
+  const res = await fetch(`${FB_BASE}/oauth/access_token?${params}`)
+  if (!res.ok) throw new Error(`FB code exchange failed: ${await res.text()}`)
+  const data = await res.json() as { access_token: string }
+  return data.access_token
+}
+
+export async function getLongLivedToken(shortToken: string): Promise<string> {
+  const params = new URLSearchParams({
+    grant_type:        'fb_exchange_token',
+    client_id:         process.env.FACEBOOK_APP_ID!,
+    client_secret:     process.env.FACEBOOK_APP_SECRET!,
+    fb_exchange_token: shortToken,
+  })
+  const res = await fetch(`${FB_BASE}/oauth/access_token?${params}`)
+  if (!res.ok) throw new Error(`Long-lived token failed: ${await res.text()}`)
+  const data = await res.json() as { access_token: string }
+  return data.access_token
+}
+
+export async function getUserPages(userToken: string): Promise<FBPage[]> {
+  const res = await fetch(`${FB_BASE}/me/accounts?access_token=${userToken}&fields=id,name,access_token`)
+  if (!res.ok) return []
+  const data = await res.json() as { data?: FBPage[] }
+  return data.data ?? []
+}
+
+export async function subscribePageToLeadgen(pageId: string, pageToken: string): Promise<boolean> {
+  const res = await fetch(
+    `${FB_BASE}/${pageId}/subscribed_apps?subscribed_fields=leadgen&access_token=${pageToken}`,
+    { method: 'POST' }
+  )
+  return res.ok
+}
+
+export async function getLeadForms(pageId: string, pageToken: string): Promise<FBLeadForm[]> {
+  const res = await fetch(`${FB_BASE}/${pageId}/leadgen_forms?access_token=${pageToken}&fields=id,name,status`)
+  if (!res.ok) return []
+  const data = await res.json() as { data?: FBLeadForm[] }
+  return data.data ?? []
+}
+
+export async function getFormLeads(formId: string, pageToken: string, since?: string | null): Promise<FBLead[]> {
+  let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=id,created_time,field_data&limit=100`
+  if (since) {
+    const ts = Math.floor(new Date(since).getTime() / 1000)
+    url += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${ts}}]`
+  }
+  const res = await fetch(url)
+  if (!res.ok) return []
+  const data = await res.json() as { data?: FBLead[] }
+  return data.data ?? []
+}
+
+export async function getFBLead(leadId: string, pageToken: string): Promise<FBLead | null> {
+  const res = await fetch(`${FB_BASE}/${leadId}?access_token=${pageToken}&fields=id,created_time,field_data`)
+  if (!res.ok) return null
+  return res.json() as Promise<FBLead>
+}
+
+export function parseLeadFields(fieldData: { name: string; values: string[] }[]): {
+  name: string | null
+  email: string | null
+  phone: string | null
+} {
+  const get = (...keys: string[]) => {
+    for (const key of keys) {
+      const f = fieldData.find(f => f.name.toLowerCase().replace(/[_\s]/g, '').includes(key))
+      if (f?.values?.[0]) return f.values[0]
+    }
+    return null
+  }
+  const first = get('firstname')
+  const last  = get('lastname')
+  const full  = get('fullname', 'name')
+  return {
+    name:  full ?? (first && last ? `${first} ${last}` : first ?? last),
+    email: get('email'),
+    phone: get('phone', 'phonenumber', 'mobile'),
+  }
+}
