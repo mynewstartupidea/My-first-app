@@ -4,6 +4,10 @@
     {
       "path": "/api/cron",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/facebook-leads",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
