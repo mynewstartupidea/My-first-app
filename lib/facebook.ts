@@ -19,26 +19,23 @@ export interface FBLead {
   field_data: { name: string; values: string[] }[]
 }
 
-export function getFacebookOAuthUrl(state: string): string {
-  const appId    = process.env.FACEBOOK_APP_ID
-  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com'
-  const redirect = `${appUrl}/api/facebook/callback`
-  const scopes   = 'pages_show_list,leads_retrieval,pages_manage_metadata'
+// Reuses META_APP_ID / META_APP_SECRET already set in Vercel
+function appId()     { return process.env.META_APP_ID! }
+function appSecret() { return process.env.META_APP_SECRET! }
+function appUrl()    { return process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com' }
+function redirectUri() { return `${appUrl()}/api/facebook/callback` }
 
+export function getFacebookOAuthUrl(state: string): string {
+  const scopes = 'pages_show_list,leads_retrieval,pages_manage_metadata'
   return (
     `https://www.facebook.com/${FB_API_VERSION}/dialog/oauth?` +
-    new URLSearchParams({ client_id: appId!, redirect_uri: redirect, scope: scopes, state, response_type: 'code' })
+    new URLSearchParams({ client_id: appId(), redirect_uri: redirectUri(), scope: scopes, state, response_type: 'code' })
   )
 }
 
 export async function exchangeFBCode(code: string): Promise<string> {
-  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com'
-  const redirect = `${appUrl}/api/facebook/callback`
-  const params   = new URLSearchParams({
-    client_id:     process.env.FACEBOOK_APP_ID!,
-    client_secret: process.env.FACEBOOK_APP_SECRET!,
-    redirect_uri:  redirect,
-    code,
+  const params = new URLSearchParams({
+    client_id: appId(), client_secret: appSecret(), redirect_uri: redirectUri(), code,
   })
   const res = await fetch(`${FB_BASE}/oauth/access_token?${params}`)
   if (!res.ok) throw new Error(`FB code exchange failed: ${await res.text()}`)
@@ -48,9 +45,7 @@ export async function exchangeFBCode(code: string): Promise<string> {
 
 export async function getLongLivedToken(shortToken: string): Promise<string> {
   const params = new URLSearchParams({
-    grant_type:        'fb_exchange_token',
-    client_id:         process.env.FACEBOOK_APP_ID!,
-    client_secret:     process.env.FACEBOOK_APP_SECRET!,
+    grant_type: 'fb_exchange_token', client_id: appId(), client_secret: appSecret(),
     fb_exchange_token: shortToken,
   })
   const res = await fetch(`${FB_BASE}/oauth/access_token?${params}`)

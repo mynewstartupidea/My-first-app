@@ -9,8 +9,8 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(`${origin}/login?returnTo=/dashboard/leads`)
 
-  if (!process.env.FACEBOOK_APP_ID || !process.env.FACEBOOK_APP_SECRET) {
-    return NextResponse.json({ error: 'FACEBOOK_APP_ID / FACEBOOK_APP_SECRET not set in Vercel env vars' }, { status: 500 })
+  if (!process.env.META_APP_ID || !process.env.META_APP_SECRET) {
+    return NextResponse.json({ error: 'META_APP_ID / META_APP_SECRET not set in Vercel env vars' }, { status: 500 })
   }
 
   const state = crypto.randomBytes(16).toString('hex')
