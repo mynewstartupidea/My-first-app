@@ -1,4 +1,4 @@
-const FB_API_VERSION = 'v19.0'
+const FB_API_VERSION = 'v21.0'
 const FB_BASE = `https://graph.facebook.com/${FB_API_VERSION}`
 
 export interface FBPage {
