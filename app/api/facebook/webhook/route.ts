@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getFBLead, parseLeadFields } from '@/lib/facebook'
+import { getFBLead, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate } from '@/lib/utils'
 
 // Facebook webhook verification
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       if (!fbLead) continue
 
       const { name, email, phone } = parseLeadFields(fbLead.field_data ?? [])
+      const fields = extractAllFields(fbLead.field_data ?? [])
 
       const { data: saved, error: saveErr } = await supabase.from('leads').upsert({
         user_id:          conn.user_id,
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
         name,
         email,
         phone,
+        fields,
         raw_data:  { field_data: fbLead.field_data },
         wa_status: phone ? 'pending' : 'no_phone',
       }, { onConflict: 'facebook_lead_id' }).select('id').single()
@@ -82,6 +84,7 @@ export async function POST(request: Request) {
       if (!auto) continue
 
       const message = renderTemplate(auto.message_template, {
+        ...fields,
         name:  name ?? 'there',
         email: email ?? '',
         phone: phone ?? '',

@@ -17,6 +17,7 @@ interface Lead {
   page_id: string | null
   wa_status: 'pending' | 'sent' | 'failed' | 'no_phone'
   created_at: string
+  fields: Record<string, string> | null
 }
 
 interface FormAutomation {
@@ -59,14 +60,23 @@ function StatusBadge({ status }: { status: Lead['wa_status'] }) {
   )
 }
 
-function AutomationEditor({ page, form, onSave }: {
+function AutomationEditor({ page, form, onSave, formFieldKeys }: {
   page: Page
   form: LeadForm
   onSave: () => void
+  formFieldKeys: string[]
 }) {
   const [msg, setMsg]         = useState(form.automation?.message_template ?? DEFAULT_TEMPLATE)
   const [enabled, setEnabled] = useState(form.automation?.is_enabled ?? true)
   const [saving, setSaving]   = useState(false)
+
+  const allVars = Array.from(new Set([
+    'name', 'email', 'phone', ...formFieldKeys,
+  ]))
+
+  function insertVar(key: string) {
+    setMsg(prev => prev + `{{${key}}}`)
+  }
 
   async function save() {
     setSaving(true)
@@ -106,7 +116,20 @@ function AutomationEditor({ page, form, onSave }: {
         className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 resize-none"
         placeholder="Message to send when a new lead arrives..."
       />
-      <p className="text-xs text-slate-400">Variables: {'{{name}}'} {'{{email}}'} {'{{phone}}'}</p>
+      <div>
+        <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wide font-medium">Click to insert variable</p>
+        <div className="flex flex-wrap gap-1.5">
+          {allVars.map(key => (
+            <button
+              key={key}
+              onClick={() => insertVar(key)}
+              className="text-[11px] font-mono bg-slate-100 hover:bg-[#25D366]/10 hover:text-[#25D366] text-slate-600 px-2 py-0.5 rounded transition border border-slate-200"
+            >
+              {`{{${key}}}`}
+            </button>
+          ))}
+        </div>
+      </div>
       <button
         onClick={save}
         disabled={saving}
@@ -119,10 +142,11 @@ function AutomationEditor({ page, form, onSave }: {
   )
 }
 
-function PageCard({ page, onDisconnect, onRefresh }: {
+function PageCard({ page, onDisconnect, onRefresh, leadsByForm }: {
   page: Page
   onDisconnect: (pageId: string) => void
   onRefresh: () => void
+  leadsByForm: Record<string, Lead[]>
 }) {
   const [open, setOpen] = useState(false)
   const [editForm, setEditForm] = useState<string | null>(null)
@@ -143,7 +167,7 @@ function PageCard({ page, onDisconnect, onRefresh }: {
               {page.forms.length} form{page.forms.length !== 1 ? 's' : ''} · {' '}
               {page.subscribed_to_leadgen
                 ? <span className="text-green-600">Real-time leads active</span>
-                : <span className="text-amber-600">Webhook not subscribed</span>
+                : <span className="text-amber-600">Polling every 5 min</span>
               }
             </p>
           </div>
@@ -164,28 +188,34 @@ function PageCard({ page, onDisconnect, onRefresh }: {
           {page.forms.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-4">No lead forms found on this page.</p>
           )}
-          {page.forms.map(form => (
-            <div key={form.id} className="bg-slate-50 rounded-xl p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <p className="text-sm font-medium text-slate-700">{form.name}</p>
-                  {form.automation?.is_enabled && (
-                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Auto-reply ON</span>
-                  )}
+          {page.forms.map(form => {
+            const formLeads = leadsByForm[form.id] ?? []
+            const fieldKeys = Array.from(
+              new Set(formLeads.flatMap(l => Object.keys(l.fields ?? {})))
+            )
+            return (
+              <div key={form.id} className="bg-slate-50 rounded-xl p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-400" />
+                    <p className="text-sm font-medium text-slate-700">{form.name}</p>
+                    {form.automation?.is_enabled && (
+                      <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Auto-reply ON</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setEditForm(editForm === form.id ? null : form.id)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {editForm === form.id ? 'Close' : 'Configure'}
+                  </button>
                 </div>
-                <button
-                  onClick={() => setEditForm(editForm === form.id ? null : form.id)}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  {editForm === form.id ? 'Close' : 'Configure'}
-                </button>
+                {editForm === form.id && (
+                  <AutomationEditor page={page} form={form} onSave={onRefresh} formFieldKeys={fieldKeys} />
+                )}
               </div>
-              {editForm === form.id && (
-                <AutomationEditor page={page} form={form} onSave={onRefresh} />
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -196,11 +226,12 @@ function LeadsContent() {
   const searchParams = useSearchParams()
   const fbStatus     = searchParams.get('fb')
 
-  const [leads, setLeads]   = useState<Lead[]>([])
-  const [pages, setPages]   = useState<Page[]>([])
+  const [leads, setLeads]       = useState<Lead[]>([])
+  const [pages, setPages]       = useState<Page[]>([])
   const [loading, setLoading]   = useState(true)
   const [syncing, setSyncing]   = useState(false)
   const [banner, setBanner]     = useState('')
+  const [expandedLead, setExpandedLead] = useState<string | null>(null)
 
   useEffect(() => {
     if (fbStatus === 'connected') setBanner('Facebook page connected! Syncing your leads…')
@@ -241,6 +272,15 @@ function LeadsContent() {
   }
 
   const connected = pages.length > 0
+
+  const leadsByForm = leads.reduce<Record<string, Lead[]>>((acc, l) => {
+    if (l.form_id) {
+      acc[l.form_id] = acc[l.form_id] ?? []
+      acc[l.form_id].push(l)
+    }
+    return acc
+  }, {})
+
   const stats = {
     total:   leads.length,
     sent:    leads.filter(l => l.wa_status === 'sent').length,
@@ -355,6 +395,7 @@ function LeadsContent() {
                   page={page}
                   onDisconnect={disconnectPage}
                   onRefresh={() => fetchData()}
+                  leadsByForm={leadsByForm}
                 />
               ))}
             </div>
@@ -389,36 +430,73 @@ function LeadsContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
-                        {leads.map(lead => (
-                          <tr key={lead.id} className="hover:bg-slate-50 transition">
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-slate-800">{lead.name ?? <span className="text-slate-400 italic">Unknown</span>}</p>
-                            </td>
-                            <td className="px-4 py-3 space-y-0.5">
-                              {lead.phone && (
-                                <div className="flex items-center gap-1 text-slate-600 text-xs">
-                                  <Phone className="w-3 h-3 text-slate-400" />
-                                  {lead.phone}
-                                </div>
+                        {leads.map(lead => {
+                          const isExpanded = expandedLead === lead.id
+                          const extraFields = Object.entries(lead.fields ?? {}).filter(
+                            ([k]) => !['full_name','first_name','last_name','email','phone_number','phone'].includes(k)
+                          )
+                          return (
+                            <>
+                              <tr
+                                key={lead.id}
+                                onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
+                                className="hover:bg-slate-50 transition cursor-pointer"
+                              >
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1.5">
+                                    {isExpanded
+                                      ? <ChevronUp className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                      : <ChevronDown className="w-3 h-3 text-slate-400 flex-shrink-0" />}
+                                    <p className="font-medium text-slate-800">{lead.name ?? <span className="text-slate-400 italic">Unknown</span>}</p>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 space-y-0.5">
+                                  {lead.phone && (
+                                    <div className="flex items-center gap-1 text-slate-600 text-xs">
+                                      <Phone className="w-3 h-3 text-slate-400" />
+                                      {lead.phone}
+                                    </div>
+                                  )}
+                                  {lead.email && (
+                                    <div className="flex items-center gap-1 text-slate-600 text-xs">
+                                      <Mail className="w-3 h-3 text-slate-400" />
+                                      {lead.email}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-xs text-slate-500">{lead.form_name ?? '—'}</span>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                                  {new Date(lead.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <StatusBadge status={lead.wa_status} />
+                                </td>
+                              </tr>
+                              {isExpanded && (
+                                <tr key={`${lead.id}-details`} className="bg-blue-50/40">
+                                  <td colSpan={5} className="px-6 py-4">
+                                    {extraFields.length === 0 ? (
+                                      <p className="text-xs text-slate-400 italic">No additional question answers for this lead.</p>
+                                    ) : (
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
+                                        {extraFields.map(([key, val]) => (
+                                          <div key={key}>
+                                            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">
+                                              {key.replace(/_/g, ' ')}
+                                            </p>
+                                            <p className="text-xs font-medium text-slate-700">{val}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
                               )}
-                              {lead.email && (
-                                <div className="flex items-center gap-1 text-slate-600 text-xs">
-                                  <Mail className="w-3 h-3 text-slate-400" />
-                                  {lead.email}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-xs text-slate-500">{lead.form_name ?? '—'}</span>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
-                              {new Date(lead.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            </td>
-                            <td className="px-4 py-3">
-                              <StatusBadge status={lead.wa_status} />
-                            </td>
-                          </tr>
-                        ))}
+                            </>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getLeadForms, getFormLeads, parseLeadFields } from '@/lib/facebook'
+import { getLeadForms, getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate } from '@/lib/utils'
 
 // GET /api/facebook/leads?sync=1  — optionally sync from Facebook first
@@ -26,6 +26,7 @@ export async function GET(request: Request) {
 
         for (const fl of fbLeads) {
           const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
+          const fields = extractAllFields(fl.field_data ?? [])
 
           const { data: saved } = await service.from('leads').upsert({
             user_id:          user.id,
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
             form_id:          form.id,
             form_name:        form.name,
             name, email, phone,
+            fields,
             raw_data:  { field_data: fl.field_data },
             wa_status: phone ? 'pending' : 'no_phone',
             created_at: fl.created_time,
@@ -52,6 +54,7 @@ export async function GET(request: Request) {
 
             if (auto) {
               const message = renderTemplate(auto.message_template, {
+                ...fields,
                 name: name ?? 'there', email: email ?? '', phone,
               })
               await service.from('automation_jobs').insert({
@@ -73,7 +76,7 @@ export async function GET(request: Request) {
 
   const { data: leads } = await service
     .from('leads')
-    .select('*')
+    .select('id,name,email,phone,form_id,form_name,page_id,wa_status,created_at,fields')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(200)

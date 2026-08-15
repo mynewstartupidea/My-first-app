@@ -94,6 +94,14 @@ export async function getFBLead(leadId: string, pageToken: string): Promise<FBLe
   return res.json() as Promise<FBLead>
 }
 
+export function extractAllFields(fieldData: { name: string; values: string[] }[]): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const f of fieldData ?? []) {
+    if (f.values?.[0]) result[f.name] = f.values[0]
+  }
+  return result
+}
+
 export function parseLeadFields(fieldData: { name: string; values: string[] }[]): {
   name: string | null
   email: string | null
