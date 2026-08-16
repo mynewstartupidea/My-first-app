@@ -70,10 +70,14 @@ export async function subscribePageToLeadgen(pageId: string, pageToken: string):
 }
 
 export async function getLeadForms(pageId: string, pageToken: string): Promise<FBLeadForm[]> {
-  const res = await fetch(`${FB_BASE}/${pageId}/leadgen_forms?access_token=${pageToken}&fields=id,name,status`)
-  if (!res.ok) return []
-  const data = await res.json() as { data?: FBLeadForm[] }
-  return data.data ?? []
+  const url = `${FB_BASE}/${pageId}/leadgen_forms?access_token=${pageToken}&fields=id,name,status&limit=100`
+  const res = await fetch(url)
+  const json = await res.json() as { data?: FBLeadForm[]; error?: { message: string; code: number } }
+  if (!res.ok || json.error) {
+    console.error(`[FB] getLeadForms page ${pageId}:`, json.error ?? res.status)
+    return []
+  }
+  return json.data ?? []
 }
 
 export async function getFormLeads(formId: string, pageToken: string, since?: string | null): Promise<FBLead[]> {

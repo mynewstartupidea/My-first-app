@@ -17,6 +17,7 @@ export async function GET() {
   const pages = await Promise.all(
     (connections ?? []).map(async conn => {
       const forms = await getLeadForms(conn.page_id, conn.page_access_token)
+      console.log(`[pages] ${conn.page_name} (${conn.page_id}): ${forms.length} forms`)
 
       // Fetch automation config for each form
       const { data: autos } = await service
