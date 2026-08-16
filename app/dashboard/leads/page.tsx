@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown,
   CheckCircle, XCircle, Clock, Phone, Mail, FileText,
-  Zap, X, Save, Settings, Plus, ChevronUp
+  Zap, X, Save, Settings, Plus, ChevronUp, Loader2
 } from 'lucide-react'
 
 interface Lead {
@@ -43,6 +43,67 @@ interface Page {
 }
 
 const DEFAULT_TEMPLATE = "Hi {{name}}! 👋 Thanks for your interest. We'll reach out to you shortly via WhatsApp!"
+
+const SYNC_MESSAGES = [
+  "Knocking on Facebook's door… 🚪",
+  "Convincing leads to join the WhatsApp party… 🎉",
+  "Bribing Facebook servers with good vibes… ✨",
+  "Counting leads on our fingers… ran out of fingers 🤞",
+  "Teaching your leads some WhatsApp manners… 📱",
+  "Asking Zuckerberg nicely for your leads… 🙏",
+  "Speed-reading through your lead forms… 📋",
+  "Almost there, we promise… probably 🤷",
+]
+
+function SyncingScreen({ isSyncing }: { isSyncing: boolean }) {
+  const [msgIndex, setMsgIndex] = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setMsgIndex(i => (i + 1) % SYNC_MESSAGES.length)
+        setVisible(true)
+      }, 300)
+    }, 2500)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
+      {/* Animated icon stack */}
+      <div className="relative mb-8">
+        <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 animate-pulse">
+          <Facebook className="w-10 h-10 text-white" />
+        </div>
+        <div className="absolute -bottom-2 -right-2 w-9 h-9 bg-[#25D366] rounded-xl flex items-center justify-center shadow-md border-2 border-white">
+          <MessageCircle className="w-5 h-5 text-white" />
+        </div>
+        {/* spinning ring */}
+        <div className="absolute inset-0 -m-2 rounded-3xl border-4 border-blue-200 border-t-blue-600 animate-spin" />
+      </div>
+
+      <h3 className="text-lg font-bold text-slate-800 mb-2">
+        {isSyncing ? 'Syncing your leads…' : 'Connecting your pages…'}
+      </h3>
+
+      <div className={`transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>
+        <p className="text-slate-500 text-sm">{SYNC_MESSAGES[msgIndex]}</p>
+      </div>
+
+      <div className="flex gap-1.5 mt-6">
+        {[0,1,2].map(i => (
+          <div
+            key={i}
+            className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"
+            style={{ animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function StatusBadge({ status }: { status: Lead['wa_status'] }) {
   const map = {
@@ -442,7 +503,9 @@ function LeadsContent() {
               disabled={syncing}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 border border-slate-200 bg-white px-3 py-2.5 rounded-xl transition disabled:opacity-60"
             >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing
+                ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                : <RefreshCw className="w-4 h-4" />}
               {syncing ? 'Syncing…' : 'Sync leads'}
             </button>
             <a
@@ -464,12 +527,8 @@ function LeadsContent() {
         )}
 
         {loading ? (
-          <div className="animate-pulse space-y-4">
-            <div className="h-12 bg-slate-200 rounded-xl w-64" />
-            <div className="grid grid-cols-4 gap-3">
-              {[1,2,3,4].map(i => <div key={i} className="h-24 bg-slate-200 rounded-xl" />)}
-            </div>
-            <div className="h-64 bg-slate-200 rounded-xl" />
+          <div className="bg-white rounded-2xl border border-slate-100">
+            <SyncingScreen isSyncing={syncing} />
           </div>
         ) : (
           <>
