@@ -622,8 +622,12 @@ function LeadsContent() {
 
   const [loading,        setLoading]        = useState(true)
   const [refreshing,     setRefreshing]     = useState(false)
-  const [pages,          setPages]          = useState<Page[]>([])
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
+  const [pages,          setPages]          = useState<Page[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem('_wpl_pages') ?? 'null') ?? [] } catch { return [] }
+  })
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(() => {
+    try { return sessionStorage.getItem('_wpl_pid') } catch { return null }
+  })
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [total,          setTotal]          = useState(0)
@@ -643,6 +647,7 @@ function LeadsContent() {
     const d = await r.json() as { pages?: Page[] }
     const p = d.pages ?? []
     setPages(p)
+    try { sessionStorage.setItem('_wpl_pages', JSON.stringify(p)) } catch {}
     return p
   }, [])
 
@@ -671,7 +676,6 @@ function LeadsContent() {
   useEffect(() => {
     const init = async () => {
       setLoading(true)
-      const p = await fetchPages()
 
       const fb = searchParams.get('fb')
       if (fb === 'connected') {
@@ -684,10 +688,24 @@ function LeadsContent() {
         setBanner({ type: 'error', msg: 'Failed to connect Facebook. Please try again.' })
       }
 
+      // Use cached page ID to fire all fetches in parallel — avoids waiting for
+      // the page list before loading forms/leads on return visits
+      let cachedPageId: string | null = null
+      try { cachedPageId = sessionStorage.getItem('_wpl_pid') } catch {}
+
+      const [p] = await Promise.all([
+        fetchPages(),
+        ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId)] : []),
+      ]) as [Page[], ...unknown[]]
+
       if (p.length > 0) {
-        setSelectedPageId(p[0].page_id)
-        await fetchActiveForms(p[0].page_id)
-        await fetchLeads('all', p[0].page_id)
+        const pageId = p[0].page_id
+        setSelectedPageId(pageId)
+        try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
+        // Only re-fetch if the active page differs from what we already loaded
+        if (pageId !== cachedPageId) {
+          await Promise.all([fetchActiveForms(pageId), fetchLeads('all', pageId)])
+        }
       }
       setLoading(false)
     }
@@ -701,6 +719,7 @@ function LeadsContent() {
     setSelectedFormId('all')
     setLeads([])
     setActiveForms([])
+    try { sessionStorage.setItem('_wpl_pid', page.page_id) } catch {}
     await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id)])
   }
 
