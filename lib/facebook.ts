@@ -69,15 +69,28 @@ export async function subscribePageToLeadgen(pageId: string, pageToken: string):
   return res.ok
 }
 
-export async function getLeadForms(pageId: string, pageToken: string): Promise<FBLeadForm[]> {
-  const url = `${FB_BASE}/${pageId}/leadgen_forms?access_token=${pageToken}&fields=id,name,status&limit=100`
-  const res = await fetch(url)
-  const json = await res.json() as { data?: FBLeadForm[]; error?: { message: string; code: number } }
-  if (!res.ok || json.error) {
-    console.error(`[FB] getLeadForms page ${pageId}:`, json.error ?? res.status)
-    return []
+export async function getLeadForms(pageId: string, pageToken: string, userToken?: string | null): Promise<FBLeadForm[]> {
+  const tryFetch = async (token: string) => {
+    const url = `${FB_BASE}/${pageId}/leadgen_forms?access_token=${token}&fields=id,name,status&limit=100`
+    const res  = await fetch(url)
+    const json = await res.json() as { data?: FBLeadForm[]; error?: { message: string; code: number } }
+    if (!res.ok || json.error) return { ok: false, error: json.error, data: [] as FBLeadForm[] }
+    return { ok: true, error: null, data: json.data ?? [] }
   }
-  return json.data ?? []
+
+  const result = await tryFetch(pageToken)
+  if (result.ok) return result.data
+
+  console.error(`[FB] getLeadForms page ${pageId} (page token):`, result.error)
+
+  // Fallback to user token if available
+  if (userToken) {
+    const fallback = await tryFetch(userToken)
+    if (fallback.ok) return fallback.data
+    console.error(`[FB] getLeadForms page ${pageId} (user token fallback):`, fallback.error)
+  }
+
+  return []
 }
 
 export async function getFormLeads(formId: string, pageToken: string, since?: string | null): Promise<FBLead[]> {

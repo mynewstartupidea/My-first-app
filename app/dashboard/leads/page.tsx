@@ -445,6 +445,13 @@ function LeadsContent() {
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Syncing…' : 'Sync leads'}
             </button>
+            <button
+              onClick={disconnectAll}
+              className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-700 border border-red-200 bg-white px-3 py-2.5 rounded-xl transition"
+            >
+              <XCircle className="w-4 h-4" />
+              Disconnect all
+            </button>
             <a
               href="/api/facebook/auth"
               className="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition"
@@ -474,7 +481,7 @@ function LeadsContent() {
         ) : (
           <>
             {/* Page selector row */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <PageDropdown
                 pages={pages}
                 selected={selectedPage}
@@ -482,7 +489,18 @@ function LeadsContent() {
                 onDisconnect={disconnectPage}
                 onDisconnectAll={disconnectAll}
               />
-              <span className="text-xs text-slate-400">{pages.length} page{pages.length !== 1 ? 's' : ''} connected</span>
+              {selectedPage && (
+                <div className="flex items-center gap-3 text-sm text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" />
+                    {selectedPage.forms.length === 0
+                      ? 'No forms found'
+                      : `${selectedPage.forms.length} form${selectedPage.forms.length !== 1 ? 's' : ''}`}
+                  </span>
+                  <span className="text-slate-300">·</span>
+                  <span>{pages.length} page{pages.length !== 1 ? 's' : ''} connected</span>
+                </div>
+              )}
             </div>
 
             {/* Stats */}

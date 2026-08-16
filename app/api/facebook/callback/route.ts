@@ -40,6 +40,7 @@ export async function GET(request: Request) {
         page_id:               page.id,
         page_name:             page.name,
         page_access_token:     page.access_token,
+        user_access_token:     longToken,
         subscribed_to_leadgen: subscribed,
         updated_at:            new Date().toISOString(),
       }, { onConflict: 'user_id,page_id' })
