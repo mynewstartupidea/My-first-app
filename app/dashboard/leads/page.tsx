@@ -6,7 +6,7 @@ import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
   CheckCircle, X, Zap, Save, Plus, ChevronRight,
   Loader2, Pause, Play, Search, Edit2, Download,
-  AlertCircle, FileText,
+  AlertCircle, FileText, LogOut,
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -621,6 +621,7 @@ function LeadsContent() {
   const router = useRouter()
 
   const [loading,        setLoading]        = useState(true)
+  const [refreshing,     setRefreshing]     = useState(false)
   const [pages,          setPages]          = useState<Page[]>([])
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
@@ -788,9 +789,20 @@ function LeadsContent() {
     setLeads([])
   }
 
+  const handleRefresh = async () => {
+    if (!selectedPageId || refreshing) return
+    setRefreshing(true)
+    await Promise.all([
+      fetchActiveForms(selectedPageId),
+      fetchLeads(selectedFormId, selectedPageId),
+    ])
+    setRefreshing(false)
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (loading) return <SyncingScreen />
+  // Show full-screen loader only on the very first load when there's nothing to show yet
+  if (loading && pages.length === 0) return <SyncingScreen />
 
   if (pages.length === 0) {
     return (
@@ -848,6 +860,23 @@ function LeadsContent() {
             onDisconnectAll={handleDisconnectAll}
             onReconnect={() => { window.location.href = '/api/facebook/auth' }}
           />
+          <button
+            onClick={handleRefresh}
+            disabled={loading || refreshing}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+            title="Refresh leads"
+          >
+            <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            onClick={handleDisconnectAll}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 border border-red-100 bg-white rounded-lg hover:bg-red-50 transition"
+            title="Disconnect all Facebook pages"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout Facebook
+          </button>
           <a href="/api/facebook/auth"
             className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
             <Plus className="w-4 h-4" /> Add page
@@ -868,7 +897,11 @@ function LeadsContent() {
           </button>
         </div>
 
-        {activeForms.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+          </div>
+        ) : activeForms.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
               <Zap className="w-6 h-6 text-gray-200" />
@@ -938,7 +971,11 @@ function LeadsContent() {
         </div>
 
         {/* Table */}
-        {leads.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+          </div>
+        ) : leads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
               <Users className="w-6 h-6 text-gray-200" />

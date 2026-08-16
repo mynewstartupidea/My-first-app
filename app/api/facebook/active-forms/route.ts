@@ -23,51 +23,53 @@ export async function GET(request: Request) {
     if (connectionIds.length === 0) return NextResponse.json({ forms: [] })
   }
 
-  const buildQuery = (withNewCols: boolean) => {
-    const cols = withNewCols
-      ? 'id, form_id, form_name, connection_id, message_template, is_enabled, color_index, last_lead_fetch'
-      : 'id, form_id, form_name, connection_id, message_template, is_enabled'
+  // Try with new columns first; fall back if the SQL migration hasn't been run yet
+  // Using explicit any cast because Supabase types can't handle dynamic column strings
+  type AutoRow = {
+    id: string; form_id: string; form_name: string; connection_id: string
+    message_template: string; is_enabled: boolean
+    color_index?: number; last_lead_fetch?: string | null
+  }
+
+  const runQuery = async (includeMigrationCols: boolean) => {
     let q = service
       .from('lead_form_automations')
-      .select(cols)
+      .select('id, form_id, form_name, connection_id, message_template, is_enabled' +
+        (includeMigrationCols ? ', color_index, last_lead_fetch' : ''))
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
     if (connectionIds !== null) q = q.in('connection_id', connectionIds)
-    return q
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return q as unknown as Promise<{ data: AutoRow[] | null; error: any }>
   }
 
-  // Try with new columns first; fall back if the SQL migration hasn't been run yet
-  let result = await buildQuery(true)
-  if (result.error) {
-    console.warn('[active-forms] new columns not found, using fallback query:', result.error.message)
-    result = await buildQuery(false)
+  let { data: automations, error } = await runQuery(true)
+  if (error) {
+    console.warn('[active-forms] new columns missing, using fallback:', error.message)
+    ;({ data: automations } = await runQuery(false))
   }
 
-  const automations = result.data
   if (!automations?.length) return NextResponse.json({ forms: [] })
 
   // Get page_id for each automation's connection
-  const connIds = [...new Set(automations.map(a => a.connection_id as string))]
+  const connIds = [...new Set(automations.map(a => a.connection_id))]
   const { data: connections } = await service
     .from('facebook_connections')
     .select('id, page_id')
     .in('id', connIds)
 
   const connPageMap: Record<string, string> = {}
-  for (const c of connections ?? []) {
-    connPageMap[c.id as string] = c.page_id as string
-  }
+  for (const c of connections ?? []) connPageMap[c.id as string] = c.page_id as string
 
   // Lead count per form
-  const formIds = automations.map(a => a.form_id as string)
   const counts = await Promise.all(
-    formIds.map(async fid => {
+    automations.map(async (a, i) => {
       const { count } = await service
         .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id)
-        .eq('form_id', fid)
-      return { formId: fid, count: count ?? 0 }
+        .eq('form_id', a.form_id)
+      return { formId: a.form_id, count: count ?? 0, idx: i }
     })
   )
   const countMap: Record<string, number> = {}
@@ -78,13 +80,12 @@ export async function GET(request: Request) {
     form_id:          a.form_id,
     form_name:        a.form_name,
     connection_id:    a.connection_id,
-    page_id:          connPageMap[a.connection_id as string] ?? null,
+    page_id:          connPageMap[a.connection_id] ?? null,
     message_template: a.message_template,
     is_enabled:       a.is_enabled,
-    // Use DB value if available, else fall back to position in list
-    color_index:      (a as any).color_index ?? i,
-    last_lead_fetch:  (a as any).last_lead_fetch ?? null,
-    lead_count:       countMap[a.form_id as string] ?? 0,
+    color_index:      a.color_index ?? i,
+    last_lead_fetch:  a.last_lead_fetch ?? null,
+    lead_count:       countMap[a.form_id] ?? 0,
   }))
 
   return NextResponse.json({ forms })
