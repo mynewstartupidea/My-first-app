@@ -832,7 +832,7 @@ function LeadsContent() {
   const sent      = leads.filter(l => l.wa_status === 'sent').length
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="p-6 lg:p-8 space-y-5">
 
       {/* Banner */}
       {banner && (
@@ -867,7 +867,6 @@ function LeadsContent() {
             title="Refresh leads"
           >
             <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
-            Refresh
           </button>
           <button
             onClick={handleDisconnectAll}
