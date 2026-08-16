@@ -43,9 +43,13 @@ export async function DELETE(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { pageId } = await request.json() as { pageId: string }
+  const body = await request.json() as { pageId?: string; all?: boolean }
   const service = createServiceClient()
-  await service.from('facebook_connections').delete().eq('user_id', user.id).eq('page_id', pageId)
+  if (body.all) {
+    await service.from('facebook_connections').delete().eq('user_id', user.id)
+  } else if (body.pageId) {
+    await service.from('facebook_connections').delete().eq('user_id', user.id).eq('page_id', body.pageId)
+  }
 
   return NextResponse.json({ ok: true })
 }

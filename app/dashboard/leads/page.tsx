@@ -60,10 +60,12 @@ function StatusBadge({ status }: { status: Lead['wa_status'] }) {
   )
 }
 
-function PageDropdown({ pages, selected, onSelect }: {
+function PageDropdown({ pages, selected, onSelect, onDisconnect, onDisconnectAll }: {
   pages: Page[]
   selected: Page | null
   onSelect: (page: Page) => void
+  onDisconnect: (pageId: string) => void
+  onDisconnectAll: () => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -80,7 +82,7 @@ function PageDropdown({ pages, selected, onSelect }: {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-300 transition min-w-[220px]"
+        className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-300 transition min-w-[240px]"
       >
         <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
           <Facebook className="w-3.5 h-3.5 text-white" />
@@ -88,29 +90,61 @@ function PageDropdown({ pages, selected, onSelect }: {
         <span className="text-sm font-medium text-slate-800 flex-1 text-left truncate">
           {selected ? selected.page_name : 'Select a page'}
         </span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1.5 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[260px]">
-          {pages.map(page => (
-            <button
-              key={page.page_id}
-              onClick={() => { onSelect(page); setOpen(false) }}
-              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-slate-50 transition ${selected?.page_id === page.page_id ? 'bg-blue-50' : ''}`}
+        <div className="absolute top-full mt-1.5 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[280px]">
+          {/* Pages list */}
+          <div className="max-h-56 overflow-y-auto">
+            <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Your pages</p>
+            {pages.map(page => (
+              <button
+                key={page.page_id}
+                onClick={() => { onSelect(page); setOpen(false) }}
+                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-slate-50 transition ${selected?.page_id === page.page_id ? 'bg-blue-50' : ''}`}
+              >
+                <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
+                  <Facebook className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{page.page_name}</p>
+                  <p className="text-xs text-slate-400">{page.forms.length} form{page.forms.length !== 1 ? 's' : ''}</p>
+                </div>
+                {selected?.page_id === page.page_id && (
+                  <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div className="border-t border-slate-100 p-2 space-y-0.5">
+            <a
+              href="/api/facebook/auth"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition w-full"
             >
-              <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
-                <Facebook className="w-3.5 h-3.5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800 truncate">{page.page_name}</p>
-                <p className="text-xs text-slate-400">{page.forms.length} form{page.forms.length !== 1 ? 's' : ''}</p>
-              </div>
-              {selected?.page_id === page.page_id && (
-                <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              )}
+              <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+              Reconnect Facebook
+            </a>
+            {selected && (
+              <button
+                onClick={() => { setOpen(false); onDisconnect(selected.page_id) }}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition w-full"
+              >
+                <X className="w-3.5 h-3.5" />
+                Disconnect "{selected.page_name}"
+              </button>
+            )}
+            <button
+              onClick={() => { setOpen(false); onDisconnectAll() }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition w-full font-medium"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              Disconnect all pages
             </button>
-          ))}
+          </div>
         </div>
       )}
     </div>
@@ -126,9 +160,20 @@ function FormAutomationsPanel({ page, leads, onSave }: {
   const [editForm, setEditForm] = useState<string | null>(null)
 
   if (page.forms.length === 0) return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
-      <FileText className="w-4 h-4 text-amber-600 flex-shrink-0" />
-      <p className="text-sm text-amber-800">No lead forms found on this page. Create a Lead Ad form in Meta Ads Manager first.</p>
+    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5 flex items-start gap-3">
+      <FileText className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+      <div>
+        <p className="text-sm font-medium text-amber-800">No lead forms found on this page</p>
+        <p className="text-xs text-amber-700 mt-0.5">
+          This could mean: the forms are on a different page, or the token needs a refresh.{' '}
+          <a href="/api/facebook/auth" className="underline font-medium">Reconnect Facebook</a>{' '}
+          to get fresh access, or check{' '}
+          <a href="https://adsmanager.facebook.com" target="_blank" rel="noreferrer" className="underline font-medium">
+            Meta Ads Manager
+          </a>{' '}
+          to verify which page your forms are under.
+        </p>
+      </div>
     </div>
   )
 
@@ -323,6 +368,17 @@ function LeadsContent() {
     fetchData()
   }
 
+  async function disconnectAll() {
+    if (!confirm('Disconnect all Facebook pages? Leads already captured will remain.')) return
+    await fetch('/api/facebook/pages', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    })
+    setSelectedPage(null)
+    fetchData()
+  }
+
   const connected = pages.length > 0
   const filteredLeads = selectedPage
     ? leads.filter(l => l.page_id === selectedPage.page_id)
@@ -418,16 +474,15 @@ function LeadsContent() {
         ) : (
           <>
             {/* Page selector row */}
-            <div className="flex items-center justify-between">
-              <PageDropdown pages={pages} selected={selectedPage} onSelect={setSelectedPage} />
-              {selectedPage && (
-                <button
-                  onClick={() => disconnectPage(selectedPage.page_id)}
-                  className="text-xs text-red-500 hover:text-red-700 font-medium transition"
-                >
-                  Disconnect page
-                </button>
-              )}
+            <div className="flex items-center gap-3">
+              <PageDropdown
+                pages={pages}
+                selected={selectedPage}
+                onSelect={setSelectedPage}
+                onDisconnect={disconnectPage}
+                onDisconnectAll={disconnectAll}
+              />
+              <span className="text-xs text-slate-400">{pages.length} page{pages.length !== 1 ? 's' : ''} connected</span>
             </div>
 
             {/* Stats */}
