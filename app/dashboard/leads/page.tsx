@@ -568,7 +568,7 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
                 <span className="truncate">{form.form_name}</span>
               </span>
             ) : (
-              <span className="text-xs text-gray-400">{lead.form_name ?? '—'}</span>
+              <span className="text-xs text-gray-400 block max-w-[200px] truncate" title={lead.form_name ?? undefined}>{lead.form_name ?? '—'}</span>
             )}
           </td>
         )}
@@ -954,7 +954,7 @@ function LeadsContent() {
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
                   {selectedFormId === 'all' && (
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Form</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-48">Form</th>
                   )}
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>

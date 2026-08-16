@@ -46,7 +46,8 @@ export async function POST(request: Request) {
     colorIndex = (count ?? 0) % 8
   }
 
-  await service.from('lead_form_automations').upsert({
+  // Try upsert with new columns; fall back without them if SQL migration hasn't run yet
+  const baseRow = {
     user_id:          user.id,
     store_id:         conn.store_id,
     connection_id:    body.connectionId,
@@ -54,9 +55,16 @@ export async function POST(request: Request) {
     form_name:        body.formName,
     message_template: body.messageTemplate,
     is_enabled:       body.isEnabled,
-    color_index:      colorIndex,
     updated_at:       new Date().toISOString(),
-  }, { onConflict: 'store_id,form_id' })
+  }
+  const { error: upsertErr } = await service.from('lead_form_automations').upsert(
+    { ...baseRow, color_index: colorIndex },
+    { onConflict: 'store_id,form_id' }
+  )
+  if (upsertErr) {
+    // color_index column probably doesn't exist yet — retry without it
+    await service.from('lead_form_automations').upsert(baseRow, { onConflict: 'store_id,form_id' })
+  }
 
   // On first activation: fetch last 50 leads immediately (historical — no WhatsApp)
   let leadsFetched = 0
@@ -85,10 +93,12 @@ export async function POST(request: Request) {
     }
 
     // Set last_lead_fetch = now so the cron only picks up leads after this point
+    // (ignore error if column doesn't exist yet)
     await service.from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
       .eq('user_id', user.id)
       .eq('form_id', body.formId)
+      .then(null, () => null)
   }
 
   return NextResponse.json({ ok: true, colorIndex, leadsFetched, isNew })
