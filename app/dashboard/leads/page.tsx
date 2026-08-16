@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
-  CheckCircle, XCircle, Clock, Phone, Mail, FileText, Zap, X, Save
+  Facebook, RefreshCw, MessageCircle, Users, ChevronDown,
+  CheckCircle, XCircle, Clock, Phone, Mail, FileText,
+  Zap, X, Save, Settings, Plus, ChevronUp
 } from 'lucide-react'
 
 interface Lead {
@@ -38,45 +39,170 @@ interface Page {
   page_id: string
   page_name: string
   subscribed_to_leadgen: boolean
-  connection_id?: string
   forms: LeadForm[]
 }
 
-const DEFAULT_TEMPLATE = 'Hi {{name}}! 👋 Thanks for your interest. We\'ll reach out to you shortly via WhatsApp!'
+const DEFAULT_TEMPLATE = "Hi {{name}}! 👋 Thanks for your interest. We'll reach out to you shortly via WhatsApp!"
 
 function StatusBadge({ status }: { status: Lead['wa_status'] }) {
   const map = {
-    sent:     { icon: CheckCircle, label: 'Sent',     cls: 'text-green-600 bg-green-50' },
-    pending:  { icon: Clock,       label: 'Pending',  cls: 'text-amber-600 bg-amber-50' },
-    failed:   { icon: XCircle,     label: 'Failed',   cls: 'text-red-600 bg-red-50'     },
-    no_phone: { icon: Phone,       label: 'No phone', cls: 'text-slate-500 bg-slate-100' },
+    sent:     { icon: CheckCircle, label: 'Sent',     cls: 'text-green-700 bg-green-50 border-green-200' },
+    pending:  { icon: Clock,       label: 'Pending',  cls: 'text-amber-700 bg-amber-50 border-amber-200' },
+    failed:   { icon: XCircle,     label: 'Failed',   cls: 'text-red-700 bg-red-50 border-red-200'       },
+    no_phone: { icon: Phone,       label: 'No phone', cls: 'text-slate-500 bg-slate-50 border-slate-200' },
   }
   const { icon: Icon, label, cls } = map[status] ?? map.pending
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${cls}`}>
       <Icon className="w-3 h-3" />
       {label}
     </span>
   )
 }
 
-function AutomationEditor({ page, form, onSave, formFieldKeys }: {
+function PageDropdown({ pages, selected, onSelect }: {
+  pages: Page[]
+  selected: Page | null
+  onSelect: (page: Page) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-300 transition min-w-[220px]"
+      >
+        <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
+          <Facebook className="w-3.5 h-3.5 text-white" />
+        </div>
+        <span className="text-sm font-medium text-slate-800 flex-1 text-left truncate">
+          {selected ? selected.page_name : 'Select a page'}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1.5 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[260px]">
+          {pages.map(page => (
+            <button
+              key={page.page_id}
+              onClick={() => { onSelect(page); setOpen(false) }}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-slate-50 transition ${selected?.page_id === page.page_id ? 'bg-blue-50' : ''}`}
+            >
+              <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
+                <Facebook className="w-3.5 h-3.5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 truncate">{page.page_name}</p>
+                <p className="text-xs text-slate-400">{page.forms.length} form{page.forms.length !== 1 ? 's' : ''}</p>
+              </div>
+              {selected?.page_id === page.page_id && (
+                <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormAutomationsPanel({ page, leads, onSave }: {
   page: Page
-  form: LeadForm
+  leads: Lead[]
   onSave: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [editForm, setEditForm] = useState<string | null>(null)
+
+  if (page.forms.length === 0) return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
+      <FileText className="w-4 h-4 text-amber-600 flex-shrink-0" />
+      <p className="text-sm text-amber-800">No lead forms found on this page. Create a Lead Ad form in Meta Ads Manager first.</p>
+    </div>
+  )
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition"
+      >
+        <div className="flex items-center gap-2">
+          <Settings className="w-4 h-4 text-slate-500" />
+          <span className="text-sm font-semibold text-slate-700">Form automations</span>
+          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+            {page.forms.length} form{page.forms.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-100 p-4 space-y-3">
+          {page.forms.map(form => {
+            const formLeads = leads.filter(l => l.form_id === form.id)
+            const fieldKeys = Array.from(new Set(formLeads.flatMap(l => Object.keys(l.fields ?? {}))))
+            const isEditing = editForm === form.id
+
+            return (
+              <div key={form.id} className="bg-slate-50 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <p className="text-sm font-medium text-slate-700 truncate">{form.name}</p>
+                    {form.automation?.is_enabled && (
+                      <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                        Auto ON
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setEditForm(isEditing ? null : form.id)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium ml-3 flex-shrink-0"
+                  >
+                    {isEditing ? 'Close' : 'Configure'}
+                  </button>
+                </div>
+
+                {isEditing && (
+                  <AutomationEditor
+                    pageId={page.id}
+                    form={form}
+                    formFieldKeys={fieldKeys}
+                    onSave={onSave}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AutomationEditor({ pageId, form, formFieldKeys, onSave }: {
+  pageId: string
+  form: LeadForm
   formFieldKeys: string[]
+  onSave: () => void
 }) {
   const [msg, setMsg]         = useState(form.automation?.message_template ?? DEFAULT_TEMPLATE)
   const [enabled, setEnabled] = useState(form.automation?.is_enabled ?? true)
   const [saving, setSaving]   = useState(false)
 
-  const allVars = Array.from(new Set([
-    'name', 'email', 'phone', ...formFieldKeys,
-  ]))
-
-  function insertVar(key: string) {
-    setMsg(prev => prev + `{{${key}}}`)
-  }
+  const allVars = Array.from(new Set(['name', 'email', 'phone', ...formFieldKeys]))
 
   async function save() {
     setSaving(true)
@@ -84,7 +210,7 @@ function AutomationEditor({ page, form, onSave, formFieldKeys }: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        connectionId:    page.id,
+        connectionId:    pageId,
         formId:          form.id,
         formName:        form.name,
         messageTemplate: msg,
@@ -96,11 +222,11 @@ function AutomationEditor({ page, form, onSave, formFieldKeys }: {
   }
 
   return (
-    <div className="mt-3 bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+    <div className="mt-3 space-y-3 pt-3 border-t border-slate-200">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-700">WhatsApp auto-reply</p>
+        <p className="text-xs font-semibold text-slate-600">WhatsApp auto-reply</p>
         <label className="flex items-center gap-2 cursor-pointer">
-          <span className="text-xs text-slate-500">Enabled</span>
+          <span className="text-xs text-slate-500">{enabled ? 'Enabled' : 'Disabled'}</span>
           <div
             onClick={() => setEnabled(e => !e)}
             className={`w-9 h-5 rounded-full transition relative ${enabled ? 'bg-[#25D366]' : 'bg-slate-200'}`}
@@ -113,7 +239,7 @@ function AutomationEditor({ page, form, onSave, formFieldKeys }: {
         value={msg}
         onChange={e => setMsg(e.target.value)}
         rows={3}
-        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 resize-none"
+        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 resize-none bg-white"
         placeholder="Message to send when a new lead arrives..."
       />
       <div>
@@ -122,8 +248,8 @@ function AutomationEditor({ page, form, onSave, formFieldKeys }: {
           {allVars.map(key => (
             <button
               key={key}
-              onClick={() => insertVar(key)}
-              className="text-[11px] font-mono bg-slate-100 hover:bg-[#25D366]/10 hover:text-[#25D366] text-slate-600 px-2 py-0.5 rounded transition border border-slate-200"
+              onClick={() => setMsg(prev => prev + `{{${key}}}`)}
+              className="text-[11px] font-mono bg-white hover:bg-[#25D366]/10 hover:text-[#25D366] text-slate-600 px-2 py-0.5 rounded border border-slate-200 transition"
             >
               {`{{${key}}}`}
             </button>
@@ -142,95 +268,16 @@ function AutomationEditor({ page, form, onSave, formFieldKeys }: {
   )
 }
 
-function PageCard({ page, onDisconnect, onRefresh, leadsByForm }: {
-  page: Page
-  onDisconnect: (pageId: string) => void
-  onRefresh: () => void
-  leadsByForm: Record<string, Lead[]>
-}) {
-  const [open, setOpen] = useState(false)
-  const [editForm, setEditForm] = useState<string | null>(null)
-
-  return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <div
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition"
-        onClick={() => setOpen(o => !o)}
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Facebook className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <p className="font-semibold text-slate-800 text-sm">{page.page_name}</p>
-            <p className="text-xs text-slate-400">
-              {page.forms.length} form{page.forms.length !== 1 ? 's' : ''} · {' '}
-              {page.subscribed_to_leadgen
-                ? <span className="text-green-600">Real-time leads active</span>
-                : <span className="text-amber-600">Polling every 5 min</span>
-              }
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={e => { e.stopPropagation(); onDisconnect(page.page_id) }}
-            className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded transition"
-          >
-            Disconnect
-          </button>
-          {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-        </div>
-      </div>
-
-      {open && (
-        <div className="border-t border-slate-100 p-4 space-y-3">
-          {page.forms.length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-4">No lead forms found on this page.</p>
-          )}
-          {page.forms.map(form => {
-            const formLeads = leadsByForm[form.id] ?? []
-            const fieldKeys = Array.from(
-              new Set(formLeads.flatMap(l => Object.keys(l.fields ?? {})))
-            )
-            return (
-              <div key={form.id} className="bg-slate-50 rounded-xl p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    <p className="text-sm font-medium text-slate-700">{form.name}</p>
-                    {form.automation?.is_enabled && (
-                      <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Auto-reply ON</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setEditForm(editForm === form.id ? null : form.id)}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    {editForm === form.id ? 'Close' : 'Configure'}
-                  </button>
-                </div>
-                {editForm === form.id && (
-                  <AutomationEditor page={page} form={form} onSave={onRefresh} formFieldKeys={fieldKeys} />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function LeadsContent() {
   const searchParams = useSearchParams()
   const fbStatus     = searchParams.get('fb')
 
-  const [leads, setLeads]       = useState<Lead[]>([])
-  const [pages, setPages]       = useState<Page[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [syncing, setSyncing]   = useState(false)
-  const [banner, setBanner]     = useState('')
+  const [leads, setLeads]         = useState<Lead[]>([])
+  const [pages, setPages]         = useState<Page[]>([])
+  const [selectedPage, setSelectedPage] = useState<Page | null>(null)
+  const [loading, setLoading]     = useState(true)
+  const [syncing, setSyncing]     = useState(false)
+  const [banner, setBanner]       = useState('')
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
 
   useEffect(() => {
@@ -249,8 +296,13 @@ function LeadsContent() {
         fetch('/api/facebook/pages'),
       ])
       const [leadsData, pagesData] = await Promise.all([leadsRes.json(), pagesRes.json()])
+      const newPages = pagesData.pages ?? []
       setLeads(leadsData.leads ?? [])
-      setPages(pagesData.pages ?? [])
+      setPages(newPages)
+      setSelectedPage(prev => {
+        if (prev) return newPages.find((p: Page) => p.page_id === prev.page_id) ?? newPages[0] ?? null
+        return newPages[0] ?? null
+      })
     } finally {
       setLoading(false)
       setSyncing(false)
@@ -272,239 +324,248 @@ function LeadsContent() {
   }
 
   const connected = pages.length > 0
-
-  const leadsByForm = leads.reduce<Record<string, Lead[]>>((acc, l) => {
-    if (l.form_id) {
-      acc[l.form_id] = acc[l.form_id] ?? []
-      acc[l.form_id].push(l)
-    }
-    return acc
-  }, {})
+  const filteredLeads = selectedPage
+    ? leads.filter(l => l.page_id === selectedPage.page_id)
+    : leads
 
   const stats = {
-    total:   leads.length,
-    sent:    leads.filter(l => l.wa_status === 'sent').length,
-    pending: leads.filter(l => l.wa_status === 'pending').length,
-    noPhone: leads.filter(l => l.wa_status === 'no_phone').length,
+    total:   filteredLeads.length,
+    sent:    filteredLeads.filter(l => l.wa_status === 'sent').length,
+    pending: filteredLeads.filter(l => l.wa_status === 'pending').length,
+    noPhone: filteredLeads.filter(l => l.wa_status === 'no_phone').length,
   }
+
+  if (!connected && !loading) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
+      <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center max-w-md w-full">
+        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <Facebook className="w-8 h-8 text-blue-600" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Connect your Facebook Page</h2>
+        <p className="text-slate-500 text-sm max-w-sm mx-auto mb-6">
+          Connect a Facebook Page to automatically capture leads from your Lead Ad forms and send them a WhatsApp message instantly.
+        </p>
+        <a
+          href="/api/facebook/auth"
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition"
+        >
+          <Facebook className="w-5 h-5" />
+          Connect Facebook Page
+        </a>
+        <div className="mt-8 flex items-center justify-center gap-6 text-center">
+          {[
+            { icon: Facebook,      label: 'Lead Ad fires'      },
+            { icon: Zap,           label: 'Wapaci captures it' },
+            { icon: MessageCircle, label: 'WhatsApp sent'      },
+          ].map(({ icon: Icon, label }, i) => (
+            <div key={i}>
+              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
+                <Icon className="w-5 h-5 text-slate-500" />
+              </div>
+              <p className="text-xs text-slate-500">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-5">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Leads</h1>
-            <p className="text-slate-500 text-sm mt-1">Facebook Lead Ads → automatic WhatsApp follow-up</p>
+            <p className="text-slate-500 text-sm mt-0.5">Facebook Lead Ads → automatic WhatsApp follow-up</p>
           </div>
           <div className="flex items-center gap-2">
-            {connected && (
-              <button
-                onClick={() => fetchData(true)}
-                disabled={syncing}
-                className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 border border-slate-200 bg-white px-3 py-2 rounded-lg transition disabled:opacity-60"
-              >
-                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Syncing…' : 'Sync leads'}
-              </button>
-            )}
+            <button
+              onClick={() => fetchData(true)}
+              disabled={syncing}
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 border border-slate-200 bg-white px-3 py-2.5 rounded-xl transition disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing…' : 'Sync leads'}
+            </button>
             <a
               href="/api/facebook/auth"
-              className="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+              className="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition"
             >
-              <Facebook className="w-4 h-4" />
-              {connected ? 'Add another page' : 'Connect Facebook'}
+              <Plus className="w-4 h-4" />
+              Add page
             </a>
           </div>
         </div>
 
         {/* Banner */}
         {banner && (
-          <div className="mb-5 flex items-center justify-between bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-3 rounded-xl">
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-3 rounded-xl">
             <span>{banner}</span>
             <button onClick={() => setBanner('')}><X className="w-4 h-4" /></button>
           </div>
         )}
 
-        {/* Stats */}
-        {connected && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            {[
-              { label: 'Total leads',        value: stats.total,   icon: Users,          cls: 'text-slate-700' },
-              { label: 'WhatsApp sent',      value: stats.sent,    icon: CheckCircle,    cls: 'text-green-600' },
-              { label: 'Pending',            value: stats.pending, icon: Clock,          cls: 'text-amber-600' },
-              { label: 'No phone number',    value: stats.noPhone, icon: Phone,          cls: 'text-slate-400' },
-            ].map(({ label, value, icon: Icon, cls }) => (
-              <div key={label} className="bg-white rounded-xl border border-slate-100 p-4">
-                <div className={`flex items-center gap-1.5 ${cls} mb-1`}>
-                  <Icon className="w-4 h-4" />
-                  <span className="text-xs font-medium text-slate-500">{label}</span>
-                </div>
-                <p className="text-2xl font-bold text-slate-900">{value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!connected && !loading ? (
-          /* Empty state */
-          <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Facebook className="w-8 h-8 text-blue-600" />
+        {loading ? (
+          <div className="animate-pulse space-y-4">
+            <div className="h-12 bg-slate-200 rounded-xl w-64" />
+            <div className="grid grid-cols-4 gap-3">
+              {[1,2,3,4].map(i => <div key={i} className="h-24 bg-slate-200 rounded-xl" />)}
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Connect your Facebook Page</h2>
-            <p className="text-slate-500 text-sm max-w-sm mx-auto mb-6">
-              Connect a Facebook Page to automatically capture leads from your Lead Ad forms and send them a WhatsApp message instantly.
-            </p>
-            <a
-              href="/api/facebook/auth"
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition"
-            >
-              <Facebook className="w-5 h-5" />
-              Connect Facebook Page
-            </a>
-            <div className="mt-8 grid grid-cols-3 gap-4 max-w-sm mx-auto text-center">
-              {[
-                { icon: Facebook,       label: 'Lead Ad fires'       },
-                { icon: Zap,            label: 'Wapaci captures it'  },
-                { icon: MessageCircle,  label: 'WhatsApp sent'       },
-              ].map(({ icon: Icon, label }, i) => (
-                <div key={i}>
-                  <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
-                    <Icon className="w-5 h-5 text-slate-500" />
-                  </div>
-                  <p className="text-xs text-slate-500">{label}</p>
-                </div>
-              ))}
-            </div>
+            <div className="h-64 bg-slate-200 rounded-xl" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <>
+            {/* Page selector row */}
+            <div className="flex items-center justify-between">
+              <PageDropdown pages={pages} selected={selectedPage} onSelect={setSelectedPage} />
+              {selectedPage && (
+                <button
+                  onClick={() => disconnectPage(selectedPage.page_id)}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium transition"
+                >
+                  Disconnect page
+                </button>
+              )}
+            </div>
 
-            {/* Connected pages + form automations */}
-            <div className="lg:col-span-1 space-y-3">
-              <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Connected Pages</h2>
-              {loading ? (
-                <div className="animate-pulse space-y-2">
-                  {[1, 2].map(i => <div key={i} className="h-16 bg-slate-200 rounded-xl" />)}
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Total leads',     value: stats.total,   icon: Users,       cls: 'text-slate-600' },
+                { label: 'WhatsApp sent',   value: stats.sent,    icon: CheckCircle, cls: 'text-green-600' },
+                { label: 'Pending',         value: stats.pending, icon: Clock,       cls: 'text-amber-600' },
+                { label: 'No phone number', value: stats.noPhone, icon: Phone,       cls: 'text-slate-400' },
+              ].map(({ label, value, icon: Icon, cls }) => (
+                <div key={label} className="bg-white rounded-xl border border-slate-100 px-4 py-4">
+                  <div className={`flex items-center gap-1.5 ${cls} mb-1`}>
+                    <Icon className="w-3.5 h-3.5" />
+                    <span className="text-xs font-medium text-slate-500">{label}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-slate-900">{value}</p>
                 </div>
-              ) : pages.map(page => (
-                <PageCard
-                  key={page.page_id}
-                  page={page}
-                  onDisconnect={disconnectPage}
-                  onRefresh={() => fetchData()}
-                  leadsByForm={leadsByForm}
-                />
               ))}
             </div>
 
+            {/* Form automations for selected page */}
+            {selectedPage && (
+              <FormAutomationsPanel
+                page={selectedPage}
+                leads={filteredLeads}
+                onSave={() => fetchData()}
+              />
+            )}
+
             {/* Leads table */}
-            <div className="lg:col-span-2">
-              <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">Leads</h2>
-              <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                {loading ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">Loading…</div>
-                ) : leads.length === 0 ? (
-                  <div className="p-12 text-center">
-                    <Users className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500 text-sm">No leads yet. They'll appear here as soon as someone fills your Lead Ad form.</p>
-                    <button
-                      onClick={() => fetchData(true)}
-                      className="mt-4 text-sm text-blue-600 hover:underline"
-                    >
-                      Sync from Facebook
-                    </button>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50">
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Name</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Contact</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Form</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Date</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">WhatsApp</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {leads.map(lead => {
-                          const isExpanded = expandedLead === lead.id
-                          const extraFields = Object.entries(lead.fields ?? {}).filter(
-                            ([k]) => !['full_name','first_name','last_name','email','phone_number','phone'].includes(k)
-                          )
-                          return (
-                            <>
-                              <tr
-                                key={lead.id}
-                                onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
-                                className="hover:bg-slate-50 transition cursor-pointer"
-                              >
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center gap-1.5">
-                                    {isExpanded
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-700">
+                  {selectedPage ? `${selectedPage.page_name} leads` : 'All leads'}
+                </h2>
+                <span className="text-xs text-slate-400">{filteredLeads.length} total</span>
+              </div>
+
+              {filteredLeads.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Users className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm">No leads yet for this page.</p>
+                  <button
+                    onClick={() => fetchData(true)}
+                    className="mt-3 text-sm text-blue-600 hover:underline"
+                  >
+                    Sync from Facebook
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Name</th>
+                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Contact</th>
+                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Form</th>
+                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Date</th>
+                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">WhatsApp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {filteredLeads.map(lead => {
+                        const isExpanded = expandedLead === lead.id
+                        const extraFields = Object.entries(lead.fields ?? {}).filter(
+                          ([k]) => !['full_name','first_name','last_name','email','phone_number','phone'].includes(k)
+                        )
+                        return (
+                          <>
+                            <tr
+                              key={lead.id}
+                              onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
+                              className="hover:bg-slate-50 transition cursor-pointer"
+                            >
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-1.5">
+                                  {extraFields.length > 0 && (
+                                    isExpanded
                                       ? <ChevronUp className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                      : <ChevronDown className="w-3 h-3 text-slate-400 flex-shrink-0" />}
-                                    <p className="font-medium text-slate-800">{lead.name ?? <span className="text-slate-400 italic">Unknown</span>}</p>
+                                      : <ChevronDown className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                  )}
+                                  <p className="font-medium text-slate-800">
+                                    {lead.name ?? <span className="text-slate-400 italic text-xs">Unknown</span>}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="px-5 py-3.5 space-y-0.5">
+                                {lead.phone && (
+                                  <div className="flex items-center gap-1 text-slate-600 text-xs">
+                                    <Phone className="w-3 h-3 text-slate-400" />
+                                    {lead.phone}
+                                  </div>
+                                )}
+                                {lead.email && (
+                                  <div className="flex items-center gap-1 text-slate-600 text-xs">
+                                    <Mail className="w-3 h-3 text-slate-400" />
+                                    {lead.email}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <span className="text-xs text-slate-500">{lead.form_name ?? '—'}</span>
+                              </td>
+                              <td className="px-5 py-3.5 text-xs text-slate-400 whitespace-nowrap">
+                                {new Date(lead.created_at).toLocaleDateString('en-IN', {
+                                  day: 'numeric', month: 'short',
+                                  hour: '2-digit', minute: '2-digit',
+                                })}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <StatusBadge status={lead.wa_status} />
+                              </td>
+                            </tr>
+                            {isExpanded && extraFields.length > 0 && (
+                              <tr key={`${lead.id}-exp`} className="bg-blue-50/30">
+                                <td colSpan={5} className="px-8 py-4">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
+                                    {extraFields.map(([key, val]) => (
+                                      <div key={key}>
+                                        <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium mb-0.5">
+                                          {key.replace(/_/g, ' ')}
+                                        </p>
+                                        <p className="text-sm font-medium text-slate-700">{val}</p>
+                                      </div>
+                                    ))}
                                   </div>
                                 </td>
-                                <td className="px-4 py-3 space-y-0.5">
-                                  {lead.phone && (
-                                    <div className="flex items-center gap-1 text-slate-600 text-xs">
-                                      <Phone className="w-3 h-3 text-slate-400" />
-                                      {lead.phone}
-                                    </div>
-                                  )}
-                                  {lead.email && (
-                                    <div className="flex items-center gap-1 text-slate-600 text-xs">
-                                      <Mail className="w-3 h-3 text-slate-400" />
-                                      {lead.email}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span className="text-xs text-slate-500">{lead.form_name ?? '—'}</span>
-                                </td>
-                                <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
-                                  {new Date(lead.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <StatusBadge status={lead.wa_status} />
-                                </td>
                               </tr>
-                              {isExpanded && (
-                                <tr key={`${lead.id}-details`} className="bg-blue-50/40">
-                                  <td colSpan={5} className="px-6 py-4">
-                                    {extraFields.length === 0 ? (
-                                      <p className="text-xs text-slate-400 italic">No additional question answers for this lead.</p>
-                                    ) : (
-                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
-                                        {extraFields.map(([key, val]) => (
-                                          <div key={key}>
-                                            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">
-                                              {key.replace(/_/g, ' ')}
-                                            </p>
-                                            <p className="text-xs font-medium text-slate-700">{val}</p>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              )}
-                            </>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                            )}
+                          </>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-
-          </div>
+          </>
         )}
       </div>
     </div>
