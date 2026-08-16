@@ -45,14 +45,11 @@ interface Page {
 const DEFAULT_TEMPLATE = "Hi {{name}}! 👋 Thanks for your interest. We'll reach out to you shortly via WhatsApp!"
 
 const SYNC_MESSAGES = [
-  "Knocking on Facebook's door… 🚪",
-  "Convincing leads to join the WhatsApp party… 🎉",
-  "Bribing Facebook servers with good vibes… ✨",
-  "Counting leads on our fingers… ran out of fingers 🤞",
-  "Teaching your leads some WhatsApp manners… 📱",
-  "Asking Zuckerberg nicely for your leads… 🙏",
-  "Speed-reading through your lead forms… 📋",
-  "Almost there, we promise… probably 🤷",
+  "Connecting to your Facebook pages…",
+  "Fetching your lead forms…",
+  "Syncing…",
+  "Almost there…",
+  "Loading your data…",
 ]
 
 function SyncingScreen({ isSyncing }: { isSyncing: boolean }) {
