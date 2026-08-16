@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { exchangeFBCode, getLongLivedToken, getUserPages, subscribePageToLeadgen } from '@/lib/facebook'
 
@@ -11,12 +12,15 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/dashboard/leads?fb=denied`)
   }
 
+  const cookieStore = await cookies()
+  const callbackUrl = cookieStore.get('fb_oauth_callback')?.value ?? `${origin}/api/facebook/callback`
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(`${origin}/login?returnTo=/dashboard/leads`)
 
   try {
-    const shortToken = await exchangeFBCode(code)
+    const shortToken = await exchangeFBCode(code, callbackUrl)
     const longToken  = await getLongLivedToken(shortToken)
     const pages      = await getUserPages(longToken)
 

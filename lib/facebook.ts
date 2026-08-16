@@ -25,17 +25,17 @@ function appSecret() { return process.env.META_APP_SECRET! }
 function appUrl()    { return process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com' }
 function redirectUri() { return `${appUrl()}/api/facebook/callback` }
 
-export function getFacebookOAuthUrl(state: string): string {
+export function getFacebookOAuthUrl(state: string, callbackUrl?: string): string {
   const scopes = 'pages_show_list,leads_retrieval,pages_manage_metadata'
   return (
     `https://www.facebook.com/${FB_API_VERSION}/dialog/oauth?` +
-    new URLSearchParams({ client_id: appId(), redirect_uri: redirectUri(), scope: scopes, state, response_type: 'code' })
+    new URLSearchParams({ client_id: appId(), redirect_uri: callbackUrl ?? redirectUri(), scope: scopes, state, response_type: 'code' })
   )
 }
 
-export async function exchangeFBCode(code: string): Promise<string> {
+export async function exchangeFBCode(code: string, callbackUrl?: string): Promise<string> {
   const params = new URLSearchParams({
-    client_id: appId(), client_secret: appSecret(), redirect_uri: redirectUri(), code,
+    client_id: appId(), client_secret: appSecret(), redirect_uri: callbackUrl ?? redirectUri(), code,
   })
   const res = await fetch(`${FB_BASE}/oauth/access_token?${params}`)
   if (!res.ok) throw new Error(`FB code exchange failed: ${await res.text()}`)

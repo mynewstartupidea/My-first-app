@@ -13,8 +13,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'META_APP_ID / META_APP_SECRET not set in Vercel env vars' }, { status: 500 })
   }
 
+  const callbackUrl = `${origin}/api/facebook/callback`
   const state = crypto.randomBytes(16).toString('hex')
-  const res   = NextResponse.redirect(getFacebookOAuthUrl(state))
-  res.cookies.set('fb_oauth_state', state, { httpOnly: true, maxAge: 600, sameSite: 'lax', secure: true })
+  const res   = NextResponse.redirect(getFacebookOAuthUrl(state, callbackUrl))
+  res.cookies.set('fb_oauth_state',    state,       { httpOnly: true, maxAge: 600, sameSite: 'lax', secure: true })
+  res.cookies.set('fb_oauth_callback', callbackUrl, { httpOnly: true, maxAge: 600, sameSite: 'lax', secure: true })
   return res
 }
