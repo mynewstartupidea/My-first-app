@@ -1,12 +1,41 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
-  Facebook, RefreshCw, MessageCircle, Users, ChevronDown,
-  CheckCircle, XCircle, Clock, Phone, Mail, FileText,
-  Zap, X, Save, Settings, Plus, ChevronUp, Loader2
+  Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
+  CheckCircle, X, Zap, Save, Plus, ChevronRight,
+  Loader2, Pause, Play, Search, Edit2, Download,
+  AlertCircle, FileText,
 } from 'lucide-react'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Page {
+  id: string
+  page_id: string
+  page_name: string
+  store_id: string | null
+}
+
+interface FBForm {
+  id: string
+  name: string
+  status: string
+}
+
+interface ActiveForm {
+  id: string
+  form_id: string
+  form_name: string
+  connection_id: string
+  page_id: string
+  message_template: string
+  is_enabled: boolean
+  color_index: number
+  lead_count: number
+  last_lead_fetch: string | null
+}
 
 interface Lead {
   id: string
@@ -16,191 +45,140 @@ interface Lead {
   form_id: string | null
   form_name: string | null
   page_id: string | null
-  wa_status: 'pending' | 'sent' | 'failed' | 'no_phone'
+  wa_status: string
   created_at: string
   fields: Record<string, string> | null
 }
 
-interface FormAutomation {
-  form_id: string
-  message_template: string
-  is_enabled: boolean
-}
+// ── Colors ────────────────────────────────────────────────────────────────────
 
-interface LeadForm {
-  id: string
-  name: string
-  status: string
-  automation: FormAutomation | null
-}
-
-interface Page {
-  id: string
-  page_id: string
-  page_name: string
-  subscribed_to_leadgen: boolean
-  forms: LeadForm[]
-}
-
-const DEFAULT_TEMPLATE = "Hi {{name}}! 👋 Thanks for your interest. We'll reach out to you shortly via WhatsApp!"
-
-const SYNC_MESSAGES = [
-  "Connecting to your Facebook pages…",
-  "Fetching your lead forms…",
-  "Syncing…",
-  "Almost there…",
-  "Loading your data…",
+const COLORS = [
+  { dot: '#3b82f6', bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
+  { dot: '#8b5cf6', bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe' },
+  { dot: '#10b981', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
+  { dot: '#f97316', bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
+  { dot: '#ec4899', bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' },
+  { dot: '#06b6d4', bg: '#ecfeff', text: '#155e75', border: '#a5f3fc' },
+  { dot: '#f59e0b', bg: '#fffbeb', text: '#92400e', border: '#fde68a' },
+  { dot: '#ef4444', bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
 ]
 
-function SyncingScreen({ isSyncing }: { isSyncing: boolean }) {
-  const [msgIndex, setMsgIndex] = useState(0)
-  const [visible, setVisible] = useState(true)
+const getColor = (i: number) => COLORS[i % COLORS.length]
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setVisible(false)
-      setTimeout(() => {
-        setMsgIndex(i => (i + 1) % SYNC_MESSAGES.length)
-        setVisible(true)
-      }, 300)
-    }, 2500)
-    return () => clearInterval(id)
-  }, [])
+const DEFAULT_TEMPLATE = `Hi {{name}}! 👋
 
-  return (
-    <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
-      {/* Animated icon stack */}
-      <div className="relative mb-8">
-        <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 animate-pulse">
-          <Facebook className="w-10 h-10 text-white" />
-        </div>
-        <div className="absolute -bottom-2 -right-2 w-9 h-9 bg-[#25D366] rounded-xl flex items-center justify-center shadow-md border-2 border-white">
-          <MessageCircle className="w-5 h-5 text-white" />
-        </div>
-        {/* spinning ring */}
-        <div className="absolute inset-0 -m-2 rounded-3xl border-4 border-blue-200 border-t-blue-600 animate-spin" />
-      </div>
+We received your inquiry and will be in touch shortly.
 
-      <h3 className="text-lg font-bold text-slate-800 mb-2">
-        {isSyncing ? 'Syncing your leads…' : 'Connecting your pages…'}
-      </h3>
+Let us know if you have any questions!`
 
-      <div className={`transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>
-        <p className="text-slate-500 text-sm">{SYNC_MESSAGES[msgIndex]}</p>
-      </div>
+// ── StatusBadge ───────────────────────────────────────────────────────────────
 
-      <div className="flex gap-1.5 mt-6">
-        {[0,1,2].map(i => (
-          <div
-            key={i}
-            className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"
-            style={{ animationDelay: `${i * 0.15}s` }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function StatusBadge({ status }: { status: Lead['wa_status'] }) {
-  const map = {
-    sent:     { icon: CheckCircle, label: 'Sent',     cls: 'text-green-700 bg-green-50 border-green-200' },
-    pending:  { icon: Clock,       label: 'Pending',  cls: 'text-amber-700 bg-amber-50 border-amber-200' },
-    failed:   { icon: XCircle,     label: 'Failed',   cls: 'text-red-700 bg-red-50 border-red-200'       },
-    no_phone: { icon: Phone,       label: 'No phone', cls: 'text-slate-500 bg-slate-50 border-slate-200' },
+function StatusBadge({ status }: { status: string }) {
+  const variants: Record<string, { label: string; cls: string }> = {
+    sent:     { label: 'Sent',       cls: 'bg-green-100 text-green-700' },
+    pending:  { label: 'Pending',    cls: 'bg-amber-100 text-amber-700' },
+    failed:   { label: 'Failed',     cls: 'bg-red-100 text-red-700' },
+    no_phone: { label: 'No phone',   cls: 'bg-gray-100 text-gray-500' },
+    imported: { label: 'Historical', cls: 'bg-slate-100 text-slate-500' },
   }
-  const { icon: Icon, label, cls } = map[status] ?? map.pending
+  const v = variants[status] ?? { label: status, cls: 'bg-gray-100 text-gray-500' }
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${cls}`}>
-      <Icon className="w-3 h-3" />
-      {label}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${v.cls}`}>
+      {v.label}
     </span>
   )
 }
 
-function PageDropdown({ pages, selected, onSelect, onDisconnect, onDisconnectAll }: {
+// ── SyncingScreen ─────────────────────────────────────────────────────────────
+
+const SYNC_MESSAGES = [
+  'Connecting to Facebook…',
+  'Fetching your lead forms…',
+  'Syncing leads…',
+  'Almost there…',
+  'Loading your data…',
+]
+
+function SyncingScreen() {
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % SYNC_MESSAGES.length), 2000)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
+          <Facebook className="w-6 h-6 text-white" />
+        </div>
+        <div className="flex gap-1">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="w-2 h-2 bg-green-400 rounded-full animate-bounce"
+              style={{ animationDelay: `${i * 0.15}s` }} />
+          ))}
+        </div>
+        <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center">
+          <MessageCircle className="w-6 h-6 text-white" />
+        </div>
+      </div>
+      <p className="text-sm text-gray-400 animate-pulse">{SYNC_MESSAGES[idx]}</p>
+    </div>
+  )
+}
+
+// ── PageDropdown ──────────────────────────────────────────────────────────────
+
+function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnect }: {
   pages: Page[]
-  selected: Page | null
-  onSelect: (page: Page) => void
-  onDisconnect: (pageId: string) => void
+  selectedId: string | null
+  onSelect: (p: Page) => void
   onDisconnectAll: () => void
+  onReconnect: () => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const selected = pages.find(p => p.page_id === selectedId)
 
   useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
   }, [])
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-300 transition min-w-[240px]"
+        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition max-w-[220px]"
       >
-        <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
-          <Facebook className="w-3.5 h-3.5 text-white" />
+        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+          <Facebook className="w-3 h-3 text-blue-600" />
         </div>
-        <span className="text-sm font-medium text-slate-800 flex-1 text-left truncate">
-          {selected ? selected.page_name : 'Select a page'}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
+        <span className="truncate">{selected?.page_name ?? 'Select page'}</span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-
       {open && (
-        <div className="absolute top-full mt-1.5 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[280px]">
-          {/* Pages list */}
-          <div className="max-h-56 overflow-y-auto">
-            <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Your pages</p>
-            {pages.map(page => (
-              <button
-                key={page.page_id}
-                onClick={() => { onSelect(page); setOpen(false) }}
-                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-slate-50 transition ${selected?.page_id === page.page_id ? 'bg-blue-50' : ''}`}
-              >
-                <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
-                  <Facebook className="w-3.5 h-3.5 text-white" />
+        <div className="absolute left-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden">
+          <div className="py-1 max-h-52 overflow-y-auto">
+            {pages.map(p => (
+              <button key={p.page_id} onClick={() => { onSelect(p); setOpen(false) }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition ${selectedId === p.page_id ? 'bg-blue-50' : ''}`}>
+                <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Facebook className="w-3.5 h-3.5 text-blue-600" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{page.page_name}</p>
-                  <p className="text-xs text-slate-400">{page.forms.length} form{page.forms.length !== 1 ? 's' : ''}</p>
-                </div>
-                {selected?.page_id === page.page_id && (
-                  <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                )}
+                <span className={`flex-1 truncate ${selectedId === p.page_id ? 'font-medium text-blue-700' : 'text-gray-700'}`}>{p.page_name}</span>
+                {selectedId === p.page_id && <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />}
               </button>
             ))}
           </div>
-
-          {/* Actions */}
-          <div className="border-t border-slate-100 p-2 space-y-0.5">
-            <a
-              href="/api/facebook/auth"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition w-full"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
-              Reconnect Facebook
-            </a>
-            {selected && (
-              <button
-                onClick={() => { setOpen(false); onDisconnect(selected.page_id) }}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition w-full"
-              >
-                <X className="w-3.5 h-3.5" />
-                Disconnect "{selected.page_name}"
-              </button>
-            )}
-            <button
-              onClick={() => { setOpen(false); onDisconnectAll() }}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition w-full font-medium"
-            >
-              <XCircle className="w-3.5 h-3.5" />
-              Disconnect all pages
+          <div className="border-t border-gray-100 py-1">
+            <button onClick={() => { onReconnect(); setOpen(false) }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 transition">
+              <RefreshCw className="w-4 h-4" /> Reconnect Facebook
+            </button>
+            <button onClick={() => { onDisconnectAll(); setOpen(false) }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition">
+              <X className="w-4 h-4" /> Disconnect all pages
             </button>
           </div>
         </div>
@@ -209,503 +187,839 @@ function PageDropdown({ pages, selected, onSelect, onDisconnect, onDisconnectAll
   )
 }
 
-function FormAutomationsPanel({ page, leads, onSave }: {
-  page: Page
-  leads: Lead[]
-  onSave: () => void
+// ── FormCard ──────────────────────────────────────────────────────────────────
+
+function FormCard({ form, isSelected, isToggling, onSelect, onToggle, onImport, onEdit }: {
+  form: ActiveForm
+  isSelected: boolean
+  isToggling: boolean
+  onSelect: () => void
+  onToggle: (enabled: boolean) => void
+  onImport: () => void
+  onEdit: () => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [editForm, setEditForm] = useState<string | null>(null)
-
-  if (page.forms.length === 0) return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5 flex items-start gap-3">
-      <FileText className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-      <div>
-        <p className="text-sm font-medium text-amber-800">No lead forms found on this page</p>
-        <p className="text-xs text-amber-700 mt-0.5">
-          This could mean: the forms are on a different page, or the token needs a refresh.{' '}
-          <a href="/api/facebook/auth" className="underline font-medium">Reconnect Facebook</a>{' '}
-          to get fresh access, or check{' '}
-          <a href="https://adsmanager.facebook.com" target="_blank" rel="noreferrer" className="underline font-medium">
-            Meta Ads Manager
-          </a>{' '}
-          to verify which page your forms are under.
-        </p>
-      </div>
-    </div>
-  )
-
+  const c = getColor(form.color_index)
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition"
-      >
-        <div className="flex items-center gap-2">
-          <Settings className="w-4 h-4 text-slate-500" />
-          <span className="text-sm font-semibold text-slate-700">Form automations</span>
-          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-            {page.forms.length} form{page.forms.length !== 1 ? 's' : ''}
+    <div
+      onClick={onSelect}
+      className="flex-shrink-0 w-52 rounded-xl border cursor-pointer transition-all overflow-hidden hover:shadow-md"
+      style={{
+        borderColor: isSelected ? c.dot : c.border,
+        background:  c.bg,
+        boxShadow:   isSelected ? `0 0 0 2px ${c.dot}30` : undefined,
+      }}
+    >
+      <div className="h-1" style={{ background: c.dot }} />
+      <div className="p-4">
+        <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight mb-3 min-h-[2.5rem]" title={form.form_name}>
+          {form.form_name}
+        </p>
+        <div className="flex items-center gap-1.5 mb-3">
+          <Users className="w-3.5 h-3.5" style={{ color: c.dot }} />
+          <span className="text-sm font-semibold" style={{ color: c.text }}>{form.lead_count}</span>
+          <span className="text-xs text-gray-400">leads</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1 text-xs font-medium"
+            style={{ color: form.is_enabled ? '#16a34a' : '#9ca3af' }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: form.is_enabled ? '#16a34a' : '#9ca3af' }} />
+            {form.is_enabled ? 'Active' : 'Paused'}
           </span>
+          <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+            <button onClick={() => !isToggling && onToggle(!form.is_enabled)}
+              className="p-1.5 rounded-lg hover:bg-black/5 transition text-gray-400 hover:text-gray-600"
+              title={form.is_enabled ? 'Pause' : 'Resume'}>
+              {isToggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : form.is_enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            </button>
+            <button onClick={onImport} className="p-1.5 rounded-lg hover:bg-black/5 transition text-gray-400 hover:text-gray-600" title="Import older leads">
+              <Download className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-black/5 transition text-gray-400 hover:text-gray-600" title="Edit template">
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-      </button>
-
-      {open && (
-        <div className="border-t border-slate-100 p-4 space-y-3">
-          {page.forms.map(form => {
-            const formLeads = leads.filter(l => l.form_id === form.id)
-            const fieldKeys = Array.from(new Set(formLeads.flatMap(l => Object.keys(l.fields ?? {}))))
-            const isEditing = editForm === form.id
-
-            return (
-              <div key={form.id} className="bg-slate-50 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <p className="text-sm font-medium text-slate-700 truncate">{form.name}</p>
-                    {form.automation?.is_enabled && (
-                      <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                        Auto ON
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setEditForm(isEditing ? null : form.id)}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium ml-3 flex-shrink-0"
-                  >
-                    {isEditing ? 'Close' : 'Configure'}
-                  </button>
-                </div>
-
-                {isEditing && (
-                  <AutomationEditor
-                    pageId={page.id}
-                    form={form}
-                    formFieldKeys={fieldKeys}
-                    onSave={onSave}
-                  />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
 
-function AutomationEditor({ pageId, form, formFieldKeys, onSave }: {
-  pageId: string
-  form: LeadForm
-  formFieldKeys: string[]
-  onSave: () => void
+// ── ActivateFormModal ─────────────────────────────────────────────────────────
+
+function ActivateFormModal({ selectedPageId, activeForms, onClose, onActivate }: {
+  selectedPageId: string | null
+  activeForms: ActiveForm[]
+  onClose: () => void
+  onActivate: (connectionId: string, form: FBForm, template: string) => Promise<void>
 }) {
-  const [msg, setMsg]         = useState(form.automation?.message_template ?? DEFAULT_TEMPLATE)
-  const [enabled, setEnabled] = useState(form.automation?.is_enabled ?? true)
-  const [saving, setSaving]   = useState(false)
+  const [search, setSearch] = useState('')
+  const [pageForms, setPageForms] = useState<FBForm[] | null>(null)
+  const [connectionId, setConnectionId] = useState<string | null>(null)
+  const [loadingForms, setLoadingForms] = useState(false)
+  const [selectedForm, setSelectedForm] = useState<FBForm | null>(null)
+  const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
+  const [activating, setActivating] = useState(false)
 
-  const allVars = Array.from(new Set(['name', 'email', 'phone', ...formFieldKeys]))
+  const activatedIds = new Set(activeForms.map(f => f.form_id))
 
-  async function save() {
-    setSaving(true)
-    await fetch('/api/facebook/form-automation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        connectionId:    pageId,
-        formId:          form.id,
-        formName:        form.name,
-        messageTemplate: msg,
-        isEnabled:       enabled,
-      }),
-    })
-    setSaving(false)
-    onSave()
+  useEffect(() => {
+    if (!selectedPageId) return
+    setLoadingForms(true)
+    fetch(`/api/facebook/pages?page_id=${selectedPageId}`)
+      .then(r => r.json())
+      .then((d: { forms?: FBForm[]; connectionId?: string | null }) => {
+        setPageForms(d.forms ?? [])
+        setConnectionId(d.connectionId ?? null)
+      })
+      .finally(() => setLoadingForms(false))
+  }, [selectedPageId])
+
+  const filtered = (pageForms ?? []).filter(
+    f => !activatedIds.has(f.id) && f.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const handleActivate = async () => {
+    if (!selectedForm || !connectionId) return
+    setActivating(true)
+    try { await onActivate(connectionId, selectedForm, template); onClose() }
+    finally { setActivating(false) }
   }
 
   return (
-    <div className="mt-3 space-y-3 pt-3 border-t border-slate-200">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-slate-600">WhatsApp auto-reply</p>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <span className="text-xs text-slate-500">{enabled ? 'Enabled' : 'Disabled'}</span>
-          <div
-            onClick={() => setEnabled(e => !e)}
-            className={`w-9 h-5 rounded-full transition relative ${enabled ? 'bg-[#25D366]' : 'bg-slate-200'}`}
-          >
-            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${enabled ? 'left-4' : 'left-0.5'}`} />
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Activate a lead form</h2>
+            <p className="text-sm text-gray-400 mt-0.5">Pick a form to monitor for new leads</p>
           </div>
-        </label>
-      </div>
-      <textarea
-        value={msg}
-        onChange={e => setMsg(e.target.value)}
-        rows={3}
-        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 resize-none bg-white"
-        placeholder="Message to send when a new lead arrives..."
-      />
-      <div>
-        <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wide font-medium">Click to insert variable</p>
-        <div className="flex flex-wrap gap-1.5">
-          {allVars.map(key => (
-            <button
-              key={key}
-              onClick={() => setMsg(prev => prev + `{{${key}}}`)}
-              className="text-[11px] font-mono bg-white hover:bg-[#25D366]/10 hover:text-[#25D366] text-slate-600 px-2 py-0.5 rounded border border-slate-200 transition"
-            >
-              {`{{${key}}}`}
-            </button>
-          ))}
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
         </div>
+
+        {!selectedForm ? (
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <div className="p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search forms…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {loadingForms ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <FileText className="w-10 h-10 mb-3 opacity-30" />
+                  <p className="text-sm">
+                    {pageForms === null ? 'Loading…' : search ? 'No matching forms' : 'All forms are already activated'}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {filtered.map(f => (
+                    <button key={f.id} onClick={() => setSelectedForm(f)}
+                      className="w-full flex items-center gap-3 px-6 py-3.5 text-left hover:bg-gray-50 transition group">
+                      <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
+                        <p className="text-xs text-gray-400 capitalize mt-0.5">{f.status?.toLowerCase()}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <button onClick={() => setSelectedForm(null)}
+                className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition mb-3">
+                <ChevronRight className="w-4 h-4 rotate-180" />
+                All forms
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{selectedForm.name}</p>
+                  <p className="text-xs text-gray-400 capitalize mt-0.5">{selectedForm.status?.toLowerCase()}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp message template</label>
+              <p className="text-xs text-gray-400 mb-3">
+                Use{' '}
+                <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">{'{{name}}'}</code>{' '}
+                <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">{'{{phone}}'}</code>{' '}
+                <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">{'{{email}}'}</code>{' '}
+                and any custom field names from your form.
+              </p>
+              <textarea
+                value={template}
+                onChange={e => setTemplate(e.target.value)}
+                rows={7}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+              <div className="mt-3 flex items-start gap-2 p-3 bg-blue-50 rounded-xl">
+                <Users className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700">
+                  The 50 most recent leads will be imported automatically for reference.
+                  New leads will trigger WhatsApp messages.
+                </p>
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-100">
+              <button onClick={handleActivate} disabled={activating}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
+                {activating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                {activating ? 'Activating…' : `Activate "${selectedForm.name}"`}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-      <button
-        onClick={save}
-        disabled={saving}
-        className="flex items-center gap-1.5 text-xs font-semibold bg-[#25D366] hover:bg-[#128C7E] text-white px-3 py-1.5 rounded-lg transition disabled:opacity-60"
-      >
-        <Save className="w-3 h-3" />
-        {saving ? 'Saving…' : 'Save automation'}
-      </button>
     </div>
   )
 }
+
+// ── EditFormModal ─────────────────────────────────────────────────────────────
+
+function EditFormModal({ form, onClose, onSave }: {
+  form: ActiveForm
+  onClose: () => void
+  onSave: (template: string) => Promise<void>
+}) {
+  const [template, setTemplate] = useState(form.message_template)
+  const [saving, setSaving] = useState(false)
+  const c = getColor(form.color_index)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try { await onSave(template); onClose() }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full" style={{ background: c.dot }} />
+            <h2 className="text-base font-semibold text-gray-900 truncate max-w-[300px]">{form.form_name}</h2>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+        <div className="p-6">
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp message template</label>
+          <textarea
+            value={template}
+            onChange={e => setTemplate(e.target.value)}
+            rows={8}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-3 px-6 pb-6">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── ImportModal ───────────────────────────────────────────────────────────────
+
+function ImportModal({ form, onClose, onImport }: {
+  form: ActiveForm
+  onClose: () => void
+  onImport: (fromDate: string, toDate: string) => Promise<{ imported: number }>
+}) {
+  const today = new Date().toISOString().split('T')[0]
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate]     = useState(today)
+  const [importing, setImporting] = useState(false)
+  const [result, setResult]       = useState<number | null>(null)
+  const c = getColor(form.color_index)
+
+  const handleImport = async () => {
+    if (!fromDate) return
+    setImporting(true)
+    try { const r = await onImport(fromDate, toDate); setResult(r.imported) }
+    finally { setImporting(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full" style={{ background: c.dot }} />
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Import older leads</h2>
+              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[250px]">{form.form_name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+        <div className="p-6">
+          {result !== null ? (
+            <div className="text-center py-4">
+              <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <p className="text-3xl font-bold text-gray-900 mb-1">{result}</p>
+              <p className="text-sm text-gray-500">leads imported for reference</p>
+              <p className="text-xs text-gray-400 mt-2">These won&apos;t trigger WhatsApp messages.</p>
+              <button onClick={onClose} className="mt-5 px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl transition">Done</button>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 mb-5">
+                Choose a date range to import historical leads. These are for reference only — no WhatsApp messages will be sent.
+              </p>
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">From date</label>
+                  <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} max={toDate}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">To date</label>
+                  <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} min={fromDate} max={today}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <button onClick={handleImport} disabled={importing || !fromDate}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
+                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {importing ? 'Importing…' : 'Import leads'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── LeadRow ───────────────────────────────────────────────────────────────────
+
+const STANDARD_KEYS = new Set([
+  'name', 'email', 'phone', 'full_name', 'first_name', 'last_name', 'phone_number', 'mobile',
+])
+
+function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
+  lead: Lead
+  activeForms: ActiveForm[]
+  showFormBadge: boolean
+  onWhatsApp: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const form  = activeForms.find(f => f.form_id === lead.form_id)
+  const color = form ? getColor(form.color_index) : null
+  const extra = Object.entries(lead.fields ?? {}).filter(([k]) => !STANDARD_KEYS.has(k))
+
+  return (
+    <>
+      <tr className="hover:bg-gray-50/40 transition-colors">
+        <td className="px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            {color && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color.dot }} />}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">{lead.name ?? '—'}</p>
+              {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
+            </div>
+          </div>
+        </td>
+        <td className="px-5 py-3.5">
+          <span className="text-xs text-gray-600 font-mono">{lead.phone ?? '—'}</span>
+        </td>
+        {showFormBadge && (
+          <td className="px-5 py-3.5">
+            {color && form ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium max-w-[160px]"
+                style={{ background: color.bg, color: color.text }}>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color.dot }} />
+                <span className="truncate">{form.form_name}</span>
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400">{lead.form_name ?? '—'}</span>
+            )}
+          </td>
+        )}
+        <td className="px-5 py-3.5"><StatusBadge status={lead.wa_status} /></td>
+        <td className="px-5 py-3.5">
+          <span className="text-xs text-gray-400">
+            {new Date(lead.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </span>
+        </td>
+        <td className="px-5 py-3.5">
+          <div className="flex items-center gap-1">
+            {lead.phone && lead.wa_status !== 'sent' && lead.wa_status !== 'pending' && (
+              <button onClick={onWhatsApp}
+                className="p-1.5 rounded-lg hover:bg-green-50 text-gray-300 hover:text-green-600 transition"
+                title="Send WhatsApp">
+                <MessageCircle className="w-4 h-4" />
+              </button>
+            )}
+            {extra.length > 0 && (
+              <button onClick={() => setExpanded(e => !e)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-300 hover:text-gray-600 transition">
+                {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+      {expanded && extra.length > 0 && (
+        <tr>
+          <td colSpan={showFormBadge ? 6 : 5} className="px-5 pb-4">
+            <div className="ml-5 bg-gray-50 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {extra.map(([k, v]) => (
+                <div key={k}>
+                  <p className="text-xs text-gray-400 capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
+                  <p className="text-sm font-medium text-gray-800">{v}</p>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+// ── LeadsContent ──────────────────────────────────────────────────────────────
 
 function LeadsContent() {
   const searchParams = useSearchParams()
-  const fbStatus     = searchParams.get('fb')
+  const router = useRouter()
 
-  const [leads, setLeads]         = useState<Lead[]>([])
-  const [pages, setPages]         = useState<Page[]>([])
-  const [selectedPage, setSelectedPage] = useState<Page | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [syncing, setSyncing]     = useState(false)
-  const [banner, setBanner]       = useState('')
-  const [expandedLead, setExpandedLead] = useState<string | null>(null)
+  const [loading,        setLoading]        = useState(true)
+  const [pages,          setPages]          = useState<Page[]>([])
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
+  const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
+  const [leads,          setLeads]          = useState<Lead[]>([])
+  const [total,          setTotal]          = useState(0)
+  const [hasMore,        setHasMore]        = useState(false)
+  const [loadingMore,    setLoadingMore]    = useState(false)
+  const [selectedFormId, setSelectedFormId] = useState<string | 'all'>('all')
+  const [banner,         setBanner]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [showActivate,   setShowActivate]   = useState(false)
+  const [editingForm,    setEditingForm]    = useState<ActiveForm | null>(null)
+  const [importingForm,  setImportingForm]  = useState<ActiveForm | null>(null)
+  const [togglingId,     setTogglingId]     = useState<string | null>(null)
 
-  useEffect(() => {
-    if (fbStatus === 'connected') setBanner('Facebook page connected! Syncing your leads…')
-    if (fbStatus === 'denied')    setBanner('Facebook connection was cancelled.')
-    if (fbStatus === 'no_pages')  setBanner('No Facebook Pages found on your account.')
-    if (fbStatus === 'error')     setBanner('Facebook connection failed. Please try again.')
-  }, [fbStatus])
+  // ── Fetchers ────────────────────────────────────────────────────────────
 
-  const fetchData = useCallback(async (sync = false) => {
-    if (sync) setSyncing(true)
-    else setLoading(true)
-    try {
-      const [leadsRes, pagesRes] = await Promise.all([
-        fetch(`/api/facebook/leads${sync ? '?sync=1' : ''}`),
-        fetch('/api/facebook/pages'),
-      ])
-      const [leadsData, pagesData] = await Promise.all([leadsRes.json(), pagesRes.json()])
-      const newPages = pagesData.pages ?? []
-      setLeads(leadsData.leads ?? [])
-      setPages(newPages)
-      setSelectedPage(prev => {
-        if (prev) return newPages.find((p: Page) => p.page_id === prev.page_id) ?? newPages[0] ?? null
-        return newPages[0] ?? null
-      })
-    } finally {
-      setLoading(false)
-      setSyncing(false)
-    }
+  const fetchPages = useCallback(async () => {
+    const r = await fetch('/api/facebook/pages')
+    const d = await r.json() as { pages?: Page[] }
+    const p = d.pages ?? []
+    setPages(p)
+    return p
   }, [])
 
-  useEffect(() => {
-    fetchData(fbStatus === 'connected')
-  }, [fetchData, fbStatus])
+  const fetchActiveForms = useCallback(async (pageId: string) => {
+    const r = await fetch(`/api/facebook/active-forms?page_id=${pageId}`)
+    const d = await r.json() as { forms?: ActiveForm[] }
+    setActiveForms(d.forms ?? [])
+  }, [])
 
-  async function disconnectPage(pageId: string) {
-    if (!confirm('Disconnect this page? Leads already captured will remain.')) return
-    await fetch('/api/facebook/pages', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageId }),
-    })
-    fetchData()
+  const fetchLeads = useCallback(async (formId: string | 'all', pageId: string, offset = 0, append = false) => {
+    const p = new URLSearchParams({ limit: '50', offset: String(offset) })
+    if (formId !== 'all') p.set('form_id', formId)
+    else p.set('page_id', pageId)
+
+    const r = await fetch(`/api/facebook/leads?${p}`)
+    const d = await r.json() as { leads?: Lead[]; total?: number; hasMore?: boolean }
+    const newLeads = d.leads ?? []
+    if (append) setLeads(prev => [...prev, ...newLeads])
+    else setLeads(newLeads)
+    setTotal(d.total ?? 0)
+    setHasMore(d.hasMore ?? false)
+  }, [])
+
+  // ── Init ────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true)
+      const p = await fetchPages()
+
+      const fb = searchParams.get('fb')
+      if (fb === 'connected') {
+        const n = searchParams.get('pages') ?? '0'
+        setBanner({ type: 'success', msg: `${n} Facebook page${+n !== 1 ? 's' : ''} connected` })
+        router.replace('/dashboard/leads')
+      } else if (fb === 'denied') {
+        setBanner({ type: 'error', msg: 'Facebook connection was cancelled.' })
+      } else if (fb === 'error') {
+        setBanner({ type: 'error', msg: 'Failed to connect Facebook. Please try again.' })
+      }
+
+      if (p.length > 0) {
+        setSelectedPageId(p[0].page_id)
+        await fetchActiveForms(p[0].page_id)
+        await fetchLeads('all', p[0].page_id)
+      }
+      setLoading(false)
+    }
+    init()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  const handlePageChange = async (page: Page) => {
+    setSelectedPageId(page.page_id)
+    setSelectedFormId('all')
+    setLeads([])
+    setActiveForms([])
+    await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id)])
   }
 
-  async function disconnectAll() {
-    if (!confirm('Disconnect all Facebook pages? Leads already captured will remain.')) return
+  const handleTabChange = async (formId: string | 'all') => {
+    setSelectedFormId(formId)
+    setLeads([])
+    if (selectedPageId) await fetchLeads(formId, selectedPageId)
+  }
+
+  const handleLoadMore = async () => {
+    if (!selectedPageId) return
+    setLoadingMore(true)
+    await fetchLeads(selectedFormId, selectedPageId, leads.length, true)
+    setLoadingMore(false)
+  }
+
+  const handleActivate = async (connectionId: string, form: FBForm, template: string) => {
+    const r = await fetch('/api/facebook/form-automation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId, formId: form.id, formName: form.name, messageTemplate: template, isEnabled: true }),
+    })
+    const d = await r.json() as { ok?: boolean; leadsFetched?: number }
+    if (selectedPageId) {
+      await fetchActiveForms(selectedPageId)
+      await fetchLeads(selectedFormId, selectedPageId)
+      if (d.leadsFetched) setBanner({ type: 'success', msg: `${d.leadsFetched} recent leads imported from "${form.name}"` })
+    }
+  }
+
+  const handleToggle = async (form: ActiveForm, enabled: boolean) => {
+    setTogglingId(form.form_id)
+    await fetch('/api/facebook/form-automation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId: form.connection_id, formId: form.form_id, formName: form.form_name, messageTemplate: form.message_template, isEnabled: enabled }),
+    })
+    if (selectedPageId) await fetchActiveForms(selectedPageId)
+    setTogglingId(null)
+  }
+
+  const handleEditSave = async (template: string) => {
+    if (!editingForm) return
+    await fetch('/api/facebook/form-automation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId: editingForm.connection_id, formId: editingForm.form_id, formName: editingForm.form_name, messageTemplate: template, isEnabled: editingForm.is_enabled }),
+    })
+    if (selectedPageId) await fetchActiveForms(selectedPageId)
+  }
+
+  const handleImport = async (form: ActiveForm, fromDate: string, toDate: string) => {
+    const r = await fetch('/api/facebook/leads/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId: form.connection_id, formId: form.form_id, fromDate, toDate }),
+    })
+    const d = await r.json() as { imported?: number }
+    if (selectedPageId) {
+      await fetchActiveForms(selectedPageId)
+      await fetchLeads(selectedFormId, selectedPageId)
+    }
+    return { imported: d.imported ?? 0 }
+  }
+
+  const handleSendWhatsApp = async (lead: Lead) => {
+    await fetch('/api/facebook/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: lead.id, message: '' }),
+    })
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, wa_status: 'pending' } : l))
+    setBanner({ type: 'success', msg: `WhatsApp queued for ${lead.name ?? lead.phone ?? 'lead'}` })
+  }
+
+  const handleDisconnectAll = async () => {
+    if (!confirm('Disconnect all Facebook pages? Lead syncing will stop.')) return
     await fetch('/api/facebook/pages', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
     })
-    setSelectedPage(null)
-    fetchData()
+    setPages([])
+    setSelectedPageId(null)
+    setActiveForms([])
+    setLeads([])
   }
 
-  const connected = pages.length > 0
-  const filteredLeads = selectedPage
-    ? leads.filter(l => l.page_id === selectedPage.page_id)
-    : leads
+  // ── Render ────────────────────────────────────────────────────────────────
 
-  const stats = {
-    total:   filteredLeads.length,
-    sent:    filteredLeads.filter(l => l.wa_status === 'sent').length,
-    pending: filteredLeads.filter(l => l.wa_status === 'pending').length,
-    noPhone: filteredLeads.filter(l => l.wa_status === 'no_phone').length,
-  }
+  if (loading) return <SyncingScreen />
 
-  if (!connected && !loading) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center max-w-md w-full">
-        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Facebook className="w-8 h-8 text-blue-600" />
+  if (pages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 text-center">
+        {banner && (
+          <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+            {banner.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            {banner.msg}
+          </div>
+        )}
+        <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center">
+          <Facebook className="w-10 h-10 text-blue-400" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Connect your Facebook Page</h2>
-        <p className="text-slate-500 text-sm max-w-sm mx-auto mb-6">
-          Connect a Facebook Page to automatically capture leads from your Lead Ad forms and send them a WhatsApp message instantly.
-        </p>
-        <a
-          href="/api/facebook/auth"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition"
-        >
-          <Facebook className="w-5 h-5" />
-          Connect Facebook Page
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Connect Facebook Lead Ads</h2>
+          <p className="text-sm text-gray-400 max-w-sm">Connect your Facebook pages to receive leads and send automated WhatsApp messages.</p>
+        </div>
+        <a href="/api/facebook/auth"
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition">
+          <Facebook className="w-4 h-4" /> Connect Facebook
         </a>
-        <div className="mt-8 flex items-center justify-center gap-6 text-center">
-          {[
-            { icon: Facebook,      label: 'Lead Ad fires'      },
-            { icon: Zap,           label: 'Wapaci captures it' },
-            { icon: MessageCircle, label: 'WhatsApp sent'      },
-          ].map(({ icon: Icon, label }, i) => (
-            <div key={i}>
-              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
-                <Icon className="w-5 h-5 text-slate-500" />
-              </div>
-              <p className="text-xs text-slate-500">{label}</p>
-            </div>
-          ))}
-        </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  const withPhone = leads.filter(l => l.phone).length
+  const sent      = leads.filter(l => l.wa_status === 'sent').length
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-5">
+    <div className="space-y-5 pb-8">
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      {/* Banner */}
+      {banner && (
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+          {banner.type === 'success' ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+          <span className="flex-1">{banner.msg}</span>
+          <button onClick={() => setBanner(null)}><X className="w-4 h-4 opacity-50 hover:opacity-100 transition" /></button>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Lead Ads</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {pages.length} page{pages.length !== 1 ? 's' : ''} connected
+            {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} active`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <PageDropdown
+            pages={pages}
+            selectedId={selectedPageId}
+            onSelect={handlePageChange}
+            onDisconnectAll={handleDisconnectAll}
+            onReconnect={() => { window.location.href = '/api/facebook/auth' }}
+          />
+          <a href="/api/facebook/auth"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
+            <Plus className="w-4 h-4" /> Add page
+          </a>
+        </div>
+      </div>
+
+      {/* Active forms section */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Leads</h1>
-            <p className="text-slate-500 text-sm mt-0.5">Facebook Lead Ads → automatic WhatsApp follow-up</p>
+            <h2 className="text-sm font-semibold text-gray-900">Active forms</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Click a card to filter leads, or activate a new form to start syncing</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => fetchData(true)}
-              disabled={syncing}
-              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 border border-slate-200 bg-white px-3 py-2.5 rounded-xl transition disabled:opacity-60"
-            >
-              {syncing
-                ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                : <RefreshCw className="w-4 h-4" />}
-              {syncing ? 'Syncing…' : 'Sync leads'}
-            </button>
-            <a
-              href="/api/facebook/auth"
-              className="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition"
-            >
-              <Plus className="w-4 h-4" />
-              Add page
-            </a>
-          </div>
+          <button onClick={() => setShowActivate(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition">
+            <Plus className="w-4 h-4" /> Activate a form
+          </button>
         </div>
 
-        {/* Banner */}
-        {banner && (
-          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-3 rounded-xl">
-            <span>{banner}</span>
-            <button onClick={() => setBanner('')}><X className="w-4 h-4" /></button>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="bg-white rounded-2xl border border-slate-100">
-            <SyncingScreen isSyncing={syncing} />
+        {activeForms.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
+              <Zap className="w-6 h-6 text-gray-200" />
+            </div>
+            <p className="text-sm font-medium text-gray-500">No active forms yet</p>
+            <p className="text-xs text-gray-400 mt-1">Activate a form to start monitoring for new leads automatically</p>
           </div>
         ) : (
-          <>
-            {/* Page selector row */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <PageDropdown
-                  pages={pages}
-                  selected={selectedPage}
-                  onSelect={setSelectedPage}
-                  onDisconnect={disconnectPage}
-                  onDisconnectAll={disconnectAll}
+          <div className="px-6 py-5 overflow-x-auto">
+            <div className="flex gap-3 pb-1" style={{ minWidth: 'max-content' }}>
+              {activeForms.map(form => (
+                <FormCard
+                  key={form.form_id}
+                  form={form}
+                  isSelected={selectedFormId === form.form_id}
+                  isToggling={togglingId === form.form_id}
+                  onSelect={() => handleTabChange(form.form_id)}
+                  onToggle={enabled => handleToggle(form, enabled)}
+                  onImport={() => setImportingForm(form)}
+                  onEdit={() => setEditingForm(form)}
                 />
-                {selectedPage && (
-                  <div className="flex items-center gap-3 text-sm text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5" />
-                      {selectedPage.forms.length === 0
-                        ? 'No forms found'
-                        : `${selectedPage.forms.length} form${selectedPage.forms.length !== 1 ? 's' : ''}`}
-                    </span>
-                    <span className="text-slate-300">·</span>
-                    <span>{pages.length} page{pages.length !== 1 ? 's' : ''} connected</span>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={disconnectAll}
-                className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition"
-              >
-                <XCircle className="w-4 h-4" />
-                Logout Facebook
-              </button>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: 'Total leads',     value: stats.total,   icon: Users,       cls: 'text-slate-600' },
-                { label: 'WhatsApp sent',   value: stats.sent,    icon: CheckCircle, cls: 'text-green-600' },
-                { label: 'Pending',         value: stats.pending, icon: Clock,       cls: 'text-amber-600' },
-                { label: 'No phone number', value: stats.noPhone, icon: Phone,       cls: 'text-slate-400' },
-              ].map(({ label, value, icon: Icon, cls }) => (
-                <div key={label} className="bg-white rounded-xl border border-slate-100 px-4 py-4">
-                  <div className={`flex items-center gap-1.5 ${cls} mb-1`}>
-                    <Icon className="w-3.5 h-3.5" />
-                    <span className="text-xs font-medium text-slate-500">{label}</span>
-                  </div>
-                  <p className="text-2xl font-bold text-slate-900">{value}</p>
-                </div>
               ))}
             </div>
-
-            {/* Form automations for selected page */}
-            {selectedPage && (
-              <FormAutomationsPanel
-                page={selectedPage}
-                leads={filteredLeads}
-                onSave={() => fetchData()}
-              />
-            )}
-
-            {/* Leads table */}
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-700">
-                  {selectedPage ? `${selectedPage.page_name} leads` : 'All leads'}
-                </h2>
-                <span className="text-xs text-slate-400">{filteredLeads.length} total</span>
-              </div>
-
-              {filteredLeads.length === 0 ? (
-                <div className="p-12 text-center">
-                  <Users className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500 text-sm">No leads yet for this page.</p>
-                  <button
-                    onClick={() => fetchData(true)}
-                    className="mt-3 text-sm text-blue-600 hover:underline"
-                  >
-                    Sync from Facebook
-                  </button>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100">
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Name</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Contact</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Form</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Date</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">WhatsApp</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {filteredLeads.map(lead => {
-                        const isExpanded = expandedLead === lead.id
-                        const extraFields = Object.entries(lead.fields ?? {}).filter(
-                          ([k]) => !['full_name','first_name','last_name','email','phone_number','phone'].includes(k)
-                        )
-                        return (
-                          <>
-                            <tr
-                              key={lead.id}
-                              onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
-                              className="hover:bg-slate-50 transition cursor-pointer"
-                            >
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-1.5">
-                                  {extraFields.length > 0 && (
-                                    isExpanded
-                                      ? <ChevronUp className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                      : <ChevronDown className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                  )}
-                                  <p className="font-medium text-slate-800">
-                                    {lead.name ?? <span className="text-slate-400 italic text-xs">Unknown</span>}
-                                  </p>
-                                </div>
-                              </td>
-                              <td className="px-5 py-3.5 space-y-0.5">
-                                {lead.phone && (
-                                  <div className="flex items-center gap-1 text-slate-600 text-xs">
-                                    <Phone className="w-3 h-3 text-slate-400" />
-                                    {lead.phone}
-                                  </div>
-                                )}
-                                {lead.email && (
-                                  <div className="flex items-center gap-1 text-slate-600 text-xs">
-                                    <Mail className="w-3 h-3 text-slate-400" />
-                                    {lead.email}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <span className="text-xs text-slate-500">{lead.form_name ?? '—'}</span>
-                              </td>
-                              <td className="px-5 py-3.5 text-xs text-slate-400 whitespace-nowrap">
-                                {new Date(lead.created_at).toLocaleDateString('en-IN', {
-                                  day: 'numeric', month: 'short',
-                                  hour: '2-digit', minute: '2-digit',
-                                })}
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <StatusBadge status={lead.wa_status} />
-                              </td>
-                            </tr>
-                            {isExpanded && extraFields.length > 0 && (
-                              <tr key={`${lead.id}-exp`} className="bg-blue-50/30">
-                                <td colSpan={5} className="px-8 py-4">
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
-                                    {extraFields.map(([key, val]) => (
-                                      <div key={key}>
-                                        <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium mb-0.5">
-                                          {key.replace(/_/g, ' ')}
-                                        </p>
-                                        <p className="text-sm font-medium text-slate-700">{val}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </>
+          </div>
         )}
       </div>
+
+      {/* Leads section */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+        {/* Tab bar */}
+        <div className="flex items-center border-b border-gray-100 overflow-x-auto">
+          <button
+            onClick={() => handleTabChange('all')}
+            className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedFormId === 'all' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          >
+            All leads
+            <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${selectedFormId === 'all' ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'}`}>
+              {total}
+            </span>
+          </button>
+          {activeForms.map(form => {
+            const c = getColor(form.color_index)
+            const sel = selectedFormId === form.form_id
+            return (
+              <button key={form.form_id}
+                onClick={() => handleTabChange(form.form_id)}
+                className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${sel ? '' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                style={sel ? { borderBottomColor: c.dot, color: c.text } : {}}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+                <span className="max-w-[140px] truncate">{form.form_name}</span>
+                <span className="px-1.5 py-0.5 rounded-full text-xs font-medium"
+                  style={sel ? { background: c.bg, color: c.text } : { background: '#f9fafb', color: '#9ca3af' }}>
+                  {form.lead_count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-6 px-6 py-2.5 bg-gray-50/50 border-b border-gray-100/80 text-xs text-gray-400">
+          <span><span className="font-semibold text-gray-600">{total}</span> total</span>
+          <span><span className="font-semibold text-gray-600">{withPhone}</span> with phone</span>
+          <span><span className="font-semibold text-gray-600">{sent}</span> WhatsApp sent</span>
+        </div>
+
+        {/* Table */}
+        {leads.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
+              <Users className="w-6 h-6 text-gray-200" />
+            </div>
+            <p className="text-sm text-gray-400">No leads yet</p>
+            <p className="text-xs text-gray-300 mt-1">Leads appear here as they come in from Facebook</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
+                  {selectedFormId === 'all' && (
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Form</th>
+                  )}
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                  <th className="px-5 py-3 w-16" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {leads.map(lead => (
+                  <LeadRow
+                    key={lead.id}
+                    lead={lead}
+                    activeForms={activeForms}
+                    showFormBadge={selectedFormId === 'all'}
+                    onWhatsApp={() => handleSendWhatsApp(lead)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Load more */}
+        {hasMore && (
+          <div className="flex items-center justify-center px-6 py-4 border-t border-gray-100">
+            <button onClick={handleLoadMore} disabled={loadingMore}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
+              {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className="w-4 h-4" />}
+              Load 50 more
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {showActivate && (
+        <ActivateFormModal
+          selectedPageId={selectedPageId}
+          activeForms={activeForms}
+          onClose={() => setShowActivate(false)}
+          onActivate={handleActivate}
+        />
+      )}
+      {editingForm && (
+        <EditFormModal
+          form={editingForm}
+          onClose={() => setEditingForm(null)}
+          onSave={handleEditSave}
+        />
+      )}
+      {importingForm && (
+        <ImportModal
+          form={importingForm}
+          onClose={() => setImportingForm(null)}
+          onImport={(from, to) => handleImport(importingForm, from, to)}
+        />
+      )}
     </div>
   )
 }
 
+// ── Export ────────────────────────────────────────────────────────────────────
+
 export default function LeadsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400">Loading…</div>}>
+    <Suspense fallback={<SyncingScreen />}>
       <LeadsContent />
     </Suspense>
   )

@@ -93,12 +93,18 @@ export async function getLeadForms(pageId: string, pageToken: string, userToken?
   return []
 }
 
-export async function getFormLeads(formId: string, pageToken: string, since?: string | null): Promise<FBLead[]> {
-  let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=id,created_time,field_data&limit=100`
-  if (since) {
-    const ts = Math.floor(new Date(since).getTime() / 1000)
-    url += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${ts}}]`
-  }
+export async function getFormLeads(
+  formId: string,
+  pageToken: string,
+  since?: string | null,
+  limit = 100,
+  until?: string | null,
+): Promise<FBLead[]> {
+  let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=id,created_time,field_data&limit=${limit}`
+  const filters: object[] = []
+  if (since) filters.push({ field: 'time_created', operator: 'GREATER_THAN', value: Math.floor(new Date(since).getTime() / 1000) })
+  if (until) filters.push({ field: 'time_created', operator: 'LESS_THAN',    value: Math.floor(new Date(until).getTime() / 1000) })
+  if (filters.length) url += `&filtering=${encodeURIComponent(JSON.stringify(filters))}`
   const res = await fetch(url)
   if (!res.ok) return []
   const data = await res.json() as { data?: FBLead[] }

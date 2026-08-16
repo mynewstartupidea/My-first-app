@@ -1,90 +1,43 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getLeadForms, getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate } from '@/lib/utils'
 
-// GET /api/facebook/leads?sync=1  — optionally sync from Facebook first
+// GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const formId = searchParams.get('form_id')
+  const pageId = searchParams.get('page_id')
+  const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '50'), 200)
+  const offset = parseInt(searchParams.get('offset') ?? '0')
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const sync    = new URL(request.url).searchParams.get('sync') === '1'
   const service = createServiceClient()
 
-  if (sync) {
-    const { data: connections } = await service
-      .from('facebook_connections')
-      .select('*')
+  const buildQuery = (countOnly = false) => {
+    let q = service
+      .from('leads')
+      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
       .eq('user_id', user.id)
-
-    for (const conn of connections ?? []) {
-      const forms = await getLeadForms(conn.page_id, conn.page_access_token)
-
-      for (const form of forms) {
-        const fbLeads = await getFormLeads(form.id, conn.page_access_token, conn.last_lead_fetch)
-
-        for (const fl of fbLeads) {
-          const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
-          const fields = extractAllFields(fl.field_data ?? [])
-
-          const { data: saved } = await service.from('leads').upsert({
-            user_id:          user.id,
-            store_id:         conn.store_id,
-            facebook_lead_id: fl.id,
-            page_id:          conn.page_id,
-            form_id:          form.id,
-            form_name:        form.name,
-            name, email, phone,
-            fields,
-            raw_data:  { field_data: fl.field_data },
-            wa_status: phone ? 'pending' : 'no_phone',
-            created_at: fl.created_time,
-          }, { onConflict: 'facebook_lead_id', ignoreDuplicates: true }).select('id').single()
-
-          // Auto-send WhatsApp if automation exists and lead has phone
-          if (saved && phone && conn.store_id) {
-            const { data: auto } = await service
-              .from('lead_form_automations')
-              .select('*')
-              .eq('form_id', form.id)
-              .eq('store_id', conn.store_id)
-              .eq('is_enabled', true)
-              .maybeSingle()
-
-            if (auto) {
-              const message = renderTemplate(auto.message_template, {
-                ...fields,
-                name: name ?? 'there', email: email ?? '', phone,
-              })
-              await service.from('automation_jobs').insert({
-                store_id: conn.store_id, automation_id: null,
-                type: 'lead_ad', customer_phone: phone, customer_name: name ?? 'Lead',
-                message, context: { lead_id: saved.id, form_id: form.id },
-                status: 'pending', scheduled_at: new Date().toISOString(),
-              }).then(null, () => null) // ignore duplicate key if job already exists
-            }
-          }
-        }
-      }
-
-      await service.from('facebook_connections')
-        .update({ last_lead_fetch: new Date().toISOString() })
-        .eq('id', conn.id)
-    }
+      .order('created_at', { ascending: false })
+    if (formId) q = q.eq('form_id', formId)
+    else if (pageId) q = q.eq('page_id', pageId)
+    return q
   }
 
-  const { data: leads } = await service
-    .from('leads')
-    .select('id,name,email,phone,form_id,form_name,page_id,wa_status,created_at,fields')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(200)
+  const { data: leads, count } = await buildQuery().range(offset, offset + limit - 1)
 
-  return NextResponse.json({ leads: leads ?? [] })
+  const total = count ?? 0
+  return NextResponse.json({
+    leads: leads ?? [],
+    total,
+    hasMore: offset + limit < total,
+  })
 }
 
-// POST /api/facebook/leads  — manually send WhatsApp to a specific lead
+// POST /api/facebook/leads — manually send WhatsApp to a specific lead
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -99,10 +52,28 @@ export async function POST(request: Request) {
   if (!lead?.phone) return NextResponse.json({ error: 'Lead not found or has no phone' }, { status: 400 })
   if (!lead.store_id) return NextResponse.json({ error: 'No store connected' }, { status: 400 })
 
+  // Render template with lead fields if the caller didn't already do it
+  const { data: auto } = await service
+    .from('lead_form_automations')
+    .select('message_template')
+    .eq('form_id', lead.form_id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const finalMessage = auto?.message_template
+    ? renderTemplate(auto.message_template, {
+        ...(lead.fields as Record<string, string> ?? {}),
+        name: lead.name ?? 'there',
+        email: lead.email ?? '',
+        phone: lead.phone,
+      })
+    : message
+
   await service.from('automation_jobs').insert({
     store_id: lead.store_id, automation_id: null,
     type: 'lead_ad', customer_phone: lead.phone, customer_name: lead.name ?? 'Lead',
-    message, context: { lead_id: leadId, form_id: lead.form_id, manual: true },
+    message: finalMessage,
+    context: { lead_id: leadId, form_id: lead.form_id, manual: true },
     status: 'pending', scheduled_at: new Date().toISOString(),
   })
 

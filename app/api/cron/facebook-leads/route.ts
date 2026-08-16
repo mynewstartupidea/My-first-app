@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getLeadForms, getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
+import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate } from '@/lib/utils'
 
 export const maxDuration = 60
@@ -14,71 +14,74 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient()
 
-  const { data: connections } = await supabase
-    .from('facebook_connections')
-    .select('*')
+  // Only sync forms that are explicitly activated — skip the rest
+  const { data: activeForms } = await supabase
+    .from('lead_form_automations')
+    .select('id, user_id, store_id, connection_id, form_id, form_name, message_template, last_lead_fetch')
+    .eq('is_enabled', true)
 
   let synced = 0
 
-  for (const conn of connections ?? []) {
-    const forms = await getLeadForms(conn.page_id, conn.page_access_token)
+  for (const form of activeForms ?? []) {
+    const { data: conn } = await supabase
+      .from('facebook_connections')
+      .select('page_id, page_access_token, user_access_token')
+      .eq('id', form.connection_id)
+      .maybeSingle()
 
-    for (const form of forms) {
-      const fbLeads = await getFormLeads(form.id, conn.page_access_token, conn.last_lead_fetch)
+    if (!conn) continue
 
-      for (const fl of fbLeads) {
-        const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
-        const fields = extractAllFields(fl.field_data ?? [])
+    const token = (conn.user_access_token as string | null) ?? conn.page_access_token as string
+    const since = form.last_lead_fetch as string | null
 
-        const { data: saved } = await supabase.from('leads').upsert({
-          user_id:          conn.user_id,
-          store_id:         conn.store_id,
-          facebook_lead_id: fl.id,
-          page_id:          conn.page_id,
-          form_id:          form.id,
-          name, email, phone,
-          fields,
-          raw_data:   { field_data: fl.field_data },
-          wa_status:  phone ? 'pending' : 'no_phone',
-          created_at: fl.created_time,
-        }, { onConflict: 'facebook_lead_id', ignoreDuplicates: true }).select('id').single()
+    const fbLeads = await getFormLeads(form.form_id as string, token, since)
 
-        if (saved && phone && conn.store_id) {
-          const { data: auto } = await supabase
-            .from('lead_form_automations')
-            .select('*')
-            .eq('form_id', form.id)
-            .eq('store_id', conn.store_id)
-            .eq('is_enabled', true)
-            .maybeSingle()
+    for (const fl of fbLeads) {
+      const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
+      const fields = extractAllFields(fl.field_data ?? [])
 
-          if (auto) {
-            const message = renderTemplate(auto.message_template, {
-              ...fields,
-              name: name ?? 'there', email: email ?? '', phone: phone ?? '',
-            })
-            await supabase.from('automation_jobs').insert({
-              store_id:       conn.store_id,
-              automation_id:  null,
-              type:           'lead_ad',
-              customer_phone: phone,
-              customer_name:  name ?? 'Lead',
-              message,
-              context:        { lead_id: saved.id, form_id: form.id },
-              status:         'pending',
-              scheduled_at:   new Date().toISOString(),
-            }).then(null, () => null)
-          }
-        }
+      const { data: saved } = await supabase.from('leads').upsert({
+        user_id:          form.user_id,
+        store_id:         form.store_id,
+        facebook_lead_id: fl.id,
+        page_id:          conn.page_id,
+        form_id:          form.form_id,
+        form_name:        form.form_name,
+        name, email, phone, fields,
+        raw_data:   { field_data: fl.field_data },
+        wa_status:  phone ? 'pending' : 'no_phone',
+        created_at: fl.created_time,
+      }, { onConflict: 'facebook_lead_id', ignoreDuplicates: true }).select('id').single()
 
-        synced++
+      // Create WhatsApp job for new leads with phone numbers
+      if (saved && phone && form.store_id && form.message_template) {
+        const message = renderTemplate(form.message_template as string, {
+          ...fields,
+          name: name ?? 'there',
+          email: email ?? '',
+          phone,
+        })
+        await supabase.from('automation_jobs').insert({
+          store_id:       form.store_id,
+          automation_id:  null,
+          type:           'lead_ad',
+          customer_phone: phone,
+          customer_name:  name ?? 'Lead',
+          message,
+          context:        { lead_id: saved.id, form_id: form.form_id },
+          status:         'pending',
+          scheduled_at:   new Date().toISOString(),
+        }).then(null, () => null)
       }
+
+      synced++
     }
 
+    // Update per-form last_lead_fetch
     await supabase
-      .from('facebook_connections')
+      .from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
-      .eq('id', conn.id)
+      .eq('id', form.id)
   }
 
   return NextResponse.json({ synced, timestamp: new Date().toISOString() })
