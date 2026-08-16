@@ -26,7 +26,7 @@ function appUrl()    { return process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wa
 function redirectUri() { return `${appUrl()}/api/facebook/callback` }
 
 export function getFacebookOAuthUrl(state: string, callbackUrl?: string): string {
-  const scopes = 'pages_show_list,leads_retrieval,pages_manage_metadata'
+  const scopes = 'pages_show_list,leads_retrieval'
   return (
     `https://www.facebook.com/${FB_API_VERSION}/dialog/oauth?` +
     new URLSearchParams({ client_id: appId(), redirect_uri: callbackUrl ?? redirectUri(), scope: scopes, state, response_type: 'code' })
