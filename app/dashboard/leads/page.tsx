@@ -89,22 +89,9 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// ── SyncingScreen ─────────────────────────────────────────────────────────────
-
-const SYNC_MESSAGES = [
-  'Connecting to Facebook…',
-  'Fetching your lead forms…',
-  'Syncing leads…',
-  'Almost there…',
-  'Loading your data…',
-]
+// ── SyncingScreen (Suspense fallback only) ────────────────────────────────────
 
 function SyncingScreen() {
-  const [idx, setIdx] = useState(0)
-  useEffect(() => {
-    const t = setInterval(() => setIdx(i => (i + 1) % SYNC_MESSAGES.length), 2000)
-    return () => clearInterval(t)
-  }, [])
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
       <div className="flex items-center gap-4">
@@ -121,7 +108,7 @@ function SyncingScreen() {
           <MessageCircle className="w-6 h-6 text-white" />
         </div>
       </div>
-      <p className="text-sm text-gray-400 animate-pulse">{SYNC_MESSAGES[idx]}</p>
+      <p className="text-sm text-gray-400">Loading Lead Ads…</p>
     </div>
   )
 }
@@ -187,68 +174,12 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
   )
 }
 
-// ── FormCard ──────────────────────────────────────────────────────────────────
-
-function FormCard({ form, isSelected, isToggling, onSelect, onToggle, onImport, onEdit }: {
-  form: ActiveForm
-  isSelected: boolean
-  isToggling: boolean
-  onSelect: () => void
-  onToggle: (enabled: boolean) => void
-  onImport: () => void
-  onEdit: () => void
-}) {
-  const c = getColor(form.color_index)
-  return (
-    <div
-      onClick={onSelect}
-      className="flex-shrink-0 w-52 rounded-xl border cursor-pointer transition-all overflow-hidden hover:shadow-md"
-      style={{
-        borderColor: isSelected ? c.dot : c.border,
-        background:  c.bg,
-        boxShadow:   isSelected ? `0 0 0 2px ${c.dot}30` : undefined,
-      }}
-    >
-      <div className="h-1" style={{ background: c.dot }} />
-      <div className="p-4">
-        <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight mb-3 min-h-[2.5rem]" title={form.form_name}>
-          {form.form_name}
-        </p>
-        <div className="flex items-center gap-1.5 mb-3">
-          <Users className="w-3.5 h-3.5" style={{ color: c.dot }} />
-          <span className="text-sm font-semibold" style={{ color: c.text }}>{form.lead_count}</span>
-          <span className="text-xs text-gray-400">leads</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1 text-xs font-medium"
-            style={{ color: form.is_enabled ? '#16a34a' : '#9ca3af' }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: form.is_enabled ? '#16a34a' : '#9ca3af' }} />
-            {form.is_enabled ? 'Active' : 'Paused'}
-          </span>
-          <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-            <button onClick={() => !isToggling && onToggle(!form.is_enabled)}
-              className="p-1.5 rounded-lg hover:bg-black/5 transition text-gray-400 hover:text-gray-600"
-              title={form.is_enabled ? 'Pause' : 'Resume'}>
-              {isToggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : form.is_enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            </button>
-            <button onClick={onImport} className="p-1.5 rounded-lg hover:bg-black/5 transition text-gray-400 hover:text-gray-600" title="Import older leads">
-              <Download className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-black/5 transition text-gray-400 hover:text-gray-600" title="Edit template">
-              <Edit2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── ActivateFormModal ─────────────────────────────────────────────────────────
 
-function ActivateFormModal({ selectedPageId, activeForms, onClose, onActivate }: {
+function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClose, onActivate }: {
   selectedPageId: string | null
   activeForms: ActiveForm[]
+  preSelectedForm?: FBForm | null
   onClose: () => void
   onActivate: (connectionId: string, form: FBForm, template: string) => Promise<void>
 }) {
@@ -256,7 +187,7 @@ function ActivateFormModal({ selectedPageId, activeForms, onClose, onActivate }:
   const [pageForms, setPageForms] = useState<FBForm[] | null>(null)
   const [connectionId, setConnectionId] = useState<string | null>(null)
   const [loadingForms, setLoadingForms] = useState(false)
-  const [selectedForm, setSelectedForm] = useState<FBForm | null>(null)
+  const [selectedForm, setSelectedForm] = useState<FBForm | null>(preSelectedForm ?? null)
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
   const [activating, setActivating] = useState(false)
 
@@ -347,11 +278,13 @@ function ActivateFormModal({ selectedPageId, activeForms, onClose, onActivate }:
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden">
             <div className="p-4 border-b border-gray-100">
-              <button onClick={() => setSelectedForm(null)}
-                className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition mb-3">
-                <ChevronRight className="w-4 h-4 rotate-180" />
-                All forms
-              </button>
+              {!preSelectedForm && (
+                <button onClick={() => setSelectedForm(null)}
+                  className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition mb-3">
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                  All forms
+                </button>
+              )}
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
                   <FileText className="w-5 h-5 text-blue-500" />
@@ -614,13 +547,127 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
   )
 }
 
+// ── AllFormsView ──────────────────────────────────────────────────────────────
+
+function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onImport, onToggle }: {
+  pageId: string | null
+  activeForms: ActiveForm[]
+  togglingId: string | null
+  onActivate: (form: FBForm) => void
+  onEdit: (form: ActiveForm) => void
+  onImport: (form: ActiveForm) => void
+  onToggle: (form: ActiveForm, enabled: boolean) => void
+}) {
+  const [forms, setForms] = useState<FBForm[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    if (!pageId) return
+    setLoading(true)
+    setForms(null)
+    fetch(`/api/facebook/pages?page_id=${pageId}`)
+      .then(r => r.json())
+      .then((d: { forms?: FBForm[] }) => setForms(d.forms ?? []))
+      .finally(() => setLoading(false))
+  }, [pageId])
+
+  const activeMap = new Map(activeForms.map(f => [f.form_id, f]))
+  const filtered = (forms ?? []).filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+          <input
+            type="text"
+            placeholder="Search forms…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <p className="text-xs text-gray-400 ml-auto">
+          {forms !== null ? `${filtered.length} form${filtered.length !== 1 ? 's' : ''}` : ''}
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+        </div>
+      ) : forms === null ? null : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <FileText className="w-10 h-10 text-gray-200 mb-3" />
+          <p className="text-sm text-gray-400">{search ? 'No forms match your search' : 'No forms found for this page'}</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {filtered.map(f => {
+            const af = activeMap.get(f.id)
+            const c = af ? getColor(af.color_index) : null
+            return (
+              <div key={f.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: c?.dot ?? '#e5e7eb' }} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate" title={f.name}>{f.name}</p>
+                    {af ? (
+                      <p className="text-xs mt-0.5">
+                        <span className="text-gray-400">{af.lead_count} leads · </span>
+                        <span style={{ color: af.is_enabled ? '#16a34a' : '#9ca3af' }}>
+                          {af.is_enabled ? 'Active' : 'Paused'}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-400 mt-0.5">Not activated</p>
+                    )}
+                  </div>
+                </div>
+                {af ? (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => !togglingId && onToggle(af, !af.is_enabled)}
+                      className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600"
+                      title={af.is_enabled ? 'Pause' : 'Resume'}>
+                      {togglingId === af.form_id
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : af.is_enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    </button>
+                    <button onClick={() => onImport(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Import older leads">
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => onEdit(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Edit template">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onActivate(f)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
+                    <Zap className="w-3 h-3" /> Activate
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── LeadsContent ──────────────────────────────────────────────────────────────
 
 function LeadsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const [loading,        setLoading]        = useState(true)
+  const [pagesLoaded,    setPagesLoaded]    = useState(false)
+  const [loadingForms,   setLoadingForms]   = useState(false)
+  const [loadingLeads,   setLoadingLeads]   = useState(false)
   const [refreshing,     setRefreshing]     = useState(false)
   const [pages,          setPages]          = useState<Page[]>(() => {
     try { return JSON.parse(sessionStorage.getItem('_wpl_pages') ?? 'null') ?? [] } catch { return [] }
@@ -633,9 +680,10 @@ function LeadsContent() {
   const [total,          setTotal]          = useState(0)
   const [hasMore,        setHasMore]        = useState(false)
   const [loadingMore,    setLoadingMore]    = useState(false)
-  const [selectedFormId, setSelectedFormId] = useState<string | 'all'>('all')
+  const [selectedFormId, setSelectedFormId] = useState<string | 'all' | '__forms'>('all')
   const [banner,         setBanner]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [showActivate,   setShowActivate]   = useState(false)
+  const [preActivateForm,setPreActivateForm]= useState<FBForm | null>(null)
   const [editingForm,    setEditingForm]    = useState<ActiveForm | null>(null)
   const [importingForm,  setImportingForm]  = useState<ActiveForm | null>(null)
   const [togglingId,     setTogglingId]     = useState<string | null>(null)
@@ -659,7 +707,7 @@ function LeadsContent() {
 
   const fetchLeads = useCallback(async (formId: string | 'all', pageId: string, offset = 0, append = false) => {
     const p = new URLSearchParams({ limit: '50', offset: String(offset) })
-    if (formId !== 'all') p.set('form_id', formId)
+    if (formId !== 'all' && formId !== '__forms') p.set('form_id', formId)
     else p.set('page_id', pageId)
 
     const r = await fetch(`/api/facebook/leads?${p}`)
@@ -675,7 +723,8 @@ function LeadsContent() {
 
   useEffect(() => {
     const init = async () => {
-      setLoading(true)
+      setLoadingForms(true)
+      setLoadingLeads(true)
 
       const fb = searchParams.get('fb')
       if (fb === 'connected') {
@@ -688,8 +737,6 @@ function LeadsContent() {
         setBanner({ type: 'error', msg: 'Failed to connect Facebook. Please try again.' })
       }
 
-      // Use cached page ID to fire all fetches in parallel — avoids waiting for
-      // the page list before loading forms/leads on return visits
       let cachedPageId: string | null = null
       try { cachedPageId = sessionStorage.getItem('_wpl_pid') } catch {}
 
@@ -698,16 +745,19 @@ function LeadsContent() {
         ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId)] : []),
       ]) as [Page[], ...unknown[]]
 
+      setPagesLoaded(true)
+
       if (p.length > 0) {
         const pageId = p[0].page_id
         setSelectedPageId(pageId)
         try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
-        // Only re-fetch if the active page differs from what we already loaded
         if (pageId !== cachedPageId) {
           await Promise.all([fetchActiveForms(pageId), fetchLeads('all', pageId)])
         }
       }
-      setLoading(false)
+
+      setLoadingForms(false)
+      setLoadingLeads(false)
     }
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -719,14 +769,23 @@ function LeadsContent() {
     setSelectedFormId('all')
     setLeads([])
     setActiveForms([])
+    setLoadingForms(true)
+    setLoadingLeads(true)
     try { sessionStorage.setItem('_wpl_pid', page.page_id) } catch {}
     await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id)])
+    setLoadingForms(false)
+    setLoadingLeads(false)
   }
 
-  const handleTabChange = async (formId: string | 'all') => {
+  const handleTabChange = async (formId: string | 'all' | '__forms') => {
     setSelectedFormId(formId)
     setLeads([])
-    if (selectedPageId) await fetchLeads(formId, selectedPageId)
+    if (formId === '__forms') return // AllFormsView manages its own fetch
+    if (selectedPageId) {
+      setLoadingLeads(true)
+      await fetchLeads(formId, selectedPageId)
+      setLoadingLeads(false)
+    }
   }
 
   const handleLoadMore = async () => {
@@ -745,7 +804,7 @@ function LeadsContent() {
     const d = await r.json() as { ok?: boolean; leadsFetched?: number }
     if (selectedPageId) {
       await fetchActiveForms(selectedPageId)
-      await fetchLeads(selectedFormId, selectedPageId)
+      if (selectedFormId !== '__forms') await fetchLeads(selectedFormId, selectedPageId)
       if (d.leadsFetched) setBanner({ type: 'success', msg: `${d.leadsFetched} recent leads imported from "${form.name}"` })
     }
   }
@@ -780,7 +839,7 @@ function LeadsContent() {
     const d = await r.json() as { imported?: number }
     if (selectedPageId) {
       await fetchActiveForms(selectedPageId)
-      await fetchLeads(selectedFormId, selectedPageId)
+      if (selectedFormId !== '__forms') await fetchLeads(selectedFormId, selectedPageId)
     }
     return { imported: d.imported ?? 0 }
   }
@@ -811,29 +870,26 @@ function LeadsContent() {
   const handleRefresh = async () => {
     if (!selectedPageId || refreshing) return
     setRefreshing(true)
-    await Promise.all([
-      fetchActiveForms(selectedPageId),
-      fetchLeads(selectedFormId, selectedPageId),
-    ])
+    const leadsFormId = selectedFormId === '__forms' ? 'all' : selectedFormId
+    await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId)])
     setRefreshing(false)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  // Show full-screen loader only on the very first load when there's nothing to show yet
-  if (loading && pages.length === 0) return <SyncingScreen />
-
-  if (pages.length === 0) {
+  // "Connect Facebook" empty state — only shown after we've confirmed pages is empty
+  if (pagesLoaded && pages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 text-center">
+      <div className="p-6 lg:p-8 flex flex-col items-center justify-center min-h-[60vh] gap-5 text-center">
         {banner && (
-          <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-            {banner.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            {banner.msg}
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm w-full max-w-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+            {banner.type === 'success' ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            <span className="flex-1">{banner.msg}</span>
+            <button onClick={() => setBanner(null)}><X className="w-4 h-4 opacity-50 hover:opacity-100 transition" /></button>
           </div>
         )}
-        <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center">
-          <Facebook className="w-10 h-10 text-blue-400" />
+        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center">
+          <Facebook className="w-8 h-8 text-blue-500" />
         </div>
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Connect Facebook Lead Ads</h2>
@@ -881,19 +937,19 @@ function LeadsContent() {
           />
           <button
             onClick={handleRefresh}
-            disabled={loading || refreshing}
+            disabled={refreshing}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
             title="Refresh leads"
           >
-            <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh leads
           </button>
           <button
             onClick={handleDisconnectAll}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 border border-red-100 bg-white rounded-lg hover:bg-red-50 transition"
+            className="p-2 text-red-400 border border-red-100 bg-white rounded-lg hover:bg-red-50 hover:text-red-600 transition"
             title="Disconnect all Facebook pages"
           >
             <LogOut className="w-4 h-4" />
-            Logout Facebook
           </button>
           <a href="/api/facebook/auth"
             className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
@@ -902,56 +958,12 @@ function LeadsContent() {
         </div>
       </div>
 
-      {/* Active forms section */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Active forms</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Click a card to filter leads, or activate a new form to start syncing</p>
-          </div>
-          <button onClick={() => setShowActivate(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition">
-            <Plus className="w-4 h-4" /> Activate a form
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
-          </div>
-        ) : activeForms.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
-              <Zap className="w-6 h-6 text-gray-200" />
-            </div>
-            <p className="text-sm font-medium text-gray-500">No active forms yet</p>
-            <p className="text-xs text-gray-400 mt-1">Activate a form to start monitoring for new leads automatically</p>
-          </div>
-        ) : (
-          <div className="px-6 py-5 overflow-x-auto">
-            <div className="flex gap-3 pb-1" style={{ minWidth: 'max-content' }}>
-              {activeForms.map(form => (
-                <FormCard
-                  key={form.form_id}
-                  form={form}
-                  isSelected={selectedFormId === form.form_id}
-                  isToggling={togglingId === form.form_id}
-                  onSelect={() => handleTabChange(form.form_id)}
-                  onToggle={enabled => handleToggle(form, enabled)}
-                  onImport={() => setImportingForm(form)}
-                  onEdit={() => setEditingForm(form)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Leads section */}
+      {/* Main content card with tab bar */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
         {/* Tab bar */}
         <div className="flex items-center border-b border-gray-100 overflow-x-auto">
+          {/* All leads */}
           <button
             onClick={() => handleTabChange('all')}
             className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedFormId === 'all' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
@@ -961,6 +973,8 @@ function LeadsContent() {
               {total}
             </span>
           </button>
+
+          {/* Per-form tabs */}
           {activeForms.map(form => {
             const c = getColor(form.color_index)
             const sel = selectedFormId === form.form_id
@@ -979,67 +993,93 @@ function LeadsContent() {
               </button>
             )
           })}
+
+          {/* All forms tab */}
+          <button
+            onClick={() => handleTabChange('__forms')}
+            className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ml-auto ${selectedFormId === '__forms' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            All forms
+          </button>
         </div>
 
-        {/* Stats row */}
-        <div className="flex items-center gap-6 px-6 py-2.5 bg-gray-50/50 border-b border-gray-100/80 text-xs text-gray-400">
-          <span><span className="font-semibold text-gray-600">{total}</span> total</span>
-          <span><span className="font-semibold text-gray-600">{withPhone}</span> with phone</span>
-          <span><span className="font-semibold text-gray-600">{sent}</span> WhatsApp sent</span>
-        </div>
-
-        {/* Table */}
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
-          </div>
-        ) : leads.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
-              <Users className="w-6 h-6 text-gray-200" />
-            </div>
-            <p className="text-sm text-gray-400">No leads yet</p>
-            <p className="text-xs text-gray-300 mt-1">Leads appear here as they come in from Facebook</p>
+        {/* ── All forms view ── */}
+        {selectedFormId === '__forms' ? (
+          <div className="p-5">
+            <AllFormsView
+              pageId={selectedPageId}
+              activeForms={activeForms}
+              togglingId={togglingId}
+              onActivate={form => { setPreActivateForm(form); setShowActivate(true) }}
+              onEdit={form => setEditingForm(form)}
+              onImport={form => setImportingForm(form)}
+              onToggle={handleToggle}
+            />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
-                  {selectedFormId === 'all' && (
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-48">Form</th>
-                  )}
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                  <th className="px-5 py-3 w-16" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {leads.map(lead => (
-                  <LeadRow
-                    key={lead.id}
-                    lead={lead}
-                    activeForms={activeForms}
-                    showFormBadge={selectedFormId === 'all'}
-                    onWhatsApp={() => handleSendWhatsApp(lead)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          <>
+            {/* Stats row */}
+            <div className="flex items-center gap-6 px-6 py-2.5 bg-gray-50/50 border-b border-gray-100/80 text-xs text-gray-400">
+              <span><span className="font-semibold text-gray-600">{total}</span> total</span>
+              <span><span className="font-semibold text-gray-600">{withPhone}</span> with phone</span>
+              <span><span className="font-semibold text-gray-600">{sent}</span> WhatsApp sent</span>
+            </div>
 
-        {/* Load more */}
-        {hasMore && (
-          <div className="flex items-center justify-center px-6 py-4 border-t border-gray-100">
-            <button onClick={handleLoadMore} disabled={loadingMore}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
-              {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className="w-4 h-4" />}
-              Load 50 more
-            </button>
-          </div>
+            {/* Table */}
+            {loadingLeads ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+              </div>
+            ) : leads.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
+                  <Users className="w-6 h-6 text-gray-200" />
+                </div>
+                <p className="text-sm text-gray-400">No leads yet</p>
+                <p className="text-xs text-gray-300 mt-1">Leads appear here as they come in from Facebook</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
+                      {selectedFormId === 'all' && (
+                        <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-48">Form</th>
+                      )}
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                      <th className="px-5 py-3 w-16" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {leads.map(lead => (
+                      <LeadRow
+                        key={lead.id}
+                        lead={lead}
+                        activeForms={activeForms}
+                        showFormBadge={selectedFormId === 'all'}
+                        onWhatsApp={() => handleSendWhatsApp(lead)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Load more */}
+            {hasMore && (
+              <div className="flex items-center justify-center px-6 py-4 border-t border-gray-100">
+                <button onClick={handleLoadMore} disabled={loadingMore}
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
+                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className="w-4 h-4" />}
+                  Load 50 more
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -1048,7 +1088,8 @@ function LeadsContent() {
         <ActivateFormModal
           selectedPageId={selectedPageId}
           activeForms={activeForms}
-          onClose={() => setShowActivate(false)}
+          preSelectedForm={preActivateForm}
+          onClose={() => { setShowActivate(false); setPreActivateForm(null) }}
           onActivate={handleActivate}
         />
       )}
