@@ -905,6 +905,7 @@ function LeadsContent() {
 
   const withPhone = leads.filter(l => l.phone).length
   const sent      = leads.filter(l => l.wa_status === 'sent').length
+  const pending   = leads.filter(l => l.wa_status === 'pending').length
 
   return (
     <div className="p-6 lg:p-8 space-y-5">
@@ -958,6 +959,24 @@ function LeadsContent() {
         </div>
       </div>
 
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Total leads', value: total,    color: '#6b7280' },
+          { label: 'With phone',  value: withPhone, color: '#3b82f6' },
+          { label: 'WA sent',     value: sent,      color: '#10b981' },
+          { label: 'Pending',     value: pending,   color: '#f59e0b' },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+            <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.value}</p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <p className="text-xs text-gray-400">{s.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Main content card with tab bar */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
@@ -994,14 +1013,23 @@ function LeadsContent() {
             )
           })}
 
-          {/* All forms tab */}
-          <button
-            onClick={() => handleTabChange('__forms')}
-            className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ml-auto ${selectedFormId === '__forms' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            All forms
-          </button>
+          {/* Hint when no forms activated */}
+          {activeForms.length === 0 && !loadingForms && selectedFormId !== '__forms' && (
+            <span className="flex-shrink-0 px-4 py-3.5 text-xs text-gray-300 whitespace-nowrap italic select-none">
+              Activate forms to add tabs
+            </span>
+          )}
+
+          {/* All forms tab — separated by a divider */}
+          <div className="flex-shrink-0 border-l border-gray-100 flex items-stretch ml-auto">
+            <button
+              onClick={() => handleTabChange('__forms')}
+              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedFormId === '__forms' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              All forms
+            </button>
+          </div>
         </div>
 
         {/* ── All forms view ── */}
@@ -1019,13 +1047,6 @@ function LeadsContent() {
           </div>
         ) : (
           <>
-            {/* Stats row */}
-            <div className="flex items-center gap-6 px-6 py-2.5 bg-gray-50/50 border-b border-gray-100/80 text-xs text-gray-400">
-              <span><span className="font-semibold text-gray-600">{total}</span> total</span>
-              <span><span className="font-semibold text-gray-600">{withPhone}</span> with phone</span>
-              <span><span className="font-semibold text-gray-600">{sent}</span> WhatsApp sent</span>
-            </div>
-
             {/* Table */}
             {loadingLeads ? (
               <div className="flex items-center justify-center py-16">
