@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import {
   ShoppingCart, Package, CheckCircle2, Truck, Loader2, Save,
   AlertCircle, Zap, RefreshCw, Gift, X, Send, Star, Repeat,
-  MessageSquare, Clock, TrendingUp, ArrowRight, Plus, Tag
+  MessageSquare, Clock, TrendingUp, ArrowRight, Plus, Tag,
+  Facebook, Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -247,6 +248,117 @@ function AutomationCard({
   )
 }
 
+function LeadAdCard() {
+  const [expanded, setExpanded] = useState(false)
+  const [forms, setForms]       = useState<{ form_id: string; form_name: string; is_enabled: boolean; lead_count: number }[] | null>(null)
+  const [loading, setLoading]   = useState(false)
+
+  useEffect(() => {
+    if (!expanded || forms !== null) return
+    setLoading(true)
+    fetch('/api/facebook/active-forms')
+      .then(r => r.json())
+      .then((d: { forms?: typeof forms }) => setForms(d.forms ?? []))
+      .catch(() => setForms([]))
+      .finally(() => setLoading(false))
+  }, [expanded, forms])
+
+  const activeForms = (forms ?? []).filter(f => f.is_enabled)
+  const isLive      = activeForms.length > 0
+
+  return (
+    <div className={cn('bg-white rounded-2xl border-2 shadow-sm transition-all',
+      isLive ? 'border-[#25D366]/30' : 'border-slate-100')}>
+      <div className="flex items-center gap-4 p-5">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50">
+          <Facebook size={18} className="text-blue-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-slate-800 text-sm">Lead Ad Response</p>
+            {isLive && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Live
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Auto-send a WhatsApp message the moment someone submits a Facebook Lead Ad form.
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+            <Clock size={10} /> Facebook Lead Ad form submission
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg font-medium">
+            <TrendingUp size={11} /> Converts leads 5× faster
+          </div>
+          <a href="/dashboard/leads"
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition whitespace-nowrap">
+            <Users size={11} />
+            {activeForms.length > 0 ? `${activeForms.length} form${activeForms.length > 1 ? 's' : ''} active` : 'Set up'}
+            <ArrowRight size={10} />
+          </a>
+          <button onClick={() => setExpanded(v => !v)}
+            className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100">
+            {expanded ? <X size={15} /> : <Plus size={15} />}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-slate-100 p-5 space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-6">
+              <Loader2 size={18} className="animate-spin text-slate-300" />
+            </div>
+          ) : !forms || forms.length === 0 ? (
+            <div className="text-center py-6 space-y-3">
+              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto">
+                <Facebook size={20} className="text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-700">No forms activated yet</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Activate a Lead Ad form to start sending automatic WhatsApp messages to new leads.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Activated forms</p>
+              {forms.map(f => (
+                <div key={f.form_id} className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl">
+                  <div className={cn('w-2 h-2 rounded-full flex-shrink-0', f.is_enabled ? 'bg-emerald-500' : 'bg-slate-300')} />
+                  <p className="text-sm text-slate-700 flex-1 truncate">{f.form_name}</p>
+                  <span className="text-xs text-slate-400 tabular-nums">{f.lead_count.toLocaleString()} leads</span>
+                  <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
+                    f.is_enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500')}>
+                    {f.is_enabled ? 'Active' : 'Paused'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="bg-blue-50 rounded-xl p-3.5">
+            <p className="text-xs font-semibold text-blue-900">How it works</p>
+            <p className="text-[11px] text-blue-600 mt-0.5 leading-relaxed">
+              Activate a form in Lead Ads → write a message template → every new lead gets an instant WhatsApp reply.
+              Per-form templates let you personalise messages for each campaign.
+            </p>
+          </div>
+
+          <a href="/dashboard/leads"
+            className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition">
+            <Users size={14} /> Manage in Lead Ads <ArrowRight size={13} />
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>([])
   const [loading, setLoading]         = useState(true)
@@ -339,10 +451,18 @@ export default function AutomationsPage() {
         </div>
       ) : (
         <>
+          {/* Lead Ads */}
+          <div className="mb-6">
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Facebook size={13} className="text-blue-500" /> Lead Ads
+            </h2>
+            <LeadAdCard />
+          </div>
+
           {/* Live automations */}
           <div className="mb-6">
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full" /> Live Automations
+              <span className="w-2 h-2 bg-emerald-500 rounded-full" /> Shopify Automations
             </h2>
             <div className="space-y-3">
               {(Object.keys(LIVE_TYPES) as LiveType[]).map(type => (
