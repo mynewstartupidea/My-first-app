@@ -513,10 +513,14 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
         </td>
         <td className="px-5 py-3.5">
           <div className="flex items-center gap-1">
-            {lead.phone && lead.wa_status !== 'sent' && lead.wa_status !== 'pending' && (
+            {lead.phone && lead.wa_status !== 'sent' && (
               <button onClick={onWhatsApp}
-                className="p-1.5 rounded-lg hover:bg-green-50 text-gray-300 hover:text-green-600 transition"
-                title="Send WhatsApp">
+                className={`p-1.5 rounded-lg transition ${
+                  lead.wa_status === 'pending'
+                    ? 'text-amber-300 hover:bg-amber-50 hover:text-amber-600'
+                    : 'text-gray-300 hover:bg-green-50 hover:text-green-600'
+                }`}
+                title={lead.wa_status === 'pending' ? 'Resend WhatsApp' : 'Send WhatsApp'}>
                 <MessageCircle className="w-4 h-4" />
               </button>
             )}
@@ -976,6 +980,29 @@ function LeadsContent() {
           </div>
         ))}
       </div>
+
+      {/* Automation setup callout — shown when no forms are activated */}
+      {activeForms.length === 0 && !loadingForms && (
+        <div className="flex items-start gap-3 px-4 py-3.5 bg-blue-50 border border-blue-100 rounded-xl">
+          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Zap className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-blue-900">Set up WhatsApp automation</p>
+            <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
+              Go to <strong>All forms</strong> → click <strong>Activate</strong> next to your form → write your message template.
+              Every new lead from that form will automatically get your WhatsApp message.
+              For existing leads, use the <MessageCircle className="inline w-3 h-3 mx-0.5" /> button in each row.
+            </p>
+          </div>
+          <button
+            onClick={() => handleTabChange('__forms')}
+            className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition whitespace-nowrap"
+          >
+            All forms →
+          </button>
+        </div>
+      )}
 
       {/* Main content card with tab bar */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
