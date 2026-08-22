@@ -874,6 +874,8 @@ function LeadsContent() {
   const handleRefresh = async () => {
     if (!selectedPageId || refreshing) return
     setRefreshing(true)
+    // Sync from Facebook first, then re-read from DB
+    await fetch(`/api/facebook/sync?page_id=${selectedPageId}`, { method: 'POST' })
     const leadsFormId = selectedFormId === '__forms' ? 'all' : selectedFormId
     await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId)])
     setRefreshing(false)
