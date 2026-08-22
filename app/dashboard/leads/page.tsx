@@ -682,6 +682,7 @@ function LeadsContent() {
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [total,          setTotal]          = useState(0)
+  const [pageStats,      setPageStats]      = useState({ withPhone: 0, sent: 0, pending: 0 })
   const [perPage,        setPerPage]        = useState<25 | 50 | 100>(50)
   const [currentPage,    setCurrentPage]    = useState(1)
   const [leadSearch,     setLeadSearch]     = useState('')
@@ -708,6 +709,12 @@ function LeadsContent() {
     const r = await fetch(`/api/facebook/active-forms?page_id=${pageId}`)
     const d = await r.json() as { forms?: ActiveForm[] }
     setActiveForms(d.forms ?? [])
+  }, [])
+
+  const fetchStats = useCallback(async (pageId: string) => {
+    const r = await fetch(`/api/facebook/leads/stats?page_id=${pageId}`)
+    const d = await r.json() as { withPhone?: number; sent?: number; pending?: number }
+    setPageStats({ withPhone: d.withPhone ?? 0, sent: d.sent ?? 0, pending: d.pending ?? 0 })
   }, [])
 
   const fetchLeads = useCallback(async (
@@ -750,7 +757,7 @@ function LeadsContent() {
 
       const [p] = await Promise.all([
         fetchPages(),
-        ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId)] : []),
+        ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId), fetchStats(cachedPageId)] : []),
       ]) as [Page[], ...unknown[]]
 
       setPagesLoaded(true)
@@ -760,7 +767,7 @@ function LeadsContent() {
         setSelectedPageId(pageId)
         try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
         if (pageId !== cachedPageId) {
-          await Promise.all([fetchActiveForms(pageId), fetchLeads('all', pageId)])
+          await Promise.all([fetchActiveForms(pageId), fetchLeads('all', pageId), fetchStats(pageId)])
         }
       }
 
@@ -782,7 +789,7 @@ function LeadsContent() {
     setLoadingForms(true)
     setLoadingLeads(true)
     try { sessionStorage.setItem('_wpl_pid', page.page_id) } catch {}
-    await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id, 1, perPage, '')])
+    await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)])
     setLoadingForms(false)
     setLoadingLeads(false)
   }
@@ -808,9 +815,12 @@ function LeadsContent() {
     })
     const d = await r.json() as { ok?: boolean; leadsFetched?: number }
     if (selectedPageId) {
-      await fetchActiveForms(selectedPageId)
-      if (selectedFormId !== '__forms') await fetchLeads(selectedFormId, selectedPageId)
-      if (d.leadsFetched) setBanner({ type: 'success', msg: `${d.leadsFetched} recent leads imported from "${form.name}"` })
+      await Promise.all([
+        fetchActiveForms(selectedPageId),
+        fetchStats(selectedPageId),
+        ...(selectedFormId !== '__forms' ? [fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch)] : []),
+      ])
+      if (d.leadsFetched) setBanner({ type: 'success', msg: `${d.leadsFetched} leads imported from "${form.name}"` })
     }
   }
 
@@ -878,7 +888,7 @@ function LeadsContent() {
     setCurrentPage(1)
     await fetch(`/api/facebook/sync?page_id=${selectedPageId}`, { method: 'POST' })
     const leadsFormId = selectedFormId === '__forms' ? 'all' : selectedFormId
-    await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId, 1, perPage, leadSearch)])
+    await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId, 1, perPage, leadSearch), fetchStats(selectedPageId)])
     setRefreshing(false)
   }
 
@@ -939,9 +949,7 @@ function LeadsContent() {
     )
   }
 
-  const withPhone = leads.filter(l => l.phone).length
-  const sent      = leads.filter(l => l.wa_status === 'sent').length
-  const pending   = leads.filter(l => l.wa_status === 'pending').length
+  const { withPhone, sent, pending } = pageStats
 
   return (
     <div className="p-6 lg:p-8 space-y-5">
