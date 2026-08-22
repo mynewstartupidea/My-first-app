@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
-  CheckCircle, X, Zap, Save, Plus, ChevronRight,
+  CheckCircle, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
   Loader2, Pause, Play, Search, Edit2, Download,
   AlertCircle, FileText, LogOut,
 } from 'lucide-react'
@@ -682,8 +682,9 @@ function LeadsContent() {
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [total,          setTotal]          = useState(0)
-  const [hasMore,        setHasMore]        = useState(false)
-  const [loadingMore,    setLoadingMore]    = useState(false)
+  const [perPage,        setPerPage]        = useState<25 | 50 | 100>(50)
+  const [currentPage,    setCurrentPage]    = useState(1)
+  const [leadSearch,     setLeadSearch]     = useState('')
   const [selectedFormId, setSelectedFormId] = useState<string | 'all' | '__forms'>('all')
   const [banner,         setBanner]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [showActivate,   setShowActivate]   = useState(false)
@@ -709,18 +710,21 @@ function LeadsContent() {
     setActiveForms(d.forms ?? [])
   }, [])
 
-  const fetchLeads = useCallback(async (formId: string | 'all', pageId: string, offset = 0, append = false) => {
-    const p = new URLSearchParams({ limit: '50', offset: String(offset) })
+  const fetchLeads = useCallback(async (
+    formId: string | 'all',
+    pageId: string,
+    page = 1,
+    pPerPage = 50,
+    search = '',
+  ) => {
+    const p = new URLSearchParams({ limit: String(pPerPage), offset: String((page - 1) * pPerPage) })
     if (formId !== 'all' && formId !== '__forms') p.set('form_id', formId)
     else p.set('page_id', pageId)
-
+    if (search.trim()) p.set('q', search.trim())
     const r = await fetch(`/api/facebook/leads?${p}`)
-    const d = await r.json() as { leads?: Lead[]; total?: number; hasMore?: boolean }
-    const newLeads = d.leads ?? []
-    if (append) setLeads(prev => [...prev, ...newLeads])
-    else setLeads(newLeads)
+    const d = await r.json() as { leads?: Lead[]; total?: number }
+    setLeads(d.leads ?? [])
     setTotal(d.total ?? 0)
-    setHasMore(d.hasMore ?? false)
   }, [])
 
   // ── Init ────────────────────────────────────────────────────────────────
@@ -771,32 +775,29 @@ function LeadsContent() {
   const handlePageChange = async (page: Page) => {
     setSelectedPageId(page.page_id)
     setSelectedFormId('all')
+    setCurrentPage(1)
+    setLeadSearch('')
     setLeads([])
     setActiveForms([])
     setLoadingForms(true)
     setLoadingLeads(true)
     try { sessionStorage.setItem('_wpl_pid', page.page_id) } catch {}
-    await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id)])
+    await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id, 1, perPage, '')])
     setLoadingForms(false)
     setLoadingLeads(false)
   }
 
   const handleTabChange = async (formId: string | 'all' | '__forms') => {
     setSelectedFormId(formId)
+    setCurrentPage(1)
+    setLeadSearch('')
     setLeads([])
-    if (formId === '__forms') return // AllFormsView manages its own fetch
+    if (formId === '__forms') return
     if (selectedPageId) {
       setLoadingLeads(true)
-      await fetchLeads(formId, selectedPageId)
+      await fetchLeads(formId, selectedPageId, 1, perPage, '')
       setLoadingLeads(false)
     }
-  }
-
-  const handleLoadMore = async () => {
-    if (!selectedPageId) return
-    setLoadingMore(true)
-    await fetchLeads(selectedFormId, selectedPageId, leads.length, true)
-    setLoadingMore(false)
   }
 
   const handleActivate = async (connectionId: string, form: FBForm, template: string) => {
@@ -874,12 +875,41 @@ function LeadsContent() {
   const handleRefresh = async () => {
     if (!selectedPageId || refreshing) return
     setRefreshing(true)
-    // Sync from Facebook first, then re-read from DB
+    setCurrentPage(1)
     await fetch(`/api/facebook/sync?page_id=${selectedPageId}`, { method: 'POST' })
     const leadsFormId = selectedFormId === '__forms' ? 'all' : selectedFormId
-    await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId)])
+    await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId, 1, perPage, leadSearch)])
     setRefreshing(false)
   }
+
+  // ── Search debounce ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!selectedPageId || selectedFormId === '__forms') return
+    const t = setTimeout(() => {
+      setCurrentPage(1)
+      setLoadingLeads(true)
+      fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch).finally(() => setLoadingLeads(false))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [leadSearch]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Pagination helper ────────────────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
+
+  const goToPage = (page: number) => {
+    if (!selectedPageId || page < 1 || page > totalPages) return
+    setCurrentPage(page)
+    setLoadingLeads(true)
+    fetchLeads(selectedFormId, selectedPageId, page, perPage, leadSearch).finally(() => setLoadingLeads(false))
+  }
+
+  const pageNumbers = (() => {
+    const pages: number[] = []
+    const start = Math.max(1, currentPage - 2)
+    const end   = Math.min(totalPages, currentPage + 2)
+    for (let i = start; i <= end; i++) pages.push(i)
+    return pages
+  })()
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1076,6 +1106,42 @@ function LeadsContent() {
           </div>
         ) : (
           <>
+            {/* Search + per-page toolbar */}
+            <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 bg-gray-50/40">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={leadSearch}
+                  onChange={e => setLeadSearch(e.target.value)}
+                  placeholder="Search name, phone, email…"
+                  className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
+                />
+                {leadSearch && (
+                  <button onClick={() => setLeadSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <X className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+              <select
+                value={perPage}
+                onChange={e => {
+                  const v = Number(e.target.value) as 25 | 50 | 100
+                  setPerPage(v)
+                  setCurrentPage(1)
+                  if (selectedPageId) {
+                    setLoadingLeads(true)
+                    fetchLeads(selectedFormId, selectedPageId, 1, v, leadSearch).finally(() => setLoadingLeads(false))
+                  }
+                }}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none text-gray-500 cursor-pointer"
+              >
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+              </select>
+            </div>
+
             {/* Table */}
             {loadingLeads ? (
               <div className="flex items-center justify-center py-16">
@@ -1084,10 +1150,14 @@ function LeadsContent() {
             ) : leads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
-                  <Users className="w-6 h-6 text-gray-200" />
+                  {leadSearch ? <Search className="w-6 h-6 text-gray-200" /> : <Users className="w-6 h-6 text-gray-200" />}
                 </div>
-                <p className="text-sm text-gray-400">No leads yet</p>
-                <p className="text-xs text-gray-300 mt-1">Leads appear here as they come in from Facebook</p>
+                <p className="text-sm text-gray-400">
+                  {leadSearch ? `No leads matching "${leadSearch}"` : 'No leads yet'}
+                </p>
+                <p className="text-xs text-gray-300 mt-1">
+                  {leadSearch ? 'Try a different name, phone, or email' : 'Leads appear here as they come in from Facebook'}
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1119,14 +1189,40 @@ function LeadsContent() {
               </div>
             )}
 
-            {/* Load more */}
-            {hasMore && (
-              <div className="flex items-center justify-center px-6 py-4 border-t border-gray-100">
-                <button onClick={handleLoadMore} disabled={loadingMore}
-                  className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
-                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className="w-4 h-4" />}
-                  Load 50 more
-                </button>
+            {/* Pagination footer */}
+            {total > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/30">
+                <p className="text-xs text-gray-400 tabular-nums">
+                  {((currentPage - 1) * perPage) + 1}–{Math.min(currentPage * perPage, total).toLocaleString()} of {total.toLocaleString()} leads
+                </p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                    <ChevronLeft className="w-4 h-4 text-gray-600" />
+                  </button>
+                  {pageNumbers[0] > 1 && (
+                    <>
+                      <button onClick={() => goToPage(1)} className="min-w-[28px] h-7 text-xs font-medium rounded-lg hover:bg-gray-100 text-gray-500 transition">1</button>
+                      {pageNumbers[0] > 2 && <span className="text-xs text-gray-300 px-1">…</span>}
+                    </>
+                  )}
+                  {pageNumbers.map(n => (
+                    <button key={n} onClick={() => goToPage(n)}
+                      className={`min-w-[28px] h-7 text-xs font-medium rounded-lg transition ${n === currentPage ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-500'}`}>
+                      {n}
+                    </button>
+                  ))}
+                  {pageNumbers[pageNumbers.length - 1] < totalPages && (
+                    <>
+                      {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && <span className="text-xs text-gray-300 px-1">…</span>}
+                      <button onClick={() => goToPage(totalPages)} className="min-w-[28px] h-7 text-xs font-medium rounded-lg hover:bg-gray-100 text-gray-500 transition">{totalPages}</button>
+                    </>
+                  )}
+                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                    <ChevronRight className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
               </div>
             )}
           </>

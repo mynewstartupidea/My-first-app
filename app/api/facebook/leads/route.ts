@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   const pageId = searchParams.get('page_id')
   const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '50'), 200)
   const offset = parseInt(searchParams.get('offset') ?? '0')
+  const q      = searchParams.get('q')?.trim() ?? ''
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,14 +18,18 @@ export async function GET(request: Request) {
   const service = createServiceClient()
 
   const buildQuery = (countOnly = false) => {
-    let q = service
+    let query = service
       .from('leads')
       .select('id,name,email,phone,form_id,form_name,page_id,wa_status,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-    if (formId) q = q.eq('form_id', formId)
-    else if (pageId) q = q.eq('page_id', pageId)
-    return q
+    if (formId) query = query.eq('form_id', formId)
+    else if (pageId) query = query.eq('page_id', pageId)
+    if (q) {
+      const esc = q.replace(/[%_\\]/g, '\\$&')
+      query = query.or(`name.ilike.%${esc}%,phone.ilike.%${esc}%,email.ilike.%${esc}%`)
+    }
+    return query
   }
 
   const { data: leads, count } = await buildQuery().range(offset, offset + limit - 1)

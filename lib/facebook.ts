@@ -99,16 +99,27 @@ export async function getFormLeads(
   since?: string | null,
   limit = 100,
   until?: string | null,
+  maxLeads = 2000,
 ): Promise<FBLead[]> {
-  let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=id,created_time,field_data&limit=${limit}`
+  const all: FBLead[] = []
   const filters: object[] = []
   if (since) filters.push({ field: 'time_created', operator: 'GREATER_THAN', value: Math.floor(new Date(since).getTime() / 1000) })
   if (until) filters.push({ field: 'time_created', operator: 'LESS_THAN',    value: Math.floor(new Date(until).getTime() / 1000) })
+
+  let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=id,created_time,field_data&limit=${Math.min(limit, 100)}`
   if (filters.length) url += `&filtering=${encodeURIComponent(JSON.stringify(filters))}`
-  const res = await fetch(url)
-  if (!res.ok) return []
-  const data = await res.json() as { data?: FBLead[] }
-  return data.data ?? []
+
+  while (url && all.length < maxLeads) {
+    const res = await fetch(url)
+    if (!res.ok) break
+    const data = await res.json() as { data?: FBLead[]; paging?: { next?: string } }
+    const page = data.data ?? []
+    all.push(...page)
+    if (!page.length || !data.paging?.next) break
+    url = data.paging.next
+  }
+
+  return all
 }
 
 export async function getFBLead(leadId: string, pageToken: string): Promise<FBLead | null> {

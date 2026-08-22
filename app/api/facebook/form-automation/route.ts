@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
 
+export const maxDuration = 60
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -70,7 +72,8 @@ export async function POST(request: Request) {
   let leadsFetched = 0
   if (isNew && body.isEnabled) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token
-    const fbLeads = await getFormLeads(body.formId, token, null, 50)
+    // Fetch up to 500 historical leads (paginated, 100/page) on first activation
+    const fbLeads = await getFormLeads(body.formId, token, null, 100, null, 500)
 
     for (const fl of fbLeads) {
       const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
