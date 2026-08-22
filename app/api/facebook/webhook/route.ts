@@ -55,12 +55,21 @@ export async function POST(request: Request) {
       const { name, email, phone } = parseLeadFields(fbLead.field_data ?? [])
       const fields = extractAllFields(fbLead.field_data ?? [])
 
+      // Look up form_name from lead_form_automations
+      const { data: formAuto } = await supabase
+        .from('lead_form_automations')
+        .select('form_name')
+        .eq('form_id', formId)
+        .eq('store_id', conn.store_id)
+        .maybeSingle()
+
       const { data: saved, error: saveErr } = await supabase.from('leads').upsert({
         user_id:          conn.user_id,
         store_id:         conn.store_id,
         facebook_lead_id: leadId,
         page_id:          pageId,
         form_id:          formId,
+        form_name:        formAuto?.form_name ?? null,
         name,
         email,
         phone,

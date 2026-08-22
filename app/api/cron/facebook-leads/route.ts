@@ -35,46 +35,56 @@ export async function GET(request: Request) {
     const since = form.last_lead_fetch as string | null
 
     const fbLeads = await getFormLeads(form.form_id as string, token, since)
+    if (!fbLeads.length) continue
 
-    for (const fl of fbLeads) {
+    const parsed = fbLeads.map(fl => {
       const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
       const fields = extractAllFields(fl.field_data ?? [])
+      return { fl, name, email, phone, fields }
+    })
 
-      const { data: saved } = await supabase.from('leads').upsert({
-        user_id:          form.user_id,
-        store_id:         form.store_id,
-        facebook_lead_id: fl.id,
-        page_id:          conn.page_id,
-        form_id:          form.form_id,
-        form_name:        form.form_name,
-        name, email, phone, fields,
-        raw_data:   { field_data: fl.field_data },
-        wa_status:  phone ? 'pending' : 'no_phone',
-        created_at: fl.created_time,
-      }, { onConflict: 'facebook_lead_id', ignoreDuplicates: true }).select('id').single()
+    // Batch upsert all leads at once
+    const rows = parsed.map(({ fl, name, email, phone, fields }) => ({
+      user_id:          form.user_id,
+      store_id:         form.store_id,
+      facebook_lead_id: fl.id,
+      page_id:          conn.page_id,
+      form_id:          form.form_id,
+      form_name:        form.form_name,
+      name, email, phone, fields,
+      raw_data:   { field_data: fl.field_data },
+      wa_status:  phone ? 'pending' : 'no_phone',
+      created_at: fl.created_time,
+    }))
 
-      // Create WhatsApp job for new leads with phone numbers
-      if (saved && phone && form.store_id && form.message_template) {
-        const message = renderTemplate(form.message_template as string, {
-          ...fields,
-          name: name ?? 'there',
-          email: email ?? '',
-          phone,
+    const { data: savedRows } = await supabase.from('leads')
+      .upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+      .select('id, phone, name, fields')
+
+    synced += fbLeads.length
+
+    // Batch create WA jobs for newly inserted leads with phones
+    if (savedRows?.length && form.message_template) {
+      const jobs = savedRows
+        .filter(s => s.phone)
+        .map(s => {
+          const fields = (s.fields as Record<string, string>) ?? {}
+          const message = renderTemplate(form.message_template as string, {
+            ...fields, name: s.name ?? 'there', email: fields.email ?? '', phone: s.phone,
+          })
+          return {
+            store_id:       form.store_id,
+            automation_id:  null,
+            type:           'lead_ad',
+            customer_phone: s.phone,
+            customer_name:  s.name ?? 'Lead',
+            message,
+            context:        { lead_id: s.id, form_id: form.form_id },
+            status:         'pending',
+            scheduled_at:   new Date().toISOString(),
+          }
         })
-        await supabase.from('automation_jobs').insert({
-          store_id:       form.store_id,
-          automation_id:  null,
-          type:           'lead_ad',
-          customer_phone: phone,
-          customer_name:  name ?? 'Lead',
-          message,
-          context:        { lead_id: saved.id, form_id: form.form_id },
-          status:         'pending',
-          scheduled_at:   new Date().toISOString(),
-        }).then(null, () => null)
-      }
-
-      synced++
+      if (jobs.length) await supabase.from('automation_jobs').insert(jobs).then(null, () => null)
     }
 
     // Update per-form last_lead_fetch

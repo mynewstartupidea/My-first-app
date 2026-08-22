@@ -853,8 +853,11 @@ function LeadsContent() {
     })
     const d = await r.json() as { imported?: number }
     if (selectedPageId) {
-      await fetchActiveForms(selectedPageId)
-      if (selectedFormId !== '__forms') await fetchLeads(selectedFormId, selectedPageId)
+      await Promise.all([
+        fetchActiveForms(selectedPageId),
+        fetchStats(selectedPageId),
+        ...(selectedFormId !== '__forms' ? [fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch)] : []),
+      ])
     }
     return { imported: d.imported ?? 0 }
   }
@@ -866,6 +869,7 @@ function LeadsContent() {
       body: JSON.stringify({ leadId: lead.id, message: '' }),
     })
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, wa_status: 'pending' } : l))
+    if (selectedPageId) fetchStats(selectedPageId)
     setBanner({ type: 'success', msg: `WhatsApp queued for ${lead.name ?? lead.phone ?? 'lead'}` })
   }
 
@@ -880,6 +884,7 @@ function LeadsContent() {
     setSelectedPageId(null)
     setActiveForms([])
     setLeads([])
+    setPageStats({ withPhone: 0, sent: 0, pending: 0 })
   }
 
   const handleRefresh = async () => {
