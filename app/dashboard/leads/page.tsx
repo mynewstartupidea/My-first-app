@@ -313,7 +313,7 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
               <div className="mt-3 flex items-start gap-2 p-3 bg-blue-50 rounded-xl">
                 <Users className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-700">
-                  The 50 most recent leads will be imported automatically for reference.
+                  Up to 500 existing leads will be imported automatically for reference.
                   New leads will trigger WhatsApp messages.
                 </p>
               </div>

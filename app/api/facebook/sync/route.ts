@@ -53,42 +53,58 @@ export async function POST(request: Request) {
     const fbLeads = await getFormLeads(form.form_id as string, token, since)
     if (!fbLeads.length) continue
 
-    for (const fl of fbLeads) {
+    // Parse all leads first
+    const parsed = fbLeads.map(fl => {
       const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
       const fields = extractAllFields(fl.field_data ?? [])
+      return { fl, name, email, phone, fields }
+    })
 
-      const { data: saved, error: upsertErr } = await service.from('leads').upsert({
-        user_id:          user.id,
-        store_id:         form.store_id,
-        facebook_lead_id: fl.id,
-        page_id:          conn.page_id,
-        form_id:          form.form_id,
-        form_name:        form.form_name,
-        name, email, phone, fields,
-        raw_data:  { field_data: fl.field_data },
-        wa_status: phone ? 'pending' : 'no_phone',
-        created_at: fl.created_time,
-      }, { onConflict: 'facebook_lead_id', ignoreDuplicates: true }).select('id').maybeSingle()
+    // Batch upsert all rows at once, get back the newly inserted ids
+    const rows = parsed.map(({ fl, name, email, phone, fields }) => ({
+      user_id:          user.id,
+      store_id:         form.store_id,
+      facebook_lead_id: fl.id,
+      page_id:          conn.page_id,
+      form_id:          form.form_id,
+      form_name:        form.form_name,
+      name, email, phone, fields,
+      raw_data:   { field_data: fl.field_data },
+      wa_status:  phone ? 'pending' : 'no_phone',
+      created_at: fl.created_time,
+    }))
 
-      if (!upsertErr && saved && phone && form.store_id && form.message_template) {
-        const message = renderTemplate(form.message_template as string, {
-          ...fields, name: name ?? 'there', email: email ?? '', phone,
+    const { data: saved } = await service.from('leads')
+      .upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+      .select('id, phone, name, form_id, fields')
+
+    synced += fbLeads.length
+
+    // Create WA jobs only for newly inserted leads that have a phone
+    if (saved?.length && form.message_template) {
+      const jobs = saved
+        .filter(s => s.phone)
+        .map(s => {
+          const fields = (s.fields as Record<string, string>) ?? {}
+          const message = renderTemplate(form.message_template as string, {
+            ...fields, name: s.name ?? 'there', email: fields.email ?? '', phone: s.phone,
+          })
+          return {
+            store_id:       form.store_id,
+            automation_id:  null,
+            type:           'lead_ad',
+            customer_phone: s.phone,
+            customer_name:  s.name ?? 'Lead',
+            message,
+            context:        { lead_id: s.id, form_id: form.form_id, source: 'manual_sync' },
+            status:         'pending',
+            scheduled_at:   new Date().toISOString(),
+          }
         })
-        await service.from('automation_jobs').insert({
-          store_id:       form.store_id,
-          automation_id:  null,
-          type:           'lead_ad',
-          customer_phone: phone,
-          customer_name:  name ?? 'Lead',
-          message,
-          context:        { lead_id: saved.id, form_id: form.form_id, source: 'manual_sync' },
-          status:         'pending',
-          scheduled_at:   new Date().toISOString(),
-        }).then(null, () => null)
+      if (jobs.length) {
+        await service.from('automation_jobs').insert(jobs).then(null, () => null)
+        newLeads += jobs.length
       }
-
-      if (saved) newLeads++
-      synced++
     }
 
     await service

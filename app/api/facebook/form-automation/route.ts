@@ -68,35 +68,36 @@ export async function POST(request: Request) {
     await service.from('lead_form_automations').upsert(baseRow, { onConflict: 'store_id,form_id' })
   }
 
-  // On first activation: fetch last 50 leads immediately (historical — no WhatsApp)
+  // On first activation: bulk-import historical leads (no WhatsApp sent for these)
   let leadsFetched = 0
   if (isNew && body.isEnabled) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token
-    // Fetch up to 500 historical leads (paginated, 100/page) on first activation
     const fbLeads = await getFormLeads(body.formId, token, null, 100, null, 500)
 
-    for (const fl of fbLeads) {
-      const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
-      const fields = extractAllFields(fl.field_data ?? [])
+    if (fbLeads.length > 0) {
+      // Build all rows first, then upsert in one batch call
+      const rows = fbLeads.map(fl => {
+        const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
+        const fields = extractAllFields(fl.field_data ?? [])
+        return {
+          user_id:          user.id,
+          store_id:         conn.store_id,
+          facebook_lead_id: fl.id,
+          page_id:          conn.page_id,
+          form_id:          body.formId,
+          form_name:        body.formName,
+          name, email, phone, fields,
+          raw_data:   { field_data: fl.field_data },
+          wa_status:  'imported',
+          created_at: fl.created_time,
+        }
+      })
 
-      await service.from('leads').upsert({
-        user_id:          user.id,
-        store_id:         conn.store_id,
-        facebook_lead_id: fl.id,
-        page_id:          conn.page_id,
-        form_id:          body.formId,
-        form_name:        body.formName,
-        name, email, phone, fields,
-        raw_data:   { field_data: fl.field_data },
-        wa_status:  'imported',
-        created_at: fl.created_time,
-      }, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
-
-      leadsFetched++
+      await service.from('leads').upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+      leadsFetched = rows.length
     }
 
-    // Set last_lead_fetch = now so the cron only picks up leads after this point
-    // (ignore error if column doesn't exist yet)
+    // Set last_lead_fetch = now so the cron only picks up leads that arrive after activation
     await service.from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
       .eq('user_id', user.id)
