@@ -64,6 +64,8 @@ export async function PATCH(request: Request) {
   const body = await request.json()
   const { id, role } = body as { id: string; role: string }
   if (!id || !role) return NextResponse.json({ error: 'id and role required' }, { status: 400 })
+  const VALID_ROLES = ['admin', 'manager', 'support', 'member']
+  if (!VALID_ROLES.includes(role)) return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
 
   const service = createServiceClient()
   const { data: org } = await service

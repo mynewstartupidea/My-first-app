@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
+import { renderTemplate } from '@/lib/utils'
 
 export const maxDuration = 60
 
@@ -68,14 +69,14 @@ export async function POST(request: Request) {
     await service.from('lead_form_automations').upsert(baseRow, { onConflict: 'store_id,form_id' })
   }
 
-  // On first activation: bulk-import historical leads (no WhatsApp sent for these)
+  // On first activation: bulk-import historical leads and queue WhatsApp messages
   let leadsFetched = 0
+  let leadsQueued  = 0
   if (isNew && body.isEnabled) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token
     const fbLeads = await getFormLeads(body.formId, token, null, 100, null, 500)
 
     if (fbLeads.length > 0) {
-      // Build all rows first, then upsert in one batch call
       const rows = fbLeads.map(fl => {
         const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
         const fields = extractAllFields(fl.field_data ?? [])
@@ -88,13 +89,43 @@ export async function POST(request: Request) {
           form_name:        body.formName,
           name, email, phone, fields,
           raw_data:   { field_data: fl.field_data },
-          wa_status:  'imported',
+          wa_status:  phone ? 'pending' : 'no_phone',
           created_at: fl.created_time,
         }
       })
 
-      await service.from('leads').upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+      // ignoreDuplicates: only newly inserted rows are returned — avoids re-sending to existing leads
+      const { data: upserted } = await service
+        .from('leads')
+        .upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+        .select('id, phone, name, email, fields')
+
       leadsFetched = rows.length
+
+      // Queue automation_jobs for newly inserted leads that have a phone number
+      const jobs = (upserted ?? [])
+        .filter(l => l.phone)
+        .map(l => ({
+          store_id:       conn.store_id,
+          automation_id:  null,
+          type:           'lead_ad',
+          customer_phone: l.phone as string,
+          customer_name:  (l.name as string | null) ?? 'Lead',
+          message: renderTemplate(body.messageTemplate, {
+            ...((l.fields as Record<string, string>) ?? {}),
+            name:  (l.name as string | null) ?? 'there',
+            email: (l.email as string | null) ?? '',
+            phone: l.phone as string,
+          }),
+          context:      { lead_id: l.id, form_id: body.formId, bulk_activate: true },
+          status:       'pending',
+          scheduled_at: new Date().toISOString(),
+        }))
+
+      if (jobs.length > 0) {
+        await service.from('automation_jobs').insert(jobs)
+        leadsQueued = jobs.length
+      }
     }
 
     // Set last_lead_fetch = now so the cron only picks up leads that arrive after activation
@@ -105,5 +136,5 @@ export async function POST(request: Request) {
       .then(null, () => null)
   }
 
-  return NextResponse.json({ ok: true, colorIndex, leadsFetched, isNew })
+  return NextResponse.json({ ok: true, colorIndex, leadsFetched, leadsQueued, isNew })
 }

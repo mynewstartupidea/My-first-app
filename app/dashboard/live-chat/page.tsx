@@ -48,6 +48,7 @@ const TYPE_LABELS: Record<string, string> = {
   order_confirmation: 'Order', shipping_update: 'Shipping',
   post_purchase_upsell: 'Upsell', win_back: 'Win-back',
   review_request: 'Review', broadcast: 'Campaign',
+  lead_ad: 'Lead Form',
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {

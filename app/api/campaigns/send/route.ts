@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { renderTemplate } from '@/lib/utils'
+
+export const maxDuration = 60
 
 // POST /api/campaigns/send — execute a campaign immediately
 // Body: { campaign_id: string }
@@ -93,11 +96,12 @@ export async function POST(req: NextRequest) {
 
   let sentCount = 0
   let failedCount = 0
+  const messageLogs: object[]  = []
+  const optInIds:   string[]   = []
+  const optOutIds:  string[]   = []
 
-  // Send messages (in small batches to avoid timeouts)
   for (const customer of customers) {
-    const personalizedMessage = campaign.message
-      .replace(/\{\{name\}\}/g, customer.name ?? 'there')
+    const personalizedMessage = renderTemplate(campaign.message, { name: customer.name ?? 'there' })
 
     const result = await sendWhatsAppMessage({
       to:            customer.phone,
@@ -109,12 +113,8 @@ export async function POST(req: NextRequest) {
 
     if (result.success) {
       sentCount++
-      await supabase
-        .from('customers')
-        .update({ whatsapp_opt_in: true })
-        .eq('id', customer.id)
-      // Log the message
-      await supabase.from('messages').insert({
+      optInIds.push(customer.id)
+      messageLogs.push({
         store_id:       store.id,
         customer_phone: customer.phone,
         customer_name:  customer.name,
@@ -125,16 +125,23 @@ export async function POST(req: NextRequest) {
       })
     } else {
       failedCount++
-      const notReachable =
-        /not registered on WhatsApp|invalid phone number/i.test(result.error ?? '')
-      if (notReachable) {
-        await supabase
-          .from('customers')
-          .update({ whatsapp_opt_in: false })
-          .eq('id', customer.id)
-      }
+      const notReachable = /not registered on WhatsApp|invalid phone number/i.test(result.error ?? '')
+      if (notReachable) optOutIds.push(customer.id)
     }
   }
+
+  // Batch the DB writes — one call instead of 2× per customer
+  await Promise.all([
+    messageLogs.length
+      ? supabase.from('messages').insert(messageLogs)
+      : Promise.resolve(),
+    optInIds.length
+      ? supabase.from('customers').update({ whatsapp_opt_in: true  }).in('id', optInIds)
+      : Promise.resolve(),
+    optOutIds.length
+      ? supabase.from('customers').update({ whatsapp_opt_in: false }).in('id', optOutIds)
+      : Promise.resolve(),
+  ])
 
   // Update campaign status
   await supabase.from('campaigns').update({

@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
-  Users, Search, Upload, Loader2, Phone, X, FileText, AlertCircle,
-  CheckCircle2, MessageCircle, RefreshCw, Send, FolderOpen, Edit3, ChevronRight
+  Users, Search, Upload, Loader2, X, FileText, AlertCircle,
+  CheckCircle2, MessageCircle, RefreshCw, Send, CheckCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,11 +27,6 @@ interface UploadResult {
   whatsapp_checked: boolean
 }
 
-interface ContactList extends UploadResult {
-  id: string
-  label: string
-}
-
 interface Campaign {
   id: string
   status: string
@@ -40,8 +35,6 @@ interface Campaign {
 }
 
 type UploadState = 'idle' | 'reading' | 'uploading' | 'done' | 'error'
-
-const LIST_STORAGE_KEY = 'wapaci_contact_upload_history'
 
 function listName(result: UploadResult) {
   if (result.filename) return result.filename.replace(/\.[^.]+$/, '')
@@ -66,6 +59,8 @@ function avatarColor(phone: string) {
   return AVATAR_COLORS[phone.charCodeAt(phone.length - 1) % AVATAR_COLORS.length]
 }
 
+// ── Upload Modal ───────────────────────────────────────────────────────────────
+
 function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result: UploadResult) => void }) {
   const [state, setState] = useState<UploadState>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
@@ -80,27 +75,22 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
       setState('error')
       return
     }
-
     try {
       setState('reading')
       const content = await file.text()
       setState('uploading')
-
       const res = await fetch('/api/contacts/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, filename: file.name }),
       })
-
       if (!res.ok) {
         const body = await res.json() as { error?: string }
         setError(body.error ?? 'Upload failed. Please try again.')
         setState('error')
         return
       }
-
-      const data = await res.json() as UploadResult
-      setResult(data)
+      setResult(await res.json() as UploadResult)
       setState('done')
     } catch {
       setError('Network error. Check your connection and try again.')
@@ -116,17 +106,17 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
-              <Upload size={15} className="text-[#25D366]" />
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Upload className="w-4 h-4 text-blue-600" />
             </div>
-            <h2 className="font-semibold text-slate-900">Upload contact list</h2>
+            <h2 className="font-semibold text-gray-900">Upload contact list</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
-            <X size={18} />
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-4 h-4 text-gray-400" />
           </button>
         </div>
 
@@ -136,45 +126,32 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
               <div
                 onDragOver={e => { e.preventDefault(); setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
-                onDrop={e => {
-                  e.preventDefault()
-                  setDragOver(false)
-                  const file = e.dataTransfer.files[0]
-                  if (file) processFile(file)
-                }}
+                onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) processFile(f) }}
                 onClick={() => fileRef.current?.click()}
                 className={cn(
                   'border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition',
-                  dragOver ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-[#25D366]/50 hover:bg-slate-50'
+                  dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                 )}
               >
-                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                  <FileText size={22} className="text-slate-400" />
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                  <FileText className="w-5 h-5 text-gray-400" />
                 </div>
-                <p className="text-sm font-semibold text-slate-700">Drop your sheet here</p>
-                <p className="text-xs text-slate-400 mt-1">or click to browse</p>
-                <p className="text-[11px] text-slate-400 mt-3 bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5 inline-block">
+                <p className="text-sm font-semibold text-gray-700">Drop your sheet here</p>
+                <p className="text-xs text-gray-400 mt-1">or click to browse</p>
+                <p className="text-xs text-gray-400 mt-3 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 inline-block">
                   CSV · TXT · VCF
                 </p>
               </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv,.txt,.vcf"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0]
-                  if (file) processFile(file)
-                }}
-              />
+              <input ref={fileRef} type="file" accept=".csv,.txt,.vcf" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }} />
             </>
           )}
 
           {(state === 'reading' || state === 'uploading') && (
             <div className="text-center py-10">
-              <Loader2 size={32} className="animate-spin text-[#25D366] mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-700">
-                {state === 'reading' ? 'Reading sheet...' : 'Syncing contacts...'}
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-gray-700">
+                {state === 'reading' ? 'Reading sheet…' : 'Syncing contacts…'}
               </p>
             </div>
           )}
@@ -182,40 +159,36 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
           {state === 'done' && result && (
             <div>
               <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-full bg-[#25D366]/10 flex items-center justify-center">
-                  <CheckCircle2 size={16} className="text-[#25D366]" />
-                </div>
-                <p className="font-semibold text-slate-800">{listName(result)} synced</p>
+                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <p className="font-semibold text-gray-800">{listName(result)} synced</p>
               </div>
-
               <div className="space-y-2 mb-5">
-                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-sm text-slate-500">Numbers found</span>
-                  <span className="text-sm font-bold text-slate-800">{result.found.toLocaleString()}</span>
+                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-gray-50 border border-gray-100">
+                  <span className="text-sm text-gray-500">Numbers found</span>
+                  <span className="text-sm font-bold text-gray-800">{result.found.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-blue-50 border border-blue-100">
                   <span className="text-sm text-blue-700">Valid contacts</span>
                   <span className="text-sm font-bold text-blue-700">{result.valid.toLocaleString()}</span>
                 </div>
-                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-emerald-50 border border-emerald-100">
-                  <span className="text-sm text-emerald-700">New contacts saved</span>
-                  <span className="text-sm font-bold text-emerald-700">+{result.saved.toLocaleString()}</span>
+                <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-green-50 border border-green-100">
+                  <span className="text-sm text-green-700">New contacts saved</span>
+                  <span className="text-sm font-bold text-green-700">+{result.saved.toLocaleString()}</span>
                 </div>
                 {result.skipped > 0 && (
-                  <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-sm text-slate-400">Already saved</span>
-                    <span className="text-sm font-bold text-slate-400">{result.skipped.toLocaleString()}</span>
+                  <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-gray-50 border border-gray-100">
+                    <span className="text-sm text-gray-400">Already saved</span>
+                    <span className="text-sm font-bold text-gray-400">{result.skipped.toLocaleString()}</span>
                   </div>
                 )}
               </div>
-
               <div className="flex gap-2">
                 <button onClick={reset}
-                  className="flex-1 text-sm font-medium border border-slate-200 text-slate-600 py-2.5 rounded-xl hover:bg-slate-50 transition">
-                  Upload Another
+                  className="flex-1 text-sm font-medium border border-gray-200 text-gray-600 py-2.5 rounded-xl hover:bg-gray-50 transition">
+                  Upload another
                 </button>
                 <button onClick={() => onDone(result)}
-                  className="flex-1 text-sm font-semibold bg-[#25D366] text-white py-2.5 rounded-xl hover:bg-[#1aad54] transition">
+                  className="flex-1 text-sm font-semibold bg-blue-600 text-white py-2.5 rounded-xl hover:bg-blue-700 transition">
                   Done
                 </button>
               </div>
@@ -225,12 +198,12 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
           {state === 'error' && (
             <div>
               <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100 mb-5">
-                <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-600">{error}</p>
               </div>
               <button onClick={reset}
-                className="w-full text-sm font-medium border border-slate-200 text-slate-600 py-2.5 rounded-xl hover:bg-slate-50 transition">
-                Try Again
+                className="w-full text-sm font-medium border border-gray-200 text-gray-600 py-2.5 rounded-xl hover:bg-gray-50 transition">
+                Try again
               </button>
             </div>
           )}
@@ -240,11 +213,9 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
   )
 }
 
-function BroadcastModal({
-  contactCount,
-  onClose,
-  onSent,
-}: {
+// ── Broadcast Modal ────────────────────────────────────────────────────────────
+
+function BroadcastModal({ contactCount, onClose, onSent }: {
   contactCount: number
   onClose: () => void
   onSent: (result: { sentCount: number; failedCount: number }) => void
@@ -255,22 +226,13 @@ function BroadcastModal({
   const [error, setError] = useState('')
 
   async function sendNow() {
-    if (!message.trim()) {
-      setError('Write a WhatsApp message first.')
-      return
-    }
-
+    if (!message.trim()) { setError('Write a WhatsApp message first.'); return }
     setSending(true)
     setError('')
-
     const createRes = await fetch('/api/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: name.trim() || 'Contacts broadcast',
-        message: message.trim(),
-        audience: 'all',
-      }),
+      body: JSON.stringify({ name: name.trim() || 'Contacts broadcast', message: message.trim(), audience: 'all' }),
     })
     const created = await createRes.json().catch(() => ({})) as { campaign?: { id: string }; error?: string }
     if (!createRes.ok || !created.campaign?.id) {
@@ -278,7 +240,6 @@ function BroadcastModal({
       setSending(false)
       return
     }
-
     const sendRes = await fetch('/api/campaigns/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -286,73 +247,56 @@ function BroadcastModal({
     })
     const sent = await sendRes.json().catch(() => ({})) as { sentCount?: number; failedCount?: number; error?: string }
     setSending(false)
-
-    if (!sendRes.ok) {
-      setError(sent.error ?? 'Could not send campaign.')
-      return
-    }
-
+    if (!sendRes.ok) { setError(sent.error ?? 'Could not send campaign.'); return }
     onSent({ sentCount: sent.sentCount ?? 0, failedCount: sent.failedCount ?? 0 })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
-              <Send size={15} className="text-[#25D366]" />
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Send className="w-4 h-4 text-blue-600" />
             </div>
-            <h2 className="font-semibold text-slate-900">Send WhatsApp message</h2>
+            <h2 className="font-semibold text-gray-900">Send WhatsApp message</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
-            <X size={18} />
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-4 h-4 text-gray-400" />
           </button>
         </div>
-
         <div className="p-6 space-y-4">
-          <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-            <p className="text-sm font-semibold text-slate-800">
+          <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+            <p className="text-sm font-semibold text-gray-800">
               {contactCount.toLocaleString()} synced contacts selected
             </p>
           </div>
-
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Campaign name</label>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
-            />
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Campaign name</label>
+            <input value={name} onChange={e => setName(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           </div>
-
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Message</label>
-            <textarea
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              rows={6}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 resize-none"
-            />
-            <p className="text-[11px] text-slate-400 mt-1">Use {'{{name}}'} to personalize saved contact names.</p>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Message</label>
+            <textarea value={message} onChange={e => setMessage(e.target.value)} rows={6}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+            <p className="text-xs text-gray-400 mt-1">Use {'{{name}}'} to personalise saved contact names.</p>
           </div>
-
           {error && (
             <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2">
-              <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
+              <AlertCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
-
           <div className="flex gap-2 pt-1">
             <button onClick={onClose}
-              className="flex-1 text-sm font-medium border border-slate-200 text-slate-600 py-2.5 rounded-xl hover:bg-slate-50 transition">
+              className="flex-1 text-sm font-medium border border-gray-200 text-gray-600 py-2.5 rounded-xl hover:bg-gray-50 transition">
               Cancel
             </button>
             <button onClick={sendNow} disabled={sending || contactCount === 0}
-              className="flex-1 inline-flex items-center justify-center gap-2 text-sm font-semibold bg-[#25D366] text-white py-2.5 rounded-xl hover:bg-[#1aad54] disabled:opacity-50 transition">
-              {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-              {sending ? 'Sending...' : 'Send now'}
+              className="flex-1 inline-flex items-center justify-center gap-2 text-sm font-semibold bg-blue-600 text-white py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition">
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {sending ? 'Sending…' : 'Send now'}
             </button>
           </div>
         </div>
@@ -361,19 +305,17 @@ function BroadcastModal({
   )
 }
 
+// ── Main page ──────────────────────────────────────────────────────────────────
+
 export default function ContactsPage() {
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [showUpload, setShowUpload] = useState(false)
+  const [contacts, setContacts]         = useState<Contact[]>([])
+  const [campaigns, setCampaigns]       = useState<Campaign[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [search, setSearch]             = useState('')
+  const [activeTab, setActiveTab]       = useState<'all' | 'opted-in' | 'opted-out'>('all')
+  const [showUpload, setShowUpload]     = useState(false)
   const [showBroadcast, setShowBroadcast] = useState(false)
-  const [lastUpload, setLastUpload] = useState<UploadResult | null>(null)
-  const [lists, setLists] = useState<ContactList[]>([])
-  const [activeListId, setActiveListId] = useState<string | null>(null)
-  const [editingListId, setEditingListId] = useState<string | null>(null)
-  const [editingLabel, setEditingLabel] = useState('')
-  const [sendResult, setSendResult] = useState<{ sentCount: number; failedCount: number } | null>(null)
+  const [banner, setBanner]             = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -396,90 +338,41 @@ export default function ContactsPage() {
 
   useEffect(() => { load() }, [load])
 
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(LIST_STORAGE_KEY)
-      if (saved) setLists(JSON.parse(saved) as ContactList[])
-    } catch { /* local list names are optional */ }
-  }, [])
-
-  function persistLists(next: ContactList[]) {
-    setLists(next)
-    try { window.localStorage.setItem(LIST_STORAGE_KEY, JSON.stringify(next)) } catch {}
-  }
-
-  function rememberUpload(result: UploadResult) {
-    const item: ContactList = {
-      ...result,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      label: listName(result),
-      uploaded_at: result.uploaded_at ?? new Date().toISOString(),
-    }
-    persistLists([item, ...lists].slice(0, 8))
-    setActiveListId(item.id)
-  }
-
-  function renameList(id: string, label: string) {
-    const clean = label.trim()
-    if (!clean) return
-    persistLists(lists.map(item => item.id === id ? { ...item, label: clean } : item))
-    setEditingListId(null)
-    setEditingLabel('')
-  }
-
   const stats = useMemo(() => {
-    const sent = campaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0)
+    const optedIn   = contacts.filter(c => c.whatsapp_opt_in).length
+    const sent      = campaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0)
     const completed = campaigns.filter(c => c.status === 'completed').length
-    return { total: contacts.length, sent, completed }
+    return { total: contacts.length, optedIn, sent, completed }
   }, [contacts, campaigns])
 
+  const tabCounts = useMemo(() => ({
+    all:       contacts.length,
+    'opted-in':  contacts.filter(c => c.whatsapp_opt_in).length,
+    'opted-out': contacts.filter(c => !c.whatsapp_opt_in).length,
+  }), [contacts])
+
   const displayed = useMemo(() => {
+    let list = contacts
+    if (activeTab === 'opted-in')  list = list.filter(c => c.whatsapp_opt_in)
+    if (activeTab === 'opted-out') list = list.filter(c => !c.whatsapp_opt_in)
     const needle = search.toLowerCase()
-    return contacts.filter(c => {
-      if (!needle) return true
-      return c.phone.includes(needle) || c.name?.toLowerCase().includes(needle) || c.email?.toLowerCase().includes(needle)
-    })
-  }, [contacts, search])
-
-  const listCards = useMemo<ContactList[]>(() => {
-    if (lists.length > 0) return lists
-    if (stats.total === 0) return []
-
-    return [{
-      id: 'all',
-      label: 'All synced contacts',
-      found: stats.total,
-      valid: stats.total,
-      whatsapp: stats.total,
-      saved: stats.total,
-      skipped: 0,
-      whatsapp_checked: false,
-    }]
-  }, [lists, stats.total])
-
-  const activeList = listCards.find(item => item.id === activeListId) ?? listCards[0] ?? null
-  const listCardsKey = listCards.map(item => item.id).join('|')
-
-  useEffect(() => {
-    if (listCards.length === 0) {
-      if (activeListId) setActiveListId(null)
-      return
-    }
-    if (!activeListId || !listCards.some(item => item.id === activeListId)) {
-      setActiveListId(listCards[0].id)
-    }
-  }, [activeListId, listCardsKey, listCards])
+    if (!needle) return list
+    return list.filter(c =>
+      c.phone.includes(needle) ||
+      c.name?.toLowerCase().includes(needle) ||
+      c.email?.toLowerCase().includes(needle)
+    )
+  }, [contacts, search, activeTab])
 
   return (
     <>
       {showUpload && (
         <UploadModal
           onClose={() => setShowUpload(false)}
-          onDone={(result) => {
-            setLastUpload(result)
-            rememberUpload(result)
+          onDone={result => {
             setShowUpload(false)
             load()
+            setBanner({ type: 'success', msg: `${result.saved} new contacts saved (${result.skipped} already existed)` })
           }}
         />
       )}
@@ -488,282 +381,220 @@ export default function ContactsPage() {
         <BroadcastModal
           contactCount={stats.total}
           onClose={() => setShowBroadcast(false)}
-          onSent={(result) => {
-            setSendResult(result)
+          onSent={result => {
             setShowBroadcast(false)
             load()
+            setBanner({
+              type: 'success',
+              msg: `Campaign sent — ${result.sentCount} delivered${result.failedCount > 0 ? `, ${result.failedCount} failed` : ''}`,
+            })
           }}
         />
       )}
 
-      <div className="p-6 lg:p-8 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Contacts</h1>
-            <p className="text-slate-400 text-sm mt-1">Upload lists, organize contacts, and send broadcasts</p>
+      <div className="p-6 lg:p-8 space-y-5">
+
+        {/* Banner */}
+        {banner && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+            {banner.type === 'success'
+              ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            <span className="flex-1">{banner.msg}</span>
+            <button onClick={() => setBanner(null)}>
+              <X className="w-4 h-4 opacity-50 hover:opacity-100 transition" />
+            </button>
           </div>
-          <div className="flex items-center gap-2">
+        )}
+
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {stats.total.toLocaleString()} contacts saved
+              {stats.completed > 0 && ` · ${stats.completed} campaign${stats.completed !== 1 ? 's' : ''} completed`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={load}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition" title="Refresh">
-              <RefreshCw size={15} />
+              className="p-2 text-gray-400 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition"
+              title="Refresh">
+              <RefreshCw className="w-4 h-4" />
             </button>
             <button onClick={() => setShowUpload(true)}
-              className="flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-4 py-2 rounded-xl hover:bg-[#1aad54] transition shadow-sm">
-              <Upload size={14} /> Upload
+              className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition">
+              <Upload className="w-4 h-4" /> Upload
             </button>
             <button onClick={() => setShowBroadcast(true)} disabled={stats.total === 0}
-              className="flex items-center gap-2 text-sm font-semibold bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">
-              <Send size={14} /> Send
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition disabled:opacity-50">
+              <Send className="w-4 h-4" /> Send message
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
-          <aside className="space-y-4">
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total synced</p>
-              <p className="text-4xl font-bold text-slate-900 mt-2">{stats.total.toLocaleString()}</p>
-              <p className="text-xs text-slate-400 mt-1">contacts saved</p>
-              <button onClick={() => setShowBroadcast(true)} disabled={stats.total === 0}
-                className="mt-5 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold bg-slate-900 text-white px-4 py-2.5 rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <Send size={14} /> Send message
-              </button>
-            </div>
-
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-bold text-slate-900">Lists</p>
-                <button onClick={() => setShowUpload(true)}
-                  className="text-xs font-semibold text-[#128C7E] hover:text-[#075E54]">
-                  Upload
-                </button>
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Total contacts', value: stats.total,   color: '#6b7280' },
+            { label: 'WhatsApp opt-in', value: stats.optedIn, color: '#10b981' },
+            { label: 'Messages sent',   value: stats.sent,    color: '#3b82f6' },
+            { label: 'Campaigns done',  value: stats.completed, color: '#f59e0b' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                <p className="text-xs text-gray-400">{s.label}</p>
               </div>
+            </div>
+          ))}
+        </div>
 
-              {listCards.length === 0 ? (
-                <button onClick={() => setShowUpload(true)}
-                  className="w-full border border-dashed border-slate-200 rounded-xl p-4 text-left hover:border-[#25D366]/50 hover:bg-slate-50 transition">
-                  <div className="w-9 h-9 rounded-lg bg-[#25D366]/10 flex items-center justify-center mb-3">
-                    <Upload size={16} className="text-[#25D366]" />
-                  </div>
-                  <p className="text-sm font-semibold text-slate-800">Upload first list</p>
-                  <p className="text-xs text-slate-400 mt-1">CSV, TXT, or VCF</p>
+        {/* Content card */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+          {/* Tab bar — mirrors Leads page structure */}
+          <div className="flex items-center border-b border-gray-100 overflow-x-auto">
+            {([
+              { id: 'all',       label: 'All contacts' },
+              { id: 'opted-in',  label: 'Opted in' },
+              { id: 'opted-out', label: 'Opted out' },
+            ] as const).map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id); setSearch('') }}
+                className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'border-gray-800 text-gray-900'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {tab.label}
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                  activeTab === tab.id ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'
+                }`}>
+                  {tabCounts[tab.id]}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Toolbar */}
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 bg-gray-50/40">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search name, phone, email…"
+                className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <X className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
                 </button>
-              ) : (
-                <div className="space-y-2">
-                  {listCards.map(item => {
-                    const isActive = activeList?.id === item.id
-                    return (
-                      <div
-                        key={item.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setActiveListId(item.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setActiveListId(item.id)
-                          }
-                        }}
-                        className={cn(
-                          'group rounded-xl border p-3 cursor-pointer transition outline-none focus:ring-2 focus:ring-[#25D366]/20',
-                          isActive
-                            ? 'border-[#25D366]/30 bg-[#25D366]/5 shadow-sm'
-                            : 'border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200'
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-white border border-slate-100 flex items-center justify-center flex-shrink-0">
-                            <FolderOpen size={16} className="text-blue-600" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            {editingListId === item.id ? (
-                              <form
-                                onClick={event => event.stopPropagation()}
-                                onSubmit={e => { e.preventDefault(); renameList(item.id, editingLabel) }}
-                              >
-                                <input
-                                  autoFocus
-                                  value={editingLabel}
-                                  onChange={e => setEditingLabel(e.target.value)}
-                                  onBlur={() => renameList(item.id, editingLabel)}
-                                  className="w-full text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-[#25D366]/20"
-                                />
-                              </form>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-semibold text-slate-800 truncate">{item.label}</p>
-                                {item.id !== 'all' && (
-                                  <button
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      setEditingListId(item.id)
-                                      setEditingLabel(item.label)
-                                    }}
-                                    className="text-slate-300 hover:text-slate-500 flex-shrink-0">
-                                    <Edit3 size={12} />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                            <p className="text-xs text-slate-400 mt-0.5">{item.valid.toLocaleString()} contacts</p>
-                          </div>
-                          <ChevronRight
-                            size={15}
-                            className={cn(
-                              'mt-3 flex-shrink-0 transition',
-                              isActive ? 'text-[#25D366]' : 'text-slate-300 group-hover:text-slate-500'
-                            )}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
               )}
             </div>
-          </aside>
-
-          <main className="space-y-4">
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">
-                    {activeList ? activeList.label : 'Contact library'}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {activeList
-                      ? `${activeList.valid.toLocaleString()} contacts in this list · ${stats.total.toLocaleString()} total synced`
-                      : `${stats.sent.toLocaleString()} messages sent · ${stats.completed.toLocaleString()} completed campaigns`}
-                  </p>
-                </div>
-                <div className="relative w-full max-w-xs">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search contacts"
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {(lastUpload || sendResult) && (
-              <div className="space-y-3">
-                {lastUpload && (
-                  <div className="bg-white border border-emerald-100 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 size={20} className="text-[#25D366] mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{listName(lastUpload)} synced</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {lastUpload.valid.toLocaleString()} contacts · {lastUpload.saved.toLocaleString()} new · {lastUpload.skipped.toLocaleString()} already saved
-                        </p>
-                      </div>
-                    </div>
-                    <button onClick={() => setShowBroadcast(true)} disabled={stats.total === 0}
-                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#128C7E] hover:text-[#075E54] disabled:opacity-50 whitespace-nowrap">
-                      Send message
-                    </button>
-                  </div>
-                )}
-                {sendResult && (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-3">
-                    <MessageCircle size={19} className="text-emerald-600 flex-shrink-0" />
-                    <p className="text-sm text-emerald-800">
-                      Campaign finished: <span className="font-bold">{sendResult.sentCount.toLocaleString()}</span> sent
-                      {sendResult.failedCount > 0 && <> · <span className="font-bold">{sendResult.failedCount.toLocaleString()}</span> failed</>}
-                    </p>
-                  </div>
-                )}
-              </div>
+            {search && (
+              <p className="text-xs text-gray-400">{displayed.length.toLocaleString()} result{displayed.length !== 1 ? 's' : ''}</p>
             )}
+          </div>
 
-            {loading ? (
-              <div className="bg-white border border-slate-100 rounded-2xl shadow-sm h-80 flex items-center justify-center">
-                <Loader2 size={24} className="animate-spin text-[#25D366]" />
+          {/* Table */}
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+            </div>
+          ) : contacts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
+                <Users className="w-6 h-6 text-gray-200" />
               </div>
-            ) : stats.total === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center">
-                {activeList ? (
-                  <>
-                    <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-                      <FolderOpen size={24} className="text-blue-600" />
-                    </div>
-                    <h2 className="text-lg font-semibold text-slate-900">{activeList.label}</h2>
-                    <p className="text-sm text-slate-400 mt-2 mb-6">
-                      {activeList.valid.toLocaleString()} contacts were found in this uploaded list. Refresh if the contacts do not appear yet.
-                    </p>
-                    <div className="flex items-center justify-center gap-2">
-                      <button onClick={load}
-                        className="inline-flex items-center gap-2 text-sm font-semibold border border-slate-200 text-slate-700 px-5 py-3 rounded-xl hover:bg-slate-50 transition">
-                        <RefreshCw size={16} /> Refresh
-                      </button>
-                      <button onClick={() => setShowUpload(true)}
-                        className="inline-flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
-                        <Upload size={16} /> Upload
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-14 h-14 rounded-2xl bg-[#25D366]/10 flex items-center justify-center mx-auto mb-4">
-                      <Users size={24} className="text-[#25D366]" />
-                    </div>
-                    <h2 className="text-lg font-semibold text-slate-900">No contacts yet</h2>
-                    <p className="text-sm text-slate-400 mt-2 mb-6">Upload a sheet to create your first contact list.</p>
-                    <button onClick={() => setShowUpload(true)}
-                      className="inline-flex items-center gap-2 text-sm font-semibold bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#1aad54] transition shadow-md shadow-green-500/20">
-                      <Upload size={16} /> Upload Contacts
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="grid grid-cols-[1fr_170px_100px] gap-4 px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50/60">
-                  <div>Contact</div>
-                  <div>Phone</div>
-                  <div>Status</div>
-                </div>
-
-                {displayed.length === 0 ? (
-                  <div className="py-12 text-center text-sm text-slate-400">No contacts match your search</div>
-                ) : (
-                  <div className="divide-y divide-slate-50">
-                    {displayed.slice(0, 200).map(c => (
-                      <div key={c.id} className="grid grid-cols-[1fr_170px_100px] items-center gap-4 px-5 py-3 hover:bg-slate-50/60 transition">
-                        <div className="flex items-center gap-3 min-w-0">
+              <p className="text-sm text-gray-400">No contacts yet</p>
+              <p className="text-xs text-gray-300 mt-1">Upload a CSV, TXT, or VCF to get started</p>
+              <button onClick={() => setShowUpload(true)}
+                className="mt-4 flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
+                <Upload className="w-4 h-4" /> Upload contacts
+              </button>
+            </div>
+          ) : displayed.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              {search ? (
+                <>
+                  <p className="text-sm text-gray-400">No contacts matching &quot;{search}&quot;</p>
+                  <button onClick={() => setSearch('')} className="mt-2 text-xs text-blue-500 hover:underline">Clear search</button>
+                </>
+              ) : (
+                <p className="text-sm text-gray-400">
+                  {activeTab === 'opted-in' ? 'No opted-in contacts yet' : 'No opted-out contacts'}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">WhatsApp</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Added</th>
+                    <th className="px-5 py-3 w-16" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {displayed.slice(0, 200).map(c => (
+                    <tr key={c.id} className="hover:bg-gray-50/40 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2.5">
                           <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', avatarColor(c.phone))}>
                             {avatarInitials(c)}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800 truncate">
-                              {c.name ?? <span className="text-slate-400 italic font-normal">No name</span>}
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {c.name ?? <span className="text-gray-400 font-normal italic">No name</span>}
                             </p>
-                            {c.email && <p className="text-xs text-slate-400 truncate">{c.email}</p>}
+                            {c.email && <p className="text-xs text-gray-400 truncate mt-0.5">{c.email}</p>}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-sm text-slate-600 font-mono min-w-0">
-                          <Phone size={11} className="text-slate-300 flex-shrink-0" />
-                          <span className="truncate text-xs">{c.phone}</span>
-                        </div>
-                        <span className="inline-flex w-fit items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                          Synced
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs text-gray-600 font-mono">{c.phone}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          c.whatsapp_opt_in ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {c.whatsapp_opt_in ? 'Opted in' : 'Opted out'}
                         </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs text-gray-400">
+                          {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <button
+                          onClick={() => setShowBroadcast(true)}
+                          className="p-1.5 rounded-lg hover:bg-green-50 text-gray-300 hover:text-green-600 transition"
+                          title="Send WhatsApp broadcast">
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-                {displayed.length > 200 && (
-                  <div className="px-5 py-3 border-t border-slate-100 text-center text-xs text-slate-400">
-                    Showing 200 of {displayed.length.toLocaleString()} contacts
-                  </div>
-                )}
-              </div>
-            )}
-          </main>
+          {displayed.length > 200 && (
+            <div className="px-5 py-3 border-t border-gray-100 text-center text-xs text-gray-400">
+              Showing 200 of {displayed.length.toLocaleString()} contacts · use search to filter
+            </div>
+          )}
         </div>
       </div>
     </>

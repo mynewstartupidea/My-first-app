@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFBLead, parseLeadFields, extractAllFields } from '@/lib/facebook'
@@ -30,7 +31,19 @@ export async function POST(request: Request) {
     }[]
   }
 
-  const body = await request.json() as LeadEvent
+  const rawBody = await request.text()
+
+  // Verify Facebook webhook signature (x-hub-signature-256)
+  const appSecret = process.env.META_APP_SECRET
+  if (appSecret) {
+    const signature = request.headers.get('x-hub-signature-256') ?? ''
+    const expected  = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')
+    if (signature !== expected) {
+      return new Response('Forbidden', { status: 403 })
+    }
+  }
+
+  const body = JSON.parse(rawBody) as LeadEvent
   if (body.object !== 'page') return NextResponse.json({ ok: true })
 
   const supabase = createServiceClient()

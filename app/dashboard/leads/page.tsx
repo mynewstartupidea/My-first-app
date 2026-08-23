@@ -186,6 +186,7 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
   const [search, setSearch] = useState('')
   const [pageForms, setPageForms] = useState<FBForm[] | null>(null)
   const [connectionId, setConnectionId] = useState<string | null>(null)
+  const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(null)
   const [loadingForms, setLoadingForms] = useState(false)
   const [selectedForm, setSelectedForm] = useState<FBForm | null>(preSelectedForm ?? null)
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
@@ -198,9 +199,10 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
     setLoadingForms(true)
     fetch(`/api/facebook/pages?page_id=${selectedPageId}`)
       .then(r => r.json())
-      .then((d: { forms?: FBForm[]; connectionId?: string | null }) => {
+      .then((d: { forms?: FBForm[]; connectionId?: string | null; whatsapp_connected?: boolean }) => {
         setPageForms(d.forms ?? [])
         setConnectionId(d.connectionId ?? null)
+        setWhatsappConnected(d.whatsapp_connected ?? false)
       })
       .finally(() => setLoadingForms(false))
   }, [selectedPageId])
@@ -296,6 +298,20 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
+              {/* WhatsApp not connected warning */}
+              {whatsappConnected === false && !loadingForms && (
+                <div className="mb-4 flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-amber-800">WhatsApp not connected</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Connect your WhatsApp account so messages can be sent to leads.</p>
+                    <a href="/dashboard/settings?tab=whatsapp"
+                      className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-amber-700 underline hover:text-amber-900">
+                      Connect WhatsApp →
+                    </a>
+                  </div>
+                </div>
+              )}
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp message template</label>
               <p className="text-xs text-gray-400 mb-3">
                 Use{' '}
@@ -310,20 +326,27 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
                 rows={7}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
-              <div className="mt-3 flex items-start gap-2 p-3 bg-blue-50 rounded-xl">
-                <Users className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-700">
-                  Up to 500 existing leads will be imported automatically for reference.
-                  New leads will trigger WhatsApp messages.
+              <div className="mt-3 flex items-start gap-2 p-3 bg-green-50 rounded-xl">
+                <MessageCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-green-700">
+                  Existing leads with phone numbers will be messaged immediately.
+                  All future leads will get your message automatically.
                 </p>
               </div>
             </div>
             <div className="p-5 border-t border-gray-100">
-              <button onClick={handleActivate} disabled={activating}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
-                {activating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                {activating ? 'Activating…' : `Activate "${selectedForm.name}"`}
-              </button>
+              {whatsappConnected === false && !loadingForms ? (
+                <a href="/dashboard/settings?tab=whatsapp"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition">
+                  <MessageCircle className="w-4 h-4" /> Connect WhatsApp first
+                </a>
+              ) : (
+                <button onClick={handleActivate} disabled={activating || loadingForms || !connectionId}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
+                  {(activating || loadingForms) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {activating ? 'Activating…' : loadingForms ? 'Loading…' : `Activate "${selectedForm.name}"`}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -682,7 +705,7 @@ function LeadsContent() {
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [total,          setTotal]          = useState(0)
-  const [pageStats,      setPageStats]      = useState({ withPhone: 0, sent: 0, pending: 0 })
+  const [pageStats,      setPageStats]      = useState({ total: 0, withPhone: 0, sent: 0, pending: 0 })
   const [perPage,        setPerPage]        = useState<25 | 50 | 100>(50)
   const [currentPage,    setCurrentPage]    = useState(1)
   const [leadSearch,     setLeadSearch]     = useState('')
@@ -713,8 +736,8 @@ function LeadsContent() {
 
   const fetchStats = useCallback(async (pageId: string) => {
     const r = await fetch(`/api/facebook/leads/stats?page_id=${pageId}`)
-    const d = await r.json() as { withPhone?: number; sent?: number; pending?: number }
-    setPageStats({ withPhone: d.withPhone ?? 0, sent: d.sent ?? 0, pending: d.pending ?? 0 })
+    const d = await r.json() as { total?: number; withPhone?: number; sent?: number; pending?: number }
+    setPageStats({ total: d.total ?? 0, withPhone: d.withPhone ?? 0, sent: d.sent ?? 0, pending: d.pending ?? 0 })
   }, [])
 
   const fetchLeads = useCallback(async (
@@ -763,7 +786,9 @@ function LeadsContent() {
       setPagesLoaded(true)
 
       if (p.length > 0) {
-        const pageId = p[0].page_id
+        // Restore the previously selected page if it still exists; otherwise fall back to first
+        const savedPageIsValid = cachedPageId && p.some(pg => pg.page_id === cachedPageId)
+        const pageId = savedPageIsValid ? cachedPageId! : p[0].page_id
         setSelectedPageId(pageId)
         try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
         if (pageId !== cachedPageId) {
@@ -813,14 +838,19 @@ function LeadsContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectionId, formId: form.id, formName: form.name, messageTemplate: template, isEnabled: true }),
     })
-    const d = await r.json() as { ok?: boolean; leadsFetched?: number }
+    const d = await r.json() as { ok?: boolean; leadsFetched?: number; leadsQueued?: number }
     if (selectedPageId) {
       await Promise.all([
         fetchActiveForms(selectedPageId),
         fetchStats(selectedPageId),
         ...(selectedFormId !== '__forms' ? [fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch)] : []),
       ])
-      if (d.leadsFetched) setBanner({ type: 'success', msg: `${d.leadsFetched} leads imported from "${form.name}"` })
+      const msg = d.leadsQueued
+        ? `"${form.name}" activated — ${d.leadsQueued} leads queued for WhatsApp`
+        : d.leadsFetched
+          ? `"${form.name}" activated — ${d.leadsFetched} leads imported`
+          : `"${form.name}" activated`
+      setBanner({ type: 'success', msg })
     }
   }
 
@@ -863,11 +893,16 @@ function LeadsContent() {
   }
 
   const handleSendWhatsApp = async (lead: Lead) => {
-    await fetch('/api/facebook/leads', {
+    const r = await fetch('/api/facebook/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leadId: lead.id, message: '' }),
     })
+    if (!r.ok) {
+      const d = await r.json() as { error?: string }
+      setBanner({ type: 'error', msg: d.error ?? 'Failed to queue WhatsApp message' })
+      return
+    }
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, wa_status: 'pending' } : l))
     if (selectedPageId) fetchStats(selectedPageId)
     setBanner({ type: 'success', msg: `WhatsApp queued for ${lead.name ?? lead.phone ?? 'lead'}` })
@@ -884,7 +919,7 @@ function LeadsContent() {
     setSelectedPageId(null)
     setActiveForms([])
     setLeads([])
-    setPageStats({ withPhone: 0, sent: 0, pending: 0 })
+    setPageStats({ total: 0, withPhone: 0, sent: 0, pending: 0 })
   }
 
   const handleRefresh = async () => {
@@ -954,7 +989,7 @@ function LeadsContent() {
     )
   }
 
-  const { withPhone, sent, pending } = pageStats
+  const { total: pageTotal, withPhone, sent, pending } = pageStats
 
   return (
     <div className="p-6 lg:p-8 space-y-5">
@@ -1011,7 +1046,7 @@ function LeadsContent() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total leads', value: total,    color: '#6b7280' },
+          { label: 'Total leads', value: pageTotal, color: '#6b7280' },
           { label: 'With phone',  value: withPhone, color: '#3b82f6' },
           { label: 'WA sent',     value: sent,      color: '#10b981' },
           { label: 'Pending',     value: pending,   color: '#f59e0b' },

@@ -13,6 +13,14 @@ export async function GET(request: Request) {
   }
 
   const cookieStore = await cookies()
+
+  // Verify OAuth state to prevent CSRF
+  const state       = searchParams.get('state')
+  const storedState = cookieStore.get('fb_oauth_state')?.value
+  if (!state || !storedState || state !== storedState) {
+    return NextResponse.redirect(`${origin}/dashboard/leads?fb=error`)
+  }
+
   const callbackUrl = cookieStore.get('fb_oauth_callback')?.value ?? `${origin}/api/facebook/callback`
 
   const supabase = await createClient()

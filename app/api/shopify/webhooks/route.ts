@@ -353,13 +353,13 @@ async function handleOrderUpdated(supabase: ReturnType<typeof createServiceClien
   const financialStatus   = String(order.financial_status   ?? '')
   const orderId           = String(order.id ?? '')
 
-  // Keep customer record in sync with latest order state
+  // Cancel pending automation jobs (e.g. unconfirmed COD) when an order is refunded/voided/cancelled
   const now = new Date().toISOString()
   if (financialStatus === 'refunded' || financialStatus === 'voided' || String(order.cancelled_at ?? '')) {
-    await supabase.from('messages')
-      .update({ status: 'cancelled', updated_at: now })
+    await supabase.from('automation_jobs')
+      .update({ status: 'cancelled' })
       .eq('store_id', store.id)
-      .eq('bsp_message_id', orderId)
+      .contains('context', { order_id: orderId })
       .eq('status', 'pending')
   }
 

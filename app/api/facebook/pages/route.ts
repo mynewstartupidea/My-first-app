@@ -20,9 +20,14 @@ export async function GET(request: Request) {
   // With page_id: return forms for that page (called from "Activate a form" modal)
   if (pageId) {
     const conn = (connections ?? []).find(c => c.page_id === pageId)
-    if (!conn) return NextResponse.json({ forms: [], connectionId: null })
-    const forms = await getLeadForms(conn.page_id as string, conn.page_access_token as string, conn.user_access_token as string | null)
-    return NextResponse.json({ forms, connectionId: conn.id })
+    if (!conn) return NextResponse.json({ forms: [], connectionId: null, whatsapp_connected: false })
+
+    const [forms, waRow] = await Promise.all([
+      getLeadForms(conn.page_id as string, conn.page_access_token as string, conn.user_access_token as string | null),
+      service.from('whatsapp_accounts').select('id').eq('user_id', user.id).eq('status', 'connected').maybeSingle(),
+    ])
+
+    return NextResponse.json({ forms, connectionId: conn.id, whatsapp_connected: !!waRow.data })
   }
 
   // Without page_id: return just the page list (fast, no Facebook API calls)

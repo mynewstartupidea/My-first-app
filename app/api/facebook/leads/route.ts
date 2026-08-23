@@ -7,8 +7,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const formId = searchParams.get('form_id')
   const pageId = searchParams.get('page_id')
-  const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '50'), 200)
-  const offset = parseInt(searchParams.get('offset') ?? '0')
+  const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '50') || 50, 200)
+  const offset = parseInt(searchParams.get('offset') ?? '0') || 0
   const q      = searchParams.get('q')?.trim() ?? ''
 
   const supabase = await createClient()
@@ -73,6 +73,10 @@ export async function POST(request: Request) {
         phone: lead.phone,
       })
     : message
+
+  if (!finalMessage.trim()) {
+    return NextResponse.json({ error: 'No message template found for this form. Edit the form template first.' }, { status: 400 })
+  }
 
   await service.from('automation_jobs').insert({
     store_id: lead.store_id, automation_id: null,
