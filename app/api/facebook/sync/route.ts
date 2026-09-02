@@ -7,7 +7,7 @@ export const maxDuration = 60
 
 // POST /api/facebook/sync?page_id=xxx
 // Fetches new leads from all forms on the given page.
-// If no forms are registered yet, auto-registers them first.
+// Handles stale connection_ids (from page reconnects) by resolving forms via page_id.
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   const pageId = searchParams.get('page_id')
@@ -19,37 +19,54 @@ export async function POST(request: Request) {
 
   const service = createServiceClient()
 
-  // Get all connections for this user on this page
-  const { data: conns } = await service
+  // All connections for this user on this page (handles multiple reconnects)
+  const { data: pageConns } = await service
     .from('facebook_connections')
     .select('id, page_id, page_access_token, user_access_token, store_id')
     .eq('user_id', user.id)
     .eq('page_id', pageId)
 
-  if (!conns?.length) return NextResponse.json({ synced: 0, newLeads: 0 })
+  if (!pageConns?.length) return NextResponse.json({ synced: 0, newLeads: 0 })
 
-  const connIds = conns.map(c => c.id as string)
-  const connMap: Record<string, typeof conns[0]> = {}
-  for (const c of conns) connMap[c.id as string] = c
+  const liveConn = pageConns[0]
+  const liveConnId = liveConn.id as string
+  const liveToken = (liveConn.user_access_token as string | null) ?? liveConn.page_access_token as string
 
-  // Get all tracked forms for this page
-  let { data: forms } = await service
+  // All connection IDs that currently exist for this user — used to map connection_id → page_id
+  const { data: allConns } = await service
+    .from('facebook_connections')
+    .select('id, page_id')
+    .eq('user_id', user.id)
+
+  const connPageMap: Record<string, string> = {}
+  for (const c of allConns ?? []) connPageMap[c.id as string] = c.page_id as string
+
+  // All form automations for this user
+  const { data: allForms } = await service
     .from('lead_form_automations')
     .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id')
     .eq('user_id', user.id)
-    .in('connection_id', connIds)
 
-  // If no forms registered yet, fetch from Facebook and register them now
-  if (!forms?.length) {
-    const conn = conns[0]
-    const token = (conn.user_access_token as string | null) ?? conn.page_access_token as string
-    const fbForms = await getLeadForms(pageId, conn.page_access_token as string, token)
+  // Filter to forms on this page — works even with stale connection_ids
+  let forms = (allForms ?? []).filter(f => connPageMap[f.connection_id as string] === pageId)
 
+  // Heal stale connection_ids: update any form still pointing at an old connection
+  const stale = forms.filter(f => f.connection_id !== liveConnId)
+  if (stale.length) {
+    await service
+      .from('lead_form_automations')
+      .update({ connection_id: liveConnId })
+      .in('id', stale.map(f => f.id))
+  }
+
+  // If no forms found at all, fetch from Facebook and register them now
+  if (!forms.length) {
+    const fbForms = await getLeadForms(pageId, liveConn.page_access_token as string, liveToken)
     if (fbForms.length) {
       const rows = fbForms.map(f => ({
         user_id:          user.id,
-        store_id:         conn.store_id ?? null,
-        connection_id:    conn.id,
+        store_id:         liveConn.store_id ?? null,
+        connection_id:    liveConnId,
         form_id:          f.id,
         form_name:        f.name,
         message_template: '',
@@ -61,32 +78,26 @@ export async function POST(request: Request) {
         .from('lead_form_automations')
         .upsert(rows, { onConflict: 'user_id,form_id', ignoreDuplicates: true })
 
-      // Re-fetch so we have the ids
       const { data: inserted } = await service
         .from('lead_form_automations')
         .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id')
         .eq('user_id', user.id)
-        .in('connection_id', connIds)
+        .eq('connection_id', liveConnId)
 
-      forms = inserted
+      forms = inserted ?? []
     }
   }
 
-  if (!forms?.length) return NextResponse.json({ synced: 0, newLeads: 0 })
+  if (!forms.length) return NextResponse.json({ synced: 0, newLeads: 0 })
 
   let synced   = 0
   let newLeads = 0
 
   for (const form of forms) {
-    const conn = connMap[form.connection_id as string]
-    if (!conn) continue
-
-    const token = (conn.user_access_token as string | null) ?? conn.page_access_token as string
     const since = form.last_lead_fetch as string | null
 
-    const fbLeads = await getFormLeads(form.form_id as string, token, since)
+    const fbLeads = await getFormLeads(form.form_id as string, liveToken, since)
     if (!fbLeads.length) {
-      // Update last_lead_fetch even when no leads so the window advances
       await service
         .from('lead_form_automations')
         .update({ last_lead_fetch: new Date().toISOString() })
@@ -104,7 +115,7 @@ export async function POST(request: Request) {
       user_id:          user.id,
       store_id:         form.store_id,
       facebook_lead_id: fl.id,
-      page_id:          conn.page_id,
+      page_id:          pageId,
       form_id:          form.form_id,
       form_name:        form.form_name,
       name, email, phone, fields,

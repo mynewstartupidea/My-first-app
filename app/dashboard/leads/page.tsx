@@ -926,10 +926,18 @@ function LeadsContent() {
     if (!selectedPageId || refreshing) return
     setRefreshing(true)
     setCurrentPage(1)
-    await fetch(`/api/facebook/sync?page_id=${selectedPageId}`, { method: 'POST' })
+    const r = await fetch(`/api/facebook/sync?page_id=${selectedPageId}`, { method: 'POST' })
+    const d = await r.json() as { synced?: number; newLeads?: number; error?: string }
     const leadsFormId = selectedFormId === '__forms' ? 'all' : selectedFormId
     await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId, 1, perPage, leadSearch), fetchStats(selectedPageId)])
     setRefreshing(false)
+    if (d.error) {
+      setBanner({ type: 'error', msg: d.error })
+    } else if (d.synced) {
+      setBanner({ type: 'success', msg: `Synced ${d.synced} leads from Facebook` })
+    } else {
+      setBanner({ type: 'success', msg: 'Already up to date — no new leads found' })
+    }
   }
 
   // ── Search debounce ──────────────────────────────────────────────────────
