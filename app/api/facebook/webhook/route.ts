@@ -76,6 +76,7 @@ export async function POST(request: Request) {
         .eq('store_id', conn.store_id)
         .maybeSingle()
 
+      // Save lead as 'imported' — only upgrade to 'pending' when a job is actually queued
       const { data: saved, error: saveErr } = await supabase.from('leads').upsert({
         user_id:          conn.user_id,
         store_id:         conn.store_id,
@@ -88,13 +89,13 @@ export async function POST(request: Request) {
         phone,
         fields,
         raw_data:  { field_data: fbLead.field_data },
-        wa_status: phone ? 'pending' : 'no_phone',
+        wa_status: phone ? 'imported' : 'no_phone',
       }, { onConflict: 'facebook_lead_id' }).select('id').single()
 
       if (saveErr) { console.error('[FB webhook] save lead error:', saveErr); continue }
       if (!phone || !conn.store_id || !saved) continue
 
-      // Check for lead form automation
+      // Check automation is enabled for this form
       const { data: auto } = await supabase
         .from('lead_form_automations')
         .select('message_template, wa_template_name, wa_template_language')
@@ -104,6 +105,19 @@ export async function POST(request: Request) {
         .maybeSingle()
 
       if (!auto) continue
+
+      // Only queue if WhatsApp is connected
+      const { data: wa } = await supabase
+        .from('whatsapp_accounts')
+        .select('id')
+        .eq('user_id', conn.user_id)
+        .eq('status', 'connected')
+        .maybeSingle()
+
+      if (!wa) {
+        console.log(`[FB webhook] WhatsApp not connected for user ${conn.user_id} — lead saved as imported`)
+        continue
+      }
 
       const vars = { ...fields, name: name ?? 'there', email: email ?? '', phone: phone ?? '' }
       const message = renderTemplate(auto.message_template, vars)

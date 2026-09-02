@@ -32,6 +32,15 @@ export async function POST(request: Request) {
   const liveConnId = liveConn.id as string
   const liveToken = (liveConn.user_access_token as string | null) ?? liveConn.page_access_token as string
 
+  // Check once whether WhatsApp is connected — jobs are only created if it is
+  const { data: waConn } = await service
+    .from('whatsapp_accounts')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'connected')
+    .maybeSingle()
+  const whatsappConnected = !!waConn
+
   // All connection IDs that currently exist for this user — used to map connection_id → page_id
   const { data: allConns } = await service
     .from('facebook_connections')
@@ -129,7 +138,7 @@ export async function POST(request: Request) {
       form_name:        form.form_name,
       name, email, phone, fields,
       raw_data:   { field_data: fl.field_data },
-      wa_status:  phone ? 'pending' : 'no_phone',
+      wa_status:  phone ? 'imported' : 'no_phone',
       created_at: fl.created_time,
     }))
 
@@ -139,8 +148,8 @@ export async function POST(request: Request) {
 
     synced += fbLeads.length
 
-    // Only queue WhatsApp jobs when automation is enabled for this form
-    if (form.is_enabled && saved?.length && form.message_template) {
+    // Only queue WhatsApp jobs when automation is enabled AND WhatsApp is connected
+    if (whatsappConnected && form.is_enabled && saved?.length && form.message_template) {
       const waTemplateName = (form.wa_template_name as string | null) || null
       const waTemplateLang = (form.wa_template_language as string | null) || 'en'
       const jobs = saved
@@ -167,6 +176,9 @@ export async function POST(request: Request) {
         })
       if (jobs.length) {
         await service.from('automation_jobs').insert(jobs).then(null, () => null)
+        // Mark only the leads that actually got a job as pending
+        const queuedIds = saved.filter(s => s.phone).map(s => s.id)
+        await service.from('leads').update({ wa_status: 'pending' }).in('id', queuedIds)
         newLeads += jobs.length
       }
     }
