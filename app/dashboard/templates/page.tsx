@@ -141,7 +141,6 @@ interface SavedTemplate {
   created_at: string
 }
 
-type TabKey = 'library' | 'my_templates' | 'lead_ad'
 
 const CATEGORY_LABELS: Record<string, string> = {
   abandoned_cart:    'Abandoned Cart',
@@ -458,19 +457,21 @@ function StarterCard({ tmpl, onCopy }: {
   )
 }
 
+type FilterChip = 'all' | 'ecommerce' | 'lead' | 'pre_approved' | 'my_templates'
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TemplatesPage() {
-  const [tab, setTab]               = useState<TabKey>('library')
+  const [chip, setChip]             = useState<FilterChip>('all')
   const [saved, setSaved]           = useState<SavedTemplate[]>([])
-  const [loading, setLoading]       = useState(false)
+  const [loadingSaved, setLoadingSaved] = useState(false)
   const [cloning, setCloning]       = useState<string | null>(null)
   const [search, setSearch]         = useState('')
   const [showModal, setShowModal]   = useState(false)
   const [editTarget, setEditTarget] = useState<SavedTemplate | undefined>()
   const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null)
-  const [starterTmpl, setStarterTmpl]     = useState<(StarterTemplate & { status: string })[]>([])
-  const [loadingStarter, setLoadingStarter] = useState(false)
+  const [starterTmpl, setStarterTmpl]       = useState<(StarterTemplate & { status: string })[]>([])
+  const [loadingStarter, setLoadingStarter] = useState(true)
   const supabase = useMemo(() => createClient(), [])
 
   const showToast = (msg: string, ok = true) => {
@@ -479,16 +480,16 @@ export default function TemplatesPage() {
   }
 
   const loadSaved = useCallback(async () => {
-    setLoading(true)
+    setLoadingSaved(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoadingSaved(false); return }
     const { data } = await supabase
       .from('templates')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     setSaved(data ?? [])
-    setLoading(false)
+    setLoadingSaved(false)
   }, [supabase])
 
   const loadStarter = useCallback(async () => {
@@ -501,55 +502,41 @@ export default function TemplatesPage() {
     finally { setLoadingStarter(false) }
   }, [])
 
-  useEffect(() => { if (tab === 'my_templates') loadSaved() }, [tab, loadSaved])
-  useEffect(() => { if (tab === 'lead_ad') loadStarter() }, [tab, loadStarter])
+  // Load everything on mount
+  useEffect(() => {
+    loadSaved()
+    loadStarter()
+  }, [loadSaved, loadStarter])
 
   async function cloneBuiltin(tmpl: BuiltinTemplate) {
     setCloning(tmpl.key)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setCloning(null); return }
-
     const { error } = await supabase.from('templates').insert({
-      user_id:  user.id,
-      name:     `${tmpl.name} (copy)`,
-      body:     tmpl.body,
-      category: tmpl.category,
-      variables: tmpl.variables,
-      is_builtin: false,
+      user_id: user.id, name: `${tmpl.name} (copy)`, body: tmpl.body,
+      category: tmpl.category, variables: tmpl.variables, is_builtin: false,
     })
-
     setCloning(null)
     if (error) { showToast('Failed to clone template', false); return }
-    showToast('Template cloned! Find it in My Templates.')
-    setTab('my_templates')
+    showToast('Cloned! Now in My Templates.')
+    setChip('my_templates')
     loadSaved()
   }
 
   async function saveTemplate(name: string, body: string, category: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
-    const vars: string[] = []
-    const varMatch = body.match(/\{\{(\w+)\}\}/g)
-    if (varMatch) vars.push(...[...new Set(varMatch)])
-
+    const vars = [...new Set((body.match(/\{\{(\w+)\}\}/g) ?? []))]
     if (editTarget?.id) {
-      const { error } = await supabase.from('templates').update({
-        name, body, category, variables: vars, updated_at: new Date().toISOString(),
-      }).eq('id', editTarget.id)
+      const { error } = await supabase.from('templates').update({ name, body, category, variables: vars, updated_at: new Date().toISOString() }).eq('id', editTarget.id)
       if (error) { showToast('Failed to save', false); return }
       showToast('Template updated!')
     } else {
-      const { error } = await supabase.from('templates').insert({
-        user_id: user.id, name, body, category, variables: vars,
-      })
+      const { error } = await supabase.from('templates').insert({ user_id: user.id, name, body, category, variables: vars })
       if (error) { showToast('Failed to save', false); return }
       showToast('Template saved!')
     }
-
-    setShowModal(false)
-    setEditTarget(undefined)
-    loadSaved()
+    setShowModal(false); setEditTarget(undefined); loadSaved()
   }
 
   async function toggleFavorite(id: string, val: boolean) {
@@ -570,31 +557,45 @@ export default function TemplatesPage() {
   }
 
   const copyTemplateName = (name: string) => {
-    navigator.clipboard.writeText(name).then(() => showToast(`Copied "${name}" — paste it in the form settings on the Leads page`))
+    navigator.clipboard.writeText(name).then(() => showToast(`Copied "${name}" — paste it in form settings on the Leads page`))
   }
 
-  const filteredBuiltin = BUILTIN_TEMPLATES.filter(t =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.body.toLowerCase().includes(search.toLowerCase())
-  )
+  const q = search.toLowerCase()
+  const matchBuiltin  = (t: BuiltinTemplate)  => !q || t.name.toLowerCase().includes(q) || t.body.toLowerCase().includes(q)
+  const matchSaved    = (t: SavedTemplate)     => !q || t.name.toLowerCase().includes(q) || t.body.toLowerCase().includes(q)
+  const matchStarter  = (t: StarterTemplate)   => !q || t.description.toLowerCase().includes(q) || t.bodyPreview.toLowerCase().includes(q)
 
-  const filteredSaved = saved.filter(t =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.body.toLowerCase().includes(search.toLowerCase())
-  )
+  const showEcommerce   = chip === 'all' || chip === 'ecommerce'
+  const showLead        = chip === 'all' || chip === 'lead' || chip === 'pre_approved'
+  const showMy          = chip === 'all' || chip === 'my_templates'
+
+  const visibleBuiltin  = showEcommerce ? BUILTIN_TEMPLATES.filter(matchBuiltin) : []
+  const visibleStarter  = showLead
+    ? starterTmpl.filter(t => chip === 'pre_approved' ? t.status === 'APPROVED' : true).filter(matchStarter)
+    : []
+  const visibleSaved    = showMy ? saved.filter(t => !t.is_archived).filter(matchSaved) : []
+
+  const approvedCount   = starterTmpl.filter(t => t.status === 'APPROVED').length
+  const totalVisible    = visibleBuiltin.length + visibleStarter.length + visibleSaved.length
+
+  const chips: { key: FilterChip; label: string; count?: number }[] = [
+    { key: 'all',          label: 'All Templates',    count: BUILTIN_TEMPLATES.length + starterTmpl.length + saved.filter(t => !t.is_archived).length },
+    { key: 'ecommerce',    label: 'Ecommerce',         count: BUILTIN_TEMPLATES.length },
+    { key: 'lead',         label: 'Lead Ad',           count: starterTmpl.length },
+    { key: 'pre_approved', label: 'Pre-approved',      count: approvedCount },
+    { key: 'my_templates', label: 'My Templates',      count: saved.filter(t => !t.is_archived).length },
+  ]
 
   return (
     <div className="p-6 lg:p-8">
       {/* Toast */}
       {toast && (
-        <div className={cn(
-          'fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium',
-          toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white'
-        )}>
+        <div className={cn('fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium', toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white')}>
           {toast.ok ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           {toast.msg}
         </div>
       )}
 
-      {/* Edit/Create modal */}
       {showModal && (
         <TemplateModal
           initial={editTarget}
@@ -604,10 +605,10 @@ export default function TemplatesPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Templates</h1>
-          <p className="text-slate-500 text-sm mt-1">Clone built-in templates or create your own WhatsApp message templates</p>
+          <p className="text-slate-500 text-sm mt-1">All your WhatsApp message templates in one place</p>
         </div>
         <button
           onClick={() => { setEditTarget(undefined); setShowModal(true) }}
@@ -617,186 +618,139 @@ export default function TemplatesPage() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1 mb-6 w-fit">
+      {/* Search + Refresh row */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search templates…"
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white shadow-sm"
+          />
+        </div>
         <button
-          onClick={() => setTab('library')}
-          className={cn('px-5 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap', tab === 'library' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+          onClick={() => { loadStarter(); loadSaved() }}
+          disabled={loadingStarter}
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 bg-white px-3 py-2.5 rounded-xl transition shadow-sm"
+          title="Refresh status"
         >
-          <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5" /> Template Library ({BUILTIN_TEMPLATES.length})</span>
+          <RefreshCw className={cn('w-4 h-4', loadingStarter && 'animate-spin')} />
         </button>
-        <button
-          onClick={() => setTab('my_templates')}
-          className={cn('px-5 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap', tab === 'my_templates' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
-        >
-          <span className="flex items-center gap-2"><FileText className="w-3.5 h-3.5" /> My Templates ({saved.filter(t => !t.is_archived).length})</span>
-        </button>
-        <button
-          onClick={() => setTab('lead_ad')}
-          className={cn('px-5 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap', tab === 'lead_ad' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
-        >
-          <span className="flex items-center gap-2">
-            <MessageSquare className="w-3.5 h-3.5" /> Lead Ad Templates
-            {starterTmpl.some(t => t.status === 'APPROVED') && (
-              <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex items-center gap-2 flex-wrap mb-6">
+        {chips.map(c => (
+          <button
+            key={c.key}
+            onClick={() => setChip(c.key)}
+            className={cn(
+              'flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium border transition',
+              chip === c.key
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
             )}
-          </span>
-        </button>
+          >
+            {c.label}
+            {c.count !== undefined && (
+              <span className={cn('text-xs px-1.5 py-0.5 rounded-full', chip === c.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500')}>
+                {c.count}
+              </span>
+            )}
+            {c.key === 'pre_approved' && approvedCount > 0 && chip !== 'pre_approved' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search templates…"
-          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white shadow-sm"
-        />
-      </div>
-
-      {/* ── Library tab ──────────────────────────────────────────────────── */}
-      {tab === 'library' && (
-        <>
-          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
-            <Wand2 className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-blue-800 text-sm">Ready-to-use WhatsApp templates</p>
-              <p className="text-blue-700 text-xs mt-0.5">Click <strong>Clone & Edit</strong> to save a copy to My Templates, then customise it for your store.</p>
-            </div>
-          </div>
-
-          {filteredBuiltin.length === 0 ? (
-            <p className="text-center text-slate-400 py-12">No templates match your search.</p>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredBuiltin.map(t => (
-                <BuiltinCard key={t.key} tmpl={t} onClone={cloneBuiltin} cloning={cloning} />
-              ))}
-            </div>
-          )}
-        </>
+      {/* Empty state */}
+      {totalVisible === 0 && !loadingStarter && !loadingSaved && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
+          <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p className="font-medium text-slate-700">No templates match your filter</p>
+          <p className="text-slate-400 text-sm mt-1">Try a different filter chip or clear your search.</p>
+        </div>
       )}
 
-      {/* ── Lead Ad Templates tab ────────────────────────────────────────── */}
-      {tab === 'lead_ad' && (
-        <>
-          <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-blue-800 text-sm">Pre-approved WhatsApp templates for Lead Ads</p>
-              <p className="text-blue-700 text-xs mt-0.5">
-                These are automatically submitted to Meta when you connect WhatsApp. Meta typically approves them within minutes.
-                Once approved, go to <strong>Leads → All Forms → edit a form</strong> and pick a template — or copy the template name below.
-              </p>
-            </div>
-            <button
-              onClick={loadStarter}
-              disabled={loadingStarter}
-              className="flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition flex-shrink-0"
-              title="Refresh status"
-            >
-              <RefreshCw className={cn('w-3.5 h-3.5', loadingStarter && 'animate-spin')} />
-              Refresh
-            </button>
+      {/* ── Lead Ad Templates section ─────────────────────────────────── */}
+      {visibleStarter.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare className="w-4 h-4 text-blue-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Lead Ad Templates</h2>
+            <span className="text-xs text-slate-400">— pre-approved by Meta, ready for cold outreach</span>
+            {starterTmpl.every(t => t.status === 'whatsapp_not_connected') && (
+              <a href="/dashboard/settings?tab=whatsapp" className="ml-auto text-xs text-blue-500 hover:underline flex items-center gap-1">
+                <ExternalLink className="w-3 h-3" /> Connect WhatsApp
+              </a>
+            )}
           </div>
-
-          {loadingStarter ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            </div>
-          ) : starterTmpl.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
-              <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="font-medium text-slate-700">No templates found</p>
-              <p className="text-slate-400 text-sm mt-1">Connect WhatsApp in Settings to auto-provision these templates.</p>
-            </div>
-          ) : (
-            <>
-              {/* Status summary */}
-              <div className="flex items-center gap-3 mb-4 flex-wrap">
-                {['APPROVED', 'PENDING', 'REJECTED'].map(s => {
-                  const count = starterTmpl.filter(t => t.status === s).length
-                  if (!count) return null
-                  const cfg = { APPROVED: 'text-green-600 bg-green-50 border-green-200', PENDING: 'text-amber-600 bg-amber-50 border-amber-200', REJECTED: 'text-red-600 bg-red-50 border-red-200' }[s]
-                  return (
-                    <span key={s} className={`text-xs font-medium border px-2.5 py-1 rounded-full ${cfg}`}>
-                      {count} {s.toLowerCase()}
-                    </span>
-                  )
-                })}
-                {starterTmpl.every(t => t.status === 'whatsapp_not_connected') && (
-                  <a href="/dashboard/settings?tab=whatsapp" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                    <ExternalLink className="w-3 h-3" /> Connect WhatsApp in Settings
-                  </a>
-                )}
-              </div>
-
-              <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                {starterTmpl.map(t => (
-                  <StarterCard key={t.name} tmpl={t} onCopy={copyTemplateName} />
-                ))}
-              </div>
-
-              <p className="text-xs text-slate-400 mt-5 text-center">
-                Want a custom template?{' '}
-                <a href="https://business.facebook.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">
-                  Create it in Meta Business Manager
-                </a>
-                {' '}→ WhatsApp Manager → Message Templates, then enter the name in your form settings.
-              </p>
-            </>
-          )}
-        </>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
+            {visibleStarter.map(t => (
+              <StarterCard key={t.name} tmpl={t} onCopy={copyTemplateName} />
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* ── My Templates tab ─────────────────────────────────────────────── */}
-      {tab === 'my_templates' && (
-        <>
-          {loading ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="w-5 h-5 animate-spin text-[#25D366]" />
+      {/* ── Ecommerce Templates section ───────────────────────────────── */}
+      {visibleBuiltin.length > 0 && (
+        <div className="mb-8">
+          {(showLead && visibleStarter.length > 0 || showMy && visibleSaved.length > 0) && (
+            <div className="flex items-center gap-2 mb-3">
+              <ShoppingCart className="w-4 h-4 text-orange-500" />
+              <h2 className="text-sm font-semibold text-slate-700">Ecommerce Templates</h2>
+              <span className="text-xs text-slate-400">— clone & customise for your store</span>
             </div>
-          ) : filteredSaved.length === 0 ? (
+          )}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {visibleBuiltin.map(t => (
+              <BuiltinCard key={t.key} tmpl={t} onClone={cloneBuiltin} cloning={cloning} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── My Templates section ──────────────────────────────────────── */}
+      {showMy && (
+        <div>
+          {chip === 'all' && (
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-slate-500" />
+              <h2 className="text-sm font-semibold text-slate-700">My Templates</h2>
+            </div>
+          )}
+          {loadingSaved ? (
+            <div className="flex items-center justify-center h-24">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+            </div>
+          ) : visibleSaved.length === 0 && chip === 'my_templates' ? (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
               <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <FileText className="w-6 h-6 text-slate-400" />
               </div>
-              <p className="font-medium text-slate-700">{search ? 'No results' : 'No saved templates'}</p>
-              <p className="text-slate-400 text-sm mt-1">
-                {search ? 'Try a different search.' : 'Clone a built-in template or create your own.'}
-              </p>
+              <p className="font-medium text-slate-700">{search ? 'No results' : 'No saved templates yet'}</p>
+              <p className="text-slate-400 text-sm mt-1">Clone an ecommerce template or create your own.</p>
               <div className="flex items-center justify-center gap-3 mt-5">
-                <button
-                  onClick={() => setTab('library')}
-                  className="flex items-center gap-2 text-sm font-medium text-[#25D366] hover:underline"
-                >
-                  <Zap className="w-3.5 h-3.5" /> Browse library
+                <button onClick={() => setChip('ecommerce')} className="flex items-center gap-2 text-sm font-medium text-[#25D366] hover:underline">
+                  <Zap className="w-3.5 h-3.5" /> Browse ecommerce
                 </button>
-                <button
-                  onClick={() => { setEditTarget(undefined); setShowModal(true) }}
-                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2 rounded-xl transition"
-                >
+                <button onClick={() => { setEditTarget(undefined); setShowModal(true) }} className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2 rounded-xl transition">
                   <Plus className="w-3.5 h-3.5" /> Create template
                 </button>
               </div>
             </div>
-          ) : (
+          ) : visibleSaved.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredSaved.map(t => (
-                <SavedCard
-                  key={t.id}
-                  tmpl={t}
-                  onFavorite={toggleFavorite}
-                  onArchive={toggleArchive}
-                  onDelete={deleteTemplate}
-                  onEdit={tmpl => { setEditTarget(tmpl); setShowModal(true) }}
-                />
+              {visibleSaved.map(t => (
+                <SavedCard key={t.id} tmpl={t} onFavorite={toggleFavorite} onArchive={toggleArchive} onDelete={deleteTemplate} onEdit={tmpl => { setEditTarget(tmpl); setShowModal(true) }} />
               ))}
             </div>
-          )}
-        </>
+          ) : null}
+        </div>
       )}
     </div>
   )
