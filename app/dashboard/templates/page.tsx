@@ -6,9 +6,10 @@ import {
   FileText, Plus, Star, Copy, Archive, Trash2, X, Save,
   Loader2, CheckCircle2, AlertCircle, Search, Wand2,
   ShoppingCart, Package, Truck, RotateCcw, MessageSquare,
-  Gift, Bell, Sparkles, Heart, Zap
+  Gift, Bell, Sparkles, Heart, Zap, ClipboardCopy, ExternalLink, RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { StarterTemplate } from '@/lib/whatsapp-templates'
 
 // ─── Built-in template data ───────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ interface SavedTemplate {
   created_at: string
 }
 
-type TabKey = 'library' | 'my_templates'
+type TabKey = 'library' | 'my_templates' | 'lead_ad'
 
 const CATEGORY_LABELS: Record<string, string> = {
   abandoned_cart:    'Abandoned Cart',
@@ -376,6 +377,87 @@ function TemplateModal({
   )
 }
 
+// ─── Lead Ad Starter Template Card ───────────────────────────────────────────
+
+function StarterCard({ tmpl, onCopy }: {
+  tmpl: StarterTemplate & { status: string }
+  onCopy: (name: string) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  const statusCfg: Record<string, { label: string; cls: string }> = {
+    APPROVED:               { label: 'Approved',        cls: 'bg-green-50 text-green-700 border-green-200' },
+    PENDING:                { label: 'Pending review',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    REJECTED:               { label: 'Rejected',        cls: 'bg-red-50 text-red-600 border-red-200' },
+    whatsapp_not_connected: { label: 'Connect WhatsApp first', cls: 'bg-slate-50 text-slate-500 border-slate-200' },
+  }
+  const s = statusCfg[tmpl.status] ?? { label: tmpl.status, cls: 'bg-slate-50 text-slate-500 border-slate-200' }
+
+  const categoryBadge = tmpl.category === 'UTILITY'
+    ? <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full font-medium">Utility</span>
+    : <span className="text-[10px] bg-purple-50 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-full font-medium">Marketing</span>
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+      <div className="p-5 flex-1">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              {categoryBadge}
+              <span className={`text-[10px] font-medium border px-1.5 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
+            </div>
+            <p className="font-semibold text-slate-800 text-sm">{tmpl.description}</p>
+            <p className="text-[11px] font-mono text-slate-400 mt-0.5">{tmpl.name}</p>
+          </div>
+        </div>
+
+        <div
+          className={cn('bg-slate-50 rounded-xl p-3 text-xs text-slate-600 whitespace-pre-line leading-relaxed cursor-pointer', !expanded && 'line-clamp-3')}
+          onClick={() => setExpanded(v => !v)}
+        >
+          {tmpl.bodyPreview}
+        </div>
+        {!expanded && (
+          <button onClick={() => setExpanded(true)} className="text-[11px] text-slate-400 hover:text-slate-600 mt-1 transition">
+            Show full template ↓
+          </button>
+        )}
+
+        <div className="flex flex-wrap gap-1 mt-3">
+          {tmpl.vars.map(v => (
+            <span key={v} className="text-[9px] font-mono bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{`{{${v}}}`}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 pb-5 flex items-center gap-2">
+        <button
+          onClick={() => onCopy(tmpl.name)}
+          className="flex items-center gap-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl transition"
+          title="Copy template name"
+        >
+          <ClipboardCopy className="w-3 h-3" /> Copy name
+        </button>
+        {tmpl.status === 'APPROVED' && (
+          <span className="flex items-center gap-1 text-xs text-green-600">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Ready to use
+          </span>
+        )}
+        {tmpl.status === 'REJECTED' && (
+          <a
+            href="https://business.facebook.com"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 text-xs text-red-500 hover:underline"
+          >
+            <ExternalLink className="w-3 h-3" /> Fix in Meta BM
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TemplatesPage() {
@@ -387,6 +469,8 @@ export default function TemplatesPage() {
   const [showModal, setShowModal]   = useState(false)
   const [editTarget, setEditTarget] = useState<SavedTemplate | undefined>()
   const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null)
+  const [starterTmpl, setStarterTmpl]     = useState<(StarterTemplate & { status: string })[]>([])
+  const [loadingStarter, setLoadingStarter] = useState(false)
   const supabase = useMemo(() => createClient(), [])
 
   const showToast = (msg: string, ok = true) => {
@@ -407,7 +491,18 @@ export default function TemplatesPage() {
     setLoading(false)
   }, [supabase])
 
+  const loadStarter = useCallback(async () => {
+    setLoadingStarter(true)
+    try {
+      const r = await fetch('/api/whatsapp/templates')
+      const d = await r.json() as { templates?: (StarterTemplate & { status: string })[] }
+      setStarterTmpl(d.templates ?? [])
+    } catch { /* non-fatal */ }
+    finally { setLoadingStarter(false) }
+  }, [])
+
   useEffect(() => { if (tab === 'my_templates') loadSaved() }, [tab, loadSaved])
+  useEffect(() => { if (tab === 'lead_ad') loadStarter() }, [tab, loadStarter])
 
   async function cloneBuiltin(tmpl: BuiltinTemplate) {
     setCloning(tmpl.key)
@@ -474,6 +569,10 @@ export default function TemplatesPage() {
     showToast('Template deleted')
   }
 
+  const copyTemplateName = (name: string) => {
+    navigator.clipboard.writeText(name).then(() => showToast(`Copied "${name}" — paste it in the form settings on the Leads page`))
+  }
+
   const filteredBuiltin = BUILTIN_TEMPLATES.filter(t =>
     !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.body.toLowerCase().includes(search.toLowerCase())
   )
@@ -520,22 +619,29 @@ export default function TemplatesPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1 mb-6 w-fit">
-        {(['library', 'my_templates'] as TabKey[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              'px-5 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap',
-              tab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+        <button
+          onClick={() => setTab('library')}
+          className={cn('px-5 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap', tab === 'library' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+        >
+          <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5" /> Template Library ({BUILTIN_TEMPLATES.length})</span>
+        </button>
+        <button
+          onClick={() => setTab('my_templates')}
+          className={cn('px-5 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap', tab === 'my_templates' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+        >
+          <span className="flex items-center gap-2"><FileText className="w-3.5 h-3.5" /> My Templates ({saved.filter(t => !t.is_archived).length})</span>
+        </button>
+        <button
+          onClick={() => setTab('lead_ad')}
+          className={cn('px-5 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap', tab === 'lead_ad' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+        >
+          <span className="flex items-center gap-2">
+            <MessageSquare className="w-3.5 h-3.5" /> Lead Ad Templates
+            {starterTmpl.some(t => t.status === 'APPROVED') && (
+              <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
             )}
-          >
-            {t === 'library' ? (
-              <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5" /> Template Library ({BUILTIN_TEMPLATES.length})</span>
-            ) : (
-              <span className="flex items-center gap-2"><FileText className="w-3.5 h-3.5" /> My Templates ({saved.filter(t => !t.is_archived).length})</span>
-            )}
-          </button>
-        ))}
+          </span>
+        </button>
       </div>
 
       {/* Search */}
@@ -569,6 +675,78 @@ export default function TemplatesPage() {
                 <BuiltinCard key={t.key} tmpl={t} onClone={cloneBuiltin} cloning={cloning} />
               ))}
             </div>
+          )}
+        </>
+      )}
+
+      {/* ── Lead Ad Templates tab ────────────────────────────────────────── */}
+      {tab === 'lead_ad' && (
+        <>
+          <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-blue-800 text-sm">Pre-approved WhatsApp templates for Lead Ads</p>
+              <p className="text-blue-700 text-xs mt-0.5">
+                These are automatically submitted to Meta when you connect WhatsApp. Meta typically approves them within minutes.
+                Once approved, go to <strong>Leads → All Forms → edit a form</strong> and pick a template — or copy the template name below.
+              </p>
+            </div>
+            <button
+              onClick={loadStarter}
+              disabled={loadingStarter}
+              className="flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition flex-shrink-0"
+              title="Refresh status"
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5', loadingStarter && 'animate-spin')} />
+              Refresh
+            </button>
+          </div>
+
+          {loadingStarter ? (
+            <div className="flex items-center justify-center h-40">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+            </div>
+          ) : starterTmpl.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
+              <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="font-medium text-slate-700">No templates found</p>
+              <p className="text-slate-400 text-sm mt-1">Connect WhatsApp in Settings to auto-provision these templates.</p>
+            </div>
+          ) : (
+            <>
+              {/* Status summary */}
+              <div className="flex items-center gap-3 mb-4 flex-wrap">
+                {['APPROVED', 'PENDING', 'REJECTED'].map(s => {
+                  const count = starterTmpl.filter(t => t.status === s).length
+                  if (!count) return null
+                  const cfg = { APPROVED: 'text-green-600 bg-green-50 border-green-200', PENDING: 'text-amber-600 bg-amber-50 border-amber-200', REJECTED: 'text-red-600 bg-red-50 border-red-200' }[s]
+                  return (
+                    <span key={s} className={`text-xs font-medium border px-2.5 py-1 rounded-full ${cfg}`}>
+                      {count} {s.toLowerCase()}
+                    </span>
+                  )
+                })}
+                {starterTmpl.every(t => t.status === 'whatsapp_not_connected') && (
+                  <a href="/dashboard/settings?tab=whatsapp" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                    <ExternalLink className="w-3 h-3" /> Connect WhatsApp in Settings
+                  </a>
+                )}
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
+                {starterTmpl.map(t => (
+                  <StarterCard key={t.name} tmpl={t} onCopy={copyTemplateName} />
+                ))}
+              </div>
+
+              <p className="text-xs text-slate-400 mt-5 text-center">
+                Want a custom template?{' '}
+                <a href="https://business.facebook.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">
+                  Create it in Meta Business Manager
+                </a>
+                {' '}→ WhatsApp Manager → Message Templates, then enter the name in your form settings.
+              </p>
+            </>
           )}
         </>
       )}
