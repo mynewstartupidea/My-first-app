@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
   CheckCircle, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
-  Loader2, Pause, Play, Search, Edit2, Download,
+  Loader2, Pause, Play, Search, Edit2, Download, Clock,
   AlertCircle, FileText, LogOut,
 } from 'lucide-react'
 
@@ -406,78 +406,254 @@ function EditFormModal({ form, onClose, onSave }: {
   )
 }
 
+// ── CalendarMonth ─────────────────────────────────────────────────────────────
+
+const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const CAL_DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa']
+
+function CalendarMonth({ year, month, eFrom, eTo, today, onDay, onHover }: {
+  year: number; month: number
+  eFrom: string | null; eTo: string | null
+  today: string
+  onDay: (ds: string) => void
+  onHover: (ds: string | null) => void
+}) {
+  const firstDow   = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const mm = String(month + 1).padStart(2, '0')
+
+  return (
+    <div className="min-w-0">
+      <p className="text-sm font-semibold text-gray-800 text-center mb-3">
+        {CAL_MONTHS[month]} {year}
+      </p>
+      <div className="grid grid-cols-7">
+        {CAL_DAYS.map(d => (
+          <div key={d} className="h-7 flex items-center justify-center text-xs font-medium text-gray-400 select-none">{d}</div>
+        ))}
+        {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const d  = i + 1
+          const ds = `${year}-${mm}-${String(d).padStart(2, '0')}`
+          const isFuture = ds > today
+          const isStart  = eFrom === ds
+          const isEnd    = eTo   === ds
+          const inRange  = !!(eFrom && eTo && ds > eFrom && ds < eTo)
+          const isToday  = ds === today
+          return (
+            <div key={ds}
+              onClick={() => !isFuture && onDay(ds)}
+              onMouseEnter={() => !isFuture && onHover(ds)}
+              onMouseLeave={() => onHover(null)}
+              className={`h-7 flex items-center justify-center cursor-pointer
+                ${isFuture ? 'opacity-25 cursor-not-allowed' : ''}
+                ${inRange ? 'bg-blue-50' : ''}
+              `}
+            >
+              <span className={`w-7 h-7 flex items-center justify-center text-xs rounded-full transition-colors select-none
+                ${isStart || isEnd ? 'bg-blue-600 text-white font-bold' :
+                  inRange   ? 'text-blue-800' :
+                  isToday   ? 'ring-1 ring-blue-400 text-gray-900 font-semibold' :
+                  !isFuture ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-300'}
+              `}>
+                {d}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── DateRangePicker ───────────────────────────────────────────────────────────
+
+function DateRangePicker({ from, to, onChange }: {
+  from: string | null; to: string | null
+  onChange: (from: string | null, to: string | null) => void
+}) {
+  const today = new Date().toISOString().split('T')[0]
+  const now   = new Date()
+  const [ry, setRy] = useState(now.getFullYear())
+  const [rm, setRm] = useState(now.getMonth())
+  const [hover, setHover] = useState<string | null>(null)
+  const [phase, setPhase] = useState<'start' | 'end'>('start')
+
+  const ly = rm === 0 ? ry - 1 : ry
+  const lm = rm === 0 ? 11 : rm - 1
+
+  // Effective range shown (includes hover preview during end-selection)
+  let eFrom = from, eTo = to
+  if (phase === 'end' && from && hover) {
+    if (hover >= from) { eFrom = from;  eTo   = hover }
+    else               { eFrom = hover; eTo   = from  }
+  }
+
+  const handleDay = (ds: string) => {
+    if (phase === 'start' || !from) { onChange(ds, null); setPhase('end') }
+    else {
+      onChange(ds < from ? ds : from, ds < from ? from : ds)
+      setPhase('start'); setHover(null)
+    }
+  }
+
+  const navMonth = (dir: -1 | 1) => {
+    let m = rm + dir, y = ry
+    if (m > 11) { m = 0; y++ }
+    if (m < 0)  { m = 11; y-- }
+    if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth())) return
+    setRm(m); setRy(y)
+  }
+
+  const preset = (days: number | 'all') => {
+    const t = new Date()
+    const ts = t.toISOString().split('T')[0]
+    if (days === 'all') { onChange('2020-01-01', ts) }
+    else { const f = new Date(t); f.setDate(f.getDate() - (days as number)); onChange(f.toISOString().split('T')[0], ts) }
+    setPhase('start')
+  }
+
+  const fmt = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const canNext = ry < now.getFullYear() || (ry === now.getFullYear() && rm < now.getMonth())
+
+  return (
+    <div>
+      {/* Quick presets */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {([['Last 7 days', 7], ['Last 30 days', 30], ['Last 3 months', 90], ['Last 6 months', 180], ['All time', 'all']] as [string, number | 'all'][]).map(([label, val]) => (
+          <button key={label} onClick={() => preset(val)}
+            className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50 transition whitespace-nowrap">
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Selected range display */}
+      <div className="flex items-stretch gap-2 mb-4">
+        <button onClick={() => setPhase('start')}
+          className={`flex-1 px-3 py-2 rounded-xl border text-left transition ${phase === 'start' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+          <p className="text-xs text-gray-400 mb-0.5">Start date</p>
+          <p className={`text-sm font-medium ${from ? 'text-gray-900' : 'text-gray-400'}`}>{from ? fmt(from) : 'Click a day'}</p>
+        </button>
+        <div className="flex items-center text-gray-300 text-lg px-1">→</div>
+        <button onClick={() => from && setPhase('end')}
+          className={`flex-1 px-3 py-2 rounded-xl border text-left transition ${phase === 'end' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+          <p className="text-xs text-gray-400 mb-0.5">End date</p>
+          <p className={`text-sm font-medium ${to ? 'text-gray-900' : 'text-gray-400'}`}>{to ? fmt(to) : from ? 'Click end date' : '—'}</p>
+        </button>
+      </div>
+
+      {/* Month navigation */}
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={() => navMonth(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button onClick={() => navMonth(1)} disabled={!canNext}
+          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition disabled:opacity-30 disabled:cursor-not-allowed">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Two-month calendars */}
+      <div className="grid grid-cols-2 gap-6">
+        <CalendarMonth year={ly} month={lm} eFrom={eFrom} eTo={eTo} today={today} onDay={handleDay} onHover={setHover} />
+        <CalendarMonth year={ry} month={rm} eFrom={eFrom} eTo={eTo} today={today} onDay={handleDay} onHover={setHover} />
+      </div>
+    </div>
+  )
+}
+
 // ── ImportModal ───────────────────────────────────────────────────────────────
 
 function ImportModal({ form, onClose, onImport }: {
   form: ActiveForm
   onClose: () => void
-  onImport: (fromDate: string, toDate: string) => Promise<{ imported: number }>
+  onImport: (fromDate: string, toDate: string) => Promise<{ imported: number; total: number }>
 }) {
-  const today = new Date().toISOString().split('T')[0]
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate]     = useState(today)
+  const [from, setFrom] = useState<string | null>(null)
+  const [to,   setTo]   = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
-  const [result, setResult]       = useState<number | null>(null)
+  const [result, setResult] = useState<{ imported: number; total: number } | null>(null)
   const c = getColor(form.color_index)
 
   const handleImport = async () => {
-    if (!fromDate) return
+    if (!from || !to) return
     setImporting(true)
-    try { const r = await onImport(fromDate, toDate); setResult(r.imported) }
+    try { setResult(await onImport(from, to)) }
     finally { setImporting(false) }
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full" style={{ background: c.dot }} />
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: c.dot }} />
             <div>
               <h2 className="text-base font-semibold text-gray-900">Import older leads</h2>
-              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[250px]">{form.form_name}</p>
+              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[380px]">{form.form_name}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
-        <div className="p-6">
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
           {result !== null ? (
-            <div className="text-center py-4">
+            <div className="text-center py-10">
               <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <p className="text-3xl font-bold text-gray-900 mb-1">{result}</p>
-              <p className="text-sm text-gray-500">leads imported for reference</p>
-              <p className="text-xs text-gray-400 mt-2">These won&apos;t trigger WhatsApp messages.</p>
-              <button onClick={onClose} className="mt-5 px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl transition">Done</button>
+              {result.total === 0 ? (
+                <>
+                  <p className="text-lg font-semibold text-gray-900 mb-1">No leads found</p>
+                  <p className="text-sm text-gray-500">Facebook returned no leads for this date range.</p>
+                </>
+              ) : result.imported === 0 ? (
+                <>
+                  <p className="text-3xl font-bold text-gray-900 mb-1">{result.total}</p>
+                  <p className="text-sm text-gray-500">leads found — already in your CRM</p>
+                  <p className="text-xs text-gray-400 mt-2">All leads from this period were already synced.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-3xl font-bold text-gray-900 mb-1">{result.imported}</p>
+                  <p className="text-sm text-gray-500">
+                    new leads added
+                    {result.total > result.imported && ` · ${result.total - result.imported} already existed`}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2">These won&apos;t trigger WhatsApp messages.</p>
+                </>
+              )}
+              <button onClick={onClose}
+                className="mt-6 px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-xl transition">
+                Done
+              </button>
             </div>
           ) : (
             <>
               <p className="text-sm text-gray-500 mb-5">
-                Choose a date range to import historical leads. These are for reference only — no WhatsApp messages will be sent.
+                Select a date range to pull historical leads from Facebook. These won&apos;t trigger WhatsApp messages.
               </p>
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">From date</label>
-                  <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} max={toDate}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">To date</label>
-                  <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} min={fromDate} max={today}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              <button onClick={handleImport} disabled={importing || !fromDate}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
-                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {importing ? 'Importing…' : 'Import leads'}
-              </button>
+              <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
             </>
           )}
         </div>
+
+        {/* Footer */}
+        {result === null && (
+          <div className="p-5 border-t border-gray-100 flex-shrink-0">
+            <button onClick={handleImport} disabled={!from || !to || importing}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {importing ? 'Importing…' : from && to ? 'Import leads' : 'Select a date range'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -588,6 +764,37 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
   const [forms, setForms] = useState<FBForm[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [downloading, setDownloading] = useState<string | null>(null)
+
+  const handleDownloadCsv = async (af: ActiveForm) => {
+    setDownloading(af.form_id)
+    try {
+      const r = await fetch(`/api/facebook/leads?form_id=${af.form_id}&limit=1000`)
+      const d = await r.json() as { leads?: Array<Record<string, unknown>> }
+      const leads = d.leads ?? []
+      if (!leads.length) return
+
+      const headers = ['Name', 'Email', 'Phone', 'Status', 'Date', 'Form']
+      const rows = leads.map(l => [
+        l.name ?? '', l.email ?? '', l.phone ?? '',
+        l.wa_status, new Date(l.created_at as string).toLocaleDateString('en-US'),
+        l.form_name ?? '',
+      ])
+      const csv = [headers, ...rows]
+        .map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
+        .join('\n')
+
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${af.form_name.replace(/[^a-z0-9]/gi, '_').slice(0, 40)}_leads.csv`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setDownloading(null)
+    }
+  }
 
   useEffect(() => {
     if (!pageId) return
@@ -663,10 +870,13 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
                         ? <Loader2 className="w-4 h-4 animate-spin" />
                         : af.is_enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                     </button>
-                    <button onClick={() => onImport(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Import older leads">
-                      <Download className="w-4 h-4" />
+                    <button onClick={() => handleDownloadCsv(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Download leads as CSV">
+                      {downloading === af.form_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     </button>
-                    <button onClick={() => onEdit(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Edit template">
+                    <button onClick={() => onImport(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Import older leads by date">
+                      <Clock className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => onEdit(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Edit WhatsApp template">
                       <Edit2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -881,7 +1091,7 @@ function LeadsContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectionId: form.connection_id, formId: form.form_id, fromDate, toDate }),
     })
-    const d = await r.json() as { imported?: number }
+    const d = await r.json() as { imported?: number; total?: number }
     if (selectedPageId) {
       await Promise.all([
         fetchActiveForms(selectedPageId),
@@ -889,7 +1099,7 @@ function LeadsContent() {
         ...(selectedFormId !== '__forms' ? [fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch)] : []),
       ])
     }
-    return { imported: d.imported ?? 0 }
+    return { imported: d.imported ?? 0, total: d.total ?? 0 }
   }
 
   const handleSendWhatsApp = async (lead: Lead) => {
