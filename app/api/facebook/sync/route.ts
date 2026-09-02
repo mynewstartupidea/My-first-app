@@ -63,28 +63,37 @@ export async function POST(request: Request) {
   if (!forms.length) {
     const fbForms = await getLeadForms(pageId, liveConn.page_access_token as string, liveToken)
     if (fbForms.length) {
-      const rows = fbForms.map(f => ({
-        user_id:          user.id,
-        store_id:         liveConn.store_id ?? null,
-        connection_id:    liveConnId,
-        form_id:          f.id,
-        form_name:        f.name,
-        message_template: '',
-        is_enabled:       false,
-        updated_at:       new Date().toISOString(),
-      }))
-
-      await service
+      // Find which form_ids are already tracked (avoids relying on a unique constraint)
+      const { data: existingForms } = await service
         .from('lead_form_automations')
-        .upsert(rows, { onConflict: 'user_id,form_id', ignoreDuplicates: true })
+        .select('form_id')
+        .eq('user_id', user.id)
+      const existingIds = new Set((existingForms ?? []).map(f => f.form_id as string))
 
-      const { data: inserted } = await service
+      const newRows = fbForms
+        .filter(f => !existingIds.has(f.id))
+        .map(f => ({
+          user_id:          user.id,
+          store_id:         liveConn.store_id ?? null,
+          connection_id:    liveConnId,
+          form_id:          f.id,
+          form_name:        f.name,
+          message_template: '',
+          is_enabled:       false,
+          updated_at:       new Date().toISOString(),
+        }))
+
+      if (newRows.length) {
+        await service.from('lead_form_automations').insert(newRows)
+      }
+
+      // Re-fetch all forms for this page (including any that already existed)
+      const { data: allAfterInsert } = await service
         .from('lead_form_automations')
         .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id')
         .eq('user_id', user.id)
-        .eq('connection_id', liveConnId)
 
-      forms = inserted ?? []
+      forms = (allAfterInsert ?? []).filter(f => connPageMap[f.connection_id as string] === pageId)
     }
   }
 
