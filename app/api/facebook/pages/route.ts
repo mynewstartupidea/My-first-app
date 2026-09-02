@@ -53,9 +53,9 @@ export async function GET(request: Request) {
     const connIdsWithForms = new Set((existingForms ?? []).map(f => f.connection_id as string))
     const connsWithoutForms = (connections ?? []).filter(c => !connIdsWithForms.has(c.id as string))
 
-    // Backfill forms for connections that have none — fire and forget (non-blocking)
+    // Backfill forms for connections that have none — awaited so it completes before response
     if (connsWithoutForms.length > 0) {
-      Promise.all(connsWithoutForms.map(async conn => {
+      await Promise.all(connsWithoutForms.map(async conn => {
         try {
           const forms = await getLeadForms(
             conn.page_id as string,
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
             .from('lead_form_automations')
             .upsert(rows, { onConflict: 'user_id,form_id', ignoreDuplicates: true })
         } catch { /* non-fatal */ }
-      })).catch(() => null)
+      }))
     }
   }
 
