@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
-import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 
 export const maxDuration = 60
 
@@ -73,9 +72,10 @@ export async function POST(request: Request) {
     await service.from('lead_form_automations').upsert(baseRow, { onConflict: 'store_id,form_id' })
   }
 
-  // On first activation: bulk-import historical leads and queue WhatsApp messages
+  // On first activation: import historical leads as 'imported' only — no WhatsApp jobs.
+  // Users must explicitly trigger a campaign to reach historical leads.
+  // Only leads arriving AFTER activation get WhatsApp messages automatically.
   let leadsFetched = 0
-  let leadsQueued  = 0
   if (isNew && body.isEnabled) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token
     const fbLeads = await getFormLeads(body.formId, token, null, 100, null, 500)
@@ -93,56 +93,20 @@ export async function POST(request: Request) {
           form_name:        body.formName,
           name, email, phone, fields,
           raw_data:   { field_data: fl.field_data },
-          wa_status:  phone ? 'pending' : 'no_phone',
+          wa_status:  phone ? 'imported' : 'no_phone',
           created_at: fl.created_time,
         }
       })
 
-      // ignoreDuplicates: only newly inserted rows are returned — avoids re-sending to existing leads
       const { data: upserted } = await service
         .from('leads')
         .upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
-        .select('id, phone, name, email, fields')
+        .select('id')
 
-      leadsFetched = rows.length
-
-      // Queue automation_jobs for newly inserted leads that have a phone number
-      const waTemplateName = body.waTemplateName || null
-      const waTemplateLang = body.waTemplateLanguage || 'en'
-      const jobs = (upserted ?? [])
-        .filter(l => l.phone)
-        .map(l => {
-          const vars = {
-            ...((l.fields as Record<string, string>) ?? {}),
-            name:  (l.name as string | null) ?? 'there',
-            email: (l.email as string | null) ?? '',
-            phone: l.phone as string,
-          }
-          const message = renderTemplate(body.messageTemplate, vars)
-          const waParams = waTemplateName ? extractTemplateParams(body.messageTemplate, vars) : undefined
-          return {
-            store_id:       conn.store_id,
-            automation_id:  null,
-            type:           'lead_ad',
-            customer_phone: l.phone as string,
-            customer_name:  (l.name as string | null) ?? 'Lead',
-            message,
-            context: {
-              lead_id: l.id, form_id: body.formId, bulk_activate: true,
-              ...(waTemplateName ? { wa_template_name: waTemplateName, wa_template_language: waTemplateLang, wa_template_params: waParams } : {}),
-            },
-            status:       'pending',
-            scheduled_at: new Date().toISOString(),
-          }
-        })
-
-      if (jobs.length > 0) {
-        await service.from('automation_jobs').insert(jobs)
-        leadsQueued = jobs.length
-      }
+      leadsFetched = upserted?.length ?? 0
     }
 
-    // Set last_lead_fetch = now so the cron only picks up leads that arrive after activation
+    // Set last_lead_fetch = now so the cron/sync only picks up leads arriving after activation
     await service.from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
       .eq('user_id', user.id)
@@ -150,5 +114,5 @@ export async function POST(request: Request) {
       .then(null, () => null)
   }
 
-  return NextResponse.json({ ok: true, colorIndex, leadsFetched, leadsQueued, isNew })
+  return NextResponse.json({ ok: true, colorIndex, leadsFetched, leadsQueued: 0, isNew })
 }
