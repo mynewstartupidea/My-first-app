@@ -431,40 +431,62 @@ function TemplateModal({
 
 // ─── Lead Ad Starter Template Card ───────────────────────────────────────────
 
+const STARTER_ICON_MAP: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
+  wapaci_lead_greeting: { icon: MessageSquare, color: 'text-green-600',  bg: 'bg-green-100'  },
+  wapaci_lead_callback: { icon: Zap,           color: 'text-blue-600',   bg: 'bg-blue-100'   },
+  wapaci_lead_confirm:  { icon: CheckCircle2,  color: 'text-teal-600',   bg: 'bg-teal-100'   },
+  wapaci_lead_service:  { icon: Sparkles,      color: 'text-purple-600', bg: 'bg-purple-100' },
+}
+
+const STARTER_STATUS_CFG: Record<string, { label: string; cls: string }> = {
+  APPROVED:               { label: 'Approved',             cls: 'bg-green-50 text-green-700 border-green-200' },
+  PENDING:                { label: 'Pending review',       cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  REJECTED:               { label: 'Rejected',             cls: 'bg-red-50 text-red-600 border-red-200'       },
+  whatsapp_not_connected: { label: 'Connect WhatsApp first', cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+}
+
 function StarterCard({ tmpl, onCopy }: {
   tmpl: StarterTemplate & { status: string }
   onCopy: (name: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-
-  const statusCfg: Record<string, { label: string; cls: string }> = {
-    APPROVED:               { label: 'Approved',        cls: 'bg-green-50 text-green-700 border-green-200' },
-    PENDING:                { label: 'Pending review',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-    REJECTED:               { label: 'Rejected',        cls: 'bg-red-50 text-red-600 border-red-200' },
-    whatsapp_not_connected: { label: 'Connect WhatsApp first', cls: 'bg-slate-50 text-slate-500 border-slate-200' },
-  }
-  const s = statusCfg[tmpl.status] ?? { label: tmpl.status, cls: 'bg-slate-50 text-slate-500 border-slate-200' }
-
-  const categoryBadge = tmpl.category === 'UTILITY'
-    ? <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full font-medium">Utility</span>
-    : <span className="text-[10px] bg-purple-50 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-full font-medium">Marketing</span>
+  const iconCfg  = STARTER_ICON_MAP[tmpl.name] ?? { icon: MessageSquare, color: 'text-green-600', bg: 'bg-green-100' }
+  const Icon     = iconCfg.icon
+  const statusCfg = STARTER_STATUS_CFG[tmpl.status] ?? { label: tmpl.status, cls: 'bg-slate-100 text-slate-500 border-slate-200' }
+  const categoryLabel = tmpl.category === 'UTILITY' ? 'Utility' : 'Marketing'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-      <div className="p-5 flex-1">
-        <div className="flex items-start justify-between gap-2 mb-3">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="p-5">
+        {/* Header — matches BuiltinCard layout */}
+        <div className="flex items-start gap-3 mb-3">
+          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', iconCfg.bg)}>
+            <Icon className={cn('w-5 h-5', iconCfg.color)} />
+          </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              {categoryBadge}
-              <span className={`text-[10px] font-medium border px-1.5 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-slate-800 text-sm">{tmpl.description}</p>
+              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                {categoryLabel}
+              </span>
             </div>
-            <p className="font-semibold text-slate-800 text-sm">{tmpl.description}</p>
-            <p className="text-[11px] font-mono text-slate-400 mt-0.5">{tmpl.name}</p>
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <span className={cn('text-[10px] font-medium border px-1.5 py-0.5 rounded-full', statusCfg.cls)}>
+                {statusCfg.label}
+              </span>
+              <span className="text-[10px] font-mono text-slate-300">{tmpl.name}</span>
+            </div>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {tmpl.vars.map(v => (
+                <span key={v} className="text-[9px] font-mono bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{`{{${v}}}`}</span>
+              ))}
+            </div>
           </div>
         </div>
 
+        {/* Body preview */}
         <div
-          className={cn('bg-slate-50 rounded-xl p-3 text-xs text-slate-600 whitespace-pre-line leading-relaxed cursor-pointer', !expanded && 'line-clamp-3')}
+          className={cn('bg-slate-50 rounded-xl p-3 text-xs text-slate-600 whitespace-pre-line leading-relaxed cursor-pointer transition', !expanded && 'line-clamp-3')}
           onClick={() => setExpanded(v => !v)}
         >
           {tmpl.bodyPreview}
@@ -474,35 +496,25 @@ function StarterCard({ tmpl, onCopy }: {
             Show full template ↓
           </button>
         )}
-
-        <div className="flex flex-wrap gap-1 mt-3">
-          {tmpl.vars.map(v => (
-            <span key={v} className="text-[9px] font-mono bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{`{{${v}}}`}</span>
-          ))}
-        </div>
       </div>
 
+      {/* Footer */}
       <div className="px-5 pb-5 flex items-center gap-2">
         <button
           onClick={() => onCopy(tmpl.name)}
           className="flex items-center gap-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl transition"
-          title="Copy template name"
         >
           <ClipboardCopy className="w-3 h-3" /> Copy name
         </button>
         {tmpl.status === 'APPROVED' && (
-          <span className="flex items-center gap-1 text-xs text-green-600">
+          <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" /> Ready to use
           </span>
         )}
         {tmpl.status === 'REJECTED' && (
-          <a
-            href="https://business.facebook.com"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 text-xs text-red-500 hover:underline"
-          >
-            <ExternalLink className="w-3 h-3" /> Fix in Meta BM
+          <a href="https://business.facebook.com" target="_blank" rel="noreferrer"
+            className="flex items-center gap-1 text-xs text-red-500 hover:underline">
+            <ExternalLink className="w-3 h-3" /> Fix in Meta
           </a>
         )}
       </div>
@@ -815,7 +827,7 @@ export default function TemplatesPage() {
               )}
             </div>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {visibleStarter.map(t => (
               <StarterCard key={t.name} tmpl={t} onCopy={copyTemplateName} />
             ))}
