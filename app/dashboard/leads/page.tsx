@@ -998,6 +998,8 @@ function LeadsContent() {
   }
 
   const { total: pageTotal, withPhone, sent, pending } = pageStats
+  // Only forms the user has explicitly enabled show as tabs
+  const enabledForms = activeForms.filter(f => f.is_enabled)
 
   return (
     <div className="p-6 lg:p-8 space-y-5">
@@ -1017,7 +1019,8 @@ function LeadsContent() {
           <h1 className="text-2xl font-bold text-gray-900">Lead Ads</h1>
           <p className="text-sm text-gray-400 mt-0.5">
             {pages.length} page{pages.length !== 1 ? 's' : ''} connected
-            {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} active`}
+            {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} tracked`}
+            {enabledForms.length > 0 && ` · ${enabledForms.length} with WhatsApp`}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -1069,8 +1072,8 @@ function LeadsContent() {
         ))}
       </div>
 
-      {/* Automation setup callout — shown when no forms are activated */}
-      {activeForms.length === 0 && !loadingForms && (
+      {/* Automation setup callout — shown when no forms have WhatsApp enabled */}
+      {enabledForms.length === 0 && !loadingForms && (
         <div className="flex items-start gap-3 px-4 py-3.5 bg-blue-50 border border-blue-100 rounded-xl">
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
             <Zap className="w-4 h-4 text-blue-600" />
@@ -1108,8 +1111,8 @@ function LeadsContent() {
             </span>
           </button>
 
-          {/* Per-form tabs */}
-          {activeForms.map(form => {
+          {/* Per-form tabs — only show forms the user has enabled WhatsApp for */}
+          {enabledForms.map(form => {
             const c = getColor(form.color_index)
             const sel = selectedFormId === form.form_id
             return (
@@ -1128,8 +1131,8 @@ function LeadsContent() {
             )
           })}
 
-          {/* Hint when no forms activated */}
-          {activeForms.length === 0 && !loadingForms && selectedFormId !== '__forms' && (
+          {/* Hint when no forms have WhatsApp enabled */}
+          {enabledForms.length === 0 && !loadingForms && selectedFormId !== '__forms' && (
             <span className="flex-shrink-0 px-4 py-3.5 text-xs text-gray-300 whitespace-nowrap italic select-none">
               Activate forms to add tabs
             </span>
