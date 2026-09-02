@@ -14,15 +14,17 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient()
 
-  // Only sync forms that are explicitly activated — skip the rest
-  const { data: activeForms } = await supabase
+  // Sync ALL tracked forms regardless of is_enabled.
+  // Lead syncing is independent of WhatsApp automation — a form added to
+  // lead_form_automations always gets its leads pulled; WhatsApp jobs are
+  // only created when is_enabled = true.
+  const { data: forms } = await supabase
     .from('lead_form_automations')
-    .select('id, user_id, store_id, connection_id, form_id, form_name, message_template, last_lead_fetch')
-    .eq('is_enabled', true)
+    .select('id, user_id, store_id, connection_id, form_id, form_name, message_template, is_enabled, last_lead_fetch')
 
   let synced = 0
 
-  for (const form of activeForms ?? []) {
+  for (const form of forms ?? []) {
     const { data: conn } = await supabase
       .from('facebook_connections')
       .select('page_id, page_access_token, user_access_token')
@@ -35,7 +37,14 @@ export async function GET(request: Request) {
     const since = form.last_lead_fetch as string | null
 
     const fbLeads = await getFormLeads(form.form_id as string, token, since)
-    if (!fbLeads.length) continue
+    if (!fbLeads.length) {
+      // Still update last_lead_fetch so next run uses a fresh window
+      await supabase
+        .from('lead_form_automations')
+        .update({ last_lead_fetch: new Date().toISOString() })
+        .eq('id', form.id)
+      continue
+    }
 
     const parsed = fbLeads.map(fl => {
       const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
@@ -43,7 +52,6 @@ export async function GET(request: Request) {
       return { fl, name, email, phone, fields }
     })
 
-    // Batch upsert all leads at once
     const rows = parsed.map(({ fl, name, email, phone, fields }) => ({
       user_id:          form.user_id,
       store_id:         form.store_id,
@@ -63,8 +71,8 @@ export async function GET(request: Request) {
 
     synced += fbLeads.length
 
-    // Batch create WA jobs for newly inserted leads with phones
-    if (savedRows?.length && form.message_template) {
+    // Only queue WhatsApp jobs when automation is enabled for this form
+    if (form.is_enabled && savedRows?.length && form.message_template) {
       const jobs = savedRows
         .filter(s => s.phone)
         .map(s => {
@@ -87,7 +95,6 @@ export async function GET(request: Request) {
       if (jobs.length) await supabase.from('automation_jobs').insert(jobs).then(null, () => null)
     }
 
-    // Update per-form last_lead_fetch
     await supabase
       .from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })

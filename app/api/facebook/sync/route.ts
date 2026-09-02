@@ -30,12 +30,12 @@ export async function POST(request: Request) {
   const connMap: Record<string, typeof conns[0]> = {}
   for (const c of conns) connMap[c.id as string] = c
 
-  // Get active forms for this page (match by connection id)
+  // Get ALL tracked forms for this page — syncing is independent of is_enabled.
+  // WhatsApp jobs are only created when is_enabled = true.
   const { data: activeForms } = await service
     .from('lead_form_automations')
     .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id')
     .eq('user_id', user.id)
-    .eq('is_enabled', true)
     .in('connection_id', connIds)
 
   if (!activeForms?.length) return NextResponse.json({ synced: 0, newLeads: 0 })
@@ -80,8 +80,8 @@ export async function POST(request: Request) {
 
     synced += fbLeads.length
 
-    // Create WA jobs only for newly inserted leads that have a phone
-    if (saved?.length && form.message_template) {
+    // Create WA jobs only when automation is enabled for this form
+    if (form.is_enabled && saved?.length && form.message_template) {
       const jobs = saved
         .filter(s => s.phone)
         .map(s => {
