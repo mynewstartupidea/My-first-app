@@ -6,7 +6,7 @@ import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
   CheckCircle, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
   Loader2, Pause, Play, Search, Edit2, Download, Clock,
-  AlertCircle, FileText, LogOut, Sparkles,
+  AlertCircle, FileText, LogOut, Sparkles, Send,
 } from 'lucide-react'
 import type { StarterTemplate } from '@/lib/whatsapp-templates'
 
@@ -821,6 +821,308 @@ function ImportModal({ form, onClose, onImport }: {
   )
 }
 
+// ── BulkMessageModal ──────────────────────────────────────────────────────────
+
+function BulkMessageModal({ activeForms, onClose, onSent }: {
+  activeForms: ActiveForm[]
+  onClose: () => void
+  onSent: (count: number) => void
+}) {
+  type WaTemplate = StarterTemplate & { status: string }
+
+  const [step,             setStep]             = useState<'filters' | 'template'>('filters')
+  const [selectedFormId,   setSelectedFormId]   = useState<string | null>(null)
+  const [dateFrom,         setDateFrom]         = useState<string | null>(null)
+  const [dateTo,           setDateTo]           = useState<string | null>(null)
+  const [count,            setCount]            = useState<number | null>(null)
+  const [loadingCount,     setLoadingCount]     = useState(false)
+  const [templates,        setTemplates]        = useState<WaTemplate[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<WaTemplate | null>(null)
+  const [sending,          setSending]          = useState(false)
+  const [error,            setError]            = useState<string | null>(null)
+
+  // Fetch count on mount and whenever filters change
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      setLoadingCount(true)
+      const p = new URLSearchParams()
+      if (selectedFormId) p.set('form_id', selectedFormId)
+      if (dateFrom) p.set('date_from', dateFrom)
+      if (dateTo)   p.set('date_to', dateTo)
+      try {
+        const r = await fetch(`/api/leads/bulk-message?${p}`)
+        const d = await r.json() as { count?: number }
+        setCount(d.count ?? 0)
+      } catch { setCount(null) }
+      setLoadingCount(false)
+    }, 500)
+    return () => clearTimeout(t)
+  }, [selectedFormId, dateFrom, dateTo])
+
+  // Fetch approved templates when moving to template step
+  useEffect(() => {
+    if (step !== 'template') return
+    setLoadingTemplates(true)
+    fetch('/api/whatsapp/templates')
+      .then(r => r.json())
+      .then((d: { templates?: WaTemplate[] }) =>
+        setTemplates((d.templates ?? []).filter(t => t.status === 'APPROVED'))
+      )
+      .catch(() => setTemplates([]))
+      .finally(() => setLoadingTemplates(false))
+  }, [step])
+
+  const handleSend = async () => {
+    if (!selectedTemplate) { setError('Choose a template first'); return }
+    setSending(true); setError(null)
+    try {
+      const r = await fetch('/api/leads/bulk-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          form_id:           selectedFormId,
+          date_from:         dateFrom,
+          date_to:           dateTo,
+          template_name:     selectedTemplate.name,
+          template_language: selectedTemplate.language,
+          message:           selectedTemplate.bodyPreview,
+        }),
+      })
+      const d = await r.json() as { queued?: number; error?: string }
+      if (!r.ok) { setError(d.error ?? 'Failed'); return }
+      onSent(d.queued ?? 0)
+    } catch { setError('Network error') }
+    finally { setSending(false) }
+  }
+
+  const selectedForm = activeForms.find(f => f.form_id === selectedFormId)
+  const fmt = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Message existing leads</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Send a WhatsApp template to historical leads</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-50 bg-gray-50/60 flex-shrink-0">
+          {(['filters', 'template'] as const).map((s, i) => (
+            <div key={s} className="flex items-center gap-2">
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition
+                ${step === 'template' && s === 'filters'
+                  ? 'bg-green-600 text-white'
+                  : step === s ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                {step === 'template' && s === 'filters' ? '✓' : i + 1}
+              </div>
+              <span className={`text-xs font-medium ${step === s ? 'text-gray-800' : 'text-gray-400'}`}>
+                {s === 'filters' ? 'Choose audience' : 'Pick template'}
+              </span>
+              {i === 0 && (
+                <div className={`w-8 h-0.5 ${step === 'template' ? 'bg-green-600' : 'bg-gray-200'}`} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {error && (
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl mb-4">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+            </div>
+          )}
+
+          {/* Step 1: Filters */}
+          {step === 'filters' && (
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Lead form</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSelectedFormId(null)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm text-left transition
+                      ${selectedFormId === null
+                        ? 'border-green-500 bg-green-50 text-green-800'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                    <Users className="w-4 h-4 flex-shrink-0" />
+                    <span className="font-medium">All forms</span>
+                  </button>
+                  {activeForms.map(f => {
+                    const c = getColor(f.color_index)
+                    return (
+                      <button
+                        key={f.form_id}
+                        onClick={() => setSelectedFormId(f.form_id)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm text-left transition
+                          ${selectedFormId === f.form_id
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-gray-300'}`}>
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+                        <span className="font-medium text-gray-800 truncate" title={f.form_name}>{f.form_name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Date range <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <p className="text-xs text-gray-400 mb-3">Filter by when leads submitted the form</p>
+                <DateRangePicker from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
+              </div>
+
+              {/* Count preview */}
+              <div className={`flex items-center gap-3 p-4 rounded-xl border transition-colors
+                ${count === null ? 'border-gray-200 bg-gray-50'
+                  : count === 0 ? 'border-amber-200 bg-amber-50'
+                  : 'border-green-200 bg-green-50'}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0
+                  ${count === null ? 'bg-gray-100' : count === 0 ? 'bg-amber-100' : 'bg-green-100'}`}>
+                  {loadingCount
+                    ? <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                    : <Users className={`w-5 h-5 ${count === 0 ? 'text-amber-600' : count !== null ? 'text-green-600' : 'text-gray-400'}`} />}
+                </div>
+                <div>
+                  {loadingCount ? (
+                    <p className="text-sm text-gray-400">Calculating…</p>
+                  ) : count === null ? (
+                    <p className="text-sm text-gray-500">Select filters to see lead count</p>
+                  ) : count === 0 ? (
+                    <>
+                      <p className="text-sm font-semibold text-amber-800">No matching leads</p>
+                      <p className="text-xs text-amber-600 mt-0.5">Try different filters, or check if leads are already marked &quot;Sent&quot;</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-bold text-green-800">{count.toLocaleString()} leads</p>
+                      <p className="text-xs text-green-600">with a phone number, not yet messaged</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Template */}
+          {step === 'template' && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-0.5">Choose a WhatsApp template</p>
+                <p className="text-xs text-gray-400 mb-3">
+                  Only Meta-approved templates can be sent to leads who haven&apos;t messaged you first.
+                </p>
+
+                {loadingTemplates ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-200">
+                    <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-gray-700">No approved templates found</p>
+                    <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+                      Make sure your WhatsApp is connected and your templates are approved by Meta.
+                    </p>
+                    <a href="/dashboard/templates"
+                      className="inline-block mt-3 text-xs font-semibold text-blue-600 hover:underline">
+                      Manage templates →
+                    </a>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {templates.map(t => (
+                      <button
+                        key={t.name}
+                        onClick={() => setSelectedTemplate(t)}
+                        className={`w-full text-left p-4 rounded-xl border-2 transition
+                          ${selectedTemplate?.name === t.name
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-mono font-semibold text-gray-500">{t.name}</span>
+                          <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Approved</span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-800 mb-1">{t.description}</p>
+                        <p className="text-xs text-gray-500 italic">{t.bodyPreview}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Summary */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm border border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Summary</p>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Audience</span>
+                  <span className="font-semibold text-gray-800">
+                    {selectedFormId ? (selectedForm?.form_name ?? selectedFormId) : 'All forms'}
+                  </span>
+                </div>
+                {dateFrom && dateTo && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Date range</span>
+                    <span className="font-semibold text-gray-800">{fmt(dateFrom)} — {fmt(dateTo)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Recipients</span>
+                  <span className="font-bold text-green-700">{count?.toLocaleString() ?? '?'} leads</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between p-5 border-t border-gray-100 flex-shrink-0">
+          {step === 'filters' ? (
+            <>
+              <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 transition">Cancel</button>
+              <button
+                onClick={() => { setError(null); setStep('template') }}
+                disabled={!count || loadingCount}
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
+                Next: Choose template
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setStep('filters')} className="text-sm text-gray-500 hover:text-gray-700 transition">
+                ← Back
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={!selectedTemplate || sending}
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
+                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {sending ? 'Sending…' : `Send to ${count?.toLocaleString() ?? '?'} leads`}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── LeadRow ───────────────────────────────────────────────────────────────────
 
 const STANDARD_KEYS = new Set([
@@ -1088,6 +1390,7 @@ function LeadsContent() {
   const [editingForm,    setEditingForm]    = useState<ActiveForm | null>(null)
   const [importingForm,  setImportingForm]  = useState<ActiveForm | null>(null)
   const [togglingId,     setTogglingId]     = useState<string | null>(null)
+  const [showBulkMsg,    setShowBulkMsg]    = useState(false)
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -1421,6 +1724,14 @@ function LeadsContent() {
             Refresh leads
           </button>
           <button
+            onClick={() => setShowBulkMsg(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition shadow-sm"
+            title="Send a WhatsApp message to existing leads"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Message leads
+          </button>
+          <button
             onClick={handleDisconnectAll}
             className="p-2 text-red-400 border border-red-100 bg-white rounded-lg hover:bg-red-50 hover:text-red-600 transition"
             title="Disconnect all Facebook pages"
@@ -1690,6 +2001,20 @@ function LeadsContent() {
           form={importingForm}
           onClose={() => setImportingForm(null)}
           onImport={(from, to) => handleImport(importingForm, from, to)}
+        />
+      )}
+      {showBulkMsg && (
+        <BulkMessageModal
+          activeForms={activeForms}
+          onClose={() => setShowBulkMsg(false)}
+          onSent={count => {
+            setShowBulkMsg(false)
+            setBanner({ type: 'success', msg: `${count.toLocaleString()} leads queued for WhatsApp messages` })
+            if (selectedPageId) {
+              fetchStats(selectedPageId)
+              if (selectedFormId !== '__forms') fetchLeads(selectedFormId, selectedPageId, currentPage, perPage, leadSearch)
+            }
+          }}
         />
       )}
     </div>
