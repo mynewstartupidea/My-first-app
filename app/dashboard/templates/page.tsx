@@ -139,6 +139,8 @@ interface SavedTemplate {
   is_archived: boolean
   is_builtin: boolean
   created_at: string
+  meta_status: string | null
+  meta_template_name: string | null
 }
 
 
@@ -225,73 +227,124 @@ function BuiltinCard({
 
 // ─── Saved Template Card ──────────────────────────────────────────────────────
 
+const META_STATUS_CFG: Record<string, { label: string; cls: string; dot: string }> = {
+  APPROVED: { label: 'Approved by Meta',  cls: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-400' },
+  PENDING:  { label: 'Pending review',    cls: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400' },
+  REJECTED: { label: 'Rejected by Meta',  cls: 'bg-red-50 text-red-600 border-red-200',       dot: 'bg-red-400'   },
+  PAUSED:   { label: 'Paused',            cls: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400' },
+}
+
 function SavedCard({
-  tmpl, onFavorite, onArchive, onDelete, onEdit,
+  tmpl, onFavorite, onArchive, onDelete, onEdit, onSubmitToMeta, onCopyMetaName, submitting,
 }: {
   tmpl: SavedTemplate
   onFavorite: (id: string, val: boolean) => void
   onArchive: (id: string, val: boolean) => void
   onDelete: (id: string) => void
   onEdit: (tmpl: SavedTemplate) => void
+  onSubmitToMeta: (id: string) => void
+  onCopyMetaName: (name: string) => void
+  submitting: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
+  const metaStatus = tmpl.meta_status ?? 'not_submitted'
+  const statusCfg  = META_STATUS_CFG[metaStatus]
 
   return (
     <div className={cn(
-      'bg-white rounded-2xl border shadow-sm overflow-hidden',
+      'bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col',
       tmpl.is_archived ? 'opacity-60 border-slate-100' : 'border-slate-100'
     )}>
-      <div className="p-5">
+      <div className="p-5 flex-1">
+        {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-slate-800 text-sm">{tmpl.name}</p>
-              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
                 {CATEGORY_LABELS[tmpl.category] ?? tmpl.category}
               </span>
               {tmpl.is_favorite && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />}
               {tmpl.is_archived && <Archive className="w-3 h-3 text-slate-400" />}
             </div>
+            <p className="font-semibold text-slate-800 text-sm leading-snug">{tmpl.name}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              onClick={() => onFavorite(tmpl.id, !tmpl.is_favorite)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 transition"
-              title={tmpl.is_favorite ? 'Unfavorite' : 'Favorite'}
-            >
-              <Star className={cn('w-3.5 h-3.5', tmpl.is_favorite ? 'text-amber-400 fill-amber-400' : 'text-slate-400')} />
+            <button onClick={() => onFavorite(tmpl.id, !tmpl.is_favorite)} className="p-1.5 rounded-lg hover:bg-slate-100 transition" title={tmpl.is_favorite ? 'Unfavorite' : 'Favorite'}>
+              <Star className={cn('w-3.5 h-3.5', tmpl.is_favorite ? 'text-amber-400 fill-amber-400' : 'text-slate-300')} />
             </button>
-            <button
-              onClick={() => onEdit(tmpl)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-400 hover:text-slate-700"
-              title="Edit"
-            >
+            <button onClick={() => onEdit(tmpl)} className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-400 hover:text-slate-700" title="Edit">
               <FileText className="w-3.5 h-3.5" />
             </button>
-            <button
-              onClick={() => onArchive(tmpl.id, !tmpl.is_archived)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-400 hover:text-slate-700"
-              title={tmpl.is_archived ? 'Unarchive' : 'Archive'}
-            >
+            <button onClick={() => onArchive(tmpl.id, !tmpl.is_archived)} className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-400 hover:text-slate-700" title={tmpl.is_archived ? 'Unarchive' : 'Archive'}>
               <Archive className="w-3.5 h-3.5" />
             </button>
-            <button
-              onClick={() => onDelete(tmpl.id)}
-              className="p-1.5 rounded-lg hover:bg-red-50 transition text-slate-400 hover:text-red-500"
-              title="Delete"
-            >
+            <button onClick={() => onDelete(tmpl.id)} className="p-1.5 rounded-lg hover:bg-red-50 transition text-slate-400 hover:text-red-500" title="Delete">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
+        {/* Meta status banner */}
+        {statusCfg ? (
+          <div className={cn('flex items-center gap-2 px-3 py-2 rounded-xl border mb-3', statusCfg.cls)}>
+            <span className={cn('w-2 h-2 rounded-full flex-shrink-0', statusCfg.dot)} />
+            <span className="text-xs font-medium flex-1">{statusCfg.label}</span>
+            {metaStatus === 'APPROVED' && tmpl.meta_template_name && (
+              <button
+                onClick={() => onCopyMetaName(tmpl.meta_template_name!)}
+                className="flex items-center gap-1 text-[11px] font-medium underline underline-offset-2 opacity-80 hover:opacity-100"
+              >
+                <ClipboardCopy className="w-3 h-3" /> Copy name
+              </button>
+            )}
+            {metaStatus === 'REJECTED' && (
+              <a href="https://business.facebook.com" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] font-medium underline underline-offset-2 opacity-80 hover:opacity-100">
+                <ExternalLink className="w-3 h-3" /> Fix in Meta
+              </a>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 mb-3">
+            <span className="w-2 h-2 rounded-full bg-slate-300 flex-shrink-0" />
+            <span className="text-xs text-slate-500 flex-1">Not submitted to Meta</span>
+            <span className="text-[11px] text-slate-400">Submit to send to leads</span>
+          </div>
+        )}
+
+        {/* Meta template name pill */}
+        {tmpl.meta_template_name && (
+          <p className="text-[10px] font-mono text-slate-400 mb-2 truncate">{tmpl.meta_template_name}</p>
+        )}
+
+        {/* Body preview */}
         <div
           className={cn('bg-slate-50 rounded-xl p-3 text-xs text-slate-600 whitespace-pre-line leading-relaxed cursor-pointer', !expanded && 'line-clamp-3')}
           onClick={() => setExpanded(v => !v)}
         >
           {tmpl.body}
         </div>
+        {!expanded && (
+          <button onClick={() => setExpanded(true)} className="text-[11px] text-slate-400 hover:text-slate-600 mt-1 transition">
+            Show full template ↓
+          </button>
+        )}
       </div>
+
+      {/* Footer action */}
+      {metaStatus === 'not_submitted' && (
+        <div className="px-5 pb-5">
+          <button
+            onClick={() => onSubmitToMeta(tmpl.id)}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 text-xs font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white py-2.5 rounded-xl transition"
+          >
+            {submitting
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Submitting…</>
+              : <><Sparkles className="w-3.5 h-3.5" /> Submit to Meta for Approval</>
+            }
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -472,7 +525,8 @@ export default function TemplatesPage() {
   const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null)
   const [starterTmpl, setStarterTmpl]       = useState<(StarterTemplate & { status: string })[]>([])
   const [loadingStarter, setLoadingStarter] = useState(true)
-  const [updatingMeta, setUpdatingMeta]     = useState(false)
+  const [updatingMeta, setUpdatingMeta]         = useState(false)
+  const [submittingId, setSubmittingId]         = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   const showToast = (msg: string, ok = true) => {
@@ -577,6 +631,45 @@ export default function TemplatesPage() {
     }
   }
 
+  const submitToMeta = async (templateId: string) => {
+    setSubmittingId(templateId)
+    try {
+      const r = await fetch('/api/whatsapp/custom-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId }),
+      })
+      const d = await r.json() as { ok?: boolean; error?: string; metaName?: string }
+      if (!d.ok) { showToast(d.error ?? 'Submission failed', false); return }
+      showToast('Submitted to Meta! Usually approved within minutes.')
+      await loadSaved()
+    } catch {
+      showToast('Something went wrong. Try again.', false)
+    } finally {
+      setSubmittingId(null)
+    }
+  }
+
+  const syncCustomStatuses = async () => {
+    try {
+      const r = await fetch('/api/whatsapp/custom-template')
+      const d = await r.json() as { updated?: number; error?: string }
+      if (d.error) { showToast(d.error, false); return }
+      if ((d.updated ?? 0) > 0) {
+        showToast(`${d.updated} template status${d.updated === 1 ? '' : 'es'} updated!`)
+        await loadSaved()
+      } else {
+        showToast('All statuses are up to date.')
+      }
+    } catch {
+      showToast('Could not sync statuses.', false)
+    }
+  }
+
+  const copyMetaName = (name: string) => {
+    navigator.clipboard.writeText(name).then(() => showToast(`Copied "${name}" — paste it in form settings on the Leads page`))
+  }
+
   const copyTemplateName = (name: string) => {
     navigator.clipboard.writeText(name).then(() => showToast(`Copied "${name}" — paste it in form settings on the Leads page`))
   }
@@ -604,7 +697,7 @@ export default function TemplatesPage() {
     { key: 'ecommerce',    label: 'Ecommerce',         count: BUILTIN_TEMPLATES.length },
     { key: 'lead',         label: 'Lead Ad',           count: starterTmpl.length },
     { key: 'pre_approved', label: 'Pre-approved',      count: approvedCount },
-    { key: 'my_templates', label: 'My Templates',      count: saved.filter(t => !t.is_archived).length },
+    { key: 'my_templates', label: 'Custom Templates',   count: saved.filter(t => !t.is_archived).length },
   ]
 
   return (
@@ -751,12 +844,22 @@ export default function TemplatesPage() {
       {/* ── My Templates section ──────────────────────────────────────── */}
       {showMy && (
         <div>
-          {chip === 'all' && (
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="w-4 h-4 text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-700">My Templates</h2>
-            </div>
-          )}
+          <div className="flex items-center gap-2 mb-3">
+            {chip === 'all' && (
+              <>
+                <FileText className="w-4 h-4 text-slate-500" />
+                <h2 className="text-sm font-semibold text-slate-700">Custom Templates</h2>
+              </>
+            )}
+            {chip === 'my_templates' && visibleSaved.some(t => t.meta_template_name) && (
+              <button
+                onClick={syncCustomStatuses}
+                className="ml-auto flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 bg-white px-3 py-1.5 rounded-lg transition shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Sync Meta status
+              </button>
+            )}
+          </div>
           {loadingSaved ? (
             <div className="flex items-center justify-center h-24">
               <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
@@ -766,8 +869,8 @@ export default function TemplatesPage() {
               <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <FileText className="w-6 h-6 text-slate-400" />
               </div>
-              <p className="font-medium text-slate-700">{search ? 'No results' : 'No saved templates yet'}</p>
-              <p className="text-slate-400 text-sm mt-1">Clone an ecommerce template or create your own.</p>
+              <p className="font-medium text-slate-700">{search ? 'No results' : 'No custom templates yet'}</p>
+              <p className="text-slate-400 text-sm mt-1">Create your own or clone an ecommerce template to get started.</p>
               <div className="flex items-center justify-center gap-3 mt-5">
                 <button onClick={() => setChip('ecommerce')} className="flex items-center gap-2 text-sm font-medium text-[#25D366] hover:underline">
                   <Zap className="w-3.5 h-3.5" /> Browse ecommerce
@@ -780,7 +883,17 @@ export default function TemplatesPage() {
           ) : visibleSaved.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {visibleSaved.map(t => (
-                <SavedCard key={t.id} tmpl={t} onFavorite={toggleFavorite} onArchive={toggleArchive} onDelete={deleteTemplate} onEdit={tmpl => { setEditTarget(tmpl); setShowModal(true) }} />
+                <SavedCard
+                  key={t.id}
+                  tmpl={t}
+                  onFavorite={toggleFavorite}
+                  onArchive={toggleArchive}
+                  onDelete={deleteTemplate}
+                  onEdit={tmpl => { setEditTarget(tmpl); setShowModal(true) }}
+                  onSubmitToMeta={submitToMeta}
+                  onCopyMetaName={copyMetaName}
+                  submitting={submittingId === t.id}
+                />
               ))}
             </div>
           ) : null}
