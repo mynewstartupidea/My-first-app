@@ -573,6 +573,7 @@ function ImportModal({ form, onClose, onImport }: {
   const [from, setFrom] = useState<string | null>(null)
   const [to,   setTo]   = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [result, setResult] = useState<{ imported: number; total: number } | null>(null)
   const c = getColor(form.color_index)
 
@@ -581,6 +582,44 @@ function ImportModal({ form, onClose, onImport }: {
     setImporting(true)
     try { setResult(await onImport(from, to)) }
     finally { setImporting(false) }
+  }
+
+  const handleDownloadCsv = async () => {
+    if (!from || !to) return
+    setExporting(true)
+    try {
+      const params = new URLSearchParams({
+        connection_id: form.connection_id,
+        form_id:       form.form_id,
+        from_date:     from,
+        to_date:       to,
+      })
+      const r = await fetch(`/api/facebook/leads/export?${params}`)
+      const d = await r.json() as { leads?: Array<Record<string, string>>; total?: number }
+      const leads = d.leads ?? []
+      if (!leads.length) return
+
+      // Build CSV — collect all field keys
+      const stdKeys = ['name', 'email', 'phone', 'date']
+      const extraKeys = Array.from(new Set(leads.flatMap(l => Object.keys(l)).filter(k => !stdKeys.includes(k))))
+      const allKeys = [...stdKeys, ...extraKeys]
+      const header  = allKeys.map(k => k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' '))
+
+      const rows = leads.map(l => allKeys.map(k => String(l[k] ?? '')))
+      const csv  = [header, ...rows]
+        .map(row => row.map(c => `"${c.replace(/"/g, '""')}"`).join(','))
+        .join('\n')
+
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${form.form_name.replace(/[^a-z0-9]/gi, '_').slice(0, 40)}_${from}_${to}.csv`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -646,11 +685,16 @@ function ImportModal({ form, onClose, onImport }: {
 
         {/* Footer */}
         {result === null && (
-          <div className="p-5 border-t border-gray-100 flex-shrink-0">
-            <button onClick={handleImport} disabled={!from || !to || importing}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
-              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {importing ? 'Importing…' : from && to ? 'Import leads' : 'Select a date range'}
+          <div className="p-5 border-t border-gray-100 flex-shrink-0 flex gap-3">
+            <button onClick={handleDownloadCsv} disabled={!from || !to || exporting || importing}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl transition disabled:opacity-50">
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {exporting ? 'Exporting…' : 'Download CSV'}
+            </button>
+            <button onClick={handleImport} disabled={!from || !to || importing || exporting}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+              {importing ? 'Importing…' : from && to ? 'Import to CRM' : 'Select a date range'}
             </button>
           </div>
         )}
