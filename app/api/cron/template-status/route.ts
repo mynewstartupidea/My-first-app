@@ -1,57 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { Resend } from 'resend'
 
 export const maxDuration = 60
-
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com'
-const FROM_EMAIL = 'Wapaci <notifications@wapaci.com>'
-
-async function sendStatusEmail(
-  to: string,
-  templateName: string,
-  status: string,
-  reason?: string,
-) {
-  if (!resend) return
-  const approved = status === 'APPROVED'
-
-  const subject = approved
-    ? `✅ Your template "${templateName}" is approved`
-    : `❌ Your template "${templateName}" was rejected by Meta`
-
-  const html = approved
-    ? `
-      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
-        <div style="background:#25D366;color:#fff;border-radius:12px;padding:20px 24px;margin-bottom:24px">
-          <p style="margin:0;font-size:22px;font-weight:700">✅ Template Approved!</p>
-        </div>
-        <p style="color:#374151;font-size:15px">Your WhatsApp template <strong>${templateName}</strong> has been approved by Meta and is ready to use.</p>
-        <p style="color:#374151;font-size:15px">You can now select it in your lead form settings to automatically message new leads.</p>
-        <a href="${APP_URL}/dashboard/templates" style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:10px;font-size:14px;margin-top:8px">
-          Go to Templates →
-        </a>
-        <p style="color:#9CA3AF;font-size:12px;margin-top:32px">Wapaci — WhatsApp Revenue Automation</p>
-      </div>`
-    : `
-      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
-        <div style="background:#EF4444;color:#fff;border-radius:12px;padding:20px 24px;margin-bottom:24px">
-          <p style="margin:0;font-size:22px;font-weight:700">❌ Template Rejected</p>
-        </div>
-        <p style="color:#374151;font-size:15px">Your WhatsApp template <strong>${templateName}</strong> was rejected by Meta.</p>
-        ${reason ? `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;margin:16px 0"><p style="margin:0;color:#991B1B;font-size:13px"><strong>Reason:</strong> ${reason}</p></div>` : ''}
-        <p style="color:#374151;font-size:14px">Common reasons: promotional language, missing opt-out, unclear variables. Edit the template and resubmit.</p>
-        <a href="${APP_URL}/dashboard/templates" style="display:inline-block;background:#3B82F6;color:#fff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:10px;font-size:14px;margin-top:8px">
-          Edit &amp; Resubmit →
-        </a>
-        <p style="color:#9CA3AF;font-size:12px;margin-top:32px">Wapaci — WhatsApp Revenue Automation</p>
-      </div>`
-
-  await resend.emails.send({ from: FROM_EMAIL, to, subject, html }).catch(e =>
-    console.warn('[TemplateStatus cron] email failed:', e)
-  )
-}
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -92,10 +42,6 @@ export async function GET(request: Request) {
 
     if (!wa?.waba_id) continue
 
-    // Get user email via admin API (service role has access)
-    const { data: { user } } = await supabase.auth.admin.getUserById(userId)
-    const userEmail = user?.email
-
     const token = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? (wa.access_token as string)
     const names = templates.map(t => t.meta_template_name).join(',')
 
@@ -119,17 +65,31 @@ export async function GET(request: Request) {
       const meta = statusMap[tmpl.meta_template_name as string]
       if (!meta || meta.status === 'PENDING') continue
 
+      const approved = meta.status === 'APPROVED'
+
+      // Update template status in DB
       await supabase.from('templates').update({
         meta_status: meta.status,
         updated_at:  new Date().toISOString(),
       }).eq('id', tmpl.id)
 
+      // Insert in-app notification
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        type:    approved ? 'template_approved' : 'template_rejected',
+        title:   approved
+          ? `"${tmpl.name}" approved ✅`
+          : `"${tmpl.name}" rejected ❌`,
+        body: approved
+          ? 'Your WhatsApp template is ready to use in your lead forms.'
+          : meta.reason
+            ? `Reason: ${meta.reason}`
+            : 'Edit and resubmit your template.',
+        link: '/dashboard/templates',
+      })
+
       updated++
       console.log(`[TemplateStatus cron] ${tmpl.name} → ${meta.status} (user ${userId})`)
-
-      if (userEmail) {
-        await sendStatusEmail(userEmail, tmpl.name as string, meta.status, meta.reason)
-      }
     }
   }
 

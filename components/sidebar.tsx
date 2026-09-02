@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/user-role'
 import { canAccess } from '@/lib/user-role'
+import NotificationBell from '@/components/notification-bell'
 
 const NAV = [
   { href: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard'   },
@@ -67,7 +68,7 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }:
   return (
     <aside className="w-[220px] min-h-screen bg-[#0a0f1e] flex flex-col fixed left-0 top-0 z-30 border-r border-white/[0.05]">
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-white/[0.06]">
+      <div className="px-4 py-5 border-b border-white/[0.06] flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-[#25D366] rounded-lg flex items-center justify-center flex-shrink-0">
             <MessageCircle size={17} className="text-white" />
@@ -77,6 +78,7 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }:
             <p className="text-slate-500 text-[9px] mt-0.5 tracking-widest uppercase">WhatsApp Revenue</p>
           </div>
         </Link>
+        <NotificationBell />
       </div>
 
       {/* Main nav */}
