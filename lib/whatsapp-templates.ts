@@ -64,7 +64,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
 
 export interface TemplateProvisionResult {
   name:    string
-  status:  'submitted' | 'already_exists' | 'failed'
+  status:  'submitted' | 'already_exists' | 'updated' | 'failed'
   error?:  string
 }
 
@@ -110,6 +110,50 @@ export async function provisionStarterTemplates(
     } catch (e) {
       results.push({ name: tmpl.name, status: 'failed', error: String(e) })
       console.warn(`[WA Templates] ${tmpl.name} exception:`, e)
+    }
+  }
+
+  return results
+}
+
+// Delete existing templates and re-submit with current body text.
+// Use this when the template copy changes and you need Meta to re-review.
+export async function updateStarterTemplates(
+  wabaId: string,
+  token:  string,
+): Promise<TemplateProvisionResult[]> {
+  const results: TemplateProvisionResult[] = []
+  const base = 'https://graph.facebook.com/v21.0'
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+
+  for (const tmpl of STARTER_TEMPLATES) {
+    try {
+      // Step 1: delete by name (removes all language variants)
+      await fetch(`${base}/${wabaId}/message_templates?name=${tmpl.name}`, { method: 'DELETE', headers })
+
+      // Step 2: re-submit with updated body
+      const res  = await fetch(`${base}/${wabaId}/message_templates`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          name:       tmpl.name,
+          language:   tmpl.language,
+          category:   tmpl.category,
+          components: [{ type: 'BODY', text: tmpl.body, example: { body_text: [tmpl.example[0]] } }],
+        }),
+      })
+      const data = await res.json() as { id?: string; error?: { code: number; message: string } }
+
+      if (res.ok && data.id) {
+        results.push({ name: tmpl.name, status: 'updated' })
+        console.log(`[WA Templates] updated ${tmpl.name} → id=${data.id}`)
+      } else {
+        results.push({ name: tmpl.name, status: 'failed', error: data.error?.message ?? 'Unknown error' })
+        console.warn(`[WA Templates] update failed for ${tmpl.name}:`, data.error)
+      }
+    } catch (e) {
+      results.push({ name: tmpl.name, status: 'failed', error: String(e) })
+      console.warn(`[WA Templates] update exception for ${tmpl.name}:`, e)
     }
   }
 

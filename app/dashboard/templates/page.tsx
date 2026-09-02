@@ -472,6 +472,7 @@ export default function TemplatesPage() {
   const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null)
   const [starterTmpl, setStarterTmpl]       = useState<(StarterTemplate & { status: string })[]>([])
   const [loadingStarter, setLoadingStarter] = useState(true)
+  const [updatingMeta, setUpdatingMeta]     = useState(false)
   const supabase = useMemo(() => createClient(), [])
 
   const showToast = (msg: string, ok = true) => {
@@ -554,6 +555,26 @@ export default function TemplatesPage() {
     await supabase.from('templates').delete().eq('id', id)
     setSaved(prev => prev.filter(t => t.id !== id))
     showToast('Template deleted')
+  }
+
+  const updateOnMeta = async () => {
+    setUpdatingMeta(true)
+    try {
+      const r = await fetch('/api/whatsapp/templates', { method: 'POST' })
+      const d = await r.json() as { results?: { name: string; status: string }[]; error?: string }
+      if (d.error) { showToast(d.error, false); return }
+      const failed = d.results?.filter(x => x.status === 'failed') ?? []
+      if (failed.length) {
+        showToast(`${failed.length} template(s) failed to update. Check WhatsApp connection.`, false)
+      } else {
+        showToast('Templates updated on Meta! Re-review usually takes a few minutes.')
+      }
+      await loadStarter()
+    } catch {
+      showToast('Something went wrong. Try again.', false)
+    } finally {
+      setUpdatingMeta(false)
+    }
   }
 
   const copyTemplateName = (name: string) => {
@@ -682,11 +703,24 @@ export default function TemplatesPage() {
             <MessageSquare className="w-4 h-4 text-blue-500" />
             <h2 className="text-sm font-semibold text-slate-700">Lead Ad Templates</h2>
             <span className="text-xs text-slate-400">— pre-approved by Meta, ready for cold outreach</span>
-            {starterTmpl.every(t => t.status === 'whatsapp_not_connected') && (
-              <a href="/dashboard/settings?tab=whatsapp" className="ml-auto text-xs text-blue-500 hover:underline flex items-center gap-1">
-                <ExternalLink className="w-3 h-3" /> Connect WhatsApp
-              </a>
-            )}
+            <div className="ml-auto flex items-center gap-2">
+              {starterTmpl.every(t => t.status === 'whatsapp_not_connected') ? (
+                <a href="/dashboard/settings?tab=whatsapp" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" /> Connect WhatsApp
+                </a>
+              ) : (
+                <button
+                  onClick={updateOnMeta}
+                  disabled={updatingMeta}
+                  className="flex items-center gap-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-60 px-3 py-1.5 rounded-lg transition"
+                >
+                  {updatingMeta
+                    ? <><Loader2 className="w-3 h-3 animate-spin" /> Updating…</>
+                    : <><RefreshCw className="w-3 h-3" /> Update on Meta</>
+                  }
+                </button>
+              )}
+            </div>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
             {visibleStarter.map(t => (
