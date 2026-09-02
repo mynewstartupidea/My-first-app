@@ -2,14 +2,17 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
 
-// GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0
+// GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const formId = searchParams.get('form_id')
-  const pageId = searchParams.get('page_id')
-  const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '50') || 50, 200)
-  const offset = parseInt(searchParams.get('offset') ?? '0') || 0
-  const q      = searchParams.get('q')?.trim() ?? ''
+  const formId   = searchParams.get('form_id')
+  const pageId   = searchParams.get('page_id')
+  const fromDate = searchParams.get('from_date')
+  const toDate   = searchParams.get('to_date')
+  const download = searchParams.get('download') === 'true'
+  const limit    = download ? 5000 : Math.min(parseInt(searchParams.get('limit') ?? '50') || 50, 200)
+  const offset   = parseInt(searchParams.get('offset') ?? '0') || 0
+  const q        = searchParams.get('q')?.trim() ?? ''
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,6 +28,8 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false })
     if (formId) query = query.eq('form_id', formId)
     else if (pageId) query = query.eq('page_id', pageId)
+    if (fromDate) query = query.gte('created_at', `${fromDate}T00:00:00.000Z`)
+    if (toDate)   query = query.lte('created_at', `${toDate}T23:59:59.999Z`)
     if (q) {
       const esc = q.replace(/[%_\\]/g, '\\$&')
       query = query.or(`name.ilike.%${esc}%,phone.ilike.%${esc}%,email.ilike.%${esc}%`)

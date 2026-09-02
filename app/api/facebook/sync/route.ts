@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, getLeadForms, parseLeadFields, extractAllFields } from '@/lib/facebook'
-import { renderTemplate } from '@/lib/utils'
+import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 
 export const maxDuration = 60
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   // All form automations for this user
   const { data: allForms } = await service
     .from('lead_form_automations')
-    .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id')
+    .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id, wa_template_name, wa_template_language')
     .eq('user_id', user.id)
 
   // Filter to forms on this page — works even with stale connection_ids
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       // Re-fetch all forms for this page (including any that already existed)
       const { data: allAfterInsert } = await service
         .from('lead_form_automations')
-        .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id')
+        .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id, wa_template_name, wa_template_language')
         .eq('user_id', user.id)
 
       forms = (allAfterInsert ?? []).filter(f => connPageMap[f.connection_id as string] === pageId)
@@ -141,13 +141,15 @@ export async function POST(request: Request) {
 
     // Only queue WhatsApp jobs when automation is enabled for this form
     if (form.is_enabled && saved?.length && form.message_template) {
+      const waTemplateName = (form.wa_template_name as string | null) || null
+      const waTemplateLang = (form.wa_template_language as string | null) || 'en'
       const jobs = saved
         .filter(s => s.phone)
         .map(s => {
           const fields = (s.fields as Record<string, string>) ?? {}
-          const message = renderTemplate(form.message_template as string, {
-            ...fields, name: s.name ?? 'there', email: fields.email ?? '', phone: s.phone,
-          })
+          const vars = { ...fields, name: s.name ?? 'there', email: fields.email ?? '', phone: s.phone as string }
+          const message = renderTemplate(form.message_template as string, vars)
+          const waParams = waTemplateName ? extractTemplateParams(form.message_template as string, vars) : undefined
           return {
             store_id:       form.store_id,
             automation_id:  null,
@@ -155,7 +157,10 @@ export async function POST(request: Request) {
             customer_phone: s.phone,
             customer_name:  s.name ?? 'Lead',
             message,
-            context:        { lead_id: s.id, form_id: form.form_id, source: 'manual_sync' },
+            context: {
+              lead_id: s.id, form_id: form.form_id, source: 'manual_sync',
+              ...(waTemplateName ? { wa_template_name: waTemplateName, wa_template_language: waTemplateLang, wa_template_params: waParams } : {}),
+            },
             status:         'pending',
             scheduled_at:   new Date().toISOString(),
           }

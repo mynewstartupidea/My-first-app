@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
-import { renderTemplate } from '@/lib/utils'
+import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 
 export const maxDuration = 60
 
@@ -16,6 +16,8 @@ export async function POST(request: Request) {
     formName: string
     messageTemplate: string
     isEnabled: boolean
+    waTemplateName?: string
+    waTemplateLanguage?: string
   }
 
   const service = createServiceClient()
@@ -51,14 +53,16 @@ export async function POST(request: Request) {
 
   // Try upsert with new columns; fall back without them if SQL migration hasn't run yet
   const baseRow = {
-    user_id:          user.id,
-    store_id:         conn.store_id,
-    connection_id:    body.connectionId,
-    form_id:          body.formId,
-    form_name:        body.formName,
-    message_template: body.messageTemplate,
-    is_enabled:       body.isEnabled,
-    updated_at:       new Date().toISOString(),
+    user_id:              user.id,
+    store_id:             conn.store_id,
+    connection_id:        body.connectionId,
+    form_id:              body.formId,
+    form_name:            body.formName,
+    message_template:     body.messageTemplate,
+    is_enabled:           body.isEnabled,
+    wa_template_name:     body.waTemplateName ?? null,
+    wa_template_language: body.waTemplateLanguage ?? 'en',
+    updated_at:           new Date().toISOString(),
   }
   const { error: upsertErr } = await service.from('lead_form_automations').upsert(
     { ...baseRow, color_index: colorIndex },
@@ -103,24 +107,34 @@ export async function POST(request: Request) {
       leadsFetched = rows.length
 
       // Queue automation_jobs for newly inserted leads that have a phone number
+      const waTemplateName = body.waTemplateName || null
+      const waTemplateLang = body.waTemplateLanguage || 'en'
       const jobs = (upserted ?? [])
         .filter(l => l.phone)
-        .map(l => ({
-          store_id:       conn.store_id,
-          automation_id:  null,
-          type:           'lead_ad',
-          customer_phone: l.phone as string,
-          customer_name:  (l.name as string | null) ?? 'Lead',
-          message: renderTemplate(body.messageTemplate, {
+        .map(l => {
+          const vars = {
             ...((l.fields as Record<string, string>) ?? {}),
             name:  (l.name as string | null) ?? 'there',
             email: (l.email as string | null) ?? '',
             phone: l.phone as string,
-          }),
-          context:      { lead_id: l.id, form_id: body.formId, bulk_activate: true },
-          status:       'pending',
-          scheduled_at: new Date().toISOString(),
-        }))
+          }
+          const message = renderTemplate(body.messageTemplate, vars)
+          const waParams = waTemplateName ? extractTemplateParams(body.messageTemplate, vars) : undefined
+          return {
+            store_id:       conn.store_id,
+            automation_id:  null,
+            type:           'lead_ad',
+            customer_phone: l.phone as string,
+            customer_name:  (l.name as string | null) ?? 'Lead',
+            message,
+            context: {
+              lead_id: l.id, form_id: body.formId, bulk_activate: true,
+              ...(waTemplateName ? { wa_template_name: waTemplateName, wa_template_language: waTemplateLang, wa_template_params: waParams } : {}),
+            },
+            status:       'pending',
+            scheduled_at: new Date().toISOString(),
+          }
+        })
 
       if (jobs.length > 0) {
         await service.from('automation_jobs').insert(jobs)

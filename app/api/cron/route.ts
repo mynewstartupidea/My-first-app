@@ -88,12 +88,17 @@ export async function GET(request: Request) {
       phoneNumberIdOverride = wa?.phone_number_id ?? undefined
     }
 
+    const ctx = (job.context as Record<string, unknown> | null) ?? {}
+
     const result = await sendWhatsAppMessage({
-      to:            job.customer_phone,
-      message:       job.message,
-      bsp:           store?.whatsapp_bsp,
-      apiKey:        apiKeyOverride,
-      phoneNumberId: phoneNumberIdOverride,
+      to:               job.customer_phone,
+      message:          job.message,
+      bsp:              store?.whatsapp_bsp,
+      apiKey:           apiKeyOverride,
+      phoneNumberId:    phoneNumberIdOverride,
+      templateName:     (ctx.wa_template_name as string | undefined) || undefined,
+      templateLanguage: (ctx.wa_template_language as string | undefined) || undefined,
+      templateParams:   (ctx.wa_template_params as string[] | undefined) || undefined,
     })
 
     const now = new Date().toISOString()

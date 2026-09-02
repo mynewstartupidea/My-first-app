@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFBLead, parseLeadFields, extractAllFields } from '@/lib/facebook'
-import { renderTemplate } from '@/lib/utils'
+import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 
 // Facebook webhook verification
 export async function GET(request: Request) {
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       // Check for lead form automation
       const { data: auto } = await supabase
         .from('lead_form_automations')
-        .select('*')
+        .select('message_template, wa_template_name, wa_template_language')
         .eq('form_id', formId)
         .eq('store_id', conn.store_id)
         .eq('is_enabled', true)
@@ -105,12 +105,11 @@ export async function POST(request: Request) {
 
       if (!auto) continue
 
-      const message = renderTemplate(auto.message_template, {
-        ...fields,
-        name:  name ?? 'there',
-        email: email ?? '',
-        phone: phone ?? '',
-      })
+      const vars = { ...fields, name: name ?? 'there', email: email ?? '', phone: phone ?? '' }
+      const message = renderTemplate(auto.message_template, vars)
+      const waTemplateName = (auto.wa_template_name as string | null) || null
+      const waTemplateLang = (auto.wa_template_language as string | null) || 'en'
+      const waParams = waTemplateName ? extractTemplateParams(auto.message_template, vars) : undefined
 
       await supabase.from('automation_jobs').insert({
         store_id:       conn.store_id,
@@ -119,7 +118,10 @@ export async function POST(request: Request) {
         customer_phone: phone,
         customer_name:  name ?? 'Lead',
         message,
-        context:        { lead_id: saved.id, facebook_lead_id: leadId, form_id: formId },
+        context: {
+          lead_id: saved.id, facebook_lead_id: leadId, form_id: formId,
+          ...(waTemplateName ? { wa_template_name: waTemplateName, wa_template_language: waTemplateLang, wa_template_params: waParams } : {}),
+        },
         status:         'pending',
         scheduled_at:   new Date().toISOString(),
       })

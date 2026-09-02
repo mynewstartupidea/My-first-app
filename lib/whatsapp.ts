@@ -8,6 +8,11 @@ interface SendMessageParams {
   bsp?: string
   apiKey?: string
   phoneNumberId?: string
+  // When set, sends an approved WhatsApp template instead of a free-form text message.
+  // Required for cold outreach (leads who haven't messaged you first).
+  templateName?: string
+  templateLanguage?: string
+  templateParams?: string[]  // positional values for {{1}}, {{2}}, … in the approved template
 }
 
 interface SendResult {
@@ -33,7 +38,8 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Se
 
 // ─── Meta WhatsApp Cloud API ──────────────────────────────────────────────────
 
-async function sendViaMeta({ to, message, apiKey, phoneNumberId }: SendMessageParams): Promise<SendResult> {
+async function sendViaMeta(params: SendMessageParams): Promise<SendResult> {
+  const { to, message, apiKey, phoneNumberId, templateName, templateLanguage, templateParams } = params
   const token   = apiKey       ?? process.env.META_ACCESS_TOKEN
   const phoneId = phoneNumberId ?? process.env.META_PHONE_NUMBER_ID
 
@@ -42,6 +48,30 @@ async function sendViaMeta({ to, message, apiKey, phoneNumberId }: SendMessagePa
   }
 
   const phone = normalizePhone(to)
+
+  // Use approved template when configured (required for cold outreach to leads)
+  const payload = templateName ? {
+    messaging_product: 'whatsapp',
+    recipient_type:    'individual',
+    to:                phone,
+    type:              'template',
+    template: {
+      name:     templateName,
+      language: { code: templateLanguage ?? 'en' },
+      ...(templateParams?.length ? {
+        components: [{
+          type:       'body',
+          parameters: templateParams.map(text => ({ type: 'text', text: String(text) })),
+        }],
+      } : {}),
+    },
+  } : {
+    messaging_product: 'whatsapp',
+    recipient_type:    'individual',
+    to:                phone,
+    type:              'text',
+    text:              { preview_url: false, body: message },
+  }
 
   try {
     const res = await fetch(
@@ -52,13 +82,7 @@ async function sendViaMeta({ to, message, apiKey, phoneNumberId }: SendMessagePa
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type:    'individual',
-          to:                phone,
-          type:              'text',
-          text:              { preview_url: false, body: message },
-        }),
+        body: JSON.stringify(payload),
       }
     )
 
@@ -69,7 +93,9 @@ async function sendViaMeta({ to, message, apiKey, phoneNumberId }: SendMessagePa
     const code = data.error?.code
     const humanError =
       code === 131026 ? `${phone} is not registered on WhatsApp` :
-      code === 131047 ? 'Customer needs to message you first (24hr session expired)' :
+      code === 131047 ? 'No approved template set — customer must message you first, or configure a WhatsApp template name in form settings' :
+      code === 132000 ? `Template "${templateName}" not found or not approved yet` :
+      code === 132001 ? `Template "${templateName}" — wrong number of parameters` :
       code === 130429 ? 'WhatsApp rate limit reached — will retry' :
       code === 131021 ? `Invalid phone number format: ${phone}` :
       code === 131000 ? 'WhatsApp service error — will retry' :

@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { assignSystemUserToWABA, exchangeMetaCode, subscribeWABAWebhooks } from '@/lib/whatsapp'
+import { provisionStarterTemplates } from '@/lib/whatsapp-templates'
 import type { MetaDebugInfo, MetaSessionInfo } from '@/lib/whatsapp'
 
 // ─── Shared processing ────────────────────────────────────────────────────────
@@ -100,6 +101,14 @@ async function processMetaCode(
       updated_at:       new Date().toISOString(),
     }).eq('id', store.id)
   }
+
+  // Auto-provision Wapaci starter templates in the merchant's WABA.
+  // Fire-and-forget — doesn't block the response. Templates are usually
+  // auto-approved by Meta within minutes.
+  const provisionToken = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? info.accessToken
+  provisionStarterTemplates(info.wabaId, provisionToken)
+    .then(results => console.log('[Meta callback] starter templates:', JSON.stringify(results)))
+    .catch(e => console.warn('[Meta callback] template provisioning failed:', e))
 
   console.log(`[Meta callback] done — token_type=${tokenType} storeUpdated=${!!store}`)
   return { ok: true, phone: info.displayPhoneNumber, debug: result.debug }

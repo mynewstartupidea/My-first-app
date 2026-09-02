@@ -6,8 +6,9 @@ import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
   CheckCircle, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
   Loader2, Pause, Play, Search, Edit2, Download, Clock,
-  AlertCircle, FileText, LogOut,
+  AlertCircle, FileText, LogOut, Sparkles,
 } from 'lucide-react'
+import type { StarterTemplate } from '@/lib/whatsapp-templates'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ interface ActiveForm {
   color_index: number
   lead_count: number
   last_lead_fetch: string | null
+  wa_template_name: string | null
+  wa_template_language: string | null
 }
 
 interface Lead {
@@ -360,42 +363,146 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
 function EditFormModal({ form, onClose, onSave }: {
   form: ActiveForm
   onClose: () => void
-  onSave: (template: string) => Promise<void>
+  onSave: (template: string, waTemplateName: string, waTemplateLang: string) => Promise<void>
 }) {
-  const [template, setTemplate] = useState(form.message_template)
-  const [saving, setSaving] = useState(false)
+  const [template,    setTemplate]    = useState(form.message_template || DEFAULT_TEMPLATE)
+  const [waName,      setWaName]      = useState(form.wa_template_name ?? '')
+  const [waLang,      setWaLang]      = useState(form.wa_template_language ?? 'en')
+  const [saving,      setSaving]      = useState(false)
+  const [starterTmpl, setStarterTmpl] = useState<(StarterTemplate & { status: string })[]>([])
+  const [loadingTmpl, setLoadingTmpl] = useState(true)
   const c = getColor(form.color_index)
+
+  useEffect(() => {
+    fetch('/api/whatsapp/templates')
+      .then(r => r.json())
+      .then((d: { templates?: (StarterTemplate & { status: string })[] }) => setStarterTmpl(d.templates ?? []))
+      .catch(() => setStarterTmpl([]))
+      .finally(() => setLoadingTmpl(false))
+  }, [])
+
+  const handlePickStarter = (t: StarterTemplate & { status: string }) => {
+    setTemplate(t.bodyPreview)
+    setWaName(t.name)
+    setWaLang(t.language)
+  }
 
   const handleSave = async () => {
     setSaving(true)
-    try { await onSave(template); onClose() }
+    try { await onSave(template, waName.trim(), waLang.trim() || 'en'); onClose() }
     finally { setSaving(false) }
+  }
+
+  const statusBadge = (s: string) => {
+    if (s === 'APPROVED') return <span className="text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full">Approved</span>
+    if (s === 'PENDING')  return <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Pending</span>
+    if (s === 'REJECTED') return <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">Rejected</span>
+    return <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded-full">Not submitted</span>
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full" style={{ background: c.dot }} />
-            <h2 className="text-base font-semibold text-gray-900 truncate max-w-[300px]">{form.form_name}</h2>
+            <h2 className="text-base font-semibold text-gray-900 truncate max-w-[400px]">{form.form_name}</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
-        <div className="p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp message template</label>
-          <textarea
-            value={template}
-            onChange={e => setTemplate(e.target.value)}
-            rows={8}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          />
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Wapaci Starter Templates */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-semibold text-gray-700">Wapaci starter templates</span>
+              <span className="text-xs text-gray-400">— pre-approved, click to use</span>
+            </div>
+
+            {loadingTmpl ? (
+              <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
+                <Loader2 className="w-3 h-3 animate-spin" /> Checking approval status…
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-2">
+                {starterTmpl.map(t => (
+                  <button
+                    key={t.name}
+                    onClick={() => handlePickStarter(t)}
+                    className={`text-left px-3.5 py-3 rounded-xl border transition ${
+                      waName === t.name
+                        ? 'border-blue-400 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-500 font-mono">{t.name}</span>
+                      {statusBadge(t.status)}
+                    </div>
+                    <p className="text-sm text-gray-700">{t.description}</p>
+                    <p className="text-xs text-gray-400 mt-1 font-mono truncate">{t.bodyPreview}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Message preview / custom editor */}
+          <div className="border-t border-gray-100 pt-5">
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Message preview
+              {waName && <span className="ml-2 text-xs font-normal text-blue-600">using template &quot;{waName}&quot;</span>}
+            </label>
+            <textarea
+              value={template}
+              onChange={e => { setTemplate(e.target.value); setWaName(''); setWaLang('en') }}
+              rows={6}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+            <p className="text-xs text-gray-400 mt-1.5">
+              Variables: <code className="bg-gray-100 px-1 rounded">{'{{name}}'}</code>{' '}
+              <code className="bg-gray-100 px-1 rounded">{'{{phone}}'}</code>{' '}
+              <code className="bg-gray-100 px-1 rounded">{'{{email}}'}</code>{' '}
+              — editing this text clears the template selection (use custom template below).
+            </p>
+          </div>
+
+          {/* Custom template name override */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-0.5">
+              Custom approved template name <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <p className="text-xs text-gray-400 mb-2">
+              If you created your own template in{' '}
+              <a href="https://business.facebook.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Meta Business Manager</a>
+              , enter the name here.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={waName}
+                onChange={e => setWaName(e.target.value)}
+                placeholder="e.g. my_custom_template"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="text"
+                value={waLang}
+                onChange={e => setWaLang(e.target.value)}
+                placeholder="en"
+                className="w-20 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                title="Language code (e.g. en, en_US, hi)"
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex items-center justify-end gap-3 px-6 pb-6">
+
+        <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-100 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition">Cancel</button>
-          <button onClick={handleSave} disabled={saving}
+          <button onClick={handleSave} disabled={saving || !template.trim()}
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {saving ? 'Saving…' : 'Save changes'}
@@ -574,6 +681,7 @@ function ImportModal({ form, onClose, onImport }: {
   const [to,   setTo]   = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportMsg, setExportMsg] = useState<string | null>(null)
   const [result, setResult] = useState<{ imported: number; total: number } | null>(null)
   const c = getColor(form.color_index)
 
@@ -587,27 +695,32 @@ function ImportModal({ form, onClose, onImport }: {
   const handleDownloadCsv = async () => {
     if (!from || !to) return
     setExporting(true)
+    setExportMsg(null)
     try {
       const params = new URLSearchParams({
-        connection_id: form.connection_id,
-        form_id:       form.form_id,
-        from_date:     from,
-        to_date:       to,
+        form_id:   form.form_id,
+        from_date: from,
+        to_date:   to,
+        download:  'true',
+        limit:     '5000',
       })
-      const r = await fetch(`/api/facebook/leads/export?${params}`)
-      const d = await r.json() as { leads?: Array<Record<string, string>>; total?: number }
+      const r = await fetch(`/api/facebook/leads?${params}`)
+      const d = await r.json() as { leads?: Array<Record<string, unknown>>; total?: number }
       const leads = d.leads ?? []
-      if (!leads.length) return
 
-      // Build CSV — collect all field keys
-      const stdKeys = ['name', 'email', 'phone', 'date']
-      const extraKeys = Array.from(new Set(leads.flatMap(l => Object.keys(l)).filter(k => !stdKeys.includes(k))))
-      const allKeys = [...stdKeys, ...extraKeys]
-      const header  = allKeys.map(k => k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' '))
+      if (!leads.length) {
+        setExportMsg('No leads found in your CRM for this date range.')
+        return
+      }
 
-      const rows = leads.map(l => allKeys.map(k => String(l[k] ?? '')))
-      const csv  = [header, ...rows]
-        .map(row => row.map(c => `"${c.replace(/"/g, '""')}"`).join(','))
+      const headers = ['Name', 'Email', 'Phone', 'Status', 'Date', 'Form']
+      const rows = leads.map(l => [
+        l.name ?? '', l.email ?? '', l.phone ?? '',
+        l.wa_status, new Date(l.created_at as string).toLocaleDateString('en-US'),
+        l.form_name ?? '',
+      ])
+      const csv = [headers, ...rows]
+        .map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
         .join('\n')
 
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
@@ -617,6 +730,8 @@ function ImportModal({ form, onClose, onImport }: {
       a.download = `${form.form_name.replace(/[^a-z0-9]/gi, '_').slice(0, 40)}_${from}_${to}.csv`
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       URL.revokeObjectURL(url)
+    } catch {
+      setExportMsg('Download failed. Please try again.')
     } finally {
       setExporting(false)
     }
@@ -678,7 +793,10 @@ function ImportModal({ form, onClose, onImport }: {
               <p className="text-sm text-gray-500 mb-5">
                 Select a date range to pull historical leads from Facebook. These won&apos;t trigger WhatsApp messages.
               </p>
-              <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+              {exportMsg && (
+                <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">{exportMsg}</p>
+              )}
+              <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); setExportMsg(null) }} />
             </>
           )}
         </div>
@@ -1119,12 +1237,20 @@ function LeadsContent() {
     setTogglingId(null)
   }
 
-  const handleEditSave = async (template: string) => {
+  const handleEditSave = async (template: string, waTemplateName: string, waTemplateLang: string) => {
     if (!editingForm) return
     await fetch('/api/facebook/form-automation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connectionId: editingForm.connection_id, formId: editingForm.form_id, formName: editingForm.form_name, messageTemplate: template, isEnabled: editingForm.is_enabled }),
+      body: JSON.stringify({
+        connectionId:       editingForm.connection_id,
+        formId:             editingForm.form_id,
+        formName:           editingForm.form_name,
+        messageTemplate:    template,
+        isEnabled:          editingForm.is_enabled,
+        waTemplateName:     waTemplateName || undefined,
+        waTemplateLanguage: waTemplateLang || undefined,
+      }),
     })
     if (selectedPageId) await fetchActiveForms(selectedPageId)
   }

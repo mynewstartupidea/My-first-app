@@ -30,6 +30,18 @@ export function renderTemplate(template: string, vars: Record<string, string>) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
 }
 
+// Extracts variable values from a template in the order they appear.
+// Used to build positional params for WhatsApp approved template API calls.
+// e.g. "Hi {{name}}, call {{phone}}" + {name:'John', phone:'9876'} → ['John', '9876']
+export function extractTemplateParams(template: string, vars: Record<string, string>): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const [, key] of template.matchAll(/\{\{(\w+)\}\}/g)) {
+    if (!seen.has(key)) { seen.add(key); result.push(vars[key] ?? '') }
+  }
+  return result
+}
+
 // Returns a 10-digit Indian mobile number or null
 export function normalizeIndianPhone(raw: string): string | null {
   if (!raw) return null

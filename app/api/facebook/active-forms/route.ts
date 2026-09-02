@@ -31,13 +31,14 @@ export async function GET(request: Request) {
     id: string; form_id: string; form_name: string; connection_id: string
     message_template: string; is_enabled: boolean
     color_index?: number; last_lead_fetch?: string | null
+    wa_template_name?: string | null; wa_template_language?: string | null
   }
 
   const runQuery = async (includeMigrationCols: boolean) => {
     const q = service
       .from('lead_form_automations')
       .select('id, form_id, form_name, connection_id, message_template, is_enabled' +
-        (includeMigrationCols ? ', color_index, last_lead_fetch' : ''))
+        (includeMigrationCols ? ', color_index, last_lead_fetch, wa_template_name, wa_template_language' : ''))
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,16 +96,18 @@ export async function GET(request: Request) {
   for (const { formId, count } of counts) countMap[formId] = count
 
   const forms = filtered.map((a, i) => ({
-    id:               a.id,
-    form_id:          a.form_id,
-    form_name:        a.form_name,
-    connection_id:    a._liveConnectionId,
-    page_id:          a._resolvedPageId ?? pageId ?? null,
-    message_template: a.message_template,
-    is_enabled:       a.is_enabled,
-    color_index:      a.color_index ?? i,
-    last_lead_fetch:  a.last_lead_fetch ?? null,
-    lead_count:       countMap[a.form_id] ?? 0,
+    id:                   a.id,
+    form_id:              a.form_id,
+    form_name:            a.form_name,
+    connection_id:        a._liveConnectionId,
+    page_id:              a._resolvedPageId ?? pageId ?? null,
+    message_template:     a.message_template,
+    is_enabled:           a.is_enabled,
+    color_index:          a.color_index ?? i,
+    last_lead_fetch:      a.last_lead_fetch ?? null,
+    lead_count:           countMap[a.form_id] ?? 0,
+    wa_template_name:     a.wa_template_name ?? null,
+    wa_template_language: a.wa_template_language ?? null,
   }))
 
   return NextResponse.json({ forms })
