@@ -30,7 +30,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ forms, connectionId: conn.id, whatsapp_connected: !!waRow.data })
   }
 
-  // Without page_id: return just the page list (fast, no Facebook API calls)
+  // Without page_id: return just the page list.
+  // Also backfill lead_form_automations for any connection that has no forms
+  // registered yet — so leads sync immediately without needing to activate first.
   const pages = (connections ?? []).map(conn => ({
     id:                    conn.id,
     page_id:               conn.page_id,
@@ -38,6 +40,48 @@ export async function GET(request: Request) {
     store_id:              conn.store_id,
     subscribed_to_leadgen: conn.subscribed_to_leadgen,
   }))
+
+  // Check which connections have no forms registered
+  const connIds = (connections ?? []).map(c => c.id as string)
+  if (connIds.length > 0) {
+    const { data: existingForms } = await service
+      .from('lead_form_automations')
+      .select('connection_id')
+      .eq('user_id', user.id)
+      .in('connection_id', connIds)
+
+    const connIdsWithForms = new Set((existingForms ?? []).map(f => f.connection_id as string))
+    const connsWithoutForms = (connections ?? []).filter(c => !connIdsWithForms.has(c.id as string))
+
+    // Backfill forms for connections that have none — fire and forget (non-blocking)
+    if (connsWithoutForms.length > 0) {
+      Promise.all(connsWithoutForms.map(async conn => {
+        try {
+          const forms = await getLeadForms(
+            conn.page_id as string,
+            conn.page_access_token as string,
+            conn.user_access_token as string | null,
+          )
+          if (!forms.length) return
+
+          const rows = forms.map(f => ({
+            user_id:          user.id,
+            store_id:         conn.store_id ?? null,
+            connection_id:    conn.id,
+            form_id:          f.id,
+            form_name:        f.name,
+            message_template: '',
+            is_enabled:       false,
+            updated_at:       new Date().toISOString(),
+          }))
+
+          await service
+            .from('lead_form_automations')
+            .upsert(rows, { onConflict: 'user_id,form_id', ignoreDuplicates: true })
+        } catch { /* non-fatal */ }
+      })).catch(() => null)
+    }
+  }
 
   return NextResponse.json({ pages })
 }

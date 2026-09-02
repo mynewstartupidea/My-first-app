@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { exchangeFBCode, getLongLivedToken, getUserPages, subscribePageToLeadgen } from '@/lib/facebook'
+import { exchangeFBCode, getLongLivedToken, getUserPages, subscribePageToLeadgen, getLeadForms } from '@/lib/facebook'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -42,16 +42,48 @@ export async function GET(request: Request) {
 
     for (const page of pages) {
       const subscribed = await subscribePageToLeadgen(page.id, page.access_token)
-      await service.from('facebook_connections').upsert({
-        user_id:               user.id,
-        store_id:              store?.id ?? null,
-        page_id:               page.id,
-        page_name:             page.name,
-        page_access_token:     page.access_token,
-        user_access_token:     longToken,
-        subscribed_to_leadgen: subscribed,
-        updated_at:            new Date().toISOString(),
-      }, { onConflict: 'user_id,page_id' })
+
+      // Upsert the connection and get back the row id
+      const { data: connRow } = await service
+        .from('facebook_connections')
+        .upsert({
+          user_id:               user.id,
+          store_id:              store?.id ?? null,
+          page_id:               page.id,
+          page_name:             page.name,
+          page_access_token:     page.access_token,
+          user_access_token:     longToken,
+          subscribed_to_leadgen: subscribed,
+          updated_at:            new Date().toISOString(),
+        }, { onConflict: 'user_id,page_id' })
+        .select('id')
+        .maybeSingle()
+
+      if (!connRow?.id) continue
+
+      // Fetch all Lead Ad forms for this page and register them for syncing.
+      // is_enabled = false means leads are synced but WhatsApp automation is off
+      // until the merchant explicitly activates it.
+      const forms = await getLeadForms(page.id, page.access_token, longToken)
+      if (!forms.length) continue
+
+      const automationRows = forms.map(f => ({
+        user_id:          user.id,
+        store_id:         store?.id ?? null,
+        connection_id:    connRow.id,
+        form_id:          f.id,
+        form_name:        f.name,
+        message_template: '',
+        is_enabled:       false,
+        updated_at:       new Date().toISOString(),
+      }))
+
+      // ignoreDuplicates: true so re-connecting a page doesn't overwrite
+      // an existing automation's is_enabled / message_template
+      await service
+        .from('lead_form_automations')
+        .upsert(automationRows, { onConflict: 'user_id,form_id', ignoreDuplicates: true })
+        .then(null, () => null) // non-fatal if constraint differs in DB
     }
 
     console.log(`[Facebook] connected ${pages.length} pages for user ${user.id}`)
