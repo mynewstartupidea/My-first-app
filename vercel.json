@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/facebook-leads",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/template-status",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
