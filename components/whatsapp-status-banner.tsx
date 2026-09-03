@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, CheckCircle2, ArrowRight, Zap, ShoppingCart, TrendingUp, Phone } from 'lucide-react'
+import { MessageCircle, CheckCircle2, ArrowRight, Zap, UserPlus, Bell, Phone } from 'lucide-react'
 
 interface Props {
   connected:   boolean
@@ -47,13 +47,13 @@ export default function WhatsAppStatusBanner({ connected, phone, tokenType }: Pr
         <div className="flex-1">
           <h2 className="text-lg font-bold text-slate-900">Connect your WhatsApp Business account</h2>
           <p className="text-slate-500 text-sm mt-1 leading-relaxed">
-            Link your WhatsApp number to start recovering abandoned carts, sending order updates, and automating customer conversations — all from one place.
+            Link your WhatsApp number to instantly message leads, automate follow-ups, and send campaigns — all from one place.
           </p>
           <div className="flex flex-wrap gap-4 mt-3">
             {[
-              { icon: ShoppingCart, text: 'Recover abandoned carts' },
-              { icon: Zap,          text: 'Automate order messages' },
-              { icon: TrendingUp,   text: 'Track revenue per message' },
+              { icon: UserPlus, text: 'Auto-message new leads' },
+              { icon: Zap,      text: 'Automate follow-ups' },
+              { icon: Bell,     text: 'Broadcast campaigns' },
             ].map(({ icon: Icon, text }) => (
               <span key={text} className="flex items-center gap-1.5 text-xs text-slate-500">
                 <Icon size={12} className="text-[#25D366]" /> {text}

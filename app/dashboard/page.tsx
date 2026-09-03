@@ -148,8 +148,8 @@ export default async function DashboardPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-7 flex items-start gap-3">
           <AlertCircle size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-semibold text-amber-800">Connect your Shopify store to unlock revenue automation</p>
-            <p className="text-amber-600 text-sm mt-0.5">Once connected, automations will start recovering abandoned carts and generating revenue 24/7.</p>
+            <p className="font-semibold text-amber-800">Connect your Shopify store</p>
+            <p className="text-amber-600 text-sm mt-0.5">Link your store to enable ecommerce campaigns, order updates, and customer segments.</p>
             <Link href="/dashboard/shopify" className="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold text-amber-700 hover:text-amber-900">
               <Store size={14} /> Connect Shopify <ArrowRight size={13} />
             </Link>
@@ -170,7 +170,7 @@ export default async function DashboardPage() {
           {
             label: 'WhatsApp Revenue', value: formatCurrency(totalRevenue),
             icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50',
-            sub: `${totals.carts} carts recovered`,
+            sub: totalRevenue > 0 ? 'from WhatsApp messages' : 'connect store to track',
             trend: totalRevenue > 0,
           },
           {
