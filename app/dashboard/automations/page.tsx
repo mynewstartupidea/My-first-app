@@ -124,6 +124,7 @@ function AutomationCard({
 }) {
   const [expanded, setExpanded]           = useState(false)
   const [enabled, setEnabled]             = useState(automation?.is_enabled ?? false)
+  const displayEnabled = enabled && whatsappConnected
   const [delay, setDelay]                 = useState(automation?.delay_minutes ?? meta.defaultDelay)
   const [template, setTemplate]           = useState(automation?.template ?? meta.defaultTemplate)
   const [discountEnabled, setDiscountEnabled] = useState(automation?.discount_enabled ?? false)
@@ -154,7 +155,7 @@ function AutomationCard({
 
   return (
     <div className={cn('bg-white rounded-2xl border-2 shadow-sm transition-all',
-      enabled ? 'border-[#25D366]/30' : 'border-slate-100')}>
+      displayEnabled ? 'border-[#25D366]/30' : 'border-slate-100')}>
       {/* Card header */}
       <div className="flex items-center gap-4 p-5">
         <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', meta.bg)}>
@@ -163,7 +164,7 @@ function AutomationCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-slate-800 text-sm">{meta.label}</p>
-            {enabled && (
+            {displayEnabled && (
               <span className="flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Live
               </span>
@@ -180,10 +181,10 @@ function AutomationCard({
           </div>
           {/* Toggle */}
           <button onClick={handleToggle} disabled={saving}
-            className={cn('relative h-6 w-11 rounded-full transition-colors flex-shrink-0 disabled:opacity-70', enabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
+            className={cn('relative h-6 w-11 rounded-full transition-colors flex-shrink-0 disabled:opacity-70', displayEnabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
             {saving
               ? <Loader2 size={12} className="absolute top-1 left-1 right-1 mx-auto text-white animate-spin" />
-              : <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all', enabled ? 'left-6' : 'left-1')} />
+              : <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all', displayEnabled ? 'left-6' : 'left-1')} />
             }
           </button>
           <button onClick={() => setExpanded(v => !v)}
@@ -427,7 +428,7 @@ export default function AutomationsPage() {
     await load()
   }
 
-  const activeCount = automations.filter(a => a.is_enabled).length
+  const activeCount = whatsappConnected ? automations.filter(a => a.is_enabled).length : 0
 
   return (
     <div className="p-6 lg:p-8">
