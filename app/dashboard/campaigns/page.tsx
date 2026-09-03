@@ -406,11 +406,12 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
   onClose: () => void
   onCreated: () => void
 }) {
-  const supabase = useMemo(() => createClient(), [])
-
   const [step,             setStep]             = useState<'audience' | 'template' | 'review'>('audience')
   const [name,             setName]             = useState('')
+  const [pages,            setPages]            = useState<Array<{ page_id: string; page_name: string }>>([])
+  const [selectedPageId,   setSelectedPageId]   = useState<string | null>(null)
   const [forms,            setForms]            = useState<LeadForm[]>([])
+  const [loadingForms,     setLoadingForms]     = useState(false)
   const [selectedFormId,   setSelectedFormId]   = useState<string | null>(null)
   const [dateFrom,         setDateFrom]         = useState<string | null>(null)
   const [dateTo,           setDateTo]           = useState<string | null>(null)
@@ -423,17 +424,28 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
   const [loading,          setLoading]          = useState(false)
   const [error,            setError]            = useState('')
 
-  // Load active forms from Supabase
+  // Load pages on mount; auto-select if only one
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase
-        .from('lead_form_automations')
-        .select('form_id, form_name, color_index')
-        .eq('user_id', user.id)
-        .then(({ data }) => setForms(data ?? []))
-    })
-  }, [supabase])
+    fetch('/api/facebook/pages')
+      .then(r => r.json())
+      .then((d: { pages?: Array<{ page_id: string; page_name: string }> }) => {
+        const p = d.pages ?? []
+        setPages(p)
+        if (p.length === 1) setSelectedPageId(p[0].page_id)
+      })
+  }, [])
+
+  // Load forms for the selected page
+  useEffect(() => {
+    if (!selectedPageId) { setForms([]); return }
+    setLoadingForms(true)
+    setSelectedFormId(null)
+    fetch(`/api/facebook/active-forms?page_id=${selectedPageId}`)
+      .then(r => r.json())
+      .then((d: { forms?: LeadForm[] }) => setForms(d.forms ?? []))
+      .catch(() => setForms([]))
+      .finally(() => setLoadingForms(false))
+  }, [selectedPageId])
 
   // Fetch count whenever filters change
   useEffect(() => {
@@ -564,30 +576,56 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
                 />
               </div>
 
+              {/* Page selector — only shown when user has multiple pages */}
+              {pages.length > 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Facebook page</label>
+                  <div className="flex flex-wrap gap-2">
+                    {pages.map(p => (
+                      <button key={p.page_id} onClick={() => setSelectedPageId(p.page_id)}
+                        className={cn('px-3 py-2 rounded-xl border-2 text-sm font-medium transition',
+                          selectedPageId === p.page_id
+                            ? 'border-[#25D366] bg-[#25D366]/5 text-slate-800'
+                            : 'border-slate-200 text-slate-600 hover:border-slate-300')}>
+                        {p.page_name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Lead form</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setSelectedFormId(null)}
-                    className={cn('flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm text-left transition',
-                      selectedFormId === null ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
-                    <Users size={14} className="flex-shrink-0 text-slate-500" />
-                    <span className="font-medium text-slate-800">All forms</span>
-                    {selectedFormId === null && <CheckCircle2 size={14} className="text-[#25D366] ml-auto" />}
-                  </button>
-                  {forms.map(f => (
+                {!selectedPageId && pages.length > 1 ? (
+                  <p className="text-sm text-slate-400 py-3">Select a Facebook page above first</p>
+                ) : loadingForms ? (
+                  <div className="flex items-center gap-2 py-3 text-sm text-slate-400">
+                    <Loader2 size={14} className="animate-spin" /> Loading forms…
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
                     <button
-                      key={f.form_id}
-                      onClick={() => setSelectedFormId(f.form_id)}
+                      onClick={() => setSelectedFormId(null)}
                       className={cn('flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm text-left transition',
-                        selectedFormId === f.form_id ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
-                      <div className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ background: LEAD_COLORS[(f.color_index ?? 0) % LEAD_COLORS.length] }} />
-                      <span className="font-medium text-slate-800 truncate flex-1" title={f.form_name}>{f.form_name}</span>
-                      {selectedFormId === f.form_id && <CheckCircle2 size={14} className="text-[#25D366] flex-shrink-0" />}
+                        selectedFormId === null ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
+                      <Users size={14} className="flex-shrink-0 text-slate-500" />
+                      <span className="font-medium text-slate-800">All forms</span>
+                      {selectedFormId === null && <CheckCircle2 size={14} className="text-[#25D366] ml-auto" />}
                     </button>
-                  ))}
-                </div>
+                    {forms.map(f => (
+                      <button
+                        key={f.form_id}
+                        onClick={() => setSelectedFormId(f.form_id)}
+                        className={cn('flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm text-left transition',
+                          selectedFormId === f.form_id ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
+                        <div className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ background: LEAD_COLORS[(f.color_index ?? 0) % LEAD_COLORS.length] }} />
+                        <span className="font-medium text-slate-800 truncate flex-1" title={f.form_name}>{f.form_name}</span>
+                        {selectedFormId === f.form_id && <CheckCircle2 size={14} className="text-[#25D366] flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
