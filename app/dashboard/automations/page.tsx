@@ -131,9 +131,15 @@ function AutomationCard({
   const [saving, setSaving]               = useState(false)
   const [saved, setSaved]                 = useState(false)
 
-  function handleToggle() {
+  async function handleToggle() {
     if (!enabled && !whatsappConnected) { onNeedsWhatsapp(); return }
-    setEnabled(v => !v)
+    const newEnabled = !enabled
+    setEnabled(newEnabled)
+    setSaving(true)
+    await onSave({ type, is_enabled: newEnabled, delay_minutes: delay, template, discount_enabled: discountEnabled, discount_value: discountValue })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   async function save() {
@@ -173,9 +179,12 @@ function AutomationCard({
             <TrendingUp size={11} /> {meta.impact}
           </div>
           {/* Toggle */}
-          <button onClick={handleToggle}
-            className={cn('relative h-6 w-11 rounded-full transition-colors flex-shrink-0', enabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
-            <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all', enabled ? 'left-6' : 'left-1')} />
+          <button onClick={handleToggle} disabled={saving}
+            className={cn('relative h-6 w-11 rounded-full transition-colors flex-shrink-0 disabled:opacity-70', enabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
+            {saving
+              ? <Loader2 size={12} className="absolute top-1 left-1 right-1 mx-auto text-white animate-spin" />
+              : <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all', enabled ? 'left-6' : 'left-1')} />
+            }
           </button>
           <button onClick={() => setExpanded(v => !v)}
             className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100">
