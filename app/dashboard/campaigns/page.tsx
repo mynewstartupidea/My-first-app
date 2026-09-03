@@ -410,6 +410,9 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
   const [name,             setName]             = useState('')
   const [pages,            setPages]            = useState<Array<{ page_id: string; page_name: string }>>([])
   const [selectedPageId,   setSelectedPageId]   = useState<string | null>(null)
+  const [autoSelectedPage, setAutoSelectedPage] = useState(false)
+  const [lockedPages,      setLockedPages]      = useState<Array<{ page_id: string; page_name: string }>>([])
+  const [showLockPopup,    setShowLockPopup]    = useState(false)
   const [forms,            setForms]            = useState<LeadForm[]>([])
   const [loadingForms,     setLoadingForms]     = useState(false)
   const [selectedFormId,   setSelectedFormId]   = useState<string | null>(null)
@@ -424,15 +427,33 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
   const [loading,          setLoading]          = useState(false)
   const [error,            setError]            = useState('')
 
-  // Load pages on mount; auto-select if only one
+  // Load pages + check which pages have actually had WhatsApp messages sent (the real lock-in signal)
   useEffect(() => {
-    fetch('/api/facebook/pages')
-      .then(r => r.json())
-      .then((d: { pages?: Array<{ page_id: string; page_name: string }> }) => {
-        const p = d.pages ?? []
-        setPages(p)
-        if (p.length === 1) setSelectedPageId(p[0].page_id)
-      })
+    Promise.all([
+      fetch('/api/facebook/pages').then(r => r.json()),
+      fetch('/api/leads/whatsapp-association').then(r => r.json()),
+    ]).then(([pagesData, assocData]: [
+      { pages?: Array<{ page_id: string; page_name: string }> },
+      { locked_pages?: Array<{ page_id: string; page_name: string }> }
+    ]) => {
+      const p = pagesData.pages ?? []
+      const locked = assocData.locked_pages ?? []
+      setPages(p)
+      setLockedPages(locked)
+
+      if (p.length === 1) {
+        // Only one page connected — always auto-select
+        setSelectedPageId(p[0].page_id)
+        setAutoSelectedPage(true)
+      } else if (locked.length === 1) {
+        // Exactly one page has sent WhatsApp messages — lock to it
+        setSelectedPageId(locked[0].page_id)
+        setAutoSelectedPage(true)
+      } else if (locked.length === 0 && p.length > 0) {
+        // No messages sent yet — show picker, nothing pre-selected
+      }
+      // locked.length > 1: messages sent from multiple pages — show picker, user chooses
+    })
   }, [])
 
   // Load forms for the selected page
@@ -576,20 +597,83 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
                 />
               </div>
 
-              {/* Page selector — only shown when user has multiple pages */}
+              {/* Page selector */}
               {pages.length > 1 && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Facebook page</label>
-                  <div className="flex flex-wrap gap-2">
-                    {pages.map(p => (
-                      <button key={p.page_id} onClick={() => setSelectedPageId(p.page_id)}
-                        className={cn('px-3 py-2 rounded-xl border-2 text-sm font-medium transition',
-                          selectedPageId === p.page_id
-                            ? 'border-[#25D366] bg-[#25D366]/5 text-slate-800'
-                            : 'border-slate-200 text-slate-600 hover:border-slate-300')}>
-                        {p.page_name}
+                  {lockedPages.length === 1 ? (
+                    // Hard-locked: messages already sent from this page
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-[#25D366]/5 border border-[#25D366]/30 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle size={14} className="text-[#25D366]" />
+                        <div>
+                          <p className="text-xs text-slate-400 leading-none mb-0.5">WhatsApp linked page</p>
+                          <p className="text-sm font-semibold text-slate-800 leading-none">
+                            {lockedPages[0].page_name}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowLockPopup(true)}
+                        className="text-xs text-slate-400 hover:text-slate-600 transition">
+                        Change
                       </button>
-                    ))}
+                    </div>
+                  ) : autoSelectedPage && selectedPageId ? (
+                    // Auto-selected (single page) — allow change
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-[#25D366]/5 border border-[#25D366]/30 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle size={14} className="text-[#25D366]" />
+                        <div>
+                          <p className="text-xs text-slate-400 leading-none mb-0.5">WhatsApp linked page</p>
+                          <p className="text-sm font-semibold text-slate-800 leading-none">
+                            {pages.find(p => p.page_id === selectedPageId)?.page_name}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // First time or multiple locked pages — show picker
+                    <div className="flex flex-wrap gap-2">
+                      {pages.map(p => (
+                        <button key={p.page_id} onClick={() => {
+                          setSelectedPageId(p.page_id)
+                          setAutoSelectedPage(true)
+                        }}
+                          className={cn('px-3 py-2 rounded-xl border-2 text-sm font-medium transition',
+                            selectedPageId === p.page_id
+                              ? 'border-[#25D366] bg-[#25D366]/5 text-slate-800'
+                              : 'border-slate-200 text-slate-600 hover:border-slate-300')}>
+                          {p.page_name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Lock popup — shown when user tries to change a locked page */}
+              {showLockPopup && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                    <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <MessageCircle size={22} className="text-amber-600" />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 text-center mb-2">
+                      WhatsApp is linked to this page
+                    </h3>
+                    <p className="text-sm text-slate-500 text-center leading-relaxed mb-1">
+                      You've already sent WhatsApp messages to leads from{' '}
+                      <span className="font-semibold text-slate-700">{lockedPages[0]?.page_name}</span>.
+                    </p>
+                    <p className="text-sm text-slate-500 text-center leading-relaxed mb-5">
+                      Each Wapaci account is tied to one WhatsApp number and one Facebook page. To manage a different page, create a separate Wapaci account for it.
+                    </p>
+                    <button
+                      onClick={() => setShowLockPopup(false)}
+                      className="w-full bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold py-2.5 rounded-xl transition">
+                      Got it
+                    </button>
                   </div>
                 </div>
               )}
@@ -603,7 +687,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
                     <Loader2 size={14} className="animate-spin" /> Loading forms…
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
                     <button
                       onClick={() => setSelectedFormId(null)}
                       className={cn('flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm text-left transition',
@@ -620,7 +704,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
                           selectedFormId === f.form_id ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300')}>
                         <div className="w-2 h-2 rounded-full flex-shrink-0"
                           style={{ background: LEAD_COLORS[(f.color_index ?? 0) % LEAD_COLORS.length] }} />
-                        <span className="font-medium text-slate-800 truncate flex-1" title={f.form_name}>{f.form_name}</span>
+                        <span className="font-medium text-slate-800 truncate flex-1">{f.form_name}</span>
                         {selectedFormId === f.form_id && <CheckCircle2 size={14} className="text-[#25D366] flex-shrink-0" />}
                       </button>
                     ))}
