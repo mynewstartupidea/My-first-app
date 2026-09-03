@@ -30,8 +30,14 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${APP_URL}/dashboard?billing=failed`)
   }
 
+  // Shopify returns a numeric charge_id in the callback URL.
+  // The node query requires a full GID — convert if needed.
+  const gid = chargeId.startsWith('gid://')
+    ? chargeId
+    : `gid://shopify/AppSubscription/${chargeId}`
+
   // Verify subscription status with Shopify
-  const query = `{ node(id: ${JSON.stringify(chargeId)}) { ... on AppSubscription { id status } } }`
+  const query = `{ node(id: ${JSON.stringify(gid)}) { ... on AppSubscription { id status } } }`
   const verifyRes = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
     method: 'POST',
     headers: {

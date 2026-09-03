@@ -3,15 +3,24 @@ import { verifyShopifyWebhook } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
 
-// Normalise a raw phone string to E.164 for Indian numbers.
-// Handles: 10-digit bare, +91XXXXXXXXXX (already E.164), 91XXXXXXXXXX (country code, no +).
-// Non-Indian numbers (different length/prefix) are returned with a leading + so they
-// are at least valid E.164, avoiding double +91 prepending.
-function toE164(raw: string): string {
+// Normalise a raw phone string to E.164.
+// Uses the Shopify address country_code to determine prefix for bare 10-digit numbers.
+// Defaults to +91 (India) when country is unknown — primary market.
+function toE164(raw: string, countryCode = ''): string {
+  if (!raw) return ''
+  if (raw.startsWith('+')) return `+${raw.replace(/\D/g, '')}`
   const digits = raw.replace(/\D/g, '')
-  if (digits.length === 10) return `+91${digits}`
-  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`
-  if (digits.length > 10) return `+${digits}` // already has country code digits
+  if (!digits) return ''
+  // Already includes country code digits (11–15 digits)
+  if (digits.length > 10) return `+${digits}`
+  // 10-digit number — infer country prefix
+  if (digits.length === 10) {
+    if (countryCode === 'US' || countryCode === 'CA') return `+1${digits}`
+    if (countryCode === 'GB') return `+44${digits}`
+    if (countryCode === 'AU') return `+61${digits}`
+    if (countryCode === 'AE') return `+971${digits}`
+    return `+91${digits}` // default: India
+  }
   return `+91${digits}`
 }
 
@@ -101,7 +110,11 @@ export async function POST(request: Request) {
 async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, checkout: Record<string, unknown>) {
   const rawPhone = String(checkout.phone ?? (checkout.shipping_address as Record<string, unknown>)?.phone ?? '')
   if (!rawPhone.replace(/\D/g, '')) return
-  const phone = toE164(rawPhone)
+  const countryCode = String(
+    (checkout.shipping_address as Record<string, unknown>)?.country_code ??
+    (checkout.billing_address  as Record<string, unknown>)?.country_code ?? ''
+  ).toUpperCase()
+  const phone = toE164(rawPhone, countryCode)
 
   const { data: auto } = await supabase
     .from('automations')
@@ -210,7 +223,11 @@ async function attributeRevenue(
 async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
   const rawPhone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '')
   if (!rawPhone.replace(/\D/g, '')) return
-  const phone = toE164(rawPhone)
+  const countryCode = String(
+    (order.shipping_address as Record<string, unknown>)?.country_code ??
+    (order.billing_address  as Record<string, unknown>)?.country_code ?? ''
+  ).toUpperCase()
+  const phone = toE164(rawPhone, countryCode)
 
   const isCOD        = String((order.payment_gateway_names as string[])?.[0] ?? '').toLowerCase().includes('cod') ||
                        String(order.payment_gateway ?? '').toLowerCase().includes('cod') ||
@@ -283,7 +300,11 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
 async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
   const rawPhone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '')
   if (!rawPhone.replace(/\D/g, '')) return
-  const customerPhone = toE164(rawPhone)
+  const countryCode = String(
+    (order.shipping_address as Record<string, unknown>)?.country_code ??
+    (order.billing_address  as Record<string, unknown>)?.country_code ?? ''
+  ).toUpperCase()
+  const customerPhone = toE164(rawPhone, countryCode)
 
   const firstName   = String((order.customer as Record<string, unknown>)?.first_name ?? 'there')
   const orderNumber = String(order.order_number ?? order.name ?? '')

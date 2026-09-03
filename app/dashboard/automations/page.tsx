@@ -113,12 +113,14 @@ const COMING_SOON = [
 ]
 
 function AutomationCard({
-  type, meta, automation, onSave,
+  type, meta, automation, onSave, whatsappConnected, onNeedsWhatsapp,
 }: {
   type: LiveType
   meta: typeof LIVE_TYPES[LiveType]
   automation: Automation | null
   onSave: (data: Partial<Automation> & { type: LiveType }) => Promise<void>
+  whatsappConnected: boolean
+  onNeedsWhatsapp: () => void
 }) {
   const [expanded, setExpanded]           = useState(false)
   const [enabled, setEnabled]             = useState(automation?.is_enabled ?? false)
@@ -128,6 +130,11 @@ function AutomationCard({
   const [discountValue, setDiscountValue] = useState(automation?.discount_value ?? 10)
   const [saving, setSaving]               = useState(false)
   const [saved, setSaved]                 = useState(false)
+
+  function handleToggle() {
+    if (!enabled && !whatsappConnected) { onNeedsWhatsapp(); return }
+    setEnabled(v => !v)
+  }
 
   async function save() {
     setSaving(true)
@@ -166,7 +173,7 @@ function AutomationCard({
             <TrendingUp size={11} /> {meta.impact}
           </div>
           {/* Toggle */}
-          <button onClick={() => setEnabled(v => !v)}
+          <button onClick={handleToggle}
             className={cn('relative h-6 w-11 rounded-full transition-colors flex-shrink-0', enabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
             <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all', enabled ? 'left-6' : 'left-1')} />
           </button>
@@ -360,11 +367,13 @@ function LeadAdCard() {
 }
 
 export default function AutomationsPage() {
-  const [automations, setAutomations] = useState<Automation[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [hasStore, setHasStore]       = useState(true)
-  const [storeId, setStoreId]         = useState<string | null>(null)
-  const [toast, setToast]             = useState<{ msg: string; ok: boolean } | null>(null)
+  const [automations, setAutomations]       = useState<Automation[]>([])
+  const [loading, setLoading]               = useState(true)
+  const [hasStore, setHasStore]             = useState(true)
+  const [storeId, setStoreId]               = useState<string | null>(null)
+  const [whatsappConnected, setWaConnected] = useState(false)
+  const [showWaPopup, setShowWaPopup]       = useState(false)
+  const [toast, setToast]                   = useState<{ msg: string; ok: boolean } | null>(null)
   const supabase = useMemo(() => createClient(), [])
 
   function showToast(msg: string, ok = true) {
@@ -375,11 +384,18 @@ export default function AutomationsPage() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data: store } = await supabase.from('stores').select('id').eq('user_id', user.id)
-      .eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
-    if (!store) { setHasStore(false); setLoading(false); return }
-    setStoreId(store.id); setHasStore(true)
-    const { data } = await supabase.from('automations').select('*').eq('store_id', store.id)
+
+    const [storeRes, waRes] = await Promise.all([
+      supabase.from('stores').select('id').eq('user_id', user.id)
+        .eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle(),
+      supabase.from('whatsapp_accounts').select('id').eq('user_id', user.id).eq('status', 'connected').maybeSingle(),
+    ])
+
+    setWaConnected(!!waRes.data)
+
+    if (!storeRes.data) { setHasStore(false); setLoading(false); return }
+    setStoreId(storeRes.data.id); setHasStore(true)
+    const { data } = await supabase.from('automations').select('*').eq('store_id', storeRes.data.id)
     setAutomations(data ?? [])
     setLoading(false)
   }, [supabase])
@@ -410,6 +426,35 @@ export default function AutomationsPage() {
         <div className={cn('fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold transition',
           toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white')}>
           {toast.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />} {toast.msg}
+        </div>
+      )}
+
+      {/* WhatsApp not connected popup */}
+      {showWaPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="w-12 h-12 bg-[#25D366]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <MessageSquare size={22} className="text-[#25D366]" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 text-center mb-2">
+              Connect WhatsApp first
+            </h3>
+            <p className="text-sm text-slate-500 text-center leading-relaxed mb-5">
+              You need to connect your WhatsApp Business account before enabling automations. Messages can't be sent without it.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowWaPopup(false)}
+                className="flex-1 py-2.5 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <a
+                href="/dashboard/settings?tab=whatsapp"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-xl transition text-center">
+                Connect WhatsApp
+              </a>
+            </div>
+          </div>
         </div>
       )}
 
@@ -472,6 +517,8 @@ export default function AutomationsPage() {
                   meta={LIVE_TYPES[type]}
                   automation={automations.find(a => a.type === type) ?? null}
                   onSave={handleSave}
+                  whatsappConnected={whatsappConnected}
+                  onNeedsWhatsapp={() => setShowWaPopup(true)}
                 />
               ))}
             </div>
