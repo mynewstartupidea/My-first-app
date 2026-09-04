@@ -1389,6 +1389,8 @@ function LeadsContent() {
   const [importingForm,  setImportingForm]  = useState<ActiveForm | null>(null)
   const [togglingId,     setTogglingId]     = useState<string | null>(null)
   const [showBulkMsg,    setShowBulkMsg]    = useState(false)
+  const [lockedPage,     setLockedPage]     = useState<{ page_id: string; page_name: string } | null>(null)
+  const [showPageLockPopup, setShowPageLockPopup] = useState(false)
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -1451,10 +1453,13 @@ function LeadsContent() {
       let cachedPageId: string | null = null
       try { cachedPageId = sessionStorage.getItem('_wpl_pid') } catch {}
 
-      const [p] = await Promise.all([
+      const [p, assocData] = await Promise.all([
         fetchPages(),
+        fetch('/api/leads/whatsapp-association').then(r => r.json()),
         ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId), fetchStats(cachedPageId)] : []),
-      ]) as [Page[], ...unknown[]]
+      ]) as [Page[], { locked_pages?: { page_id: string; page_name: string }[] }, ...unknown[]]
+      const locked = (assocData?.locked_pages ?? [])[0] ?? null
+      setLockedPage(locked)
 
       setPagesLoaded(true)
 
@@ -1722,7 +1727,13 @@ function LeadsContent() {
             Refresh leads
           </button>
           <button
-            onClick={() => setShowBulkMsg(true)}
+            onClick={() => {
+              if (lockedPage && selectedPageId && lockedPage.page_id !== selectedPageId) {
+                setShowPageLockPopup(true)
+              } else {
+                setShowBulkMsg(true)
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition shadow-sm"
             title="Send a WhatsApp message to existing leads"
           >
@@ -2014,6 +2025,28 @@ function LeadsContent() {
             }
           }}
         />
+      )}
+
+      {/* Page lock popup — shown when user tries to message leads from a different page */}
+      {showPageLockPopup && lockedPage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <MessageCircle className="w-6 h-6 text-amber-500" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 text-center mb-2">
+              WhatsApp already linked to another page
+            </h3>
+            <p className="text-sm text-slate-500 text-center leading-relaxed mb-5">
+              Your WhatsApp is already connected to <span className="font-semibold text-slate-700">{lockedPage.page_name}</span>. Each Wapaci account can only message leads from one Facebook page. To manage a different page, create a separate Wapaci account.
+            </p>
+            <button
+              onClick={() => setShowPageLockPopup(false)}
+              className="w-full py-2.5 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition">
+              Got it
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

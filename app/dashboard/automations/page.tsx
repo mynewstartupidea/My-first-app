@@ -133,7 +133,7 @@ function AutomationCard({
   const [saved, setSaved]                 = useState(false)
 
   async function handleToggle() {
-    if (!enabled && !whatsappConnected) { onNeedsWhatsapp(); return }
+    if (!displayEnabled && !whatsappConnected) { onNeedsWhatsapp(); return }
     const newEnabled = !enabled
     setEnabled(newEnabled)
     setSaving(true)
