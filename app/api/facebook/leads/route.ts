@@ -12,7 +12,8 @@ export async function GET(request: Request) {
   const download = searchParams.get('download') === 'true'
   const limit    = download ? 5000 : Math.min(parseInt(searchParams.get('limit') ?? '50') || 50, 200)
   const offset   = parseInt(searchParams.get('offset') ?? '0') || 0
-  const q        = searchParams.get('q')?.trim() ?? ''
+  const q           = searchParams.get('q')?.trim() ?? ''
+  const leadStatus  = searchParams.get('lead_status')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   const buildQuery = (countOnly = false) => {
     let query = service
       .from('leads')
-      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
+      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     if (formId) query = query.eq('form_id', formId)
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
       const esc = q.replace(/[%_\\]/g, '\\$&')
       query = query.or(`name.ilike.%${esc}%,phone.ilike.%${esc}%,email.ilike.%${esc}%`)
     }
+    if (leadStatus) query = query.eq('lead_status', leadStatus)
     return query
   }
 
