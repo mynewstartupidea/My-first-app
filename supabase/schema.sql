@@ -186,19 +186,19 @@ RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO automations (store_id, type, is_enabled, delay_minutes, template) VALUES
   (
-    p_store_id, 'abandoned_cart', true, 30,
+    p_store_id, 'abandoned_cart', false, 30,
     'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}. Your items are waiting for you! Complete your purchase here: {{cart_url}}{{#discount}} Use code {{discount_code}} for {{discount_value}}% off!{{/discount}}'
   ),
   (
-    p_store_id, 'cod_verification', true, 5,
+    p_store_id, 'cod_verification', false, 5,
     'Hi {{name}}! Your order #{{order_number}} for ₹{{amount}} has been placed at {{shop_name}}. Please reply YES to confirm your COD order or NO to cancel. Thank you!'
   ),
   (
-    p_store_id, 'order_confirmation', true, 0,
+    p_store_id, 'order_confirmation', false, 0,
     'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}. We will notify you once it ships. Track your order: {{order_url}}'
   ),
   (
-    p_store_id, 'shipping_update', true, 0,
+    p_store_id, 'shipping_update', false, 0,
     'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped! Track it here: {{tracking_url}}'
   )
   ON CONFLICT (store_id, type) DO NOTHING;
