@@ -87,14 +87,17 @@ export async function POST(request: Request) {
         const sub = payload as { app_subscription?: { status?: string; admin_graphql_api_id?: string } }
         const subStatus = sub.app_subscription?.status
         const subId     = sub.app_subscription?.admin_graphql_api_id
-        if (subId) {
+        // Webhook sends a full GID (gid://shopify/AppSubscription/12345) but we store
+        // the numeric ID from the callback URL — extract the numeric part to match.
+        const numericSubId = subId?.split('/').pop()
+        if (numericSubId) {
           const dbStatus = subStatus === 'ACTIVE' ? 'active'
             : subStatus === 'PENDING' ? 'trialing'
             : subStatus === 'CANCELLED' || subStatus === 'DECLINED' ? 'cancelled'
             : null
           if (dbStatus) {
             await supabase.from('billing').update({ status: dbStatus, updated_at: new Date().toISOString() })
-              .eq('shopify_subscription_id', subId)
+              .eq('shopify_subscription_id', numericSubId)
           }
         }
         break
