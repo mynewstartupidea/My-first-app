@@ -1173,6 +1173,7 @@ function CallLogModal({ lead, onClose, onUpdate }: {
   const [notes, setNotes]         = useState('')
   const [followupAt, setFollowupAt] = useState('')
   const [tagStatus, setTagStatus] = useState<string | null>(lead.lead_status ?? null)
+  const [sendFollowup, setSendFollowup] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [tagging, setTagging]     = useState(false)
@@ -1188,7 +1189,7 @@ function CallLogModal({ lead, onClose, onUpdate }: {
   const handleSubmit = async () => {
     if (!outcome) return
     setSubmitting(true)
-    const body: Record<string, unknown> = { leadId: lead.id, outcome, notes }
+    const body: Record<string, unknown> = { leadId: lead.id, outcome, notes, sendFollowup }
     if (followupAt) body.followupAt = new Date(followupAt).toISOString()
     if (tagStatus !== lead.lead_status) body.tagStatus = tagStatus
 
@@ -1197,15 +1198,16 @@ function CallLogModal({ lead, onClose, onUpdate }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    const d = await r.json() as { log?: CallLog }
+    const d = await r.json() as { log?: CallLog; followupQueued?: boolean }
     if (d.log) setLogs(prev => [d.log!, ...prev])
 
     const updates: Partial<Lead> = {}
     if (followupAt) updates.followup_at = new Date(followupAt).toISOString()
     if (tagStatus !== lead.lead_status) updates.lead_status = tagStatus
+    if (d.followupQueued) updates.wa_status = 'pending'
     if (Object.keys(updates).length > 0) onUpdate(lead.id, updates)
 
-    setOutcome(null); setNotes(''); setFollowupAt('')
+    setOutcome(null); setNotes(''); setFollowupAt(''); setSendFollowup(false)
     setSubmitting(false)
   }
 
@@ -1324,6 +1326,32 @@ function CallLogModal({ lead, onClose, onUpdate }: {
                 </button>
               ))}
             </div>
+
+            {/* WhatsApp follow-up toggle — only for no_answer / voicemail */}
+            {(outcome === 'no_answer' || outcome === 'voicemail') && lead.phone && (
+              <button
+                onClick={() => setSendFollowup(s => !s)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border mb-3 text-left transition ${
+                  sendFollowup
+                    ? 'border-green-400 bg-green-50'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}>
+                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${
+                  sendFollowup ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                }`}>
+                  {sendFollowup && <CheckCircle className="w-3 h-3 text-white" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-700">Send WhatsApp follow-up</p>
+                  <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                    {outcome === 'no_answer'
+                      ? '"Hi [name], we tried calling you. Feel free to reply here whenever you\'re free."'
+                      : '"Hi [name], we left you a voicemail. You can also reply here anytime..."'}
+                  </p>
+                </div>
+                <MessageCircle className={`w-4 h-4 flex-shrink-0 ${sendFollowup ? 'text-green-500' : 'text-gray-300'}`} />
+              </button>
+            )}
 
             <textarea
               value={notes}

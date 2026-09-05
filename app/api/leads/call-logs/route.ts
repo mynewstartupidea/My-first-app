@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { renderTemplate } from '@/lib/utils'
 
 const VALID_OUTCOMES = new Set(['connected', 'no_answer', 'voicemail', 'callback', 'busy'])
 const VALID_STATUSES = new Set(['hot', 'warm', 'cold', 'lost', 'converted', 'junk', 'resolved'])
+
+// Template bodies used for WhatsApp follow-up after missed call / voicemail
+const FOLLOWUP_TEMPLATES: Record<string, { name: string; body: string }> = {
+  no_answer: { name: 'wapaci_missed_call',       body: 'Hi {{name}}, we tried calling you. Feel free to reply here whenever you\'re free.' },
+  voicemail: { name: 'wapaci_voicemail_followup', body: 'Hi {{name}}, we left you a voicemail. You can also reply here anytime and we\'ll get back to you.' },
+}
 
 // GET /api/leads/call-logs?lead_id=xxx
 export async function GET(request: Request) {
@@ -37,6 +44,7 @@ export async function POST(request: Request) {
     followupAt?: string | null
     tagStatus?: string | null
     callerName?: string
+    sendFollowup?: boolean
   }
 
   if (!VALID_OUTCOMES.has(body.outcome)) {
@@ -79,5 +87,42 @@ export async function POST(request: Request) {
     await service.from('leads').update(updates).eq('id', body.leadId)
   }
 
-  return NextResponse.json({ log: data })
+  // Queue WhatsApp follow-up message if requested
+  let followupQueued = false
+  if (body.sendFollowup && FOLLOWUP_TEMPLATES[body.outcome]) {
+    const tmpl = FOLLOWUP_TEMPLATES[body.outcome]
+    const { data: lead } = await service
+      .from('leads')
+      .select('id, name, phone, store_id, form_id')
+      .eq('id', body.leadId)
+      .maybeSingle()
+
+    if (lead?.phone && lead?.store_id) {
+      const message = renderTemplate(tmpl.body, {
+        name: lead.name ?? 'there',
+        phone: lead.phone,
+      })
+      await service.from('automation_jobs').insert({
+        store_id: lead.store_id,
+        automation_id: null,
+        type: 'lead_ad',
+        customer_phone: lead.phone,
+        customer_name: lead.name ?? 'Lead',
+        message,
+        context: {
+          lead_id: lead.id,
+          form_id: lead.form_id,
+          manual: true,
+          missed_call_followup: true,
+          template_name: tmpl.name,
+        },
+        status: 'pending',
+        scheduled_at: new Date().toISOString(),
+      })
+      await service.from('leads').update({ wa_status: 'pending' }).eq('id', body.leadId)
+      followupQueued = true
+    }
+  }
+
+  return NextResponse.json({ log: data, followupQueued })
 }

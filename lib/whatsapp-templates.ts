@@ -60,6 +60,26 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     vars:        ['name', 'phone'],
     example:     [['John', '+91 98765 43210']],
   },
+  {
+    name:        'wapaci_missed_call',
+    language:    'en',
+    category:    'UTILITY',
+    description: 'Missed call follow-up — send after a No Answer to re-engage the lead',
+    body:        'Hi {{1}}, we tried calling you. Feel free to reply here whenever you\'re free.',
+    bodyPreview: 'Hi {{name}}, we tried calling you. Feel free to reply here whenever you\'re free.',
+    vars:        ['name'],
+    example:     [['John']],
+  },
+  {
+    name:        'wapaci_voicemail_followup',
+    language:    'en',
+    category:    'UTILITY',
+    description: 'Voicemail follow-up — send after leaving a voicemail to open a chat',
+    body:        'Hi {{1}}, we left you a voicemail. You can also reply here anytime and we\'ll get back to you.',
+    bodyPreview: 'Hi {{name}}, we left you a voicemail. You can also reply here anytime and we\'ll get back to you.',
+    vars:        ['name'],
+    example:     [['John']],
+  },
 ]
 
 export interface TemplateProvisionResult {
