@@ -1153,6 +1153,7 @@ const OUTCOME_META: Record<string, { label: string; dot: string; bg: string; tex
 const LEAD_STATUS_META: Record<string, { label: string; dot: string; bg: string; text: string }> = {
   hot:       { label: 'Hot',       dot: '#ef4444', bg: '#fef2f2', text: '#991b1b' },
   warm:      { label: 'Warm',      dot: '#f97316', bg: '#fff7ed', text: '#9a3412' },
+  cold:      { label: 'Cold',      dot: '#6366f1', bg: '#eef2ff', text: '#4338ca' },
   converted: { label: 'Converted', dot: '#10b981', bg: '#ecfdf5', text: '#065f46' },
   lost:      { label: 'Lost',      dot: '#6b7280', bg: '#f9fafb', text: '#374151' },
   junk:      { label: 'Junk',      dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280' },

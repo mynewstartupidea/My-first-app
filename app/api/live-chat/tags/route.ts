@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
-const VALID_STATUSES = new Set(['hot', 'warm', 'lost', 'converted', 'junk', 'resolved'])
+const VALID_STATUSES = new Set(['hot', 'warm', 'cold', 'lost', 'converted', 'junk', 'resolved'])
 
 // GET /api/live-chat/tags?phones=+91xxx,+91yyy
 // Returns { [phone]: lead_status } for all matching leads

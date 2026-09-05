@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 const VALID_OUTCOMES = new Set(['connected', 'no_answer', 'voicemail', 'callback', 'busy'])
-const VALID_STATUSES = new Set(['hot', 'warm', 'lost', 'converted', 'junk', 'resolved'])
+const VALID_STATUSES = new Set(['hot', 'warm', 'cold', 'lost', 'converted', 'junk', 'resolved'])
 
 // GET /api/leads/call-logs?lead_id=xxx
 export async function GET(request: Request) {

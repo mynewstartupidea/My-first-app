@@ -10,11 +10,12 @@ import {
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
 
-type LeadStatus = 'hot' | 'warm' | 'lost' | 'converted' | 'junk' | 'resolved'
+type LeadStatus = 'hot' | 'warm' | 'cold' | 'lost' | 'converted' | 'junk' | 'resolved'
 
 const STATUS_META: Record<LeadStatus, { label: string; dot: string; bg: string; text: string; border: string }> = {
   hot:       { label: 'Hot',       dot: '#ef4444', bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
   warm:      { label: 'Warm',      dot: '#f97316', bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
+  cold:      { label: 'Cold',      dot: '#6366f1', bg: '#eef2ff', text: '#4338ca', border: '#c7d2fe' },
   converted: { label: 'Converted', dot: '#10b981', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
   lost:      { label: 'Lost',      dot: '#6b7280', bg: '#f9fafb', text: '#374151', border: '#e5e7eb' },
   junk:      { label: 'Junk',      dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb' },
