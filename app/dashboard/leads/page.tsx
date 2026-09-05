@@ -1675,9 +1675,8 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
                         ? <Loader2 className="w-4 h-4 animate-spin" />
                         : af.is_enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                     </button>
-                    <button onClick={() => onImport(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600 flex items-center gap-0.5" title="Download leads by date range">
-                      <Download className="w-3.5 h-3.5" />
-                      <Clock className="w-3.5 h-3.5" />
+                    <button onClick={() => onImport(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Download leads by date range">
+                      <Download className="w-4 h-4" />
                     </button>
                     <button onClick={() => onEdit(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Edit WhatsApp template">
                       <Edit2 className="w-4 h-4" />
