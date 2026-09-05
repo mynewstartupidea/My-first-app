@@ -7,8 +7,10 @@ import {
   CheckCircle, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
   Loader2, Pause, Play, Search, Edit2, Download, Clock,
   AlertCircle, FileText, LogOut, Sparkles, Send,
+  Phone, Calendar, UserCheck,
 } from 'lucide-react'
 import type { StarterTemplate } from '@/lib/whatsapp-templates'
+import { timeAgo } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,8 +51,23 @@ interface Lead {
   form_name: string | null
   page_id: string | null
   wa_status: string
+  lead_status: string | null
+  assigned_to: string | null
+  assigned_name: string | null
+  followup_at: string | null
   created_at: string
   fields: Record<string, string> | null
+}
+
+interface CallLog {
+  id: string
+  lead_id: string
+  called_by: string
+  caller_name: string | null
+  outcome: string
+  notes: string
+  followup_at: string | null
+  created_at: string
 }
 
 // ── Colors ────────────────────────────────────────────────────────────────────
@@ -1123,22 +1140,291 @@ function BulkMessageModal({ activeForms, onClose, onSent }: {
   )
 }
 
+// ── Call log constants ────────────────────────────────────────────────────────
+
+const OUTCOME_META: Record<string, { label: string; dot: string; bg: string; text: string; border: string }> = {
+  connected: { label: 'Connected', dot: '#10b981', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
+  no_answer: { label: 'No Answer', dot: '#ef4444', bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+  voicemail: { label: 'Voicemail', dot: '#8b5cf6', bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe' },
+  callback:  { label: 'Callback',  dot: '#f97316', bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
+  busy:      { label: 'Busy',      dot: '#6b7280', bg: '#f9fafb', text: '#374151', border: '#e5e7eb' },
+}
+
+const LEAD_STATUS_META: Record<string, { label: string; dot: string; bg: string; text: string }> = {
+  hot:       { label: 'Hot',       dot: '#ef4444', bg: '#fef2f2', text: '#991b1b' },
+  warm:      { label: 'Warm',      dot: '#f97316', bg: '#fff7ed', text: '#9a3412' },
+  converted: { label: 'Converted', dot: '#10b981', bg: '#ecfdf5', text: '#065f46' },
+  lost:      { label: 'Lost',      dot: '#6b7280', bg: '#f9fafb', text: '#374151' },
+  junk:      { label: 'Junk',      dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280' },
+  resolved:  { label: 'Resolved',  dot: '#3b82f6', bg: '#eff6ff', text: '#1e40af' },
+}
+
+// ── CallLogModal ──────────────────────────────────────────────────────────────
+
+function CallLogModal({ lead, onClose, onUpdate }: {
+  lead: Lead
+  onClose: () => void
+  onUpdate: (leadId: string, updates: Partial<Lead>) => void
+}) {
+  const [logs, setLogs]           = useState<CallLog[]>([])
+  const [loadingLogs, setLoadingLogs] = useState(true)
+  const [outcome, setOutcome]     = useState<string | null>(null)
+  const [notes, setNotes]         = useState('')
+  const [followupAt, setFollowupAt] = useState('')
+  const [tagStatus, setTagStatus] = useState<string | null>(lead.lead_status ?? null)
+  const [submitting, setSubmitting] = useState(false)
+  const [assigning, setAssigning] = useState(false)
+  const [tagging, setTagging]     = useState(false)
+  const [localAssignedName, setLocalAssignedName] = useState(lead.assigned_name)
+
+  useEffect(() => {
+    fetch(`/api/leads/call-logs?lead_id=${lead.id}`)
+      .then(r => r.json())
+      .then((d: { logs: CallLog[] }) => { setLogs(d.logs ?? []); setLoadingLogs(false) })
+      .catch(() => setLoadingLogs(false))
+  }, [lead.id])
+
+  const handleSubmit = async () => {
+    if (!outcome) return
+    setSubmitting(true)
+    const body: Record<string, unknown> = { leadId: lead.id, outcome, notes }
+    if (followupAt) body.followupAt = new Date(followupAt).toISOString()
+    if (tagStatus !== lead.lead_status) body.tagStatus = tagStatus
+
+    const r = await fetch('/api/leads/call-logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const d = await r.json() as { log?: CallLog }
+    if (d.log) setLogs(prev => [d.log!, ...prev])
+
+    const updates: Partial<Lead> = {}
+    if (followupAt) updates.followup_at = new Date(followupAt).toISOString()
+    if (tagStatus !== lead.lead_status) updates.lead_status = tagStatus
+    if (Object.keys(updates).length > 0) onUpdate(lead.id, updates)
+
+    setOutcome(null); setNotes(''); setFollowupAt('')
+    setSubmitting(false)
+  }
+
+  const handleAssign = async () => {
+    setAssigning(true)
+    const r = await fetch(`/api/leads/${lead.id}/assign`, { method: 'PATCH' })
+    const d = await r.json() as { assigned_name?: string }
+    if (d.assigned_name) {
+      setLocalAssignedName(d.assigned_name)
+      onUpdate(lead.id, { assigned_name: d.assigned_name })
+    }
+    setAssigning(false)
+  }
+
+  const handleTagChange = async (status: string | null) => {
+    const next = tagStatus === status ? null : status
+    setTagStatus(next)
+    setTagging(true)
+    await fetch('/api/facebook/leads/tag', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: lead.id, status: next }),
+    })
+    onUpdate(lead.id, { lead_status: next })
+    setTagging(false)
+  }
+
+  const today = new Date().toISOString().split('T')[0]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-end">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white h-full w-full max-w-md shadow-2xl flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 text-base truncate">{lead.name ?? '—'}</p>
+              {lead.phone ? (
+                <a href={`tel:${lead.phone}`}
+                  className="flex items-center gap-1.5 mt-1 text-sm text-blue-600 hover:text-blue-800 transition w-fit">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>{lead.phone}</span>
+                  <span className="text-xs text-gray-400">tap to call</span>
+                </a>
+              ) : (
+                <p className="text-sm text-gray-400 mt-1">No phone number</p>
+              )}
+            </div>
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition ml-3 flex-shrink-0">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          {/* Assignment row */}
+          <div className="flex items-center justify-between">
+            {localAssignedName ? (
+              <span className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
+                <UserCheck className="w-3 h-3" />
+                {localAssignedName}
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400">Unassigned</span>
+            )}
+            {!localAssignedName && (
+              <button onClick={handleAssign} disabled={assigning}
+                className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition disabled:opacity-60 flex items-center gap-1.5">
+                {assigning ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
+                Take this lead
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* Lead status tag */}
+          <div className="px-5 py-4 border-b border-gray-50">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">Lead Status</p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
+                <button key={key}
+                  onClick={() => !tagging && handleTagChange(key)}
+                  disabled={tagging}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border transition"
+                  style={tagStatus === key
+                    ? { background: meta.dot, color: '#fff', borderColor: meta.dot }
+                    : { background: meta.bg, color: meta.text, borderColor: '#e5e7eb' }
+                  }>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: tagStatus === key ? '#fff' : meta.dot }} />
+                  {meta.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Log a call */}
+          <div className="px-5 py-4 border-b border-gray-50">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Log a Call</p>
+
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {Object.entries(OUTCOME_META).map(([key, meta]) => (
+                <button key={key}
+                  onClick={() => setOutcome(outcome === key ? null : key)}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium border transition"
+                  style={outcome === key
+                    ? { background: meta.dot, color: '#fff', borderColor: meta.dot }
+                    : { background: meta.bg, color: meta.text, borderColor: meta.border }
+                  }>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: outcome === key ? '#fff' : meta.dot }} />
+                  {meta.label}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Add notes about this call…"
+              rows={3}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none mb-3"
+            />
+
+            <div className="flex items-start gap-2.5 mb-3">
+              <Calendar className="w-4 h-4 text-gray-400 mt-2.5 flex-shrink-0" />
+              <div className="flex-1">
+                <label className="text-xs text-gray-500 mb-1 block">Follow-up date (optional)</label>
+                <input
+                  type="date"
+                  value={followupAt}
+                  min={today}
+                  onChange={e => setFollowupAt(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
+              </div>
+            </div>
+
+            <button onClick={handleSubmit} disabled={!outcome || submitting}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition">
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
+              {submitting ? 'Saving…' : 'Save call log'}
+            </button>
+          </div>
+
+          {/* Call history */}
+          <div className="px-5 py-4">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Call History</p>
+            {loadingLogs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-4 h-4 animate-spin text-gray-300" />
+              </div>
+            ) : logs.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No calls logged yet</p>
+            ) : (
+              <div className="space-y-4">
+                {logs.map(log => {
+                  const meta = OUTCOME_META[log.outcome]
+                  return (
+                    <div key={log.id} className="flex gap-3">
+                      <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+                        style={{ background: meta?.dot ?? '#9ca3af' }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold" style={{ color: meta?.text ?? '#374151' }}>
+                            {meta?.label ?? log.outcome}
+                          </span>
+                          <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(log.created_at)}</span>
+                        </div>
+                        {log.caller_name && (
+                          <p className="text-[11px] text-gray-400 mt-0.5">{log.caller_name}</p>
+                        )}
+                        {log.notes && (
+                          <p className="text-xs text-gray-700 mt-1 leading-relaxed">{log.notes}</p>
+                        )}
+                        {log.followup_at && (
+                          <p className="text-[11px] text-orange-500 mt-1 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            Follow up {new Date(log.followup_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── LeadRow ───────────────────────────────────────────────────────────────────
 
 const STANDARD_KEYS = new Set([
   'name', 'email', 'phone', 'full_name', 'first_name', 'last_name', 'phone_number', 'mobile',
 ])
 
-function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
+function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
   lead: Lead
   activeForms: ActiveForm[]
   showFormBadge: boolean
   onWhatsApp: () => void
+  onCallLog: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const form  = activeForms.find(f => f.form_id === lead.form_id)
   const color = form ? getColor(form.color_index) : null
   const extra = Object.entries(lead.fields ?? {}).filter(([k]) => !STANDARD_KEYS.has(k))
+
+  const followupDate = lead.followup_at
+    ? new Date(lead.followup_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
+  const isOverdue = lead.followup_at ? new Date(lead.followup_at) < new Date() : false
+  const leadStatusMeta = lead.lead_status ? LEAD_STATUS_META[lead.lead_status] : null
 
   return (
     <>
@@ -1147,8 +1433,23 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
           <div className="flex items-center gap-2.5">
             {color && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color.dot }} />}
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{lead.name ?? '—'}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium text-gray-900 truncate">{lead.name ?? '—'}</p>
+                {leadStatusMeta && (
+                  <span className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: leadStatusMeta.bg, color: leadStatusMeta.text }}>
+                    <span className="w-1 h-1 rounded-full" style={{ background: leadStatusMeta.dot }} />
+                    {leadStatusMeta.label}
+                  </span>
+                )}
+              </div>
               {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
+              {lead.assigned_name && (
+                <p className="text-[11px] text-blue-500 mt-0.5 flex items-center gap-1">
+                  <UserCheck className="w-2.5 h-2.5" />
+                  {lead.assigned_name}
+                </p>
+              )}
             </div>
           </div>
         </td>
@@ -1173,9 +1474,20 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
           <span className="text-xs text-gray-400">
             {new Date(lead.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
+          {followupDate && (
+            <p className={`text-[11px] flex items-center gap-0.5 mt-0.5 ${isOverdue ? 'text-red-500 font-medium' : 'text-orange-400'}`}>
+              <Calendar className="w-2.5 h-2.5" />
+              {isOverdue ? 'Overdue: ' : ''}{followupDate}
+            </p>
+          )}
         </td>
         <td className="px-5 py-3.5">
           <div className="flex items-center gap-1">
+            <button onClick={onCallLog}
+              className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-600 transition"
+              title="Log a call / assign lead">
+              <Phone className="w-4 h-4" />
+            </button>
             {lead.phone && lead.wa_status !== 'sent' && (
               <button onClick={onWhatsApp}
                 className={`p-1.5 rounded-lg transition ${
@@ -1391,6 +1703,7 @@ function LeadsContent() {
   const [showBulkMsg,    setShowBulkMsg]    = useState(false)
   const [lockedPage,     setLockedPage]     = useState<{ page_id: string; page_name: string } | null>(null)
   const [showPageLockPopup, setShowPageLockPopup] = useState(false)
+  const [callLogLead,    setCallLogLead]    = useState<Lead | null>(null)
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -1592,6 +1905,11 @@ function LeadsContent() {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, wa_status: 'pending' } : l))
     if (selectedPageId) fetchStats(selectedPageId)
     setBanner({ type: 'success', msg: `WhatsApp queued for ${lead.name ?? lead.phone ?? 'lead'}` })
+  }
+
+  const handleLeadUpdate = (leadId: string, updates: Partial<Lead>) => {
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
+    setCallLogLead(prev => prev?.id === leadId ? { ...prev, ...updates } : prev)
   }
 
   const handleDisconnectAll = async () => {
@@ -1941,6 +2259,7 @@ function LeadsContent() {
                         activeForms={activeForms}
                         showFormBadge={selectedFormId === 'all'}
                         onWhatsApp={() => handleSendWhatsApp(lead)}
+                        onCallLog={() => setCallLogLead(lead)}
                       />
                     ))}
                   </tbody>
@@ -2024,6 +2343,15 @@ function LeadsContent() {
               if (selectedFormId !== '__forms') fetchLeads(selectedFormId, selectedPageId, currentPage, perPage, leadSearch)
             }
           }}
+        />
+      )}
+
+      {/* Call log modal */}
+      {callLogLead && (
+        <CallLogModal
+          lead={callLogLead}
+          onClose={() => setCallLogLead(null)}
+          onUpdate={handleLeadUpdate}
         />
       )}
 

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const buildQuery = (countOnly = false) => {
     let query = service
       .from('leads')
-      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
+      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     if (formId) query = query.eq('form_id', formId)
