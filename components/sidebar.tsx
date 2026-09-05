@@ -2,17 +2,65 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
   FileText, ShoppingBag, BarChart2, Code2,
   Settings, LogOut, MessageCircle, Store,
-  ChevronRight, LifeBuoy, Plug, UserPlus
+  ChevronRight, LifeBuoy, Plug, UserPlus, ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/user-role'
 import { canAccess } from '@/lib/user-role'
 import NotificationBell from '@/components/notification-bell'
+
+interface WaHealth {
+  connected: boolean
+  quality_rating?: string
+  messaging_limit_tier?: string
+  display_phone_number?: string
+}
+
+function WaHealthBadge() {
+  const [health, setHealth] = useState<WaHealth | null>(null)
+
+  useEffect(() => {
+    const fetch_ = () =>
+      fetch('/api/whatsapp/health')
+        .then(r => r.json())
+        .then((d: WaHealth) => setHealth(d))
+        .catch(() => {})
+
+    fetch_()
+    const id = setInterval(fetch_, 5 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (!health?.connected) return null
+  const rating = health.quality_rating ?? 'GREEN'
+  if (rating === 'GREEN') return null
+
+  const isRed = rating === 'RED'
+
+  return (
+    <Link
+      href="/dashboard/settings?tab=whatsapp"
+      className={cn(
+        'flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition',
+        isRed
+          ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+          : 'bg-amber-400/10 text-amber-400 hover:bg-amber-400/20'
+      )}
+      title={isRed ? 'WhatsApp account restricted — click for details' : 'WhatsApp quality dropping — click for details'}
+    >
+      <ShieldAlert size={12} className="flex-shrink-0" />
+      <span>{isRed ? 'WA Restricted' : 'WA Quality ↓'}</span>
+      <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse ml-auto',
+        isRed ? 'bg-red-400' : 'bg-amber-400')} />
+    </Link>
+  )
+}
 
 const NAV = [
   { href: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard'   },
@@ -39,10 +87,28 @@ interface SidebarProps {
   role?: UserRole
 }
 
+interface BillingUsage {
+  messages_used: number
+  messages_limit: number
+  messages_remaining: number
+}
+
 export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }: SidebarProps) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
+  const [billingUsage, setBillingUsage] = useState<BillingUsage | null>(null)
+
+  useEffect(() => {
+    const fetchBilling = () =>
+      fetch('/api/billing/status')
+        .then(r => r.json())
+        .then((d: BillingUsage) => setBillingUsage(d))
+        .catch(() => {})
+    fetchBilling()
+    const id = setInterval(fetchBilling, 5 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -136,16 +202,49 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }:
         )}
 
         {storeName ? (
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.04]">
-            <div className="w-6 h-6 bg-[#25D366]/20 rounded-md flex items-center justify-center flex-shrink-0">
-              <Store size={12} className="text-[#25D366]" />
+          <div className="px-3 py-2.5 rounded-lg bg-white/[0.04]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 bg-[#25D366]/20 rounded-md flex items-center justify-center flex-shrink-0">
+                <Store size={12} className="text-[#25D366]" />
+              </div>
+              <div className="overflow-hidden flex-1 min-w-0">
+                <p className="text-white text-[11px] font-medium truncate">{storeName}</p>
+                <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded capitalize', badge.cls)}>
+                  {badge.label}
+                </span>
+              </div>
             </div>
-            <div className="overflow-hidden flex-1 min-w-0">
-              <p className="text-white text-[11px] font-medium truncate">{storeName}</p>
-              <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded capitalize', badge.cls)}>
-                {badge.label}
-              </span>
-            </div>
+            {/* Live message usage bar */}
+            {billingUsage && billingUsage.messages_limit < 999_999_999 && (() => {
+              const pct  = Math.min(100, Math.round((billingUsage.messages_used / billingUsage.messages_limit) * 100))
+              const low  = pct >= 80
+              const crit = pct >= 95
+              return (
+                <div className="mt-2.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] text-slate-500">
+                      {billingUsage.messages_remaining.toLocaleString()} msgs left
+                    </span>
+                    {low && (
+                      <Link href="/dashboard/settings?tab=billing"
+                        className={cn('text-[9px] font-semibold hover:underline', crit ? 'text-red-400' : 'text-amber-400')}>
+                        Upgrade ↑
+                      </Link>
+                    )}
+                  </div>
+                  <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className={cn('h-full rounded-full transition-all duration-700',
+                        crit ? 'bg-red-500' : low ? 'bg-amber-400' : 'bg-[#25D366]')}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-600 mt-1 tabular-nums">
+                    {billingUsage.messages_used.toLocaleString()} / {billingUsage.messages_limit.toLocaleString()}
+                  </p>
+                </div>
+              )
+            })()}
           </div>
         ) : (
           canAccess(role, '/dashboard/shopify') ? (
@@ -156,6 +255,7 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }:
             </Link>
           ) : null
         )}
+        <WaHealthBadge />
         <button onClick={handleSignOut}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/[0.06] text-[13px] transition">
           <LogOut size={14} />

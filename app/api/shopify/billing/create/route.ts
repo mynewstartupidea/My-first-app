@@ -1,6 +1,12 @@
+import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { SHOPIFY_PLANS, TRIAL_DAYS, APP_URL, type ShopifyPlanId } from '@/lib/shopify-billing'
+
+function signBillingReturn(shop: string, planId: string): string {
+  const secret = process.env.SHOPIFY_API_SECRET ?? ''
+  return crypto.createHmac('sha256', secret).update(`${shop}:${planId}`).digest('hex')
+}
 
 const PLAN_MAP = Object.fromEntries(SHOPIFY_PLANS.map(p => [p.id, p]))
 
@@ -27,9 +33,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Store not found or not connected' }, { status: 404 })
   }
 
+  const sig = signBillingReturn(body.shop, plan.id)
   const returnUrl =
     `${APP_URL}/api/shopify/billing/callback` +
-    `?shop=${encodeURIComponent(body.shop)}&plan=${plan.id}`
+    `?shop=${encodeURIComponent(body.shop)}&plan=${plan.id}&sig=${sig}`
 
   const mutation = `
     mutation AppSubscriptionCreate(

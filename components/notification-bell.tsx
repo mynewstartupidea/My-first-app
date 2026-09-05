@@ -86,6 +86,7 @@ export default function NotificationBell() {
   const iconCfg: Record<string, { bg: string; color: string }> = {
     template_approved: { bg: 'bg-green-100', color: 'text-green-600' },
     template_rejected: { bg: 'bg-red-100',   color: 'text-red-500'   },
+    wa_health_flagged: { bg: 'bg-amber-100', color: 'text-amber-600' },
   }
 
   return (

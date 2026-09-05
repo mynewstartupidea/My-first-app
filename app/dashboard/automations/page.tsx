@@ -6,7 +6,7 @@ import {
   ShoppingCart, Package, CheckCircle2, Truck, Loader2, Save,
   AlertCircle, Zap, RefreshCw, Gift, X, Send, Star, Repeat,
   MessageSquare, Clock, TrendingUp, ArrowRight, Plus, Tag,
-  Facebook, Users,
+  Facebook, Users, Phone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -265,6 +265,134 @@ function AutomationCard({
   )
 }
 
+function MissedCallCard({ whatsappConnected, onNeedsWhatsapp }: {
+  whatsappConnected: boolean
+  onNeedsWhatsapp: () => void
+}) {
+  const supabase = useMemo(() => createClient(), [])
+  const [enabled, setEnabled]   = useState(false)
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const displayEnabled = enabled && whatsappConnected
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return setLoading(false)
+      supabase.from('user_profiles')
+        .select('missed_call_followup_enabled')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          setEnabled(data?.missed_call_followup_enabled ?? false)
+          setLoading(false)
+        })
+    })
+  }, [supabase])
+
+  const handleToggle = async () => {
+    if (!enabled && !whatsappConnected) { onNeedsWhatsapp(); return }
+    const newVal = !enabled
+    setEnabled(newVal)
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('user_profiles')
+        .update({ missed_call_followup_enabled: newVal })
+        .eq('id', user.id)
+    }
+    setSaving(false)
+  }
+
+  const PREVIEW_TEMPLATES = [
+    { outcome: 'No Answer', body: "Hi Priya, we tried calling you. Feel free to reply here whenever you're free.", dot: '#ef4444' },
+    { outcome: 'Voicemail', body: "Hi Priya, we left you a voicemail. You can also reply here anytime and we'll get back to you.", dot: '#8b5cf6' },
+  ]
+
+  return (
+    <div className={cn('bg-white rounded-2xl border-2 shadow-sm transition-all mt-3',
+      displayEnabled ? 'border-[#25D366]/30' : 'border-slate-100')}>
+      <div className="flex items-center gap-4 p-5">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-indigo-50">
+          <Phone size={18} className="text-indigo-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-slate-800 text-sm">Missed Call Follow-up</p>
+            {displayEnabled && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Live
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Auto-send a WhatsApp when a rep logs No Answer or Voicemail on a lead call.
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+            <Clock size={10} /> Rep logs No Answer or Voicemail in Lead call log
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg font-medium">
+            <TrendingUp size={11} /> 3× more callbacks
+          </div>
+          {loading ? (
+            <div className="h-6 w-11 rounded-full bg-slate-100 animate-pulse flex-shrink-0" />
+          ) : (
+            <button onClick={handleToggle} disabled={saving}
+              className={cn('relative h-6 w-11 rounded-full transition-colors flex-shrink-0 disabled:opacity-70',
+                displayEnabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
+              {saving
+                ? <Loader2 size={12} className="absolute top-1 left-1 right-1 mx-auto text-white animate-spin" />
+                : <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all',
+                    displayEnabled ? 'left-6' : 'left-1')} />
+              }
+            </button>
+          )}
+          <button onClick={() => setExpanded(v => !v)}
+            className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100">
+            {expanded ? <X size={15} /> : <Plus size={15} />}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-slate-100 p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {PREVIEW_TEMPLATES.map(t => (
+              <div key={t.outcome} className="bg-slate-50 rounded-xl p-3.5">
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: t.dot }} />
+                  <p className="text-xs font-semibold text-slate-700">{t.outcome}</p>
+                </div>
+                <div className="bg-[#DCF8C6] rounded-xl rounded-tl-sm px-3 py-2 shadow-sm">
+                  <p className="text-xs text-slate-800 leading-relaxed">{t.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5">
+            <p className="text-xs font-semibold text-amber-800">Smart duplicate prevention</p>
+            <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+              If a WhatsApp was already sent to this lead in the last 4 hours, the rep will see a warning before sending — no accidental spam or double messages.
+            </p>
+          </div>
+
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Templates:{' '}
+            <code className="bg-slate-100 px-1 rounded text-slate-600">wapaci_missed_call</code>
+            {' '}and{' '}
+            <code className="bg-slate-100 px-1 rounded text-slate-600">wapaci_voicemail_followup</code>
+            {' '}— submitted to Meta for approval.{' '}
+            <a href="/dashboard/templates" className="text-blue-500 hover:underline">Check status →</a>
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LeadAdCard() {
   const [expanded, setExpanded] = useState(false)
   const [forms, setForms]       = useState<{ form_id: string; form_name: string; is_enabled: boolean; lead_count: number }[] | null>(null)
@@ -512,6 +640,10 @@ export default function AutomationsPage() {
               <Facebook size={13} className="text-blue-500" /> Lead Ads
             </h2>
             <LeadAdCard />
+            <MissedCallCard
+              whatsappConnected={whatsappConnected}
+              onNeedsWhatsapp={() => setShowWaPopup(true)}
+            />
           </div>
 
           {/* Live automations */}

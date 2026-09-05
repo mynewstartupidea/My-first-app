@@ -22,6 +22,17 @@ export async function GET(request: Request) {
   if (!leadId) return NextResponse.json({ logs: [] })
 
   const service = createServiceClient()
+
+  // Verify the lead belongs to the requesting user before returning its call logs
+  const { data: lead } = await service
+    .from('leads')
+    .select('id')
+    .eq('id', leadId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!lead) return NextResponse.json({ logs: [] })
+
   const { data } = await service
     .from('call_logs')
     .select('*')
@@ -55,6 +66,18 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient()
+
+  // Verify the lead belongs to the requesting user before writing any data
+  const { data: ownedLead } = await service
+    .from('leads')
+    .select('id')
+    .eq('id', body.leadId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!ownedLead) {
+    return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
+  }
 
   // Get caller name from profile
   const { data: profile } = await service

@@ -202,25 +202,24 @@ async function attributeRevenue(
     .update({ revenue_attributed: orderValue, metadata: { ...existingMeta, attributed_order_id: String(orderId) } })
     .eq('id', recentMsg.id)
 
-  // Increment analytics_daily — read then write to avoid overwriting existing totals
+  // Atomic increments — avoids read-then-write race where two concurrent order
+  // webhooks both read the same baseline and one overwrites the other's update.
   const today = new Date().toISOString().split('T')[0]
-  const { data: existing } = await supabase
-    .from('analytics_daily')
-    .select('revenue_recovered, carts_recovered')
-    .eq('store_id', storeId)
-    .eq('date', today)
-    .maybeSingle()
-
   const isCartRecovery = recentMsg.type === 'abandoned_cart'
-  await supabase.from('analytics_daily').upsert(
-    {
-      store_id:         storeId,
-      date:             today,
-      revenue_recovered: Number(existing?.revenue_recovered ?? 0) + orderValue,
-      carts_recovered:  (existing?.carts_recovered ?? 0) + (isCartRecovery ? 1 : 0),
-    },
-    { onConflict: 'store_id,date' }
-  ).then(null, () => null)
+  await supabase.rpc('increment_analytics_by', {
+    p_store_id: storeId,
+    p_date:     today,
+    p_field:    'revenue_recovered',
+    p_amount:   orderValue,
+  }).then(null, () => null)
+  if (isCartRecovery) {
+    await supabase.rpc('increment_analytics_by', {
+      p_store_id: storeId,
+      p_date:     today,
+      p_field:    'carts_recovered',
+      p_amount:   1,
+    }).then(null, () => null)
+  }
 }
 
 async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
@@ -261,7 +260,8 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: confirmAuto.id, type: 'order_confirmation',
       customer_phone: phone, customer_name: firstName, message: msg,
-      context: { order_id: order.id, order_number: orderNumber },
+      // Store order_id as string so JSONB @> queries match at query time
+      context: { order_id: String(order.id), order_number: orderNumber },
       status: 'pending', scheduled_at: new Date().toISOString(),
     })
   }
@@ -280,7 +280,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
       await supabase.from('automation_jobs').insert({
         store_id: store.id, automation_id: codAuto.id, type: 'cod_verification',
         customer_phone: phone, customer_name: firstName, message: msg,
-        context: { order_id: order.id, order_number: orderNumber, total_price: totalPrice },
+        context: { order_id: String(order.id), order_number: orderNumber, total_price: totalPrice },
         status: 'pending', scheduled_at: scheduledAt,
       })
     }
@@ -327,7 +327,7 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: shipAuto.id, type: 'shipping_update',
       customer_phone: customerPhone, customer_name: firstName, message: msg,
-      context: { order_id: order.id, tracking_url: trackingUrl },
+      context: { order_id: String(order.id), tracking_url: trackingUrl },
       status: 'pending', scheduled_at: new Date().toISOString(),
     })
   }
@@ -346,7 +346,7 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: upsellAuto.id, type: 'post_purchase_upsell',
       customer_phone: customerPhone, customer_name: firstName, message: msg,
-      context: { order_id: order.id },
+      context: { order_id: String(order.id) },
       status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
     })
   }
@@ -364,7 +364,7 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: reviewAuto.id, type: 'review_request',
       customer_phone: customerPhone, customer_name: firstName, message: msg,
-      context: { order_id: order.id },
+      context: { order_id: String(order.id) },
       status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
     })
   }
@@ -387,12 +387,19 @@ async function handleOrderUpdated(supabase: ReturnType<typeof createServiceClien
       .eq('status', 'pending')
   }
 
-  // Mark automation jobs for this order as delivered when fulfillment is done
+  // Mark automation jobs for this order as delivered when fulfillment is done.
+  // Fetch then merge to avoid overwriting existing context fields.
   if (fulfillmentStatus === 'fulfilled') {
-    await supabase.from('automation_jobs')
-      .update({ context: { order_id: orderId, delivery_status: 'fulfilled' } })
+    const { data: matchingJobs } = await supabase.from('automation_jobs')
+      .select('id, context')
       .eq('store_id', store.id)
       .contains('context', { order_id: orderId })
+    for (const j of matchingJobs ?? []) {
+      const ctx = (j.context as Record<string, unknown>) ?? {}
+      await supabase.from('automation_jobs')
+        .update({ context: { ...ctx, delivery_status: 'fulfilled' } })
+        .eq('id', j.id)
+    }
   }
 }
 

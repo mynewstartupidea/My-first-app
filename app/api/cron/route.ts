@@ -8,8 +8,7 @@ export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
 
-  // When CRON_SECRET is set, require it — Vercel cron sends it automatically
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -59,12 +58,16 @@ export async function GET(request: Request) {
       }
     }
 
-    // Mark as processing to avoid double-sending
-    await supabase
+    // Atomically claim this job — only one cron run can win the update.
+    // If the row was already claimed by a concurrent run, data will be empty; skip it.
+    const { data: claimed } = await supabase
       .from('automation_jobs')
       .update({ status: 'processing' })
       .eq('id', job.id)
       .eq('status', 'pending')
+      .select('id')
+
+    if (!claimed || claimed.length === 0) continue
 
     const store = job.stores as { shop_name: string; whatsapp_bsp: string; whatsapp_api_key: string }
 

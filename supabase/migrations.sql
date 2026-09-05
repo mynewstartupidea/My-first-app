@@ -298,3 +298,41 @@ ALTER TABLE billing ADD COLUMN IF NOT EXISTS shopify_subscription_id TEXT;
 
 -- Register app_subscriptions/update as a valid webhook topic
 -- (no schema change needed — topic is stored in the webhook registration call)
+
+-- ─── increment_analytics_by: atomic revenue/count increment by arbitrary amount ──
+-- Used by the orders/create webhook to attribute revenue atomically without
+-- the read-then-write race condition in the original upsert pattern.
+
+CREATE OR REPLACE FUNCTION increment_analytics_by(
+  p_store_id UUID,
+  p_date     DATE,
+  p_field    TEXT,
+  p_amount   NUMERIC
+)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO analytics_daily (store_id, date)
+  VALUES (p_store_id, p_date)
+  ON CONFLICT (store_id, date) DO NOTHING;
+
+  EXECUTE format(
+    'UPDATE analytics_daily SET %I = COALESCE(%I, 0) + $3 WHERE store_id = $1 AND date = $2',
+    p_field, p_field
+  )
+  USING p_store_id, p_date, p_amount;
+END;
+$$;
+
+-- ─── WhatsApp account health columns ─────────────────────────────────────────
+-- Added by sidebar health badge + webhook handler for phone_number_quality_update.
+
+ALTER TABLE whatsapp_accounts
+  ADD COLUMN IF NOT EXISTS quality_rating        TEXT DEFAULT 'GREEN',
+  ADD COLUMN IF NOT EXISTS messaging_limit_tier  TEXT DEFAULT 'TIER_1K',
+  ADD COLUMN IF NOT EXISTS account_mode          TEXT DEFAULT 'LIVE';
+
+-- ─── Missed call follow-up automation setting ─────────────────────────────────
+-- Added by Automations page MissedCallCard toggle.
+
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS missed_call_followup_enabled BOOLEAN DEFAULT false;

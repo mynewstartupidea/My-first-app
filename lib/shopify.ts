@@ -1,6 +1,24 @@
 import crypto from 'crypto'
-import { normalizeIndianPhone } from '@/lib/utils'
 const SHOPIFY_API_VERSION = '2026-07'
+
+// Normalise a raw phone string to E.164 using the customer's country code.
+// Returns empty string for unparseable numbers rather than silently skipping them
+// (the caller can decide to skip or log).
+function customerToE164(raw: string, countryCode = ''): string {
+  if (!raw) return ''
+  if (raw.startsWith('+')) return `+${raw.replace(/\D/g, '')}`
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.length > 10) return `+${digits}`
+  if (digits.length === 10) {
+    if (countryCode === 'US' || countryCode === 'CA') return `+1${digits}`
+    if (countryCode === 'GB') return `+44${digits}`
+    if (countryCode === 'AU') return `+61${digits}`
+    if (countryCode === 'AE') return `+971${digits}`
+    return `+91${digits}` // default: India
+  }
+  return ''
+}
 const SHOPIFY_APP_URL = 'https://app.wapaci.com'
 
 // Reject any shop that isn't a valid *.myshopify.com domain
@@ -9,14 +27,17 @@ export function validateShopDomain(shop: string): boolean {
 }
 
 // HMAC-sign the OAuth state so the callback can detect tampering
+// ts field prevents replay attacks — states older than 10 minutes are rejected
 export function signOAuthState(data: object): string {
   const secret = process.env.SHOPIFY_API_SECRET ?? ''
-  const payload = JSON.stringify(data)
+  const payload = JSON.stringify({ ...data, ts: Date.now() })
   const hmac    = crypto.createHmac('sha256', secret).update(payload).digest('hex')
   return Buffer.from(JSON.stringify({ payload, hmac })).toString('base64url')
 }
 
-// Returns parsed state data or null if signature is missing / invalid
+const OAUTH_STATE_MAX_AGE_MS = 10 * 60 * 1000 // 10 minutes
+
+// Returns parsed state data or null if signature is missing / invalid / expired
 export function verifyOAuthState(state: string): Record<string, string> | null {
   try {
     const { payload, hmac } = JSON.parse(Buffer.from(state, 'base64url').toString()) as { payload: string; hmac: string }
@@ -25,7 +46,10 @@ export function verifyOAuthState(state: string): Record<string, string> | null {
     const a = Buffer.from(expected, 'hex')
     const b = Buffer.from(hmac,     'hex')
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
-    return JSON.parse(payload) as Record<string, string>
+    const parsed = JSON.parse(payload) as Record<string, string> & { ts?: number }
+    // Reject states older than 10 minutes (replay protection)
+    if (parsed.ts && Date.now() - Number(parsed.ts) > OAUTH_STATE_MAX_AGE_MS) return null
+    return parsed
   } catch {
     return null
   }
@@ -135,6 +159,10 @@ export async function registerWebhooks(shop: string, token: string, appUrl: stri
     'orders/updated',
     'app/uninstalled',
     'app_subscriptions/update',
+    // Mandatory Shopify GDPR compliance webhooks — required for app review
+    'customers/data_request',
+    'customers/redact',
+    'shop/redact',
   ]
   const address = `${appUrl}/api/shopify/webhooks`
 
@@ -169,6 +197,7 @@ interface ShopifyCustomer {
   phone?: string
   orders_count?: number
   total_spent?: string
+  default_address?: { country_code?: string }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,7 +213,7 @@ export async function syncShopifyCustomers(
   let skipped = 0
   let nextUrl: string | null =
     `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/customers.json` +
-    `?limit=250&fields=id,first_name,last_name,email,phone,orders_count,total_spent`
+    `?limit=250&fields=id,first_name,last_name,email,phone,orders_count,total_spent,default_address`
   let page = 0
 
   while (nextUrl && page < maxPages) {
@@ -199,11 +228,12 @@ export async function syncShopifyCustomers(
 
     const toUpsert: Record<string, unknown>[] = []
     for (const c of customers) {
-      const ten = normalizeIndianPhone(c.phone ?? '')
-      if (!ten) { skipped++; continue }
+      const countryCode = String(c.default_address?.country_code ?? '').toUpperCase()
+      const phone = customerToE164(c.phone ?? '', countryCode)
+      if (!phone) { skipped++; continue }
       toUpsert.push({
         store_id:            storeId,
-        phone:               `+91${ten}`,
+        phone,
         shopify_customer_id: String(c.id),
         name:                [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
         email:               c.email ?? null,

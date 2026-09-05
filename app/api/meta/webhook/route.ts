@@ -8,7 +8,12 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 function verifyMetaSignature(rawBody: string, signatureHeader: string): boolean {
   const appSecret = process.env.META_APP_SECRET
-  if (!appSecret) return true // no secret configured — skip (dev mode)
+  if (!appSecret) {
+    // Refuse all requests rather than silently bypassing auth in production.
+    // Set META_APP_SECRET in env to enable the webhook.
+    console.error('[Meta webhook] META_APP_SECRET not configured — rejecting request')
+    return false
+  }
   const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex')}`
   const a = Buffer.from(expected)
   const b = Buffer.from(signatureHeader)
@@ -64,6 +69,84 @@ export async function POST(request: Request) {
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value
+
+      // ── WhatsApp account quality / limit change ────────────────────────────
+      if (change.field === 'phone_number_quality_update') {
+        const v = value as unknown as {
+          display_phone_number?: string
+          event?: string          // FLAGGED | DOWNGRADED | RECOVERY_STARTED | RECOVERY_COMPLETED
+          current_limit?: string
+        }
+        console.log(`[Meta webhook] quality update event=${v.event} phone=${v.display_phone_number} limit=${v.current_limit}`)
+
+        if (v.display_phone_number && v.event) {
+          const newRating =
+            v.event === 'FLAGGED'             ? 'YELLOW' :
+            v.event === 'RECOVERY_COMPLETED'  ? 'GREEN'  : null
+
+          const { data: waAccount } = await supabase
+            .from('whatsapp_accounts')
+            .select('user_id, quality_rating')
+            .eq('display_phone_number', v.display_phone_number)
+            .maybeSingle()
+
+          if (waAccount) {
+            const updates: Record<string, string> = {}
+            if (newRating) updates.quality_rating = newRating
+            if (v.current_limit) updates.messaging_limit_tier = v.current_limit
+            if (Object.keys(updates).length > 0) {
+              await supabase.from('whatsapp_accounts').update(updates).eq('user_id', waAccount.user_id)
+            }
+
+            // Notify on degradation (only when actually getting worse)
+            if (newRating && newRating !== 'GREEN' && waAccount.quality_rating !== newRating) {
+              await supabase.from('notifications').insert({
+                user_id: waAccount.user_id,
+                type:    'wa_health_flagged',
+                title:   '⚠️ WhatsApp quality rating dropped',
+                body:    'Your account quality is dropping — leads may be blocking your messages. Avoid bulk sending and review your templates.',
+                link:    '/dashboard/settings?tab=whatsapp',
+                is_read: false,
+              })
+              console.log(`[Meta webhook] quality notification sent to user=${waAccount.user_id} newRating=${newRating}`)
+            }
+          }
+        }
+        continue
+      }
+
+      // ── Account-level ban / restriction ───────────────────────────────────
+      if (change.field === 'account_update') {
+        const v = value as unknown as {
+          event?: string
+          ban_info?: { waba_ban_state?: string }
+        }
+        const isBanned = v.event === 'FLAGGED' || v.ban_info?.waba_ban_state === 'DISABLE'
+        if (isBanned) {
+          const { data: waAccount } = await supabase
+            .from('whatsapp_accounts')
+            .select('user_id')
+            .eq('waba_id', entry.id)
+            .maybeSingle()
+
+          if (waAccount) {
+            await supabase.from('whatsapp_accounts')
+              .update({ quality_rating: 'RED' })
+              .eq('user_id', waAccount.user_id)
+
+            await supabase.from('notifications').insert({
+              user_id: waAccount.user_id,
+              type:    'wa_health_flagged',
+              title:   '🔴 WhatsApp account restricted by Meta',
+              body:    'Your WhatsApp Business account has been disabled. Stop all sending and contact Meta support immediately.',
+              link:    '/dashboard/settings?tab=whatsapp',
+              is_read: false,
+            })
+            console.log(`[Meta webhook] account banned notification sent to user=${waAccount.user_id}`)
+          }
+        }
+        continue
+      }
 
       // ── Incoming messages ──────────────────────────────────────────────────
       for (const msg of value.messages ?? []) {
@@ -129,9 +212,9 @@ export async function POST(request: Request) {
 
 interface MetaWebhookPayload {
   entry?: {
-    id: string
+    id: string   // waba_id for account_update events
     changes?: {
-      value: {
+      value: Record<string, unknown> & {
         metadata?: { phone_number_id: string; display_phone_number: string }
         messages?: {
           id: string

@@ -57,6 +57,18 @@ export default async function DashboardPage() {
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
+  // Billing usage for low-credit banner
+  const { data: billing } = await supabase
+    .from('billing')
+    .select('messages_limit, messages_used')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const msgLimit = billing?.messages_limit ?? 500
+  const msgUsed  = billing?.messages_used  ?? 0
+  const msgPct   = msgLimit >= 999_999_999 ? 0 : Math.min(100, Math.round((msgUsed / msgLimit) * 100))
+  const msgLeft  = Math.max(0, msgLimit - msgUsed)
+
   const [analyticsRes, messagesRes, campaignsRes, customersRes, automationsRes] = await Promise.all([
     store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? supabase.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
@@ -152,6 +164,40 @@ export default async function DashboardPage() {
             <p className="text-amber-600 text-sm mt-0.5">Link your store to enable ecommerce campaigns, order updates, and customer segments.</p>
             <Link href="/dashboard/shopify" className="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold text-amber-700 hover:text-amber-900">
               <Store size={14} /> Connect Shopify <ArrowRight size={13} />
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Low message credit banner */}
+      {msgPct >= 80 && msgLimit < 999_999_999 && (
+        <div className={`rounded-2xl p-4 mb-6 flex items-center gap-4 ${msgPct >= 95 ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${msgPct >= 95 ? 'bg-red-100' : 'bg-amber-100'}`}>
+            <AlertCircle size={18} className={msgPct >= 95 ? 'text-red-500' : 'text-amber-500'} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`font-semibold text-sm ${msgPct >= 95 ? 'text-red-800' : 'text-amber-800'}`}>
+              {msgPct >= 95 ? 'Message limit almost reached' : `${msgPct}% of monthly messages used`}
+            </p>
+            <p className={`text-xs mt-0.5 ${msgPct >= 95 ? 'text-red-600' : 'text-amber-600'}`}>
+              {msgLeft.toLocaleString()} messages remaining this month — automations will pause when the limit is hit.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="text-right hidden sm:block">
+              <p className={`text-xs font-bold tabular-nums ${msgPct >= 95 ? 'text-red-700' : 'text-amber-700'}`}>
+                {msgUsed.toLocaleString()} / {msgLimit.toLocaleString()}
+              </p>
+              <div className="w-24 h-1.5 bg-black/10 rounded-full mt-1 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${msgPct >= 95 ? 'bg-red-500' : 'bg-amber-400'}`}
+                  style={{ width: `${msgPct}%` }}
+                />
+              </div>
+            </div>
+            <Link href="/dashboard/settings?tab=billing"
+              className={`text-sm font-semibold px-4 py-2 rounded-xl transition whitespace-nowrap ${msgPct >= 95 ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
+              Upgrade plan
             </Link>
           </div>
         </div>

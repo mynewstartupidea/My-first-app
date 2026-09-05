@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
-  Tag, ChevronDown, MoreVertical, Inbox, Circle
+  Tag, ChevronDown, MoreVertical, Inbox, Circle, AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
@@ -69,6 +69,12 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   delivered: <CheckCheck size={12} className="text-slate-400" />,
   read:      <CheckCheck size={12} className="text-[#25D366]" />,
   failed:    <X size={12} className="text-red-400" />,
+}
+
+const BLOCK_THRESHOLD_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+function isProbablyBlocked(t: Thread): boolean {
+  return t.status === 'sent' && (Date.now() - new Date(t.lastTime).getTime()) > BLOCK_THRESHOLD_MS
 }
 
 function initials(name: string | null, phone: string) {
@@ -322,7 +328,12 @@ export default function LiveChatPage() {
                     <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">
                       {TYPE_LABELS[t.type] ?? t.type}
                     </span>
-                    {t.unread && <Circle size={6} className="text-[#25D366] fill-[#25D366]" />}
+                    {t.unread && !isProbablyBlocked(t) && <Circle size={6} className="text-[#25D366] fill-[#25D366]" />}
+                    {isProbablyBlocked(t) && (
+                      <span className="flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
+                        <AlertTriangle size={9} /> Not delivered
+                      </span>
+                    )}
                     {t.tag && (
                       <span className="flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
                         style={{ background: STATUS_META[t.tag].bg, color: STATUS_META[t.tag].text }}>
@@ -423,6 +434,19 @@ export default function LiveChatPage() {
             ))}
             <div ref={messagesEndRef} />
           </div>
+
+          {/* Block warning banner */}
+          {selectedThread && isProbablyBlocked(selectedThread) && (
+            <div className="flex items-start gap-3 px-5 py-3 bg-amber-50 border-t border-amber-100 flex-shrink-0">
+              <AlertTriangle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-amber-800">Message not delivered after 24h</p>
+                <p className="text-[11px] text-amber-600 mt-0.5 leading-relaxed">
+                  This contact may have blocked you. Sending another message won't reach them. Consider marking this lead as Lost.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Reply box */}
           <div className="bg-white border-t border-slate-100 p-4 flex-shrink-0">

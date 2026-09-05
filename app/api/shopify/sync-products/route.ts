@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-const SHOPIFY_API_VERSION = '2024-10'
+const SHOPIFY_API_VERSION = '2026-07'
 
 export async function POST() {
   const supabase = await createClient()
