@@ -3,12 +3,22 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Search, Send, RefreshCw, Phone, Clock, CheckCheck,
+  Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
-  Tag, X, ChevronDown, MoreVertical, Inbox, Circle
+  Tag, ChevronDown, MoreVertical, Inbox, Circle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
+
+type LeadStatus = 'hot' | 'warm' | 'lost' | 'converted' | 'junk'
+
+const STATUS_META: Record<LeadStatus, { label: string; dot: string; bg: string; text: string; border: string }> = {
+  hot:       { label: 'Hot',       dot: '#ef4444', bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+  warm:      { label: 'Warm',      dot: '#f97316', bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
+  converted: { label: 'Converted', dot: '#10b981', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
+  lost:      { label: 'Lost',      dot: '#6b7280', bg: '#f9fafb', text: '#374151', border: '#e5e7eb' },
+  junk:      { label: 'Junk',      dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb' },
+}
 
 interface Message {
   id: string
@@ -41,6 +51,7 @@ interface Thread {
   status: string
   unread: boolean
   type: string
+  tag: LeadStatus | null
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -70,6 +81,44 @@ function avatarColor(phone: string) {
   return colors[phone.charCodeAt(phone.length - 1) % colors.length]
 }
 
+function TagDropdown({ currentTag, onSelect, onClose }: {
+  currentTag: LeadStatus | null
+  onSelect: (tag: LeadStatus | null) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className="absolute right-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-40">
+      {(Object.entries(STATUS_META) as [LeadStatus, typeof STATUS_META[LeadStatus]][]).map(([key, meta]) => (
+        <button key={key} onClick={() => onSelect(key)}
+          className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 transition text-left">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.dot }} />
+          <span className="text-xs font-medium text-slate-700">{meta.label}</span>
+          {currentTag === key && <Check size={11} className="text-slate-400 ml-auto" />}
+        </button>
+      ))}
+      {currentTag && (
+        <>
+          <div className="border-t border-slate-100 my-1" />
+          <button onClick={() => onSelect(null)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 transition text-left">
+            <X size={11} className="text-slate-400" />
+            <span className="text-xs text-slate-400">Clear tag</span>
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function LiveChatPage() {
   const [threads, setThreads]           = useState<Thread[]>([])
   const [messages, setMessages]         = useState<Message[]>([])
@@ -81,7 +130,8 @@ export default function LiveChatPage() {
   const [reply, setReply]               = useState('')
   const [sending, setSending]           = useState(false)
   const [storeId, setStoreId]           = useState<string | null>(null)
-  const [filter, setFilter]             = useState<'all' | 'open' | 'resolved'>('all')
+  const [tagFilter, setTagFilter]       = useState<LeadStatus | null>(null)
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = useMemo(() => createClient(), [])
 
@@ -110,7 +160,8 @@ export default function LiveChatPage() {
         map.set(m.customer_phone, {
           phone: m.customer_phone, name: m.customer_name,
           lastMsg: m.message, lastTime: m.created_at,
-          count: 1, status: m.status, unread: m.status === 'sent', type: m.type,
+          count: 1, status: m.status, unread: m.status === 'sent',
+          type: m.type, tag: null,
         })
       } else {
         ex.count++
@@ -121,6 +172,19 @@ export default function LiveChatPage() {
       }
     }
     const sorted = Array.from(map.values()).sort((a, b) => b.lastTime.localeCompare(a.lastTime))
+
+    // Batch-fetch lead tags for all phones
+    if (sorted.length > 0) {
+      const phones = sorted.map(t => t.phone).join(',')
+      try {
+        const tagRes = await fetch(`/api/live-chat/tags?phones=${encodeURIComponent(phones)}`)
+        const tagData = await tagRes.json() as { tags: Record<string, string> }
+        for (const t of sorted) {
+          t.tag = (tagData.tags[t.phone] as LeadStatus) ?? null
+        }
+      } catch { /* non-fatal */ }
+    }
+
     setThreads(sorted)
     setLoading(false)
   }, [supabase])
@@ -141,10 +205,7 @@ export default function LiveChatPage() {
   }, [storeId, supabase])
 
   useEffect(() => { loadThreads() }, [loadThreads])
-
-  useEffect(() => {
-    if (selected) loadThread(selected)
-  }, [selected, loadThread])
+  useEffect(() => { if (selected) loadThread(selected) }, [selected, loadThread])
 
   async function sendReply() {
     if (!reply.trim() || !selected || sending) return
@@ -154,19 +215,29 @@ export default function LiveChatPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: selected, message: reply.trim() }),
     })
-    if (res.ok) {
-      setReply('')
-      await loadThread(selected)
-      await loadThreads()
-    }
+    if (res.ok) { setReply(''); await loadThread(selected); await loadThreads() }
     setSending(false)
   }
+
+  const handleTag = async (phone: string, status: LeadStatus | null) => {
+    // Optimistically update local state
+    setThreads(prev => prev.map(t => t.phone === phone ? { ...t, tag: status } : t))
+    setTagDropdownOpen(false)
+    await fetch('/api/live-chat/tags', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, status }),
+    })
+  }
+
+  const selectedThread = threads.find(t => t.phone === selected)
 
   const filtered = threads.filter(t => {
     if (search) {
       const s = search.toLowerCase()
       if (!t.phone.includes(s) && !t.name?.toLowerCase().includes(s)) return false
     }
+    if (tagFilter && t.tag !== tagFilter) return false
     return true
   })
 
@@ -176,7 +247,7 @@ export default function LiveChatPage() {
       {/* Thread list */}
       <div className="w-[300px] flex-shrink-0 flex flex-col bg-white border-r border-slate-100">
         {/* Header */}
-        <div className="px-4 py-4 border-b border-slate-100">
+        <div className="px-4 pt-4 pb-3 border-b border-slate-100">
           <div className="flex items-center justify-between mb-3">
             <h1 className="font-bold text-slate-900 text-base flex items-center gap-2">
               <Inbox size={16} className="text-[#25D366]" /> Live Chat
@@ -185,7 +256,7 @@ export default function LiveChatPage() {
               <RefreshCw size={14} />
             </button>
           </div>
-          <div className="relative">
+          <div className="relative mb-3">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={search} onChange={e => setSearch(e.target.value)}
@@ -193,12 +264,26 @@ export default function LiveChatPage() {
               className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 bg-slate-50"
             />
           </div>
-          <div className="flex gap-1 mt-2.5">
-            {(['all', 'open', 'resolved'] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={cn('flex-1 text-[11px] py-1 rounded-lg font-medium capitalize transition',
-                  filter === f ? 'bg-[#25D366] text-white' : 'text-slate-500 hover:bg-slate-100')}>
-                {f}
+
+          {/* Lead status filter chips */}
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => setTagFilter(null)}
+              className={cn('text-[10px] px-2.5 py-1 rounded-full font-medium border transition',
+                tagFilter === null ? 'bg-slate-900 text-white border-slate-900' : 'text-slate-500 border-slate-200 hover:border-slate-300'
+              )}>
+              All
+            </button>
+            {(Object.entries(STATUS_META) as [LeadStatus, typeof STATUS_META[LeadStatus]][]).map(([key, meta]) => (
+              <button key={key}
+                onClick={() => setTagFilter(tagFilter === key ? null : key)}
+                className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full font-medium border transition"
+                style={tagFilter === key
+                  ? { background: meta.dot, color: '#fff', borderColor: meta.dot }
+                  : { background: meta.bg, color: meta.text, borderColor: meta.border }
+                }>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: tagFilter === key ? '#fff' : meta.dot }} />
+                {meta.label}
               </button>
             ))}
           </div>
@@ -213,7 +298,7 @@ export default function LiveChatPage() {
           ) : filtered.length === 0 ? (
             <div className="p-6 text-center">
               <MessageCircle size={32} className="text-slate-200 mx-auto mb-2" />
-              <p className="text-slate-400 text-xs">No conversations yet</p>
+              <p className="text-slate-400 text-xs">No conversations{tagFilter ? ` tagged "${STATUS_META[tagFilter].label}"` : ''}</p>
             </div>
           ) : (
             filtered.map(t => (
@@ -231,11 +316,18 @@ export default function LiveChatPage() {
                     <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">{timeAgo(t.lastTime)}</span>
                   </div>
                   <p className="text-[11px] text-slate-400 truncate mt-0.5">{t.lastMsg.slice(0, 55)}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">
                       {TYPE_LABELS[t.type] ?? t.type}
                     </span>
                     {t.unread && <Circle size={6} className="text-[#25D366] fill-[#25D366]" />}
+                    {t.tag && (
+                      <span className="flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                        style={{ background: STATUS_META[t.tag].bg, color: STATUS_META[t.tag].text }}>
+                        <span className="w-1 h-1 rounded-full" style={{ background: STATUS_META[t.tag].dot }} />
+                        {STATUS_META[t.tag].label}
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>
@@ -251,21 +343,44 @@ export default function LiveChatPage() {
           <div className="bg-white border-b border-slate-100 px-5 py-3.5 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold', avatarColor(selected))}>
-                {initials(threads.find(t => t.phone === selected)?.name ?? null, selected)}
+                {initials(selectedThread?.name ?? null, selected)}
               </div>
               <div>
-                <p className="font-semibold text-slate-800 text-sm">
-                  {threads.find(t => t.phone === selected)?.name ?? selected}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-slate-800 text-sm">
+                    {selectedThread?.name ?? selected}
+                  </p>
+                  {selectedThread?.tag && (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: STATUS_META[selectedThread.tag].bg, color: STATUS_META[selectedThread.tag].text }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_META[selectedThread.tag].dot }} />
+                      {STATUS_META[selectedThread.tag].label}
+                    </span>
+                  )}
+                </div>
                 <p className="text-slate-400 text-xs flex items-center gap-1">
                   <Phone size={10} /> {selected}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button className="text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-                <Tag size={11} /> Tag
-              </button>
+              {/* Tag button with dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setTagDropdownOpen(o => !o)}
+                  className="text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                  <Tag size={11} />
+                  {selectedThread?.tag ? STATUS_META[selectedThread.tag].label : 'Tag'}
+                  <ChevronDown size={10} />
+                </button>
+                {tagDropdownOpen && selected && (
+                  <TagDropdown
+                    currentTag={selectedThread?.tag ?? null}
+                    onSelect={(status) => handleTag(selected, status)}
+                    onClose={() => setTagDropdownOpen(false)}
+                  />
+                )}
+              </div>
               <button className="text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
                 <Check size={11} /> Resolve
               </button>
@@ -343,20 +458,9 @@ export default function LiveChatPage() {
               <User size={13} /> Customer
             </p>
             <div className="space-y-1.5 text-xs">
-              <div>
-                <p className="text-slate-400">Name</p>
-                <p className="font-medium text-slate-700">{customer.name ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-slate-400">Phone</p>
-                <p className="font-medium text-slate-700">{customer.phone}</p>
-              </div>
-              {customer.email && (
-                <div>
-                  <p className="text-slate-400">Email</p>
-                  <p className="font-medium text-slate-700 truncate">{customer.email}</p>
-                </div>
-              )}
+              <div><p className="text-slate-400">Name</p><p className="font-medium text-slate-700">{customer.name ?? '—'}</p></div>
+              <div><p className="text-slate-400">Phone</p><p className="font-medium text-slate-700">{customer.phone}</p></div>
+              {customer.email && <div><p className="text-slate-400">Email</p><p className="font-medium text-slate-700 truncate">{customer.email}</p></div>}
             </div>
           </div>
 
@@ -385,20 +489,6 @@ export default function LiveChatPage() {
                   {customer.whatsapp_opt_in ? 'Opted in' : 'Opted out'}
                 </span>
               </div>
-            </div>
-          </div>
-
-          <div className="p-4">
-            <p className="font-semibold text-slate-800 text-sm mb-3 flex items-center gap-1.5">
-              <Tag size={13} /> Quick Actions
-            </p>
-            <div className="space-y-2">
-              {['Send Template', 'Add Note', 'Assign To', 'Add Tag'].map(action => (
-                <button key={action}
-                  className="w-full text-left text-xs text-slate-600 bg-slate-50 hover:bg-slate-100 px-3 py-2 rounded-lg transition flex items-center justify-between">
-                  {action} <ChevronDown size={11} className="rotate-[-90deg] text-slate-400" />
-                </button>
-              ))}
             </div>
           </div>
         </div>

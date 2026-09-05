@@ -6,7 +6,7 @@ import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
   CheckCircle, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
   Loader2, Pause, Play, Search, Edit2, Download, Clock,
-  AlertCircle, FileText, LogOut, Sparkles, Send, Tag,
+  AlertCircle, FileText, LogOut, Sparkles, Send,
 } from 'lucide-react'
 import type { StarterTemplate } from '@/lib/whatsapp-templates'
 
@@ -40,16 +40,6 @@ interface ActiveForm {
   wa_template_language: string | null
 }
 
-type LeadStatus = 'hot' | 'warm' | 'lost' | 'converted' | 'junk'
-
-const LEAD_STATUS_META: Record<LeadStatus, { label: string; dot: string; bg: string; text: string; border: string }> = {
-  hot:       { label: 'Hot',       dot: '#ef4444', bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
-  warm:      { label: 'Warm',      dot: '#f97316', bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
-  converted: { label: 'Converted', dot: '#10b981', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
-  lost:      { label: 'Lost',      dot: '#6b7280', bg: '#f9fafb', text: '#374151', border: '#e5e7eb' },
-  junk:      { label: 'Junk',      dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb' },
-}
-
 interface Lead {
   id: string
   name: string | null
@@ -59,7 +49,6 @@ interface Lead {
   form_name: string | null
   page_id: string | null
   wa_status: string
-  lead_status: LeadStatus | null
   created_at: string
   fields: Record<string, string> | null
 }
@@ -1140,38 +1129,16 @@ const STANDARD_KEYS = new Set([
   'name', 'email', 'phone', 'full_name', 'first_name', 'last_name', 'phone_number', 'mobile',
 ])
 
-function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onTag }: {
+function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp }: {
   lead: Lead
   activeForms: ActiveForm[]
   showFormBadge: boolean
   onWhatsApp: () => void
-  onTag: (status: LeadStatus | null) => Promise<void>
 }) {
-  const [expanded,   setExpanded]   = useState(false)
-  const [tagOpen,    setTagOpen]    = useState(false)
-  const [tagStatus,  setTagStatus]  = useState<LeadStatus | null>(lead.lead_status)
-  const tagRef = useRef<HTMLDivElement>(null)
-
+  const [expanded, setExpanded] = useState(false)
   const form  = activeForms.find(f => f.form_id === lead.form_id)
   const color = form ? getColor(form.color_index) : null
   const extra = Object.entries(lead.fields ?? {}).filter(([k]) => !STANDARD_KEYS.has(k))
-
-  useEffect(() => {
-    if (!tagOpen) return
-    const handler = (e: MouseEvent) => {
-      if (tagRef.current && !tagRef.current.contains(e.target as Node)) setTagOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [tagOpen])
-
-  const handleTag = async (status: LeadStatus | null) => {
-    setTagStatus(status)
-    setTagOpen(false)
-    await onTag(status)
-  }
-
-  const tagMeta = tagStatus ? LEAD_STATUS_META[tagStatus] : null
 
   return (
     <>
@@ -1202,61 +1169,6 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onTag }: {
           </td>
         )}
         <td className="px-5 py-3.5"><StatusBadge status={lead.wa_status} /></td>
-
-        {/* Tag cell */}
-        <td className="px-5 py-3.5">
-          <div className="relative" ref={tagRef}>
-            <button
-              onClick={() => setTagOpen(o => !o)}
-              className="flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1 border transition"
-              style={tagMeta
-                ? { background: tagMeta.bg, color: tagMeta.text, borderColor: tagMeta.border }
-                : { background: 'transparent', color: '#9ca3af', borderColor: '#e5e7eb' }
-              }
-            >
-              {tagMeta ? (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: tagMeta.dot }} />
-                  {tagMeta.label}
-                </>
-              ) : (
-                <>
-                  <Tag className="w-3 h-3" />
-                  <span>Tag</span>
-                </>
-              )}
-            </button>
-
-            {tagOpen && (
-              <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-36">
-                {(Object.entries(LEAD_STATUS_META) as [LeadStatus, typeof LEAD_STATUS_META[LeadStatus]][]).map(([key, meta]) => (
-                  <button
-                    key={key}
-                    onClick={() => handleTag(key)}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition text-left"
-                  >
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.dot }} />
-                    <span className="text-xs font-medium text-gray-700">{meta.label}</span>
-                    {tagStatus === key && <CheckCircle className="w-3 h-3 text-gray-400 ml-auto" />}
-                  </button>
-                ))}
-                {tagStatus && (
-                  <>
-                    <div className="border-t border-gray-100 my-1" />
-                    <button
-                      onClick={() => handleTag(null)}
-                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition text-left"
-                    >
-                      <X className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-400">Clear tag</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </td>
-
         <td className="px-5 py-3.5">
           <span className="text-xs text-gray-400">
             {new Date(lead.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -1286,7 +1198,7 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onTag }: {
       </tr>
       {expanded && extra.length > 0 && (
         <tr>
-          <td colSpan={showFormBadge ? 7 : 6} className="px-5 pb-4">
+          <td colSpan={showFormBadge ? 6 : 5} className="px-5 pb-4">
             <div className="ml-5 bg-gray-50 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
               {extra.map(([k, v]) => (
                 <div key={k}>
@@ -1479,8 +1391,6 @@ function LeadsContent() {
   const [showBulkMsg,    setShowBulkMsg]    = useState(false)
   const [lockedPage,     setLockedPage]     = useState<{ page_id: string; page_name: string } | null>(null)
   const [showPageLockPopup, setShowPageLockPopup] = useState(false)
-  const [leadStatusFilter, setLeadStatusFilter] = useState<LeadStatus | null>(null)
-  const leadStatusFilterRef = useRef<LeadStatus | null>(null)
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -1516,7 +1426,6 @@ function LeadsContent() {
     if (formId !== 'all' && formId !== '__forms') p.set('form_id', formId)
     else p.set('page_id', pageId)
     if (search.trim()) p.set('q', search.trim())
-    if (leadStatusFilterRef.current) p.set('lead_status', leadStatusFilterRef.current)
     const r = await fetch(`/api/facebook/leads?${p}`)
     const d = await r.json() as { leads?: Lead[]; total?: number }
     setLeads(d.leads ?? [])
@@ -1715,15 +1624,6 @@ function LeadsContent() {
     } else {
       setBanner({ type: 'success', msg: 'Already up to date — no new leads found' })
     }
-  }
-
-  const handleStatusFilter = (status: LeadStatus | null) => {
-    leadStatusFilterRef.current = status
-    setLeadStatusFilter(status)
-    if (!selectedPageId || selectedFormId === '__forms') return
-    setCurrentPage(1)
-    setLoadingLeads(true)
-    fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch).finally(() => setLoadingLeads(false))
   }
 
   // ── Search debounce ──────────────────────────────────────────────────────
@@ -2001,35 +1901,6 @@ function LeadsContent() {
               </select>
             </div>
 
-            {/* Status filter chips */}
-            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-100 overflow-x-auto">
-              <button
-                onClick={() => handleStatusFilter(null)}
-                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition border ${
-                  leadStatusFilter === null
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                All
-              </button>
-              {(Object.entries(LEAD_STATUS_META) as [LeadStatus, typeof LEAD_STATUS_META[LeadStatus]][]).map(([key, meta]) => (
-                <button
-                  key={key}
-                  onClick={() => handleStatusFilter(leadStatusFilter === key ? null : key)}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition border"
-                  style={leadStatusFilter === key
-                    ? { background: meta.dot, color: '#fff', borderColor: meta.dot }
-                    : { background: meta.bg, color: meta.text, borderColor: meta.border }
-                  }
-                >
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: leadStatusFilter === key ? '#fff' : meta.dot }} />
-                  {meta.label}
-                </button>
-              ))}
-            </div>
-
             {/* Table */}
             {loadingLeads ? (
               <div className="flex items-center justify-center py-16">
@@ -2057,8 +1928,7 @@ function LeadsContent() {
                       {selectedFormId === 'all' && (
                         <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-48">Form</th>
                       )}
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">WA</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Tag</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
                       <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
                       <th className="px-5 py-3 w-16" />
                     </tr>
@@ -2071,13 +1941,6 @@ function LeadsContent() {
                         activeForms={activeForms}
                         showFormBadge={selectedFormId === 'all'}
                         onWhatsApp={() => handleSendWhatsApp(lead)}
-                        onTag={async (status) => {
-                          await fetch('/api/facebook/leads/tag', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ leadId: lead.id, status }),
-                          })
-                        }}
                       />
                     ))}
                   </tbody>
