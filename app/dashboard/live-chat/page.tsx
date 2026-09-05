@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
 
-type LeadStatus = 'hot' | 'warm' | 'lost' | 'converted' | 'junk'
+type LeadStatus = 'hot' | 'warm' | 'lost' | 'converted' | 'junk' | 'resolved'
 
 const STATUS_META: Record<LeadStatus, { label: string; dot: string; bg: string; text: string; border: string }> = {
   hot:       { label: 'Hot',       dot: '#ef4444', bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
@@ -18,6 +18,7 @@ const STATUS_META: Record<LeadStatus, { label: string; dot: string; bg: string; 
   converted: { label: 'Converted', dot: '#10b981', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
   lost:      { label: 'Lost',      dot: '#6b7280', bg: '#f9fafb', text: '#374151', border: '#e5e7eb' },
   junk:      { label: 'Junk',      dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb' },
+  resolved:  { label: 'Resolved',  dot: '#3b82f6', bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe' },
 }
 
 interface Message {
@@ -381,8 +382,15 @@ export default function LiveChatPage() {
                   />
                 )}
               </div>
-              <button className="text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-                <Check size={11} /> Resolve
+              <button
+                onClick={() => selected && handleTag(selected, selectedThread?.tag === 'resolved' ? null : 'resolved')}
+                className={cn(
+                  'text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1',
+                  selectedThread?.tag === 'resolved'
+                    ? 'text-blue-700 bg-blue-100 hover:bg-blue-200'
+                    : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+                )}>
+                <Check size={11} /> {selectedThread?.tag === 'resolved' ? 'Resolved' : 'Resolve'}
               </button>
               <button className="text-slate-400 hover:text-slate-600 transition">
                 <MoreVertical size={16} />

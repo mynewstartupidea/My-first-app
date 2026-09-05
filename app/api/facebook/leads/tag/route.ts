@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
-const VALID_STATUSES = new Set(['hot', 'warm', 'lost', 'converted', 'junk'])
+const VALID_STATUSES = new Set(['hot', 'warm', 'lost', 'converted', 'junk', 'resolved'])
 
 export async function PATCH(request: Request) {
   const supabase = await createClient()
