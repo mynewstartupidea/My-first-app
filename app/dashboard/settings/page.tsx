@@ -1259,7 +1259,7 @@ function SettingsInner() {
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
                   <option value="admin">Admin</option>
                   <option value="manager">Manager</option>
-                  <option value="member">Member</option>
+                  <option value="member">Sales</option>
                   <option value="support">Support</option>
                 </select>
               </div>
@@ -1272,7 +1272,7 @@ function SettingsInner() {
               </div>
             </div>
             <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-              <strong>Role permissions:</strong> Admin (full access) · Manager (automations, campaigns, customers) · Member (read) · Support (conversations only)
+              <strong>Role permissions:</strong> Admin (full access) · Manager (automations, campaigns, customers) · Sales (leads &amp; contacts) · Support (conversations only)
             </div>
           </section>
 
@@ -1321,7 +1321,7 @@ function SettingsInner() {
                         <p className="text-sm font-medium text-slate-800">{m.email}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize', ROLE_COLORS[m.role] ?? ROLE_COLORS.member)}>
-                            {m.role}
+                            {m.role === 'member' ? 'Sales' : m.role}
                           </span>
                           <span className={cn(
                             'text-[10px] px-1.5 py-0.5 rounded-full',
