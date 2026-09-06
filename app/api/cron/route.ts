@@ -20,14 +20,17 @@ export async function GET(request: Request) {
   const today = new Date().toISOString().split('T')[0]
   const { data: dueLeads } = await supabase
     .from('leads')
-    .select('id, name, user_id')
+    .select('id, name, user_id, assigned_to')
     .not('followup_at', 'is', null)
     .lte('followup_at', new Date().toISOString())
     .not('lead_status', 'in', '("converted","lost","junk")')
 
+  // Notify the assigned salesperson if set; fall back to the lead owner.
+  // This ensures team members get their own follow-up reminders, not the owner.
   const dueCounts: Record<string, number> = {}
   for (const lead of dueLeads ?? []) {
-    dueCounts[lead.user_id] = (dueCounts[lead.user_id] ?? 0) + 1
+    const notifyUserId = lead.assigned_to ?? lead.user_id
+    dueCounts[notifyUserId] = (dueCounts[notifyUserId] ?? 0) + 1
   }
 
   for (const [userId, count] of Object.entries(dueCounts)) {

@@ -26,7 +26,8 @@ export async function GET(request: Request) {
     let query = service
       .from('leads')
       .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
-      .eq('user_id', user.id)
+      // Show leads the user owns OR leads assigned directly to them (team member view)
+      .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`)
 
     if (sort === 'followup_due') {
       // Show only leads with a follow-up date that is today or overdue
@@ -70,17 +71,19 @@ export async function POST(request: Request) {
   const service = createServiceClient()
 
   const { data: lead } = await service
-    .from('leads').select('*').eq('id', leadId).eq('user_id', user.id).maybeSingle()
+    .from('leads').select('*').eq('id', leadId)
+    .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`).maybeSingle()
 
   if (!lead?.phone) return NextResponse.json({ error: 'Lead not found or has no phone' }, { status: 400 })
   if (!lead.store_id) return NextResponse.json({ error: 'No store connected' }, { status: 400 })
 
   // Render template with lead fields if the caller didn't already do it
+  // Look up template by the lead owner's user_id — team members don't own the automation
   const { data: auto } = await service
     .from('lead_form_automations')
     .select('message_template')
     .eq('form_id', lead.form_id)
-    .eq('user_id', user.id)
+    .eq('user_id', lead.user_id)
     .maybeSingle()
 
   const finalMessage = auto?.message_template

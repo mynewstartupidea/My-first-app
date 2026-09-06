@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import {
   IndianRupee, MessageSquare, ShoppingCart, TrendingUp,
   ArrowRight, Zap, Store, AlertCircle, CheckCircle2,
@@ -70,11 +70,14 @@ export default async function DashboardPage() {
   const msgPct   = msgLimit >= 999_999_999 ? 0 : Math.min(100, Math.round((msgUsed / msgLimit) * 100))
   const msgLeft  = Math.max(0, msgLimit - msgUsed)
 
-  // Follow-ups due today or overdue — for the sales team widget
-  const { data: followupLeads } = await supabase
+  // Follow-ups due today or overdue — for the sales team widget.
+  // Uses service client + explicit filter so team members see their assigned leads
+  // even if RLS only permits rows where user_id = auth.uid().
+  const service = createServiceClient()
+  const { data: followupLeads } = await service
     .from('leads')
     .select('id, name, phone, lead_status, followup_at, wa_status')
-    .eq('user_id', user.id)
+    .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`)
     .not('followup_at', 'is', null)
     .lte('followup_at', new Date().toISOString())
     .not('lead_status', 'in', '("converted","lost","junk")')
