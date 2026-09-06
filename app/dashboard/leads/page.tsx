@@ -1751,12 +1751,41 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
         })}
       </div>
 
-      {/* Lead list */}
+      {/* Lead list — grouped by bucket when showing "All", flat otherwise */}
       {visibleLeads.length === 0 ? (
         <div className="py-12 text-center text-sm text-gray-400">
           {search ? `No results for "${search}"` : 'No leads in this group'}
         </div>
+      ) : filter === 'all' ? (
+        // Grouped view with section headers
+        <div>
+          {FOLLOWUP_BUCKETS.map(bkt => {
+            const bktLeads = visibleLeads.filter(l => getFollowupBucket(l.followup_at!) === bkt.id)
+            if (bktLeads.length === 0) return null
+            const isPulsing = bkt.id === 'overdue' || bkt.id === 'today'
+            return (
+              <div key={bkt.id}>
+                <div className={`flex items-center gap-2.5 px-5 py-2.5 border-y ${bkt.headerCls}`}>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${bkt.dotCls} ${isPulsing ? 'animate-pulse' : ''}`} />
+                  <span className="text-xs font-bold tracking-wide flex-1">{bkt.label}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${bkt.badgeCls}`}>
+                    {bktLeads.length}
+                  </span>
+                </div>
+                {bktLeads.map(lead => (
+                  <FollowUpLeadCard
+                    key={lead.id}
+                    lead={lead}
+                    bucket={bkt.id}
+                    onCallLog={() => onCallLog(lead)}
+                  />
+                ))}
+              </div>
+            )
+          })}
+        </div>
       ) : (
+        // Flat list for a specific chip selection
         <div>
           {visibleLeads.map(lead => (
             <FollowUpLeadCard
