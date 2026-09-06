@@ -1743,7 +1743,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
               )}
               {chip.label}
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
-                isActive ? 'bg-white/25 text-inherit' : 'bg-black/8 text-inherit'
+                isActive ? 'bg-white/25 text-inherit' : 'bg-black/10 text-inherit'
               }`}>
                 {chip.count}
               </span>
