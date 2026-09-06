@@ -1577,11 +1577,10 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   selectedFormId: string
   onCallLog: (lead: Lead) => void
 }) {
-  const [leads,     setLeads]     = useState<Lead[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [collapsed, setCollapsed] = useState<Set<FollowupBucket>>(
-    new Set<FollowupBucket>(['tomorrow', 'week', 'later'])
-  )
+  const [leads,   setLeads]   = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter,  setFilter]  = useState<FollowupBucket | 'all'>('all')
+  const [search,  setSearch]  = useState('')
 
   const load = useCallback(async () => {
     if (!pageId) return
@@ -1597,24 +1596,6 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
 
   useEffect(() => { load() }, [load])
 
-  // Smart expand: if nothing is overdue or due today, show Tomorrow automatically
-  // so the user always lands on visible lead data instead of a wall of closed headers.
-  useEffect(() => {
-    if (leads.length === 0) return
-    const hasUrgent = leads.some(l => {
-      if (!l.followup_at) return false
-      const b = getFollowupBucket(l.followup_at)
-      return b === 'overdue' || b === 'today'
-    })
-    if (!hasUrgent) {
-      setCollapsed(prev => { const n = new Set(prev); n.delete('tomorrow'); return n })
-    }
-  }, [leads])
-
-  function toggle(id: FollowupBucket) {
-    setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
-
   const grouped = leads.reduce<Record<FollowupBucket, Lead[]>>(
     (acc, lead) => {
       if (lead.followup_at) acc[getFollowupBucket(lead.followup_at)].push(lead)
@@ -1624,6 +1605,26 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   )
 
   const urgentCount = grouped.overdue.length + grouped.today.length
+
+  // Filter chips definition — only show chips that have leads
+  const allChips: { id: FollowupBucket | 'all'; label: string; count: number; activeCls: string }[] = [
+    { id: 'all',      label: 'All',         count: leads.length,           activeCls: 'bg-gray-900 text-white border-gray-900' },
+    { id: 'overdue',  label: 'Overdue',     count: grouped.overdue.length, activeCls: 'bg-red-500 text-white border-red-500' },
+    { id: 'today',    label: 'Today',       count: grouped.today.length,   activeCls: 'bg-amber-500 text-white border-amber-500' },
+    { id: 'tomorrow', label: 'Tomorrow',    count: grouped.tomorrow.length, activeCls: 'bg-sky-500 text-white border-sky-500' },
+    { id: 'week',     label: 'Next 7 days', count: grouped.week.length,    activeCls: 'bg-indigo-500 text-white border-indigo-500' },
+    { id: 'later',    label: 'Later',       count: grouped.later.length,   activeCls: 'bg-slate-500 text-white border-slate-500' },
+  ]
+  const chips = allChips.filter(c => c.id === 'all' || c.count > 0)
+
+  // Visible leads: filter by chip + search
+  const q = search.trim().toLowerCase()
+  const visibleLeads = leads.filter(lead => {
+    if (!lead.followup_at) return false
+    if (filter !== 'all' && getFollowupBucket(lead.followup_at) !== filter) return false
+    if (q && !lead.name?.toLowerCase().includes(q) && !lead.phone?.includes(q)) return false
+    return true
+  })
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -1645,74 +1646,89 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
 
   return (
     <div>
-      {/* Summary bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/60">
-        <div className="flex items-center gap-3">
+      {/* Toolbar: status + search + refresh */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+        {/* Status indicator */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {urgentCount > 0 ? (
             <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600">
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              {urgentCount} need attention now
+              {urgentCount} urgent
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
               <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-              All caught up for today
+              All caught up
             </span>
           )}
-          <span className="text-gray-200">|</span>
-          <span className="text-xs text-gray-400">{leads.length} total scheduled</span>
         </div>
-        <button onClick={load} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition">
+
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search name or phone…"
+            className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+              <X className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+            </button>
+          )}
+        </div>
+
+        <span className="text-xs text-gray-400 flex-shrink-0">{leads.length} total</span>
+
+        <button onClick={load} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition flex-shrink-0 ml-auto">
           <RefreshCw className="w-3 h-3" /> Refresh
         </button>
       </div>
 
-      {/* Buckets */}
-      {FOLLOWUP_BUCKETS.map(bkt => {
-        const bktLeads = grouped[bkt.id]
-        if (bktLeads.length === 0) return null
-        const isCollapsed = collapsed.has(bkt.id)
-        const isPulsing   = bkt.id === 'overdue' || bkt.id === 'today'
-        return (
-          <div key={bkt.id} className="border-b border-gray-100 last:border-0">
+      {/* Filter chips */}
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 overflow-x-auto">
+        {chips.map(chip => {
+          const isActive = filter === chip.id
+          return (
             <button
-              onClick={() => toggle(bkt.id)}
-              className={`w-full flex items-center gap-3 px-5 py-4 text-left hover:brightness-95 transition-all ${bkt.headerCls}`}
+              key={chip.id}
+              onClick={() => setFilter(chip.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition whitespace-nowrap flex-shrink-0 ${
+                isActive
+                  ? chip.activeCls
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
             >
-              {/* Dot */}
-              <span className={`w-3 h-3 rounded-full flex-shrink-0 ${bkt.dotCls} ${isPulsing ? 'animate-pulse' : ''}`} />
-
-              {/* Label */}
-              <span className="font-semibold text-sm flex-1 tracking-tight">{bkt.label}</span>
-
-              {/* Count pill */}
-              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full mr-2 ${bkt.badgeCls}`}>
-                {bktLeads.length} lead{bktLeads.length !== 1 ? 's' : ''}
-              </span>
-
-              {/* Chevron in a circle */}
-              <span className="w-6 h-6 rounded-full bg-black/5 flex items-center justify-center flex-shrink-0">
-                {isCollapsed
-                  ? <ChevronDown className="w-3.5 h-3.5 opacity-50" />
-                  : <ChevronUp   className="w-3.5 h-3.5 opacity-50" />}
+              {chip.label}
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+                isActive ? 'bg-white/20 text-inherit' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {chip.count}
               </span>
             </button>
+          )
+        })}
+      </div>
 
-            {!isCollapsed && (
-              <div className="bg-white">
-                {bktLeads.map(lead => (
-                  <FollowUpLeadCard
-                    key={lead.id}
-                    lead={lead}
-                    bucket={bkt.id}
-                    onCallLog={() => onCallLog(lead)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {/* Lead list */}
+      {visibleLeads.length === 0 ? (
+        <div className="py-12 text-center text-sm text-gray-400">
+          {search ? `No results for "${search}"` : 'No leads in this group'}
+        </div>
+      ) : (
+        <div>
+          {visibleLeads.map(lead => (
+            <FollowUpLeadCard
+              key={lead.id}
+              lead={lead}
+              bucket={getFollowupBucket(lead.followup_at!)}
+              onCallLog={() => onCallLog(lead)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -2479,7 +2495,7 @@ function LeadsContent() {
           })}
 
           {/* Hint when no forms have WhatsApp enabled */}
-          {enabledForms.length === 0 && !loadingForms && selectedFormId !== '__forms' && (
+          {enabledForms.length === 0 && !loadingForms && selectedFormId !== '__forms' && activeView !== 'followups' && (
             <span className="flex-shrink-0 px-4 py-3.5 text-xs text-gray-300 whitespace-nowrap italic select-none">
               Activate forms to add tabs
             </span>
