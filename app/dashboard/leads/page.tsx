@@ -2168,6 +2168,7 @@ function LeadsContent() {
   const [callLogLead,    setCallLogLead]    = useState<Lead | null>(null)
   const [teamMembers,    setTeamMembers]    = useState<TeamMember[]>([])
   const [lastSynced,     setLastSynced]     = useState<string | null>(null)
+  const [waConnected,    setWaConnected]    = useState<boolean | null>(null)
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -2181,9 +2182,14 @@ function LeadsContent() {
   }, [])
 
   const fetchActiveForms = useCallback(async (pageId: string) => {
-    const r = await fetch(`/api/facebook/active-forms?page_id=${pageId}`)
-    const d = await r.json() as { forms?: ActiveForm[] }
-    setActiveForms(d.forms ?? [])
+    const [formsRes, waRes] = await Promise.all([
+      fetch(`/api/facebook/active-forms?page_id=${pageId}`),
+      fetch(`/api/facebook/pages?page_id=${pageId}`),
+    ])
+    const formsData = await formsRes.json() as { forms?: ActiveForm[] }
+    const waData    = await waRes.json()   as { whatsapp_connected?: boolean }
+    setActiveForms(formsData.forms ?? [])
+    setWaConnected(waData.whatsapp_connected ?? false)
   }, [])
 
   const fetchStats = useCallback(async (pageId: string) => {
@@ -2570,17 +2576,27 @@ function LeadsContent() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total leads',     value: pageTotal, color: '#6b7280' },
-          { label: 'Have phone',      value: withPhone, color: '#3b82f6' },
-          { label: 'Messages sent',   value: sent,      color: '#10b981' },
-          { label: 'Queued to send',  value: pending,   color: '#f59e0b' },
+          { label: 'Total leads',   value: pageTotal, color: '#6b7280', warn: false },
+          { label: 'Have phone',    value: withPhone, color: '#3b82f6', warn: false },
+          { label: 'Messages sent', value: sent,      color: '#10b981', warn: false },
+          {
+            label: pending > 0 && waConnected === false ? 'Stuck — WA not connected' : 'Queued to send',
+            value: pending,
+            color: pending > 0 && waConnected === false ? '#ef4444' : '#f59e0b',
+            warn:  pending > 0 && waConnected === false,
+          },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.value}</p>
+          <div key={s.label} className={`bg-white rounded-xl border shadow-sm p-4 ${s.warn ? 'border-red-200' : 'border-gray-100'}`}>
+            <p className={`text-2xl font-bold tabular-nums ${s.warn ? 'text-red-600' : 'text-gray-900'}`}>{s.value}</p>
             <div className="flex items-center gap-1.5 mt-1">
               <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <p className="text-xs text-gray-400">{s.label}</p>
+              <p className={`text-xs ${s.warn ? 'text-red-500 font-medium' : 'text-gray-400'}`}>{s.label}</p>
             </div>
+            {s.warn && (
+              <a href="/dashboard/settings?tab=whatsapp" className="mt-2 text-[10px] text-red-500 hover:text-red-700 underline underline-offset-2 block">
+                Connect WhatsApp to send →
+              </a>
+            )}
           </div>
         ))}
       </div>
