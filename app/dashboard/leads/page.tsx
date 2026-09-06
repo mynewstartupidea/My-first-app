@@ -2522,42 +2522,15 @@ function LeadsContent() {
           {/* All leads */}
           <button
             onClick={() => handleTabChange('all')}
-            className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedFormId === 'all' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedFormId === 'all' && activeView !== 'followups' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
           >
             All leads
-            <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${selectedFormId === 'all' ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'}`}>
+            <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${selectedFormId === 'all' && activeView !== 'followups' ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'}`}>
               {total}
             </span>
           </button>
 
-          {/* Per-form tabs — only show forms the user has enabled WhatsApp for */}
-          {enabledForms.map(form => {
-            const c = getColor(form.color_index)
-            const sel = selectedFormId === form.form_id
-            return (
-              <button key={form.form_id}
-                onClick={() => handleTabChange(form.form_id)}
-                className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${sel ? '' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-                style={sel ? { borderBottomColor: c.dot, color: c.text } : {}}
-              >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
-                <span className="max-w-[140px] truncate">{form.form_name}</span>
-                <span className="px-1.5 py-0.5 rounded-full text-xs font-medium"
-                  style={sel ? { background: c.bg, color: c.text } : { background: '#f9fafb', color: '#9ca3af' }}>
-                  {form.lead_count}
-                </span>
-              </button>
-            )
-          })}
-
-          {/* Hint when no forms have WhatsApp enabled */}
-          {enabledForms.length === 0 && !loadingForms && selectedFormId !== '__forms' && activeView !== 'followups' && (
-            <span className="flex-shrink-0 px-4 py-3.5 text-xs text-gray-300 whitespace-nowrap italic select-none">
-              Activate forms to add tabs
-            </span>
-          )}
-
-          {/* Follow-ups tab */}
+          {/* Follow-ups tab — sits right next to All leads */}
           <button
             onClick={() => {
               setActiveView(v => v === 'followups' ? 'leads' : 'followups')
@@ -2579,6 +2552,26 @@ function LeadsContent() {
               </span>
             )}
           </button>
+
+          {/* Per-form tabs — only show forms the user has enabled WhatsApp for */}
+          {enabledForms.map(form => {
+            const c = getColor(form.color_index)
+            const sel = selectedFormId === form.form_id && activeView !== 'followups'
+            return (
+              <button key={form.form_id}
+                onClick={() => handleTabChange(form.form_id)}
+                className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${sel ? '' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                style={sel ? { borderBottomColor: c.dot, color: c.text } : {}}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+                <span className="max-w-[140px] truncate">{form.form_name}</span>
+                <span className="px-1.5 py-0.5 rounded-full text-xs font-medium"
+                  style={sel ? { background: c.bg, color: c.text } : { background: '#f9fafb', color: '#9ca3af' }}>
+                  {form.lead_count}
+                </span>
+              </button>
+            )
+          })}
 
           {/* All forms tab — separated by a divider */}
           <div className="flex-shrink-0 border-l border-gray-100 flex items-stretch ml-auto">
