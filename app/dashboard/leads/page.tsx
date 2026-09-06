@@ -1933,10 +1933,11 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
   onImport: (form: ActiveForm) => void
   onToggle: (form: ActiveForm, enabled: boolean) => void
 }) {
-  const [forms, setForms] = useState<FBForm[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState('')
+  const [forms,       setForms]       = useState<FBForm[] | null>(null)
+  const [loading,     setLoading]     = useState(false)
+  const [search,      setSearch]      = useState('')
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [waConnected, setWaConnected] = useState<boolean | null>(null)
 
   const handleDownloadCsv = async (af: ActiveForm) => {
     setDownloading(af.form_id)
@@ -1945,7 +1946,6 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
       const d = await r.json() as { leads?: Array<Record<string, unknown>> }
       const leads = d.leads ?? []
       if (!leads.length) return
-
       const headers = ['Name', 'Email', 'Phone', 'Status', 'Date', 'Form']
       const rows = leads.map(l => [
         l.name ?? '', l.email ?? '', l.phone ?? '',
@@ -1955,11 +1955,10 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
       const csv = [headers, ...rows]
         .map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
         .join('\n')
-
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
-      a.href     = url
+      a.href = url
       a.download = `${af.form_name.replace(/[^a-z0-9]/gi, '_').slice(0, 40)}_leads.csv`
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       URL.revokeObjectURL(url)
@@ -1974,15 +1973,38 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
     setForms(null)
     fetch(`/api/facebook/pages?page_id=${pageId}`)
       .then(r => r.json())
-      .then((d: { forms?: FBForm[] }) => setForms(d.forms ?? []))
+      .then((d: { forms?: FBForm[]; whatsapp_connected?: boolean }) => {
+        setForms(d.forms ?? [])
+        setWaConnected(d.whatsapp_connected ?? false)
+      })
       .finally(() => setLoading(false))
   }, [pageId])
 
   const activeMap = new Map(activeForms.map(f => [f.form_id, f]))
-  const filtered = (forms ?? []).filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
+  const filtered  = (forms ?? []).filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+      {/* WhatsApp not connected warning */}
+      {waConnected === false && (
+        <div className="flex items-start gap-3 px-5 py-4 bg-amber-50 border-b border-amber-100">
+          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">WhatsApp not connected</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Automations won&apos;t send messages until you connect a WhatsApp number.
+              Play/pause is disabled until then.
+            </p>
+          </div>
+          <a href="/dashboard/settings?tab=whatsapp"
+            className="flex-shrink-0 text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition">
+            Connect WhatsApp →
+          </a>
+        </div>
+      )}
+
+      {/* Search + count */}
       <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
@@ -2012,48 +2034,90 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
         <div className="divide-y divide-gray-50">
           {filtered.map(f => {
             const af = activeMap.get(f.id)
-            const c = af ? getColor(af.color_index) : null
+            const c  = af ? getColor(af.color_index) : null
+            const isToggling = togglingId === (af?.form_id ?? '')
+            const canToggle  = waConnected === true && !togglingId
+
             return (
-              <div key={f.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              <div key={f.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50/40 transition-colors">
+
+                {/* Left: dot + name + meta */}
+                <div className="flex items-start gap-3 flex-1 min-w-0 pt-0.5">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1"
                     style={{ background: c?.dot ?? '#e5e7eb' }} />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate" title={f.name}>{f.name}</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate" title={f.name}>{f.name}</p>
+
                     {af ? (
-                      <p className="text-xs mt-0.5">
-                        <span className="text-gray-400">{af.lead_count} leads · </span>
-                        <span style={{ color: af.is_enabled ? '#16a34a' : '#9ca3af' }}>
-                          {af.is_enabled ? 'Active' : 'Paused'}
-                        </span>
-                      </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-xs text-gray-400">{af.lead_count} leads</span>
+                        <span className="text-gray-200">·</span>
+                        {/* Status badge */}
+                        {waConnected === false ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            <AlertCircle className="w-2.5 h-2.5" /> WA not connected
+                          </span>
+                        ) : af.is_enabled ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Sending automatically
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                            <span className="w-1.5 h-1.5 bg-gray-300 rounded-full" /> Paused
+                          </span>
+                        )}
+                      </div>
                     ) : (
-                      <p className="text-xs text-gray-400 mt-0.5">Not activated</p>
+                      <p className="text-xs text-gray-400 mt-0.5">No automation set up yet</p>
                     )}
                   </div>
                 </div>
+
+                {/* Right: actions */}
                 {af ? (
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* Play / Pause */}
                     <button
-                      onClick={() => !togglingId && onToggle(af, !af.is_enabled)}
+                      onClick={() => canToggle && onToggle(af, !af.is_enabled)}
+                      disabled={!canToggle}
+                      title={waConnected === false ? 'Connect WhatsApp first' : af.is_enabled ? 'Pause automation' : 'Resume automation'}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                        !canToggle
+                          ? 'opacity-40 cursor-not-allowed border-gray-200 text-gray-400 bg-white'
+                          : af.is_enabled
+                            ? 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100'
+                            : 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100'
+                      }`}>
+                      {isToggling
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : af.is_enabled
+                          ? <><Pause className="w-3.5 h-3.5" /> Pause</>
+                          : <><Play className="w-3.5 h-3.5" /> Resume</>}
+                    </button>
+
+                    {/* Edit message */}
+                    <button
+                      onClick={() => onEdit(af)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 transition">
+                      <Edit2 className="w-3.5 h-3.5" /> Edit message
+                    </button>
+
+                    {/* Download CSV */}
+                    <button
+                      onClick={() => handleDownloadCsv(af)}
+                      disabled={!!downloading}
                       className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600"
-                      title={af.is_enabled ? 'Pause' : 'Resume'}>
-                      {togglingId === af.form_id
+                      title="Download leads as CSV">
+                      {downloading === af.form_id
                         ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : af.is_enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    </button>
-                    <button onClick={() => onImport(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Download leads by date range">
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => onEdit(af)} className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600" title="Edit WhatsApp template">
-                      <Edit2 className="w-4 h-4" />
+                        : <Download className="w-4 h-4" />}
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => onActivate(f)}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
-                    <Zap className="w-3 h-3" /> Activate
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition shadow-sm">
+                    <Zap className="w-3.5 h-3.5" /> Set up automation
                   </button>
                 )}
               </div>
