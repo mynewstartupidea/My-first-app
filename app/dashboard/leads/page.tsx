@@ -2492,7 +2492,7 @@ function LeadsContent() {
       </div>
 
       {/* Automation setup callout — shown when no forms have WhatsApp enabled */}
-      {enabledForms.length === 0 && !loadingForms && (
+      {enabledForms.length === 0 && !loadingForms && activeView !== 'followups' && (
         <div className="flex items-start gap-3 px-4 py-3.5 bg-blue-50 border border-blue-100 rounded-xl">
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
             <Zap className="w-4 h-4 text-blue-600" />
