@@ -30,10 +30,16 @@ export async function GET(request: Request) {
       .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`)
 
     if (sort === 'followup_due') {
-      // Show only leads with a follow-up date that is today or overdue
+      // Overdue + today only (for dashboard widget and badge count)
       query = query
         .not('followup_at', 'is', null)
         .lte('followup_at', new Date().toISOString())
+        .order('followup_at', { ascending: true })
+    } else if (sort === 'followup_all') {
+      // All leads that have any follow-up date, sorted chronologically
+      // (past first, then future) — used by the Follow-ups tab view
+      query = query
+        .not('followup_at', 'is', null)
         .order('followup_at', { ascending: true })
     } else {
       query = query.order('created_at', { ascending: false })

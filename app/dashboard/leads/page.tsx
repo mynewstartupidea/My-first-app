@@ -1466,6 +1466,231 @@ const STANDARD_KEYS = new Set([
   'name', 'email', 'phone', 'full_name', 'first_name', 'last_name', 'phone_number', 'mobile',
 ])
 
+// ── Follow-ups view ───────────────────────────────────────────────────────────
+
+type FollowupBucket = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later'
+
+function getFollowupBucket(followupAt: string): FollowupBucket {
+  const date = new Date(followupAt)
+  const s = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const today    = s(new Date())
+  const tomorrow = new Date(today.getTime() + 86400000)
+  const dayAfter = new Date(today.getTime() + 2 * 86400000)
+  const weekEnd  = new Date(today.getTime() + 7 * 86400000)
+  if (date < today)    return 'overdue'
+  if (date < tomorrow) return 'today'
+  if (date < dayAfter) return 'tomorrow'
+  if (date < weekEnd)  return 'week'
+  return 'later'
+}
+
+function formatDueLabel(followupAt: string, bucket: FollowupBucket): string {
+  const date = new Date(followupAt)
+  if (bucket === 'today')    return 'Today'
+  if (bucket === 'tomorrow') return 'Tomorrow'
+  if (bucket === 'overdue') {
+    const days = Math.floor((Date.now() - date.getTime()) / 86400000)
+    if (days === 1) return 'Yesterday'
+    return `${days} days overdue`
+  }
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+const FOLLOWUP_BUCKETS: {
+  id: FollowupBucket; label: string
+  dotCls: string; headerCls: string; stripeCls: string; badgeCls: string; dueCls: string
+}[] = [
+  { id: 'overdue',  label: 'Overdue',      dotCls: 'bg-red-500',    headerCls: 'bg-red-50 border-red-100 text-red-800',     stripeCls: 'bg-red-400',    badgeCls: 'bg-red-500 text-white',          dueCls: 'text-red-500' },
+  { id: 'today',    label: 'Today',         dotCls: 'bg-amber-400',  headerCls: 'bg-amber-50 border-amber-100 text-amber-800', stripeCls: 'bg-amber-400',  badgeCls: 'bg-amber-500 text-white',        dueCls: 'text-amber-500' },
+  { id: 'tomorrow', label: 'Tomorrow',      dotCls: 'bg-sky-500',    headerCls: 'bg-sky-50 border-sky-100 text-sky-800',     stripeCls: 'bg-sky-400',    badgeCls: 'bg-sky-100 text-sky-700',        dueCls: 'text-sky-500' },
+  { id: 'week',     label: 'Next 7 days',   dotCls: 'bg-indigo-400', headerCls: 'bg-slate-50 border-slate-100 text-slate-700', stripeCls: 'bg-indigo-300', badgeCls: 'bg-slate-100 text-slate-600',    dueCls: 'text-indigo-400' },
+  { id: 'later',    label: 'Later',         dotCls: 'bg-slate-300',  headerCls: 'bg-slate-50 border-slate-100 text-slate-500', stripeCls: 'bg-slate-200',  badgeCls: 'bg-slate-100 text-slate-500',    dueCls: 'text-slate-400' },
+]
+
+function FollowUpLeadCard({ lead, bucket, onCallLog }: {
+  lead: Lead; bucket: FollowupBucket; onCallLog: () => void
+}) {
+  const bkt = FOLLOWUP_BUCKETS.find(b => b.id === bucket)!
+  const STATUS_CLS: Record<string, string> = {
+    hot:       'bg-red-100 text-red-700',
+    warm:      'bg-amber-100 text-amber-700',
+    cold:      'bg-sky-100 text-sky-700',
+    converted: 'bg-emerald-100 text-emerald-700',
+    lost:      'bg-gray-100 text-gray-500',
+    junk:      'bg-gray-100 text-gray-400',
+    resolved:  'bg-purple-100 text-purple-600',
+  }
+  const statusCls = lead.lead_status ? STATUS_CLS[lead.lead_status] : null
+  const initials  = (lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()
+
+  return (
+    <div className="flex items-center gap-0 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition group">
+      {/* Colored left stripe */}
+      <div className={`w-[3px] self-stretch flex-shrink-0 ${bkt.stripeCls}`} />
+
+      <div className="flex items-center gap-3.5 flex-1 min-w-0 px-5 py-3.5">
+        {/* Avatar */}
+        <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-gray-500 uppercase">
+          {initials}
+        </div>
+
+        {/* Name + status */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <p className="text-sm font-semibold text-gray-800 truncate">{lead.name ?? '—'}</p>
+            {statusCls && lead.lead_status && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize flex-shrink-0 ${statusCls}`}>
+                {lead.lead_status}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 font-mono tracking-tight">{lead.phone ?? 'No phone'}</p>
+        </div>
+
+        {/* Form badge — hidden on small screens */}
+        {lead.form_name && (
+          <span className="hidden md:inline-block text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0 max-w-[130px] truncate">
+            {lead.form_name}
+          </span>
+        )}
+
+        {/* Due label */}
+        <span className={`text-[11px] font-semibold flex-shrink-0 ${bkt.dueCls}`}>
+          {formatDueLabel(lead.followup_at!, bucket)}
+        </span>
+
+        {/* Log call button */}
+        <button
+          onClick={e => { e.stopPropagation(); onCallLog() }}
+          className="flex-shrink-0 w-8 h-8 rounded-full bg-[#25D366]/10 hover:bg-[#25D366]/25 flex items-center justify-center transition"
+          title="Log call outcome"
+        >
+          <Phone className="w-3.5 h-3.5 text-[#25D366]" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
+  pageId: string | null
+  selectedFormId: string
+  onCallLog: (lead: Lead) => void
+}) {
+  const [leads,   setLeads]   = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+  // Overdue + today always expanded; future collapsed by default
+  const [collapsed, setCollapsed] = useState<Set<FollowupBucket>>(
+    new Set<FollowupBucket>(['tomorrow', 'week', 'later'])
+  )
+
+  const load = useCallback(async () => {
+    if (!pageId) return
+    setLoading(true)
+    const p = new URLSearchParams({ sort: 'followup_all', limit: '500' })
+    if (selectedFormId !== 'all' && selectedFormId !== '__forms') p.set('form_id', selectedFormId)
+    else p.set('page_id', pageId)
+    const r = await fetch(`/api/facebook/leads?${p}`)
+    const d = await r.json() as { leads?: Lead[] }
+    setLeads(d.leads ?? [])
+    setLoading(false)
+  }, [pageId, selectedFormId])
+
+  useEffect(() => { load() }, [load])
+
+  function toggle(id: FollowupBucket) {
+    setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  const grouped = leads.reduce<Record<FollowupBucket, Lead[]>>(
+    (acc, lead) => {
+      if (lead.followup_at) acc[getFollowupBucket(lead.followup_at)].push(lead)
+      return acc
+    },
+    { overdue: [], today: [], tomorrow: [], week: [], later: [] }
+  )
+
+  const urgentCount = grouped.overdue.length + grouped.today.length
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+    </div>
+  )
+
+  if (leads.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center px-8">
+      <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
+        <Calendar className="w-6 h-6 text-amber-300" />
+      </div>
+      <p className="text-sm font-semibold text-gray-600">No follow-ups scheduled</p>
+      <p className="text-xs text-gray-400 mt-2 max-w-xs leading-relaxed">
+        When you log a call and set a callback date, leads will appear here — sorted by urgency.
+      </p>
+    </div>
+  )
+
+  return (
+    <div>
+      {/* Summary bar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex items-center gap-4">
+          {urgentCount > 0 ? (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600">
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              {urgentCount} need attention now
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+              All caught up for today
+            </span>
+          )}
+          <span className="text-xs text-gray-300">·</span>
+          <span className="text-xs text-gray-400">{leads.length} total scheduled</span>
+        </div>
+        <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition">
+          <RefreshCw className="w-3 h-3" /> Refresh
+        </button>
+      </div>
+
+      {/* Buckets */}
+      {FOLLOWUP_BUCKETS.map(bkt => {
+        const bktLeads = grouped[bkt.id]
+        if (bktLeads.length === 0) return null
+        const isCollapsed = collapsed.has(bkt.id)
+        return (
+          <div key={bkt.id}>
+            <button
+              onClick={() => toggle(bkt.id)}
+              className={`w-full flex items-center gap-3 px-5 py-3 border-b text-left ${bkt.headerCls}`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${bkt.dotCls} ${bkt.id === 'overdue' || bkt.id === 'today' ? 'animate-pulse' : ''}`} />
+              <span className="font-semibold text-sm flex-1">{bkt.label}</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mr-1 ${bkt.badgeCls}`}>
+                {bktLeads.length}
+              </span>
+              {isCollapsed
+                ? <ChevronDown className="w-3.5 h-3.5 opacity-40 flex-shrink-0" />
+                : <ChevronUp   className="w-3.5 h-3.5 opacity-40 flex-shrink-0" />}
+            </button>
+            {!isCollapsed && bktLeads.map(lead => (
+              <FollowUpLeadCard
+                key={lead.id}
+                lead={lead}
+                bucket={bkt.id}
+                onCallLog={() => onCallLog(lead)}
+              />
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── LeadRow ───────────────────────────────────────────────────────────────────
+
 function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
   lead: Lead
   activeForms: ActiveForm[]
@@ -1752,6 +1977,8 @@ function LeadsContent() {
   const [leadSearch,     setLeadSearch]     = useState('')
   const [selectedFormId, setSelectedFormId] = useState<string | 'all' | '__forms'>('all')
   const [sortBy,         setSortBy]         = useState<'default' | 'followup_due'>('default')
+  const [activeView,     setActiveView]     = useState<'leads' | 'followups'>('leads')
+  const [followupUrgentCount, setFollowupUrgentCount] = useState(0)
   const [banner,         setBanner]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [showActivate,   setShowActivate]   = useState(false)
   const [preActivateForm,setPreActivateForm]= useState<FBForm | null>(null)
@@ -1856,6 +2083,16 @@ function LeadsContent() {
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch follow-up urgent count (overdue + today) — used for the tab badge
+  useEffect(() => {
+    if (!selectedPageId) return
+    const p = new URLSearchParams({ sort: 'followup_due', limit: '1', page_id: selectedPageId })
+    fetch(`/api/facebook/leads?${p}`)
+      .then(r => r.json() as Promise<{ total?: number }>)
+      .then(d => setFollowupUrgentCount(d.total ?? 0))
+      .catch(() => {})
+  }, [selectedPageId])
+
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handlePageChange = async (page: Page) => {
@@ -1875,6 +2112,7 @@ function LeadsContent() {
 
   const handleTabChange = async (formId: string | 'all' | '__forms') => {
     setSelectedFormId(formId)
+    setActiveView('leads')
     setCurrentPage(1)
     setLeadSearch('')
     setLeads([])
@@ -2219,6 +2457,29 @@ function LeadsContent() {
             </span>
           )}
 
+          {/* Follow-ups tab */}
+          <button
+            onClick={() => {
+              setActiveView(v => v === 'followups' ? 'leads' : 'followups')
+              setSelectedFormId(prev => prev === '__forms' ? 'all' : prev)
+            }}
+            className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeView === 'followups'
+                ? 'border-amber-500 text-amber-700'
+                : 'border-transparent text-gray-400 hover:text-amber-600'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            Follow-ups
+            {followupUrgentCount > 0 && (
+              <span className={`min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold leading-none ${
+                activeView === 'followups' ? 'bg-amber-500 text-white' : 'bg-red-500 text-white'
+              }`}>
+                {followupUrgentCount > 99 ? '99+' : followupUrgentCount}
+              </span>
+            )}
+          </button>
+
           {/* All forms tab — separated by a divider */}
           <div className="flex-shrink-0 border-l border-gray-100 flex items-stretch ml-auto">
             <button
@@ -2244,6 +2505,12 @@ function LeadsContent() {
               onToggle={handleToggle}
             />
           </div>
+        ) : activeView === 'followups' ? (
+          <FollowUpsView
+            pageId={selectedPageId}
+            selectedFormId={selectedFormId}
+            onCallLog={lead => setCallLogLead(lead)}
+          />
         ) : (
           <>
             {/* Search + per-page toolbar */}
