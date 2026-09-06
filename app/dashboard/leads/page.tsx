@@ -1765,11 +1765,11 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
             const isPulsing = bkt.id === 'overdue' || bkt.id === 'today'
             return (
               <div key={bkt.id}>
-                <div className={`flex items-center gap-2.5 px-5 py-2.5 border-y ${bkt.headerCls}`}>
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${bkt.dotCls} ${isPulsing ? 'animate-pulse' : ''}`} />
-                  <span className="text-xs font-bold tracking-wide flex-1">{bkt.label}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${bkt.badgeCls}`}>
-                    {bktLeads.length}
+                <div className={`flex items-center gap-3 px-5 py-3.5 ${bkt.headerCls}`}>
+                  <span className={`w-3 h-3 rounded-full flex-shrink-0 ${bkt.dotCls} ${isPulsing ? 'animate-pulse' : ''}`} />
+                  <span className="text-sm font-bold flex-1">{bkt.label}</span>
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${bkt.badgeCls}`}>
+                    {bktLeads.length} lead{bktLeads.length !== 1 ? 's' : ''}
                   </span>
                 </div>
                 {bktLeads.map(lead => (
