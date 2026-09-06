@@ -336,3 +336,13 @@ ALTER TABLE whatsapp_accounts
 
 ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS missed_call_followup_enabled BOOLEAN DEFAULT false;
+
+-- ─── Lead distribution settings ───────────────────────────────────────────────
+-- Stored on organizations. mode controls how new leads are assigned to team.
+-- distribution_members: ordered JSON array [{ user_id, weight }] for rr/weighted.
+
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS lead_distribution_mode TEXT DEFAULT 'manual'
+    CHECK (lead_distribution_mode IN ('manual','open_pool','round_robin','weighted')),
+  ADD COLUMN IF NOT EXISTS rr_current_pos INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS distribution_members JSONB DEFAULT '[]'::jsonb;

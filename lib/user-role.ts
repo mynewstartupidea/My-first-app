@@ -23,7 +23,11 @@ export const ROLE_NAV_ACCESS: Record<UserRole, string[]> = {
   ],
   member: [
     '/dashboard',
-    '/dashboard/analytics',
+    '/dashboard/live-chat',
+    '/dashboard/contacts',
+    '/dashboard/leads',
+    '/dashboard/support',
+    '/dashboard/settings',
   ],
 }
 

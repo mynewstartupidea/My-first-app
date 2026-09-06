@@ -22,12 +22,37 @@ export async function GET(request: Request) {
 
   const service = createServiceClient()
 
+  // Resolve org context: check if user is a team member to get org owner + distribution mode
+  let orgOwnerId: string | null = null
+  let distMode = 'manual'
+  const { data: memberRow } = await service
+    .from('team_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (memberRow?.organization_id) {
+    const { data: org } = await service
+      .from('organizations')
+      .select('owner_id, lead_distribution_mode')
+      .eq('id', memberRow.organization_id)
+      .maybeSingle()
+    if (org) {
+      orgOwnerId = org.owner_id
+      distMode   = org.lead_distribution_mode ?? 'manual'
+    }
+  }
+
   const buildQuery = (countOnly = false) => {
+    // In open_pool mode, team members also see unassigned leads from the org owner
+    const visibilityFilter = (orgOwnerId && distMode === 'open_pool')
+      ? `user_id.eq.${user.id},assigned_to.eq.${user.id},and(user_id.eq.${orgOwnerId},assigned_to.is.null)`
+      : `user_id.eq.${user.id},assigned_to.eq.${user.id}`
+
     let query = service
       .from('leads')
       .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
-      // Show leads the user owns OR leads assigned directly to them (team member view)
-      .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`)
+      .or(visibilityFilter)
 
     if (sort === 'followup_due') {
       // Overdue + today only (for dashboard widget and badge count)

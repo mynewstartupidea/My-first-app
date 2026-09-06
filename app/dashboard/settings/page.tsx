@@ -116,6 +116,11 @@ function SettingsInner() {
   const [inviteRole, setInviteRole]           = useState('member')
   const [sendingInvite, setSendingInvite]     = useState(false)
   const [removingId, setRemovingId]           = useState<string | null>(null)
+  // Lead distribution
+  const [distMode,    setDistMode]            = useState<'manual'|'open_pool'|'round_robin'>('manual')
+  const [distMembers, setDistMembers]         = useState<{user_id:string;email:string;weight:number}[]>([])
+  const [activeMembers, setActiveMembers]     = useState<{id:string;user_id:string|null;email:string}[]>([])
+  const [savingDist,  setSavingDist]          = useState(false)
 
   const router  = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -243,7 +248,24 @@ function SettingsInner() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'team') loadMembers()
+    if (activeTab === 'team') {
+      loadMembers()
+      fetch('/api/settings/lead-distribution')
+        .then(r => r.json() as Promise<{mode?:string;distribution_members?:{user_id:string;weight:number}[];active_members?:{id:string;user_id:string|null;email:string}[]}>)
+        .then(d => {
+          setDistMode((d.mode ?? 'manual') as 'manual'|'open_pool'|'round_robin')
+          setActiveMembers(d.active_members ?? [])
+          // Merge stored order with current active members
+          const stored = d.distribution_members ?? []
+          const active = d.active_members ?? []
+          const merged = active.map(m => {
+            const s = stored.find((x: {user_id:string;weight:number}) => x.user_id === m.user_id)
+            return { user_id: m.user_id!, email: m.email, weight: s?.weight ?? 1 }
+          }).filter(m => m.user_id)
+          setDistMembers(merged)
+        })
+        .catch(() => {})
+    }
   }, [activeTab, loadMembers])
 
   // ── Store actions ─────────────────────────────────────────────────────────────
@@ -552,6 +574,21 @@ function SettingsInner() {
     if (!res.ok) { showToast(data.error ?? 'Failed to remove member', false); return }
     showToast('Member removed')
     setMembers(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function saveDist() {
+    setSavingDist(true)
+    const res = await fetch('/api/settings/lead-distribution', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: distMode,
+        distribution_members: distMembers.map(({ user_id, weight }) => ({ user_id, weight })),
+      }),
+    })
+    setSavingDist(false)
+    if (res.ok) showToast('Distribution settings saved!')
+    else showToast('Failed to save distribution settings', false)
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
@@ -1307,6 +1344,97 @@ function SettingsInner() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* Lead Distribution */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+              <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Users className="w-3.5 h-3.5 text-purple-600" />
+              </div>
+              Lead Distribution
+            </h3>
+            <p className="text-slate-400 text-xs mb-5 ml-9">Control how new leads are assigned to your sales team</p>
+
+            <div className="space-y-2 mb-5">
+              {([
+                { value: 'manual',      label: 'Manual',      desc: 'You assign leads yourself. New leads sit unassigned until you pick someone from the lead card.' },
+                { value: 'open_pool',   label: 'Open Pool',   desc: 'All team members see all unassigned leads. First to claim it gets it — no auto-assignment.' },
+                { value: 'round_robin', label: 'Round Robin', desc: 'New leads are auto-assigned evenly across your team in rotation. Set the order below.' },
+              ] as const).map(opt => (
+                <label key={opt.value} className={cn(
+                  'flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition',
+                  distMode === opt.value ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
+                )}>
+                  <input type="radio" name="distMode" value={opt.value}
+                    checked={distMode === opt.value}
+                    onChange={() => setDistMode(opt.value)}
+                    className="mt-0.5 accent-[#25D366]" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {distMode === 'open_pool' && (
+              <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 leading-relaxed">
+                All active team members will see unclaimed leads in their Leads tab. The first person to open and call a lead claims it.
+              </div>
+            )}
+
+            {distMode === 'round_robin' && (
+              <div className="mb-5">
+                <p className="text-xs font-medium text-slate-600 mb-2">Assignment order</p>
+                {distMembers.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-4 text-center bg-slate-50 rounded-xl">
+                    No active team members yet. Invite members above to set up round robin.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {distMembers.map((m, i) => (
+                      <div key={m.user_id} className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-xl">
+                        <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                          {i + 1}
+                        </span>
+                        <span className="flex-1 text-sm text-slate-700 truncate">{m.email}</span>
+                        <div className="flex gap-0.5 flex-shrink-0">
+                          <button
+                            disabled={i === 0}
+                            onClick={() => setDistMembers(prev => {
+                              const next = [...prev]
+                              ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                              return next
+                            })}
+                            className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition">
+                            <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                          </button>
+                          <button
+                            disabled={i === distMembers.length - 1}
+                            onClick={() => setDistMembers(prev => {
+                              const next = [...prev]
+                              ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                              return next
+                            })}
+                            className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition">
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-400 mt-2">Use arrows to adjust assignment priority. Changes reset the rotation counter.</p>
+              </div>
+            )}
+
+            <button onClick={saveDist} disabled={savingDist}
+              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">
+              {savingDist
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                : <><Save className="w-3.5 h-3.5" /> Save distribution settings</>}
+            </button>
           </section>
         </div>
       )}

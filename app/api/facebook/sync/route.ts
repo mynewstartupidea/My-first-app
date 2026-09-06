@@ -108,6 +108,40 @@ export async function POST(request: Request) {
 
   if (!forms.length) return NextResponse.json({ synced: 0, newLeads: 0 })
 
+  // ── Round-robin distribution setup ─────────────────────────────────────────
+  let rrMembersWithEmail: Array<{ user_id: string; email: string }> = []
+  let rrPos = 0
+  let orgId: string | null = null
+
+  const { data: orgRow } = await service
+    .from('organizations')
+    .select('id, lead_distribution_mode, rr_current_pos, distribution_members')
+    .eq('owner_id', user.id)
+    .maybeSingle()
+
+  if (orgRow?.lead_distribution_mode === 'round_robin') {
+    const distMembers = (orgRow.distribution_members ?? []) as Array<{ user_id: string }>
+    rrPos = orgRow.rr_current_pos ?? 0
+    orgId = orgRow.id as string
+
+    if (distMembers.length > 0) {
+      const { data: tmRows } = await service
+        .from('team_members')
+        .select('user_id, email')
+        .eq('organization_id', orgRow.id)
+        .eq('status', 'active')
+        .in('user_id', distMembers.map(m => m.user_id))
+
+      // Preserve the owner-configured order
+      rrMembersWithEmail = distMembers
+        .map(m => {
+          const tm = tmRows?.find(t => t.user_id === m.user_id)
+          return tm ? { user_id: m.user_id!, email: tm.email as string } : null
+        })
+        .filter(Boolean) as Array<{ user_id: string; email: string }>
+    }
+  }
+
   let synced   = 0
   let newLeads = 0
 
@@ -148,6 +182,19 @@ export async function POST(request: Request) {
 
     synced += fbLeads.length
 
+    // ── Round-robin auto-assign newly imported leads ────────────────────────
+    if (rrMembersWithEmail.length > 0 && saved?.length) {
+      for (let idx = 0; idx < saved.length; idx++) {
+        const member = rrMembersWithEmail[(rrPos + idx) % rrMembersWithEmail.length]
+        // Only assign leads that haven't been claimed yet
+        await service.from('leads')
+          .update({ assigned_to: member.user_id, assigned_name: member.email })
+          .eq('id', saved[idx].id)
+          .is('assigned_to', null)
+      }
+      rrPos = (rrPos + saved.length) % rrMembersWithEmail.length
+    }
+
     // Only queue WhatsApp jobs when automation is enabled AND WhatsApp is connected
     if (whatsappConnected && form.is_enabled && saved?.length && form.message_template) {
       const waTemplateName = (form.wa_template_name as string | null) || null
@@ -187,6 +234,11 @@ export async function POST(request: Request) {
       .from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
       .eq('id', form.id)
+  }
+
+  // Persist the advanced round-robin pointer once after all forms are processed
+  if (orgId && rrMembersWithEmail.length > 0) {
+    await service.from('organizations').update({ rr_current_pos: rrPos }).eq('id', orgId)
   }
 
   return NextResponse.json({ synced, newLeads })
