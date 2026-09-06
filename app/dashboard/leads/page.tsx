@@ -1577,9 +1577,8 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   selectedFormId: string
   onCallLog: (lead: Lead) => void
 }) {
-  const [leads,   setLeads]   = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
-  // Overdue + today always expanded; future collapsed by default
+  const [leads,     setLeads]     = useState<Lead[]>([])
+  const [loading,   setLoading]   = useState(true)
   const [collapsed, setCollapsed] = useState<Set<FollowupBucket>>(
     new Set<FollowupBucket>(['tomorrow', 'week', 'later'])
   )
@@ -1597,6 +1596,20 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   }, [pageId, selectedFormId])
 
   useEffect(() => { load() }, [load])
+
+  // Smart expand: if nothing is overdue or due today, show Tomorrow automatically
+  // so the user always lands on visible lead data instead of a wall of closed headers.
+  useEffect(() => {
+    if (leads.length === 0) return
+    const hasUrgent = leads.some(l => {
+      if (!l.followup_at) return false
+      const b = getFollowupBucket(l.followup_at)
+      return b === 'overdue' || b === 'today'
+    })
+    if (!hasUrgent) {
+      setCollapsed(prev => { const n = new Set(prev); n.delete('tomorrow'); return n })
+    }
+  }, [leads])
 
   function toggle(id: FollowupBucket) {
     setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -1619,13 +1632,13 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   )
 
   if (leads.length === 0) return (
-    <div className="flex flex-col items-center justify-center py-20 text-center px-8">
-      <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
-        <Calendar className="w-6 h-6 text-amber-300" />
+    <div className="flex flex-col items-center justify-center py-24 text-center px-8">
+      <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
+        <Calendar className="w-7 h-7 text-amber-300" />
       </div>
-      <p className="text-sm font-semibold text-gray-600">No follow-ups scheduled</p>
-      <p className="text-xs text-gray-400 mt-2 max-w-xs leading-relaxed">
-        When you log a call and set a callback date, leads will appear here — sorted by urgency.
+      <p className="text-sm font-semibold text-gray-700 mb-1">No follow-ups scheduled</p>
+      <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
+        Log a call and set a callback date — leads will appear here grouped by urgency.
       </p>
     </div>
   )
@@ -1633,23 +1646,23 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   return (
     <div>
       {/* Summary bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/50">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+        <div className="flex items-center gap-3">
           {urgentCount > 0 ? (
             <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600">
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               {urgentCount} need attention now
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 text-xs text-gray-400">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full" />
               All caught up for today
             </span>
           )}
-          <span className="text-xs text-gray-300">·</span>
+          <span className="text-gray-200">|</span>
           <span className="text-xs text-gray-400">{leads.length} total scheduled</span>
         </div>
-        <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition">
+        <button onClick={load} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition">
           <RefreshCw className="w-3 h-3" /> Refresh
         </button>
       </div>
@@ -1659,29 +1672,44 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
         const bktLeads = grouped[bkt.id]
         if (bktLeads.length === 0) return null
         const isCollapsed = collapsed.has(bkt.id)
+        const isPulsing   = bkt.id === 'overdue' || bkt.id === 'today'
         return (
-          <div key={bkt.id}>
+          <div key={bkt.id} className="border-b border-gray-100 last:border-0">
             <button
               onClick={() => toggle(bkt.id)}
-              className={`w-full flex items-center gap-3 px-5 py-3 border-b text-left ${bkt.headerCls}`}
+              className={`w-full flex items-center gap-3 px-5 py-4 text-left hover:brightness-95 transition-all ${bkt.headerCls}`}
             >
-              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${bkt.dotCls} ${bkt.id === 'overdue' || bkt.id === 'today' ? 'animate-pulse' : ''}`} />
-              <span className="font-semibold text-sm flex-1">{bkt.label}</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mr-1 ${bkt.badgeCls}`}>
-                {bktLeads.length}
+              {/* Dot */}
+              <span className={`w-3 h-3 rounded-full flex-shrink-0 ${bkt.dotCls} ${isPulsing ? 'animate-pulse' : ''}`} />
+
+              {/* Label */}
+              <span className="font-semibold text-sm flex-1 tracking-tight">{bkt.label}</span>
+
+              {/* Count pill */}
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full mr-2 ${bkt.badgeCls}`}>
+                {bktLeads.length} lead{bktLeads.length !== 1 ? 's' : ''}
               </span>
-              {isCollapsed
-                ? <ChevronDown className="w-3.5 h-3.5 opacity-40 flex-shrink-0" />
-                : <ChevronUp   className="w-3.5 h-3.5 opacity-40 flex-shrink-0" />}
+
+              {/* Chevron in a circle */}
+              <span className="w-6 h-6 rounded-full bg-black/5 flex items-center justify-center flex-shrink-0">
+                {isCollapsed
+                  ? <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                  : <ChevronUp   className="w-3.5 h-3.5 opacity-50" />}
+              </span>
             </button>
-            {!isCollapsed && bktLeads.map(lead => (
-              <FollowUpLeadCard
-                key={lead.id}
-                lead={lead}
-                bucket={bkt.id}
-                onCallLog={() => onCallLog(lead)}
-              />
-            ))}
+
+            {!isCollapsed && (
+              <div className="bg-white">
+                {bktLeads.map(lead => (
+                  <FollowUpLeadCard
+                    key={lead.id}
+                    lead={lead}
+                    bucket={bkt.id}
+                    onCallLog={() => onCallLog(lead)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
