@@ -2530,28 +2530,7 @@ function LeadsContent() {
                   </button>
                 )}
               </div>
-              {/* Follow-ups filter toggle */}
-              <button
-                onClick={() => {
-                  const next = sortBy === 'followup_due' ? 'default' : 'followup_due'
-                  setSortBy(next)
-                  setCurrentPage(1)
-                  if (selectedPageId && selectedFormId !== '__forms') {
-                    setLoadingLeads(true)
-                    fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch, next).finally(() => setLoadingLeads(false))
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition whitespace-nowrap flex-shrink-0 ${
-                  sortBy === 'followup_due'
-                    ? 'bg-amber-50 border-amber-300 text-amber-700'
-                    : 'bg-white border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                Follow-ups
-                {sortBy === 'followup_due' && <X className="w-3 h-3 ml-0.5" />}
-              </button>
-              <select
+<select
                 value={perPage}
                 onChange={e => {
                   const v = Number(e.target.value) as 25 | 50 | 100
