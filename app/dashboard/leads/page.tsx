@@ -1646,13 +1646,13 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   const urgentCount = grouped.overdue.length + grouped.today.length
 
   // Filter chips definition — only show chips that have leads
-  const allChips: { id: FollowupBucket | 'all'; label: string; count: number; activeCls: string }[] = [
-    { id: 'all',      label: 'All',         count: leads.length,           activeCls: 'bg-gray-900 text-white border-gray-900' },
-    { id: 'overdue',  label: 'Overdue',     count: grouped.overdue.length, activeCls: 'bg-red-500 text-white border-red-500' },
-    { id: 'today',    label: 'Today',       count: grouped.today.length,   activeCls: 'bg-amber-500 text-white border-amber-500' },
-    { id: 'tomorrow', label: 'Tomorrow',    count: grouped.tomorrow.length, activeCls: 'bg-sky-500 text-white border-sky-500' },
-    { id: 'week',     label: 'Next 7 days', count: grouped.week.length,    activeCls: 'bg-indigo-500 text-white border-indigo-500' },
-    { id: 'later',    label: 'Later',       count: grouped.later.length,   activeCls: 'bg-slate-500 text-white border-slate-500' },
+  const allChips: { id: FollowupBucket | 'all'; label: string; count: number; activeCls: string; inactiveCls: string; dotCls?: string; pulse?: boolean }[] = [
+    { id: 'all',      label: 'All',         count: leads.length,            activeCls: 'bg-gray-900 text-white border-gray-900',         inactiveCls: 'bg-white border-gray-200 text-gray-600' },
+    { id: 'overdue',  label: 'Overdue',     count: grouped.overdue.length,  activeCls: 'bg-red-500 text-white border-red-500',           inactiveCls: 'bg-red-50 border-red-200 text-red-600',    dotCls: 'bg-red-500',    pulse: true },
+    { id: 'today',    label: 'Today',       count: grouped.today.length,    activeCls: 'bg-amber-500 text-white border-amber-500',       inactiveCls: 'bg-amber-50 border-amber-200 text-amber-700', dotCls: 'bg-amber-400', pulse: true },
+    { id: 'tomorrow', label: 'Tomorrow',    count: grouped.tomorrow.length, activeCls: 'bg-sky-500 text-white border-sky-500',           inactiveCls: 'bg-sky-50 border-sky-200 text-sky-700',    dotCls: 'bg-sky-500' },
+    { id: 'week',     label: 'Next 7 days', count: grouped.week.length,     activeCls: 'bg-indigo-500 text-white border-indigo-500',     inactiveCls: 'bg-indigo-50 border-indigo-200 text-indigo-700', dotCls: 'bg-indigo-400' },
+    { id: 'later',    label: 'Later',       count: grouped.later.length,    activeCls: 'bg-slate-500 text-white border-slate-500',       inactiveCls: 'bg-slate-100 border-slate-300 text-slate-600', dotCls: 'bg-slate-400' },
   ]
   const chips = allChips.filter(c => c.id === 'all' || c.count > 0)
 
@@ -1735,14 +1735,15 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
               key={chip.id}
               onClick={() => setFilter(chip.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition whitespace-nowrap flex-shrink-0 ${
-                isActive
-                  ? chip.activeCls
-                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                isActive ? chip.activeCls : chip.inactiveCls
               }`}
             >
+              {chip.dotCls && (
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${chip.dotCls} ${isActive ? 'opacity-80' : ''} ${chip.pulse ? 'animate-pulse' : ''}`} />
+              )}
               {chip.label}
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
-                isActive ? 'bg-white/20 text-inherit' : 'bg-gray-100 text-gray-500'
+                isActive ? 'bg-white/25 text-inherit' : 'bg-black/8 text-inherit'
               }`}>
                 {chip.count}
               </span>
