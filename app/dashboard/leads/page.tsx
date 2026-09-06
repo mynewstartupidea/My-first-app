@@ -14,6 +14,14 @@ import { timeAgo } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface TeamMember {
+  id: string
+  user_id: string | null
+  email: string
+  status: string
+  role: string
+}
+
 interface Page {
   id: string
   page_id: string
@@ -1168,8 +1176,9 @@ interface ConvStatus {
   waStatus: string | null
 }
 
-function CallLogModal({ lead, onClose, onUpdate }: {
+function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
   lead: Lead
+  teamMembers: TeamMember[]
   onClose: () => void
   onUpdate: (leadId: string, updates: Partial<Lead>) => void
 }) {
@@ -1230,9 +1239,15 @@ function CallLogModal({ lead, onClose, onUpdate }: {
     setSubmitting(false)
   }
 
-  const handleAssign = async () => {
+  const handleAssign = async (userId?: string, userName?: string) => {
     setAssigning(true)
-    const r = await fetch(`/api/leads/${lead.id}/assign`, { method: 'PATCH' })
+    const body: Record<string, string> = {}
+    if (userId) { body.userId = userId; if (userName) body.userName = userName }
+    const r = await fetch(`/api/leads/${lead.id}/assign`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
     const d = await r.json() as { assigned_name?: string }
     if (d.assigned_name) {
       setLocalAssignedName(d.assigned_name)
@@ -1283,19 +1298,43 @@ function CallLogModal({ lead, onClose, onUpdate }: {
           </div>
 
           {/* Assignment row */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-wrap">
             {localAssignedName ? (
-              <span className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
-                <UserCheck className="w-3 h-3" />
-                {localAssignedName}
+              <span className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 flex-1 min-w-0">
+                <UserCheck className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{localAssignedName}</span>
               </span>
             ) : (
-              <span className="text-xs text-gray-400">Unassigned</span>
+              <span className="text-xs text-gray-400 flex-1">Unassigned</span>
             )}
-            {!localAssignedName && (
-              <button onClick={handleAssign} disabled={assigning}
-                className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition disabled:opacity-60 flex items-center gap-1.5">
-                {assigning ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
+            {assigning ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 flex-shrink-0" />
+            ) : teamMembers.filter(m => m.status === 'active' && m.user_id).length > 0 ? (
+              <select
+                defaultValue=""
+                onChange={e => {
+                  if (!e.target.value) return
+                  const val = e.target.value
+                  if (val === '__self') {
+                    handleAssign()
+                  } else {
+                    const m = teamMembers.find(t => t.user_id === val)
+                    if (m) handleAssign(m.user_id!, m.email.split('@')[0])
+                  }
+                  e.target.value = ''
+                }}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 flex-shrink-0"
+              >
+                <option value="">Assign to…</option>
+                <option value="__self">Me</option>
+                {teamMembers.filter(m => m.status === 'active' && m.user_id).map(m => (
+                  <option key={m.id} value={m.user_id!}>{m.email.split('@')[0]}</option>
+                ))}
+              </select>
+            ) : !localAssignedName && (
+              <button onClick={() => handleAssign()} disabled={assigning}
+                className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition disabled:opacity-60 flex items-center gap-1.5 flex-shrink-0">
+                <UserCheck className="w-3 h-3" />
                 Take this lead
               </button>
             )}
@@ -1811,8 +1850,8 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
         <td className="px-5 py-3.5">
           <div className="flex items-center gap-1">
             <button onClick={onCallLog}
-              className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-600 transition"
-              title="Log a call / assign lead">
+              className="p-1.5 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-100 transition"
+              title="Log a call">
               <Phone className="w-4 h-4" />
             </button>
             {lead.phone && lead.wa_status !== 'sent' && (
@@ -2033,6 +2072,8 @@ function LeadsContent() {
   const [lockedPage,     setLockedPage]     = useState<{ page_id: string; page_name: string } | null>(null)
   const [showPageLockPopup, setShowPageLockPopup] = useState(false)
   const [callLogLead,    setCallLogLead]    = useState<Lead | null>(null)
+  const [teamMembers,    setTeamMembers]    = useState<TeamMember[]>([])
+  const [lastSynced,     setLastSynced]     = useState<string | null>(null)
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -2103,6 +2144,7 @@ function LeadsContent() {
       const [p, assocData] = await Promise.all([
         fetchPages(),
         fetch('/api/leads/whatsapp-association').then(r => r.json()),
+        fetch('/api/team/members').then(r => r.json() as Promise<{ members?: TeamMember[] }>).then(d => setTeamMembers(d.members ?? [])).catch(() => {}),
         ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId, 1, 50, '', sortParam === 'followup_due' ? 'followup_due' : 'default'), fetchStats(cachedPageId)] : []),
       ]) as [Page[], { locked_pages?: { page_id: string; page_name: string }[] }, ...unknown[]]
       const locked = (assocData?.locked_pages ?? [])[0] ?? null
@@ -2152,6 +2194,14 @@ function LeadsContent() {
     await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)])
     setLoadingForms(false)
     setLoadingLeads(false)
+    // Auto-sync from Facebook in background — no spinner, silently refreshes if new leads found
+    fetch(`/api/facebook/sync?page_id=${page.page_id}`, { method: 'POST' })
+      .then(r => r.json() as Promise<{ synced?: number }>)
+      .then(async d => {
+        setLastSynced(new Date().toISOString())
+        if (d.synced) await Promise.all([fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)])
+      })
+      .catch(() => {})
   }
 
   const handleTabChange = async (formId: string | 'all' | '__forms') => {
@@ -2279,6 +2329,7 @@ function LeadsContent() {
     const d = await r.json() as { synced?: number; newLeads?: number; error?: string }
     const leadsFormId = selectedFormId === '__forms' ? 'all' : selectedFormId
     await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId, 1, perPage, leadSearch), fetchStats(selectedPageId)])
+    setLastSynced(new Date().toISOString())
     setRefreshing(false)
     if (d.error) {
       setBanner({ type: 'error', msg: d.error })
@@ -2380,15 +2431,20 @@ function LeadsContent() {
             onDisconnectAll={handleDisconnectAll}
             onReconnect={() => { window.location.href = '/api/facebook/auth' }}
           />
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
-            title="Refresh leads"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh leads
-          </button>
+          <div className="flex items-center gap-2">
+            {lastSynced && !refreshing && (
+              <span className="text-xs text-gray-400 hidden sm:block">Synced {timeAgo(lastSynced)}</span>
+            )}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+              title="Sync new leads from Facebook"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Syncing…' : 'Refresh leads'}
+            </button>
+          </div>
           <button
             onClick={() => {
               if (lockedPage && selectedPageId && lockedPage.page_id !== selectedPageId) {
@@ -2420,10 +2476,10 @@ function LeadsContent() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total leads', value: pageTotal, color: '#6b7280' },
-          { label: 'With phone',  value: withPhone, color: '#3b82f6' },
-          { label: 'WA sent',     value: sent,      color: '#10b981' },
-          { label: 'Pending',     value: pending,   color: '#f59e0b' },
+          { label: 'Total leads',     value: pageTotal, color: '#6b7280' },
+          { label: 'Have phone',      value: withPhone, color: '#3b82f6' },
+          { label: 'Messages sent',   value: sent,      color: '#10b981' },
+          { label: 'Queued to send',  value: pending,   color: '#f59e0b' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.value}</p>
@@ -2724,6 +2780,7 @@ function LeadsContent() {
       {callLogLead && (
         <CallLogModal
           lead={callLogLead}
+          teamMembers={teamMembers}
           onClose={() => setCallLogLead(null)}
           onUpdate={handleLeadUpdate}
         />
