@@ -1751,6 +1751,7 @@ function LeadsContent() {
   const [currentPage,    setCurrentPage]    = useState(1)
   const [leadSearch,     setLeadSearch]     = useState('')
   const [selectedFormId, setSelectedFormId] = useState<string | 'all' | '__forms'>('all')
+  const [sortBy,         setSortBy]         = useState<'default' | 'followup_due'>('default')
   const [banner,         setBanner]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [showActivate,   setShowActivate]   = useState(false)
   const [preActivateForm,setPreActivateForm]= useState<FBForm | null>(null)
@@ -1791,11 +1792,13 @@ function LeadsContent() {
     page = 1,
     pPerPage = 50,
     search = '',
+    sort = 'default',
   ) => {
     const p = new URLSearchParams({ limit: String(pPerPage), offset: String((page - 1) * pPerPage) })
     if (formId !== 'all' && formId !== '__forms') p.set('form_id', formId)
     else p.set('page_id', pageId)
     if (search.trim()) p.set('q', search.trim())
+    if (sort === 'followup_due') p.set('sort', 'followup_due')
     const r = await fetch(`/api/facebook/leads?${p}`)
     const d = await r.json() as { leads?: Lead[]; total?: number }
     setLeads(d.leads ?? [])
@@ -1810,6 +1813,9 @@ function LeadsContent() {
       setLoadingLeads(true)
 
       const fb = searchParams.get('fb')
+      const sortParam = searchParams.get('sort')
+      if (sortParam === 'followup_due') setSortBy('followup_due')
+
       if (fb === 'connected') {
         const n = searchParams.get('pages') ?? '0'
         setBanner({ type: 'success', msg: `${n} Facebook page${+n !== 1 ? 's' : ''} connected` })
@@ -1826,7 +1832,7 @@ function LeadsContent() {
       const [p, assocData] = await Promise.all([
         fetchPages(),
         fetch('/api/leads/whatsapp-association').then(r => r.json()),
-        ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId), fetchStats(cachedPageId)] : []),
+        ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId, 1, 50, '', sortParam === 'followup_due' ? 'followup_due' : 'default'), fetchStats(cachedPageId)] : []),
       ]) as [Page[], { locked_pages?: { page_id: string; page_name: string }[] }, ...unknown[]]
       const locked = (assocData?.locked_pages ?? [])[0] ?? null
       setLockedPage(locked)
@@ -2007,7 +2013,7 @@ function LeadsContent() {
     const t = setTimeout(() => {
       setCurrentPage(1)
       setLoadingLeads(true)
-      fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch).finally(() => setLoadingLeads(false))
+      fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch, sortBy).finally(() => setLoadingLeads(false))
     }, 400)
     return () => clearTimeout(t)
   }, [leadSearch]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2257,6 +2263,27 @@ function LeadsContent() {
                   </button>
                 )}
               </div>
+              {/* Follow-ups filter toggle */}
+              <button
+                onClick={() => {
+                  const next = sortBy === 'followup_due' ? 'default' : 'followup_due'
+                  setSortBy(next)
+                  setCurrentPage(1)
+                  if (selectedPageId && selectedFormId !== '__forms') {
+                    setLoadingLeads(true)
+                    fetchLeads(selectedFormId, selectedPageId, 1, perPage, leadSearch, next).finally(() => setLoadingLeads(false))
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition whitespace-nowrap flex-shrink-0 ${
+                  sortBy === 'followup_due'
+                    ? 'bg-amber-50 border-amber-300 text-amber-700'
+                    : 'bg-white border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Follow-ups
+                {sortBy === 'followup_due' && <X className="w-3 h-3 ml-0.5" />}
+              </button>
               <select
                 value={perPage}
                 onChange={e => {

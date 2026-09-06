@@ -87,6 +87,7 @@ export default function NotificationBell() {
     template_approved: { bg: 'bg-green-100', color: 'text-green-600' },
     template_rejected: { bg: 'bg-red-100',   color: 'text-red-500'   },
     wa_health_flagged: { bg: 'bg-amber-100', color: 'text-amber-600' },
+    followup_due:      { bg: 'bg-orange-100', color: 'text-orange-600' },
   }
 
   return (

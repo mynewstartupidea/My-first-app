@@ -14,6 +14,41 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient()
 
+  // ── Follow-up due notifications ──────────────────────────────────────────
+  // Send one notification per user who has overdue/due-today follow-up leads.
+  // Deduped: only one notification per user per calendar day.
+  const today = new Date().toISOString().split('T')[0]
+  const { data: dueLeads } = await supabase
+    .from('leads')
+    .select('id, name, user_id')
+    .not('followup_at', 'is', null)
+    .lte('followup_at', new Date().toISOString())
+    .not('lead_status', 'in', '("converted","lost","junk")')
+
+  const dueCounts: Record<string, number> = {}
+  for (const lead of dueLeads ?? []) {
+    dueCounts[lead.user_id] = (dueCounts[lead.user_id] ?? 0) + 1
+  }
+
+  for (const [userId, count] of Object.entries(dueCounts)) {
+    const { count: alreadySent } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('type', 'followup_due')
+      .gte('created_at', `${today}T00:00:00.000Z`)
+    if (!alreadySent) {
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        type:    'followup_due',
+        title:   `📞 ${count} follow-up${count !== 1 ? 's' : ''} due today`,
+        body:    'Some of your leads are waiting for a call. Check your follow-ups.',
+        link:    '/dashboard/leads?sort=followup_due',
+        is_read: false,
+      })
+    }
+  }
+
   // Fetch all due pending jobs (scheduled_at <= now)
   const { data: jobs, error } = await supabase
     .from('automation_jobs')

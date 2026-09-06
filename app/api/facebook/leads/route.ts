@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
 
-// GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD
+// GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD&sort=followup_due
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const formId   = searchParams.get('form_id')
@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const offset   = parseInt(searchParams.get('offset') ?? '0') || 0
   const q           = searchParams.get('q')?.trim() ?? ''
   const leadStatus  = searchParams.get('lead_status')
+  const sort        = searchParams.get('sort') // 'followup_due' sorts overdue+today first
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,7 +27,17 @@ export async function GET(request: Request) {
       .from('leads')
       .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+
+    if (sort === 'followup_due') {
+      // Show only leads with a follow-up date that is today or overdue
+      query = query
+        .not('followup_at', 'is', null)
+        .lte('followup_at', new Date().toISOString())
+        .order('followup_at', { ascending: true })
+    } else {
+      query = query.order('created_at', { ascending: false })
+    }
+
     if (formId) query = query.eq('form_id', formId)
     else if (pageId) query = query.eq('page_id', pageId)
     if (fromDate) query = query.gte('created_at', `${fromDate}T00:00:00.000Z`)

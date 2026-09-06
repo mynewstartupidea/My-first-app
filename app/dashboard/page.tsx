@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import {
   IndianRupee, MessageSquare, ShoppingCart, TrendingUp,
   ArrowRight, Zap, Store, AlertCircle, CheckCircle2,
-  Send, Eye, MousePointerClick, RefreshCw, Users, Target
+  Send, Eye, MousePointerClick, RefreshCw, Users, Target,
+  Phone, Calendar,
 } from 'lucide-react'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import Link from 'next/link'
@@ -68,6 +69,22 @@ export default async function DashboardPage() {
   const msgUsed  = billing?.messages_used  ?? 0
   const msgPct   = msgLimit >= 999_999_999 ? 0 : Math.min(100, Math.round((msgUsed / msgLimit) * 100))
   const msgLeft  = Math.max(0, msgLimit - msgUsed)
+
+  // Follow-ups due today or overdue — for the sales team widget
+  const { data: followupLeads } = await supabase
+    .from('leads')
+    .select('id, name, phone, lead_status, followup_at, wa_status')
+    .eq('user_id', user.id)
+    .not('followup_at', 'is', null)
+    .lte('followup_at', new Date().toISOString())
+    .not('lead_status', 'in', '("converted","lost","junk")')
+    .order('followup_at', { ascending: true })
+    .limit(5)
+
+  const followupDue = (followupLeads ?? []) as Array<{
+    id: string; name: string | null; phone: string | null
+    lead_status: string | null; followup_at: string; wa_status: string
+  }>
 
   const [analyticsRes, messagesRes, campaignsRes, customersRes, automationsRes] = await Promise.all([
     store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
@@ -324,6 +341,74 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Follow-ups due widget — only shown when there are due leads */}
+      {followupDue.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden mb-6">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-amber-100 bg-amber-50/40">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center">
+                <Phone size={14} className="text-amber-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-800 text-sm">Follow-ups Due</h2>
+                <p className="text-[11px] text-amber-600">
+                  {followupDue.length} lead{followupDue.length !== 1 ? 's' : ''} waiting for a call
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/leads?sort=followup_due"
+              className="text-xs font-medium text-amber-600 hover:text-amber-800 flex items-center gap-1"
+            >
+              View all <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {followupDue.map(lead => {
+              const dueDate = new Date(lead.followup_at)
+              const isToday = dueDate.toDateString() === new Date().toDateString()
+              const daysOverdue = Math.floor((Date.now() - dueDate.getTime()) / 86400000)
+              const statusColors: Record<string, string> = {
+                hot:  'bg-red-100 text-red-700',
+                warm: 'bg-amber-100 text-amber-700',
+                cold: 'bg-blue-100 text-blue-700',
+              }
+              const statusCls = statusColors[lead.lead_status ?? ''] ?? 'bg-slate-100 text-slate-500'
+              return (
+                <Link
+                  key={lead.id}
+                  href="/dashboard/leads?sort=followup_due"
+                  className="flex items-center gap-4 px-5 py-3 hover:bg-amber-50/30 transition"
+                >
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-700 text-xs font-bold">
+                    {(lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">
+                      {lead.name ?? lead.phone ?? 'Unknown'}
+                    </p>
+                    {lead.phone && lead.name && (
+                      <p className="text-xs text-slate-400 truncate">{lead.phone}</p>
+                    )}
+                  </div>
+                  {lead.lead_status && (
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${statusCls}`}>
+                      {lead.lead_status}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Calendar size={11} className={isToday && daysOverdue < 1 ? 'text-amber-500' : 'text-red-400'} />
+                    <span className={`text-[11px] font-medium whitespace-nowrap ${daysOverdue >= 1 ? 'text-red-500' : 'text-amber-500'}`}>
+                      {daysOverdue >= 1 ? `${daysOverdue}d overdue` : 'Today'}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Bottom: recent messages + campaigns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
