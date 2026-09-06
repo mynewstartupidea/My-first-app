@@ -103,11 +103,11 @@ Let us know if you have any questions!`
 
 function StatusBadge({ status }: { status: string }) {
   const variants: Record<string, { label: string; cls: string }> = {
-    sent:     { label: 'Sent',       cls: 'bg-green-100 text-green-700' },
-    pending:  { label: 'Pending',    cls: 'bg-amber-100 text-amber-700' },
-    failed:   { label: 'Failed',     cls: 'bg-red-100 text-red-700' },
-    no_phone: { label: 'No phone',   cls: 'bg-gray-100 text-gray-500' },
-    imported: { label: 'Historical', cls: 'bg-slate-100 text-slate-500' },
+    sent:     { label: 'WA Sent',       cls: 'bg-green-100 text-green-700' },
+    pending:  { label: 'Queued',        cls: 'bg-amber-100 text-amber-700' },
+    failed:   { label: 'Send failed',   cls: 'bg-red-100 text-red-700' },
+    no_phone: { label: 'No phone',      cls: 'bg-gray-100 text-gray-500' },
+    imported: { label: 'Not messaged',  cls: 'bg-slate-100 text-slate-500' },
   }
   const v = variants[status] ?? { label: status, cls: 'bg-gray-100 text-gray-500' }
   return (
