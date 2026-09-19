@@ -51,7 +51,7 @@ export async function GET(request: Request) {
 
     let query = service
       .from('leads')
-      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
+      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
       .or(visibilityFilter)
 
     if (sort === 'followup_due') {

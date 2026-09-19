@@ -17,6 +17,12 @@ export interface FBLead {
   id: string
   created_time: string
   field_data: { name: string; values: string[] }[]
+  ad_id?: string
+  ad_name?: string
+  adset_id?: string
+  adset_name?: string
+  campaign_id?: string
+  campaign_name?: string
 }
 
 // Reuses META_APP_ID / META_APP_SECRET already set in Vercel
@@ -106,7 +112,8 @@ export async function getFormLeads(
   if (since) filters.push({ field: 'time_created', operator: 'GREATER_THAN', value: Math.floor(new Date(since).getTime() / 1000) })
   if (until) filters.push({ field: 'time_created', operator: 'LESS_THAN',    value: Math.floor(new Date(until).getTime() / 1000) })
 
-  let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=id,created_time,field_data&limit=${Math.min(limit, 100)}`
+  const leadFields = 'id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name'
+  let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=${leadFields}&limit=${Math.min(limit, 100)}`
   if (filters.length) url += `&filtering=${encodeURIComponent(JSON.stringify(filters))}`
 
   while (url && all.length < maxLeads) {
@@ -123,7 +130,7 @@ export async function getFormLeads(
 }
 
 export async function getFBLead(leadId: string, pageToken: string): Promise<FBLead | null> {
-  const res = await fetch(`${FB_BASE}/${leadId}?access_token=${pageToken}&fields=id,created_time,field_data`)
+  const res = await fetch(`${FB_BASE}/${leadId}?access_token=${pageToken}&fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name`)
   if (!res.ok) return null
   return res.json() as Promise<FBLead>
 }

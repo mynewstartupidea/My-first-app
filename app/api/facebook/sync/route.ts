@@ -171,9 +171,15 @@ export async function POST(request: Request) {
       form_id:          form.form_id,
       form_name:        form.form_name,
       name, email, phone, fields,
-      raw_data:   { field_data: fl.field_data },
-      wa_status:  phone ? 'imported' : 'no_phone',
-      created_at: fl.created_time,
+      raw_data:      { field_data: fl.field_data },
+      wa_status:     phone ? 'imported' : 'no_phone',
+      created_at:    fl.created_time,
+      ad_id:         fl.ad_id         ?? null,
+      ad_name:       fl.ad_name       ?? null,
+      adset_id:      fl.adset_id      ?? null,
+      adset_name:    fl.adset_name    ?? null,
+      campaign_id:   fl.campaign_id   ?? null,
+      campaign_name: fl.campaign_name ?? null,
     }))
 
     const { data: saved } = await service.from('leads')

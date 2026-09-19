@@ -346,3 +346,14 @@ ALTER TABLE organizations
     CHECK (lead_distribution_mode IN ('manual','open_pool','round_robin','weighted')),
   ADD COLUMN IF NOT EXISTS rr_current_pos INTEGER DEFAULT 0,
   ADD COLUMN IF NOT EXISTS distribution_members JSONB DEFAULT '[]'::jsonb;
+
+-- ─── Ad source attribution on leads ──────────────────────────────────────────
+-- Facebook Lead Ads returns ad/adset/campaign info per lead — store for attribution.
+
+ALTER TABLE leads
+  ADD COLUMN IF NOT EXISTS ad_id         TEXT,
+  ADD COLUMN IF NOT EXISTS ad_name       TEXT,
+  ADD COLUMN IF NOT EXISTS adset_id      TEXT,
+  ADD COLUMN IF NOT EXISTS adset_name    TEXT,
+  ADD COLUMN IF NOT EXISTS campaign_id   TEXT,
+  ADD COLUMN IF NOT EXISTS campaign_name TEXT;
