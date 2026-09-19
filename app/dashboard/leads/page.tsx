@@ -65,11 +65,8 @@ interface Lead {
   followup_at: string | null
   created_at: string
   fields: Record<string, string> | null
-  ad_id?: string | null
   ad_name?: string | null
-  adset_id?: string | null
   adset_name?: string | null
-  campaign_id?: string | null
   campaign_name?: string | null
 }
 
@@ -1825,11 +1822,6 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
   const color = form ? getColor(form.color_index) : null
   const extra = Object.entries(lead.fields ?? {}).filter(([k]) => !STANDARD_KEYS.has(k))
 
-  const adSource: [string, string][] = []
-  if (lead.campaign_name) adSource.push(['Campaign', lead.campaign_name])
-  if (lead.adset_name)    adSource.push(['Ad Set', lead.adset_name])
-  if (lead.ad_name)       adSource.push(['Ad', lead.ad_name])
-
   const followupDate = lead.followup_at
     ? new Date(lead.followup_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : null
@@ -1854,11 +1846,6 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
                 )}
               </div>
               {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
-              {lead.campaign_name && !lead.email && (
-                <p className="text-[11px] text-indigo-400 truncate mt-0.5" title={`${lead.campaign_name}${lead.adset_name ? ` › ${lead.adset_name}` : ''}`}>
-                  {lead.campaign_name}{lead.adset_name ? ` › ${lead.adset_name}` : ''}
-                </p>
-              )}
               {lead.assigned_name && (
                 <p className="text-[11px] text-blue-500 mt-0.5 flex items-center gap-1">
                   <UserCheck className="w-2.5 h-2.5" />
@@ -1914,7 +1901,7 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
                 <MessageCircle className="w-4 h-4" />
               </button>
             )}
-            {(extra.length > 0 || adSource.length > 0) && (
+            {extra.length > 0 && (
               <button onClick={() => setExpanded(e => !e)}
                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-300 hover:text-gray-600 transition">
                 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1923,33 +1910,16 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
           </div>
         </td>
       </tr>
-      {expanded && (extra.length > 0 || adSource.length > 0) && (
+      {expanded && extra.length > 0 && (
         <tr>
           <td colSpan={showFormBadge ? 6 : 5} className="px-5 pb-4">
-            <div className="ml-5 bg-gray-50 rounded-xl p-4 space-y-3">
-              {adSource.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Ad Source</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {adSource.map(([k, v]) => (
-                      <div key={k}>
-                        <p className="text-xs text-gray-400 mb-0.5">{k}</p>
-                        <p className="text-sm font-medium text-gray-800 truncate" title={v}>{v}</p>
-                      </div>
-                    ))}
-                  </div>
+            <div className="ml-5 bg-gray-50 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {extra.map(([k, v]) => (
+                <div key={k}>
+                  <p className="text-xs text-gray-400 capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
+                  <p className="text-sm font-medium text-gray-800">{v}</p>
                 </div>
-              )}
-              {extra.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {extra.map(([k, v]) => (
-                    <div key={k}>
-                      <p className="text-xs text-gray-400 capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
-                      <p className="text-sm font-medium text-gray-800">{v}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              ))}
             </div>
           </td>
         </tr>

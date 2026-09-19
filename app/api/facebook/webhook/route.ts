@@ -88,14 +88,11 @@ export async function POST(request: Request) {
         email,
         phone,
         fields,
-        raw_data:       { field_data: fbLead.field_data },
-        wa_status:      phone ? 'imported' : 'no_phone',
-        ad_id:          fbLead.ad_id         ?? null,
-        ad_name:        fbLead.ad_name       ?? null,
-        adset_id:       fbLead.adset_id      ?? null,
-        adset_name:     fbLead.adset_name    ?? null,
-        campaign_id:    fbLead.campaign_id   ?? null,
-        campaign_name:  fbLead.campaign_name ?? null,
+        raw_data:      { field_data: fbLead.field_data },
+        wa_status:     phone ? 'imported' : 'no_phone',
+        ad_name:       fbLead.ad_name       ?? null,
+        adset_name:    fbLead.adset_name    ?? null,
+        campaign_name: fbLead.campaign_name ?? null,
       }, { onConflict: 'facebook_lead_id' }).select('id').single()
 
       if (saveErr) { console.error('[FB webhook] save lead error:', saveErr); continue }

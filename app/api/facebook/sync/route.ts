@@ -174,11 +174,8 @@ export async function POST(request: Request) {
       raw_data:      { field_data: fl.field_data },
       wa_status:     phone ? 'imported' : 'no_phone',
       created_at:    fl.created_time,
-      ad_id:         fl.ad_id         ?? null,
       ad_name:       fl.ad_name       ?? null,
-      adset_id:      fl.adset_id      ?? null,
       adset_name:    fl.adset_name    ?? null,
-      campaign_id:   fl.campaign_id   ?? null,
       campaign_name: fl.campaign_name ?? null,
     }))
 
