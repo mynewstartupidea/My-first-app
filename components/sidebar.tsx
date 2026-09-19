@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
-  FileText, ShoppingBag, BarChart2, Code2,
+  FileText, BarChart2, Code2,
   Settings, LogOut, MessageCircle, Store,
   ChevronRight, LifeBuoy, Plug, UserPlus, ShieldAlert,
 } from 'lucide-react'
@@ -70,8 +70,7 @@ const NAV = [
   { href: '/dashboard/campaigns',   icon: Megaphone,       label: 'Campaigns'   },
   { href: '/dashboard/automations', icon: Zap,             label: 'Automations' },
   { href: '/dashboard/templates',   icon: FileText,        label: 'Templates'   },
-  { href: '/dashboard/shopify',      icon: ShoppingBag,     label: 'Shopify'     },
-  { href: '/dashboard/integrations', icon: Plug,            label: 'Integrations' },
+  { href: '/dashboard/integrations', icon: Plug,           label: 'Integrations' },
   { href: '/dashboard/analytics',   icon: BarChart2,       label: 'Analytics'   },
 ]
 
@@ -247,13 +246,11 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }:
             })()}
           </div>
         ) : (
-          canAccess(role, '/dashboard/shopify') ? (
-            <Link href="/dashboard/shopify"
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 hover:bg-[#25D366]/15 transition">
-              <Store size={13} className="text-[#25D366]" />
-              <span className="text-[#25D366] text-[12px] font-medium">Connect Shopify</span>
-            </Link>
-          ) : null
+          <Link href="/dashboard/settings?tab=whatsapp"
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 hover:bg-[#25D366]/15 transition">
+            <Store size={13} className="text-[#25D366]" />
+            <span className="text-[#25D366] text-[12px] font-medium">Set up WhatsApp</span>
+          </Link>
         )}
         <WaHealthBadge />
         <button onClick={handleSignOut}

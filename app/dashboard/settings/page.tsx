@@ -10,7 +10,13 @@ import {
   CreditCard, Users, Shield,
   UserPlus, Mail, Lock, RefreshCw, XCircle, ArrowUpRight
 } from 'lucide-react'
-import { SHOPIFY_PLANS } from '@/lib/shopify-billing'
+// Lead-ads billing plans (Razorpay)
+const LEAD_PLANS = [
+  { id: 'starter',    name: 'Starter',    price: '₹2,499', messages: 5000,      description: 'Best for getting started',        recommended: false },
+  { id: 'growth',     name: 'Growth',     price: '₹3,999', messages: 15000,     description: 'For scaling your sales team',     recommended: true  },
+  { id: 'scale',      name: 'Scale',      price: '₹7,999', messages: 50000,     description: 'For high-volume businesses',      recommended: false },
+  { id: 'enterprise', name: 'Enterprise', price: '₹24,999',messages: 999999999, description: 'Unlimited for large teams',        recommended: false },
+] as const
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import type { Store as StoreType } from '@/types'
@@ -45,7 +51,6 @@ const SHOPIFY_ERROR_MESSAGES: Record<string, string> = {
   not_configured:   'Shopify app credentials are not configured yet. Follow the setup guide below.',
 }
 
-const SHOPIFY_PLAN_MAP = Object.fromEntries(SHOPIFY_PLANS.map(p => [p.id, p]))
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   trialing:  { label: 'Active',    color: 'bg-green-100 text-green-700' },
@@ -598,15 +603,11 @@ function SettingsInner() {
     </div>
   )
 
-  const shopifyPlan  = SHOPIFY_PLAN_MAP[billing?.plan_name ?? '']
-  const planLabel    = shopifyPlan?.name ?? (billing?.plan_name === 'trial' || !billing ? 'Trial' : billing.plan_name)
-  const planPrice    = shopifyPlan ? `$${shopifyPlan.price}/mo` : null
+  const currentLeadPlan = LEAD_PLANS.find(p => p.id === billing?.plan_name)
+  const planLabel    = currentLeadPlan?.name ?? (billing?.plan_name === 'trial' || !billing ? 'Trial' : billing.plan_name)
+  const planPrice    = currentLeadPlan ? `${currentLeadPlan.price}/mo` : null
   const statusMeta   = STATUS_META[billing?.status ?? 'trialing'] ?? STATUS_META.trialing
   const usagePct     = billing ? Math.min(100, Math.round((billing.messages_used / billing.messages_limit) * 100)) : 0
-  const isShopifyConnected = hasShopifyConnection(store)
-  const changePlanHref = store?.shopify_domain
-    ? `/shopify/pricing?shop=${encodeURIComponent(store.shopify_domain)}&change=1`
-    : null
 
   const TABS = [
     { id: 'account',  label: 'Account',   icon: Store       },
@@ -682,43 +683,22 @@ function SettingsInner() {
 
         {store ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-green-800">{store.shop_name ?? store.shopify_domain ?? 'My Store'}</p>
-                  <p className="text-green-600 text-sm">
-                    {isShopifyConnected
-                      ? store.shopify_domain
-                      : <span className="italic text-green-500">Mock store — no Shopify connected</span>}
-                  </p>
-                  {store.platform && (
-                    <span className="inline-block mt-1 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium capitalize">
-                      🛍️ {store.platform}
-                    </span>
-                  )}
-                  {store.connected_at && (
-                    <p className="text-green-500 text-xs mt-0.5">
-                      Connected {new Date(store.connected_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
-                  )}
-                  {(store.product_count ?? 0) > 0 && (
-                    <p className="text-green-500 text-xs mt-0.5">{store.product_count} products synced</p>
-                  )}
-                </div>
+            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-green-800">{store.shop_name ?? 'My Workspace'}</p>
+                <p className="text-green-500 text-xs mt-0.5">
+                  Active since {store.connected_at
+                    ? new Date(store.connected_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : 'today'}
+                </p>
               </div>
-              {isShopifyConnected && (
-                <a href={`https://${store.shopify_domain}/admin`} target="_blank" rel="noopener noreferrer"
-                  className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-100 transition">
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Store display name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Workspace display name</label>
               <div className="flex gap-2">
-                <input value={storeNameEdit} onChange={e => setStoreNameEdit(e.target.value)} placeholder="My Store"
+                <input value={storeNameEdit} onChange={e => setStoreNameEdit(e.target.value)} placeholder="My Business"
                   className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
                 <button onClick={saveStoreName} disabled={savingStore || !storeNameEdit.trim()}
                   className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition">
@@ -726,84 +706,12 @@ function SettingsInner() {
                 </button>
               </div>
             </div>
-
-            {!isShopifyConnected && (
-              <div className="border-t border-slate-100 pt-4">
-                <p className="text-sm font-medium text-slate-700 mb-2">Connect Shopify</p>
-                <div className="flex gap-2">
-                  <input value={shopifyDomain} onChange={e => setShopifyDomain(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleConnectShopify()}
-                    placeholder="yourstore.myshopify.com"
-                    className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-                  <button onClick={handleConnectShopify} disabled={connecting || !shopifyDomain.trim()}
-                    className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">
-                    {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {isShopifyConnected && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <button onClick={syncProducts} disabled={syncingProducts}
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-xl transition border border-blue-200">
-                  {syncingProducts
-                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Syncing…</>
-                    : <><RefreshCw className="w-3.5 h-3.5" /> Sync Products</>}
-                </button>
-                <button onClick={disconnectStore}
-                  className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition">
-                  <Trash2 className="w-3.5 h-3.5" /> Disconnect store
-                </button>
-              </div>
-            )}
           </div>
         ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Your Shopify domain</label>
-              <div className="flex gap-2">
-                <input value={shopifyDomain} onChange={e => setShopifyDomain(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleConnectShopify()}
-                  placeholder="yourstore.myshopify.com"
-                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-                <button onClick={handleConnectShopify} disabled={connecting || !shopifyDomain.trim()}
-                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">
-                  {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect'}
-                </button>
-              </div>
-            </div>
-
-            <button onClick={() => setShowGuide(v => !v)}
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
-              <Info className="w-3.5 h-3.5" />
-              {showGuide ? 'Hide' : 'Show'} Shopify setup guide
-              {showGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-
-            {showGuide && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-sm space-y-3">
-                <p className="font-semibold text-slate-800">Connect Shopify (~10 min)</p>
-                {[
-                  { step: '1', title: 'Create Shopify Partner account', desc: 'Go to partners.shopify.com', href: 'https://partners.shopify.com', cta: 'Open Shopify Partners →' },
-                  { step: '2', title: 'Create a custom app', desc: 'Partners → Apps → Create app → Custom app. Set redirect URL:', code: 'https://app.wapaci.com/api/shopify/callback' },
-                  { step: '3', title: 'Copy API credentials', desc: 'From your app\'s API credentials tab.' },
-                  { step: '4', title: 'Add to Vercel', desc: 'Vercel → Settings → Environment Variables:', envVars: ['SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET'] },
-                  { step: '5', title: 'Redeploy & connect', desc: 'Trigger a Vercel redeploy, then come back and connect.' },
-                ].map(({ step, title, desc, code, envVars, href, cta }) => (
-                  <div key={step} className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-[#25D366] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-800 text-sm">{title}</p>
-                      <p className="text-slate-500 text-xs mt-0.5">{desc}</p>
-                      {code && <code className="block mt-1 text-[10px] bg-slate-200 px-2 py-1 rounded font-mono break-all">{code}</code>}
-                      {envVars?.map(v => <code key={v} className="block mt-1 text-[10px] bg-slate-200 px-2 py-1 rounded font-mono">{v}</code>)}
-                      {href && cta && <a href={href} target="_blank" rel="noopener noreferrer" className="inline-block mt-1 text-xs text-[#25D366] hover:underline">{cta}</a>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <Store className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+            <p className="font-semibold text-slate-600">Setting up your workspace…</p>
+            <p className="text-slate-400 text-sm mt-1">Refresh the page to continue.</p>
           </div>
         )}
       </section>
@@ -1117,7 +1025,7 @@ function SettingsInner() {
                       </span>
                     </div>
                     {planPrice && <p className="text-slate-500 text-sm">{planPrice}</p>}
-                    {shopifyPlan && <p className="text-slate-400 text-xs mt-0.5">{shopifyPlan.orders}</p>}
+                    {currentLeadPlan && <p className="text-slate-400 text-xs mt-0.5">{currentLeadPlan.messages >= 999999999 ? 'Unlimited messages' : `${currentLeadPlan.messages.toLocaleString()} messages/mo`}</p>}
                   </div>
                 </div>
 
@@ -1145,24 +1053,22 @@ function SettingsInner() {
               {/* All plans comparison */}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                 <h3 className="font-semibold text-slate-800 mb-1">All Plans</h3>
-                <p className="text-slate-400 text-xs mb-5">7-day free trial on all plans. Billed monthly via Shopify.</p>
+                <p className="text-slate-400 text-xs mb-5">Billed monthly. To upgrade, contact us on WhatsApp.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                  {SHOPIFY_PLANS.map(plan => {
-                    const isCurrent = billing?.plan_name === plan.id
+                  {LEAD_PLANS.map(plan => {
+                    const isCurrent     = billing?.plan_name === plan.id
                     const isRecommended = plan.recommended
-                    const href = store?.shopify_domain
-                      ? `/shopify/pricing?shop=${encodeURIComponent(store.shopify_domain)}&change=1`
-                      : '/shopify/pricing'
+                    const isUnlimited   = plan.messages >= 999999999
+                    const currentIdx    = LEAD_PLANS.findIndex(p => p.id === billing?.plan_name)
+                    const planIdx       = LEAD_PLANS.findIndex(p => p.id === plan.id)
+                    const isDowngrade   = currentIdx > -1 && planIdx < currentIdx
                     return (
-                      <div
-                        key={plan.id}
+                      <div key={plan.id}
                         className={cn(
-                          'relative rounded-xl border p-4 flex flex-col gap-3 transition',
-                          isCurrent
-                            ? 'border-[#25D366] bg-[#25D366]/5'
-                            : isRecommended
-                              ? 'border-blue-200 bg-blue-50/50'
-                              : 'border-slate-100 bg-slate-50/50'
+                          'relative rounded-xl border p-4 flex flex-col gap-3',
+                          isCurrent     ? 'border-[#25D366] bg-[#25D366]/5'
+                          : isRecommended ? 'border-blue-200 bg-blue-50/50'
+                          : 'border-slate-100 bg-slate-50/50'
                         )}
                       >
                         {isRecommended && !isCurrent && (
@@ -1178,19 +1084,18 @@ function SettingsInner() {
                         <div>
                           <p className="font-bold text-slate-900">{plan.name}</p>
                           <p className="text-2xl font-bold text-slate-900 mt-1">
-                            ${plan.price}<span className="text-sm font-normal text-slate-400">/mo</span>
+                            {plan.price}<span className="text-sm font-normal text-slate-400">/mo</span>
                           </p>
+                          <p className="text-slate-400 text-xs mt-0.5">{plan.description}</p>
                         </div>
                         <div className="space-y-1.5 flex-1">
-                          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" />
-                            {plan.messages === -1 ? 'Unlimited messages' : `${plan.messages.toLocaleString()} messages/mo`}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" />
-                            {plan.orders}
-                          </div>
-                          {['Abandoned cart recovery', 'Order updates', 'Campaign broadcasts', 'Analytics'].map(f => (
+                          {[
+                            isUnlimited ? 'Unlimited WhatsApp messages' : `${plan.messages.toLocaleString()} messages/mo`,
+                            'Facebook Lead Ads sync',
+                            'Lead quality tracking',
+                            'Ad attribution analytics',
+                            'WhatsApp follow-ups',
+                          ].map(f => (
                             <div key={f} className="flex items-center gap-1.5 text-xs text-slate-600">
                               <CheckCircle2 className="w-3.5 h-3.5 text-[#25D366] flex-shrink-0" />
                               {f}
@@ -1199,27 +1104,20 @@ function SettingsInner() {
                         </div>
                         {isCurrent ? (
                           <div className="text-center text-xs font-semibold text-[#25D366] py-2">Active</div>
-                        ) : !store?.shopify_domain ? (
-                          <Link
-                            href="/dashboard/settings?tab=store"
-                            className="text-center text-xs font-semibold py-2 px-3 rounded-lg transition bg-slate-200 hover:bg-slate-300 text-slate-600"
-                          >
-                            Connect Shopify first
-                          </Link>
                         ) : (
-                          <Link
-                            href={href}
+                          <a
+                            href={`https://wa.me/917049571282?text=Hi%2C+I+want+to+${isDowngrade ? 'downgrade' : 'upgrade'}+my+Wapaci+plan+to+${plan.name}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className={cn(
-                              'text-center text-xs font-semibold py-2 px-3 rounded-lg transition',
+                              'text-center text-xs font-semibold py-2 px-3 rounded-lg transition block',
                               isRecommended
                                 ? 'bg-blue-500 hover:bg-blue-600 text-white'
                                 : 'bg-[#25D366] hover:bg-[#128C7E] text-white'
                             )}
                           >
-                            {billing?.plan_name && billing.plan_name !== 'trial' && SHOPIFY_PLANS.findIndex(p => p.id === plan.id) < SHOPIFY_PLANS.findIndex(p => p.id === billing?.plan_name)
-                              ? 'Downgrade'
-                              : 'Upgrade'}
-                          </Link>
+                            {isDowngrade ? 'Downgrade' : 'Upgrade'} →
+                          </a>
                         )}
                       </div>
                     )

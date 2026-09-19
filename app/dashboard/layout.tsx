@@ -20,7 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .limit(10)
   const store = pickPreferredStore(storeRows)
 
-  const displayName = store?.shopify_domain ? (store.shop_name ?? store.shopify_domain) : null
+  const displayName = store?.shop_name ?? null
   const role        = await getUserRole(user.id, user.email ?? '')
 
   return (

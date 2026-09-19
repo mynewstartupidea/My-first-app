@@ -175,19 +175,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* No store banner */}
-      {!store && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-7 flex items-start gap-3">
-          <AlertCircle size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-amber-800">Connect your Shopify store</p>
-            <p className="text-amber-600 text-sm mt-0.5">Link your store to enable ecommerce campaigns, order updates, and customer segments.</p>
-            <Link href="/dashboard/shopify" className="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold text-amber-700 hover:text-amber-900">
-              <Store size={14} /> Connect Shopify <ArrowRight size={13} />
-            </Link>
-          </div>
-        </div>
-      )}
 
       {/* Low message credit banner */}
       {msgPct >= 80 && msgLimit < 999_999_999 && (
