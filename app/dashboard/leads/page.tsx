@@ -222,6 +222,30 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
   const [selectedForm, setSelectedForm] = useState<FBForm | null>(preSelectedForm ?? null)
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
   const [activating, setActivating] = useState(false)
+  const [formFields, setFormFields] = useState<string[]>([])
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Fetch form field names from a sample lead so we can show clickable variable chips
+  useEffect(() => {
+    if (!selectedForm) { setFormFields([]); return }
+    fetch(`/api/facebook/leads?form_id=${selectedForm.id}&limit=1`)
+      .then(r => r.json())
+      .then((d: { leads?: Lead[] }) => {
+        const f = d.leads?.[0]?.fields
+        if (!f) return
+        setFormFields(Object.keys(f).filter(k => !STANDARD_KEYS.has(k)))
+      })
+      .catch(() => {})
+  }, [selectedForm])
+
+  function insertVar(v: string) {
+    const el = textareaRef.current
+    const tag = `{{${v}}}`
+    if (!el) { setTemplate(t => t + tag); return }
+    const s = el.selectionStart, e = el.selectionEnd
+    setTemplate(template.slice(0, s) + tag + template.slice(e))
+    setTimeout(() => { el.focus(); el.setSelectionRange(s + tag.length, s + tag.length) }, 0)
+  }
 
   const activatedIds = new Set(activeForms.map(f => f.form_id))
 
@@ -343,15 +367,27 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
                   </div>
                 </div>
               )}
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp message template</label>
-              <p className="text-xs text-gray-400 mb-3">
-                Use{' '}
-                <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">{'{{name}}'}</code>{' '}
-                <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">{'{{phone}}'}</code>{' '}
-                <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">{'{{email}}'}</code>{' '}
-                and any custom field names from your form.
-              </p>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">WhatsApp message template</label>
+              {/* Variable chips — click to insert at cursor */}
+              <div className="mb-3">
+                <p className="text-[11px] text-gray-400 mb-1.5">Click to insert a variable:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['name', 'phone', 'email'].map(v => (
+                    <button key={v} type="button" onClick={() => insertVar(v)}
+                      className="text-[11px] font-mono bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md hover:bg-blue-100 transition">
+                      {`{{${v}}}`}
+                    </button>
+                  ))}
+                  {formFields.map(v => (
+                    <button key={v} type="button" onClick={() => insertVar(v)}
+                      className="text-[11px] font-mono bg-violet-50 text-violet-600 border border-violet-100 px-2 py-0.5 rounded-md hover:bg-violet-100 transition capitalize">
+                      {`{{${v}}}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <textarea
+                ref={textareaRef}
                 value={template}
                 onChange={e => setTemplate(e.target.value)}
                 rows={7}
@@ -399,6 +435,8 @@ function EditFormModal({ form, onClose, onSave }: {
   const [saving,      setSaving]      = useState(false)
   const [starterTmpl, setStarterTmpl] = useState<(StarterTemplate & { status: string })[]>([])
   const [loadingTmpl, setLoadingTmpl] = useState(true)
+  const [formFields,  setFormFields]  = useState<string[]>([])
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const c = getColor(form.color_index)
 
   useEffect(() => {
@@ -408,6 +446,28 @@ function EditFormModal({ form, onClose, onSave }: {
       .catch(() => setStarterTmpl([]))
       .finally(() => setLoadingTmpl(false))
   }, [])
+
+  // Fetch a sample lead to discover what fields this form collects
+  useEffect(() => {
+    fetch(`/api/facebook/leads?form_id=${form.form_id}&limit=1`)
+      .then(r => r.json())
+      .then((d: { leads?: Lead[] }) => {
+        const f = d.leads?.[0]?.fields
+        if (!f) return
+        setFormFields(Object.keys(f).filter(k => !STANDARD_KEYS.has(k)))
+      })
+      .catch(() => {})
+  }, [form.form_id])
+
+  function insertVar(v: string) {
+    const el = textareaRef.current
+    const tag = `{{${v}}}`
+    if (!el) { setTemplate(t => t + tag); setWaName(''); setWaLang('en'); return }
+    const s = el.selectionStart, e = el.selectionEnd
+    setTemplate(template.slice(0, s) + tag + template.slice(e))
+    setWaName(''); setWaLang('en')
+    setTimeout(() => { el.focus(); el.setSelectionRange(s + tag.length, s + tag.length) }, 0)
+  }
 
   const handlePickStarter = (t: StarterTemplate & { status: string }) => {
     setTemplate(t.bodyPreview)
@@ -480,21 +540,37 @@ function EditFormModal({ form, onClose, onSave }: {
 
           {/* Message preview / custom editor */}
           <div className="border-t border-gray-100 pt-5">
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
               Message preview
               {waName && <span className="ml-2 text-xs font-normal text-blue-600">using template &quot;{waName}&quot;</span>}
             </label>
+            {/* Variable chips */}
+            <div className="mb-2">
+              <p className="text-[11px] text-gray-400 mb-1.5">Click to insert a variable:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {['name', 'phone', 'email'].map(v => (
+                  <button key={v} type="button" onClick={() => insertVar(v)}
+                    className="text-[11px] font-mono bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md hover:bg-blue-100 transition">
+                    {`{{${v}}}`}
+                  </button>
+                ))}
+                {formFields.map(v => (
+                  <button key={v} type="button" onClick={() => insertVar(v)}
+                    className="text-[11px] font-mono bg-violet-50 text-violet-600 border border-violet-100 px-2 py-0.5 rounded-md hover:bg-violet-100 transition capitalize">
+                    {`{{${v}}}`}
+                  </button>
+                ))}
+              </div>
+            </div>
             <textarea
+              ref={textareaRef}
               value={template}
               onChange={e => { setTemplate(e.target.value); setWaName(''); setWaLang('en') }}
               rows={6}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
-            <p className="text-xs text-gray-400 mt-1.5">
-              Variables: <code className="bg-gray-100 px-1 rounded">{'{{name}}'}</code>{' '}
-              <code className="bg-gray-100 px-1 rounded">{'{{phone}}'}</code>{' '}
-              <code className="bg-gray-100 px-1 rounded">{'{{email}}'}</code>{' '}
-              — editing this text clears the template selection (use custom template below).
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              Purple chips are fields from this specific form. Editing text clears the selected template.
             </p>
           </div>
 
