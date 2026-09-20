@@ -2461,10 +2461,14 @@ function LeadsContent() {
       if (document.visibilityState !== 'visible') return
       const pid = selectedPageIdRef.current
       if (!pid) return
-      fetchActiveForms(pid)
-      fetchStats(pid)
-      fetchLeads(selectedFormIdRef.current, pid, 1, perPage, leadSearch, sortBy)
-        .finally(() => setLoadingLeads(false))
+      // Show spinner immediately so user sees activity, not stale data
+      setLoadingLeads(true)
+      setCurrentPage(1)
+      Promise.all([
+        fetchActiveForms(pid),
+        fetchStats(pid),
+        fetchLeads(selectedFormIdRef.current, pid, 1, perPage, leadSearch, sortBy),
+      ]).finally(() => setLoadingLeads(false))
     }
     document.addEventListener('visibilitychange', refresh)
     window.addEventListener('focus', refresh)
