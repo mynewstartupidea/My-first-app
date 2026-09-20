@@ -2176,8 +2176,13 @@ function LeadsContent() {
   const [showPageLockPopup, setShowPageLockPopup] = useState(false)
   const [callLogLead,    setCallLogLead]    = useState<Lead | null>(null)
   const [teamMembers,    setTeamMembers]    = useState<TeamMember[]>([])
-  const [lastSynced,     setLastSynced]     = useState<string | null>(null)
+  const [syncToast,      setSyncToast]      = useState(false)
   const [waConnected,    setWaConnected]    = useState<boolean | null>(null)
+
+  const showSyncToast = useCallback(() => {
+    setSyncToast(true)
+    setTimeout(() => setSyncToast(false), 2500)
+  }, [])
 
   // Refs so the visibilitychange closure always reads the latest selected IDs
   const selectedPageIdRef = useRef<string | null>(null)
@@ -2313,7 +2318,7 @@ function LeadsContent() {
     fetch(`/api/facebook/sync?page_id=${page.page_id}`, { method: 'POST' })
       .then(r => r.json() as Promise<{ synced?: number }>)
       .then(async d => {
-        setLastSynced(new Date().toISOString())
+        showSyncToast()
         if (d.synced) await Promise.all([fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)])
       })
       .catch(() => {})
@@ -2444,7 +2449,7 @@ function LeadsContent() {
     const d = await r.json() as { synced?: number; newLeads?: number; error?: string }
     const leadsFormId = selectedFormId === '__forms' ? 'all' : selectedFormId
     await Promise.all([fetchActiveForms(selectedPageId), fetchLeads(leadsFormId, selectedPageId, 1, perPage, leadSearch), fetchStats(selectedPageId)])
-    setLastSynced(new Date().toISOString())
+    showSyncToast()
     setRefreshing(false)
     if (d.error) {
       setBanner({ type: 'error', msg: d.error })
@@ -2542,6 +2547,12 @@ function LeadsContent() {
   return (
     <div className="p-6 lg:p-8 space-y-5">
 
+      {/* Sync toast — fixed bottom-right, no layout impact */}
+      <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl shadow-lg pointer-events-none transition-all duration-300 ${syncToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+        <CheckCircle className="w-4 h-4 text-[#25D366] flex-shrink-0" />
+        Leads synced
+      </div>
+
       {/* Banner */}
       {banner && (
         <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
@@ -2570,9 +2581,6 @@ function LeadsContent() {
             onReconnect={() => { window.location.href = '/api/facebook/auth' }}
           />
           <div className="flex items-center gap-2">
-            {lastSynced && !refreshing && (
-              <span className="text-xs text-gray-400 hidden sm:block">Synced {timeAgo(lastSynced)}</span>
-            )}
             <button
               onClick={handleRefresh}
               disabled={refreshing}
