@@ -2314,17 +2314,24 @@ function LeadsContent() {
     setLoadingForms(true)
     setLoadingLeads(true)
     try { sessionStorage.setItem('_wpl_pid', page.page_id) } catch {}
-    await Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)])
+
+    // Run DB fetch and FB sync in parallel — spinner stays up until both finish
+    const [, syncResult] = await Promise.all([
+      Promise.all([fetchActiveForms(page.page_id), fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)]),
+      fetch(`/api/facebook/sync?page_id=${page.page_id}`, { method: 'POST' })
+        .then(r => r.json() as Promise<{ synced?: number }>)
+        .catch(() => ({ synced: 0 } as { synced: number })),
+    ])
+
     setLoadingForms(false)
+
+    if (syncResult.synced) {
+      // New leads arrived — re-fetch so the list is fresh before spinner drops
+      await Promise.all([fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)])
+      showSyncToast()
+    }
+
     setLoadingLeads(false)
-    // Auto-sync from Facebook in background — no spinner, silently refreshes if new leads found
-    fetch(`/api/facebook/sync?page_id=${page.page_id}`, { method: 'POST' })
-      .then(r => r.json() as Promise<{ synced?: number }>)
-      .then(async d => {
-        showSyncToast()
-        if (d.synced) await Promise.all([fetchLeads('all', page.page_id, 1, perPage, ''), fetchStats(page.page_id)])
-      })
-      .catch(() => {})
   }
 
   const handleTabChange = async (formId: string | 'all' | '__forms') => {
