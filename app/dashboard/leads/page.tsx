@@ -1855,6 +1855,23 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
                   {lead.assigned_name}
                 </p>
               )}
+              {/* Inline preview of first custom field — tells user there are answers */}
+              {extra.length > 0 && (
+                <button
+                  onClick={() => setExpanded(e => !e)}
+                  className="mt-1 flex items-center gap-1 text-left group/fields"
+                >
+                  <span className="text-[11px] text-gray-400 truncate max-w-[200px]">
+                    <span className="text-gray-500 font-medium capitalize">{extra[0][0].replace(/_/g, ' ')}: </span>
+                    {extra[0][1]}
+                  </span>
+                  {extra.length > 1 && (
+                    <span className="text-[10px] text-blue-400 font-medium flex-shrink-0 group-hover/fields:text-blue-600">
+                      +{extra.length - 1} more
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </td>
@@ -1906,7 +1923,8 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
             )}
             {extra.length > 0 && (
               <button onClick={() => setExpanded(e => !e)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-300 hover:text-gray-600 transition">
+                className={`p-1.5 rounded-lg transition ${expanded ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+                title={expanded ? 'Hide form answers' : 'Show form answers'}>
                 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
             )}
