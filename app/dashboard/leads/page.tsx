@@ -2904,8 +2904,16 @@ function LeadsContent() {
 
             {/* Table */}
             {loadingLeads ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-600">
+                    {refreshing ? 'Syncing with Facebook…' : 'Fetching your leads…'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {refreshing ? 'Checking for new leads from your ad forms' : 'Pulling in leads from Facebook Lead Ads'}
+                  </p>
+                </div>
               </div>
             ) : leads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">

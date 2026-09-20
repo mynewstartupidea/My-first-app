@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   Code2, Key, Webhook, Copy, Eye, EyeOff, CheckCircle2,
-  RefreshCw, Loader2, AlertCircle, Globe, ChevronDown, ChevronUp,
+  RefreshCw, Loader2, AlertCircle, Globe, ChevronDown, ChevronUp, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +24,7 @@ export default function DeveloperPage() {
   const [showCurl,    setShowCurl]    = useState(false)
   const [showHtml,    setShowHtml]    = useState(false)
   const [showJs,      setShowJs]      = useState(false)
+  const [showGhlSteps, setShowGhlSteps] = useState(false)
 
   const loadKey = useCallback(async () => {
     setLoading(true)
@@ -52,6 +53,7 @@ export default function DeveloperPage() {
 
   const maskedKey = apiKey ? `wap_live_${'•'.repeat(24)}` : '—'
   const ingestUrl = `${BASE_URL}/api/leads/ingest`
+  const ghlUrl    = `${BASE_URL}/api/leads/ghl?key=${apiKey || 'YOUR_API_KEY'}`
 
   const curlSnippet = `curl -X POST "${ingestUrl}" \\
   -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
@@ -279,6 +281,84 @@ const { success, lead_id } = await res.json()
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Go High Level */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+        <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+          <Zap size={15} className="text-orange-500" /> Go High Level
+        </h2>
+        <p className="text-slate-500 text-xs mb-4">
+          Connect any GHL funnel or landing page — no Zapier needed. GHL sends a webhook when a form is submitted; we parse their format automatically.
+        </p>
+
+        {/* GHL webhook URL */}
+        <div className="rounded-xl bg-slate-50 p-3.5 mb-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold px-2 py-1 rounded-md font-mono bg-emerald-100 text-emerald-700">POST</span>
+              <p className="text-xs font-semibold text-slate-700">GHL Webhook URL</p>
+            </div>
+            <button onClick={() => copy(ghlUrl, 'ghl')}
+              className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 transition">
+              {copied === 'ghl' ? <CheckCircle2 size={11} className="text-emerald-500" /> : <Copy size={11} />}
+              {copied === 'ghl' ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <code className="text-xs font-mono text-blue-600 break-all">{ghlUrl}</code>
+          <p className="text-[10px] text-slate-400 mt-1">Your API key is embedded in the URL — GHL sends it back automatically on every submission</p>
+        </div>
+
+        {/* What gets mapped */}
+        <div className="mb-4">
+          <p className="text-xs font-semibold text-slate-700 mb-2">What gets mapped from GHL</p>
+          <div className="space-y-1">
+            {[
+              { ghl: 'firstName + lastName', wapaci: 'name' },
+              { ghl: 'phone',               wapaci: 'phone (auto-normalized)' },
+              { ghl: 'email',               wapaci: 'email' },
+              { ghl: 'customFields[]',      wapaci: 'extra fields — usable as {{variable}} in templates' },
+              { ghl: 'form.name',           wapaci: 'source label shown in dashboard' },
+            ].map(r => (
+              <div key={r.ghl} className="flex items-center gap-3 text-xs py-1 border-b border-slate-50 last:border-0">
+                <code className="font-mono text-slate-500 w-36 flex-shrink-0">{r.ghl}</code>
+                <span className="text-slate-300">→</span>
+                <span className="text-slate-600">{r.wapaci}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Step by step */}
+        <div className="border border-slate-100 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowGhlSteps(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-sm font-medium text-slate-700"
+          >
+            <span>Step-by-step GHL setup</span>
+            {showGhlSteps ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          {showGhlSteps && (
+            <div className="p-4 space-y-3">
+              {[
+                { n: 1, title: 'Copy your webhook URL above', body: 'Click the Copy button — your API key is already embedded in it.' },
+                { n: 2, title: 'Open GHL → Automations → Workflows', body: 'Create a new workflow or open an existing one.' },
+                { n: 3, title: 'Add trigger: Form Submitted', body: 'Select the funnel and form you want to capture leads from.' },
+                { n: 4, title: 'Add action: Webhook', body: 'Choose "Send HTTP Request". Set method to POST, paste the URL. Leave body as-is — GHL auto-sends the contact payload.' },
+                { n: 5, title: 'Publish the workflow', body: 'Turn it on. The next form submission will create a lead in Wapaci instantly.' },
+                { n: 6, title: '(Optional) Set up WhatsApp automation', body: 'In Leads → All forms, create a form automation named exactly matching your GHL form name (or "GHL Form"). New leads will be messaged automatically.' },
+              ].map(s => (
+                <div key={s.n} className="flex gap-3">
+                  <div className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{s.n}</div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-700">{s.title}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{s.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
