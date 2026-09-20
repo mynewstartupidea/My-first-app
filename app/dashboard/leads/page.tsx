@@ -2179,6 +2179,12 @@ function LeadsContent() {
   const [lastSynced,     setLastSynced]     = useState<string | null>(null)
   const [waConnected,    setWaConnected]    = useState<boolean | null>(null)
 
+  // Refs so the visibilitychange closure always reads the latest selected IDs
+  const selectedPageIdRef = useRef<string | null>(null)
+  const selectedFormIdRef = useRef<string | 'all' | '__forms'>('all')
+  useEffect(() => { selectedPageIdRef.current = selectedPageId }, [selectedPageId])
+  useEffect(() => { selectedFormIdRef.current = selectedFormId }, [selectedFormId])
+
   // ── Fetchers ────────────────────────────────────────────────────────────
 
   const fetchPages = useCallback(async () => {
@@ -2448,6 +2454,25 @@ function LeadsContent() {
       setBanner({ type: 'success', msg: 'Already up to date — no new leads found' })
     }
   }
+
+  // ── Auto-refresh on page focus / navigation return ───────────────────────
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      const pid = selectedPageIdRef.current
+      if (!pid) return
+      fetchActiveForms(pid)
+      fetchStats(pid)
+      fetchLeads(selectedFormIdRef.current, pid, 1, perPage, leadSearch, sortBy)
+        .finally(() => setLoadingLeads(false))
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [fetchActiveForms, fetchStats, fetchLeads, perPage, leadSearch, sortBy])
 
   // ── Search debounce ──────────────────────────────────────────────────────
   useEffect(() => {
