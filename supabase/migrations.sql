@@ -354,3 +354,12 @@ ALTER TABLE leads
   ADD COLUMN IF NOT EXISTS ad_name       TEXT,
   ADD COLUMN IF NOT EXISTS adset_name    TEXT,
   ADD COLUMN IF NOT EXISTS campaign_name TEXT;
+
+-- ─── API key for landing page lead ingest ────────────────────────────────────
+-- Stores a random key per workspace used to authenticate POST /api/leads/ingest.
+-- Generated on first visit to the Developer page; rotatable by the user.
+
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS api_key TEXT UNIQUE;
+
+CREATE INDEX IF NOT EXISTS stores_api_key_idx ON stores(api_key) WHERE api_key IS NOT NULL;

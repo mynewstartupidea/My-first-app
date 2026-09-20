@@ -1,55 +1,114 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Code2, Key, Webhook, Copy, Eye, EyeOff, CheckCircle2,
-  Plus, AlertCircle, RefreshCw
+  RefreshCw, Loader2, AlertCircle, Globe, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const WEBHOOK_DOCS = [
-  { event: 'message.sent',      desc: 'Fired when a WhatsApp message is sent' },
-  { event: 'message.delivered', desc: 'Fired when message is delivered to phone' },
-  { event: 'message.read',      desc: 'Fired when customer reads the message' },
-  { event: 'cart.recovered',    desc: 'Fired when abandoned cart is recovered' },
-  { event: 'order.confirmed',   desc: 'Fired when COD order is confirmed' },
-]
-
 const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://wapaci.com'
 
+const OUTBOUND_EVENTS = [
+  { event: 'message.sent',      desc: 'Fired when a WhatsApp message is sent to a lead' },
+  { event: 'message.delivered', desc: 'Fired when message is delivered to the phone' },
+  { event: 'message.read',      desc: 'Fired when the lead reads the message' },
+]
+
 export default function DeveloperPage() {
-  const [showKey, setShowKey]     = useState(false)
-  const [copied, setCopied]       = useState<string | null>(null)
-  const [apiKey, setApiKey]       = useState('')
-  const [storeId, setStoreId]     = useState<string | null>(null)
-  const supabase = useMemo(() => createClient(), [])
+  const [apiKey,      setApiKey]      = useState('')
+  const [showKey,     setShowKey]     = useState(false)
+  const [copied,      setCopied]      = useState<string | null>(null)
+  const [loading,     setLoading]     = useState(true)
+  const [rotating,    setRotating]    = useState(false)
+  const [showCurl,    setShowCurl]    = useState(false)
+  const [showHtml,    setShowHtml]    = useState(false)
+  const [showJs,      setShowJs]      = useState(false)
 
-  const load = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
-    const id = store?.id ?? user.id
-    setStoreId(store?.id ?? null)
-    // Derive a stable key from the store/user ID — same ID always produces the same key
-    setApiKey(`wap_live_${id.replace(/-/g, '').slice(0, 24)}`)
-  }, [supabase])
+  const loadKey = useCallback(async () => {
+    setLoading(true)
+    const r = await fetch('/api/developer/key')
+    const d = await r.json() as { api_key?: string }
+    if (d.api_key) setApiKey(d.api_key)
+    setLoading(false)
+  }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { loadKey() }, [loadKey])
 
-  function copy(text: string, key: string) {
+  async function rotateKey() {
+    if (!confirm('Rotate your API key? Any landing pages using the old key will stop working until updated.')) return
+    setRotating(true)
+    const r = await fetch('/api/developer/key', { method: 'POST' })
+    const d = await r.json() as { api_key?: string }
+    if (d.api_key) { setApiKey(d.api_key); setShowKey(true) }
+    setRotating(false)
+  }
+
+  function copy(text: string, id: string) {
     navigator.clipboard.writeText(text)
-    setCopied(key)
+    setCopied(id)
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const endpoints = [
-    { method: 'POST', path: '/api/whatsapp/test',  desc: 'Send a test WhatsApp message' },
-    { method: 'POST', path: '/api/campaigns/send', desc: 'Trigger a campaign broadcast' },
-    { method: 'GET',  path: '/api/billing/status', desc: 'Get current plan usage and status' },
-    { method: 'GET',  path: '/api/cron',           desc: 'Process pending automation jobs (cron)' },
-  ]
+  const maskedKey = apiKey ? `wap_live_${'•'.repeat(24)}` : '—'
+  const ingestUrl = `${BASE_URL}/api/leads/ingest`
+
+  const curlSnippet = `curl -X POST "${ingestUrl}" \\
+  -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Rahul Sharma",
+    "phone": "+919876543210",
+    "email": "rahul@example.com",
+    "source": "Landing Page",
+    "budget": "50L",
+    "city": "Mumbai"
+  }'`
+
+  const htmlSnippet = `<form id="lead-form">
+  <input name="name"  placeholder="Your name"  required />
+  <input name="phone" placeholder="Phone"       required />
+  <input name="email" placeholder="Email" />
+  <button type="submit">Submit</button>
+</form>
+
+<script>
+document.getElementById('lead-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const data = Object.fromEntries(new FormData(e.target))
+  data.source = 'Landing Page'   // matches your form automation name
+
+  await fetch('${ingestUrl}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ${apiKey || 'YOUR_API_KEY'}'
+    },
+    body: JSON.stringify(data)
+  })
+  // redirect or show thank-you message
+})
+</script>`
+
+  const jsSnippet = `// Node.js / server-side example
+const res = await fetch('${ingestUrl}', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ${apiKey || 'YOUR_API_KEY'}',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    name:   'Priya Patel',
+    phone:  '+919123456789',
+    email:  'priya@example.com',
+    source: 'Landing Page',
+    // any extra fields from your form:
+    budget: '1Cr',
+    bhk:    '3BHK',
+  }),
+})
+const { success, lead_id } = await res.json()
+`
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl">
@@ -57,7 +116,7 @@ export default function DeveloperPage() {
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Code2 size={22} className="text-slate-700" /> Developer
         </h1>
-        <p className="text-slate-500 text-sm mt-1">API keys, webhooks, and integration documentation</p>
+        <p className="text-slate-500 text-sm mt-1">Connect your landing pages and custom forms to Wapaci</p>
       </div>
 
       {/* API Key */}
@@ -65,42 +124,174 @@ export default function DeveloperPage() {
         <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <Key size={15} className="text-slate-600" /> API Key
         </h2>
-        <p className="text-slate-500 text-xs mb-4">Use this key to authenticate API requests. Keep it secret.</p>
+        <p className="text-slate-500 text-xs mb-4">
+          Use this key to authenticate lead submissions from your landing page. Keep it secret — never paste it in client-side code that users can inspect.
+        </p>
 
-        <div className="flex items-center gap-2 bg-slate-900 rounded-xl px-4 py-3">
-          <code className="flex-1 text-xs font-mono text-green-400 truncate">
-            {showKey ? apiKey : `wap_live_${'•'.repeat(16)}`}
-          </code>
-          <button onClick={() => setShowKey(!showKey)} className="text-slate-500 hover:text-slate-300 transition flex-shrink-0">
-            {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-          <button onClick={() => copy(apiKey, 'apikey')} className="text-slate-500 hover:text-slate-300 transition flex-shrink-0">
-            {copied === 'apikey' ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
-          </button>
+        {loading ? (
+          <div className="flex items-center gap-2 text-slate-400 text-sm py-3">
+            <Loader2 size={14} className="animate-spin" /> Loading key…
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 bg-slate-900 rounded-xl px-4 py-3">
+              <code className="flex-1 text-xs font-mono text-green-400 truncate">
+                {showKey ? apiKey : maskedKey}
+              </code>
+              <button onClick={() => setShowKey(v => !v)} className="text-slate-500 hover:text-slate-300 transition flex-shrink-0">
+                {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+              <button onClick={() => copy(apiKey, 'apikey')} className="text-slate-500 hover:text-slate-300 transition flex-shrink-0">
+                {copied === 'apikey' ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <button
+                onClick={rotateKey}
+                disabled={rotating}
+                className="flex items-center gap-1.5 text-xs text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition disabled:opacity-50"
+              >
+                {rotating ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                Rotate Key
+              </button>
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                <AlertCircle size={11} /> Send from your server, not browser JS
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Lead Ingest Endpoint */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+        <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+          <Globe size={15} className="text-slate-600" /> Lead Ingest Endpoint
+        </h2>
+        <p className="text-slate-500 text-xs mb-4">
+          POST lead data here from any landing page, form builder, or custom code.
+          Leads appear instantly in your Leads dashboard and trigger WhatsApp automation if you have one set up.
+        </p>
+
+        {/* Endpoint URL */}
+        <div className="rounded-xl bg-slate-50 p-3.5 mb-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold px-2 py-1 rounded-md font-mono bg-emerald-100 text-emerald-700">POST</span>
+              <p className="text-xs font-semibold text-slate-700">Ingest a lead</p>
+            </div>
+            <button onClick={() => copy(ingestUrl, 'ingest')}
+              className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 transition">
+              {copied === 'ingest' ? <CheckCircle2 size={11} className="text-emerald-500" /> : <Copy size={11} />}
+              {copied === 'ingest' ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <code className="text-xs font-mono text-blue-600 break-all">{ingestUrl}</code>
         </div>
 
-        <div className="flex items-center gap-2 mt-3">
-          <button className="flex items-center gap-1.5 text-xs text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition">
-            <RefreshCw size={11} /> Rotate Key
-          </button>
-          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-            <AlertCircle size={11} /> Never expose in client-side code
+        {/* Request fields */}
+        <div className="mb-5">
+          <p className="text-xs font-semibold text-slate-700 mb-2">Request body (JSON)</p>
+          <div className="space-y-1.5">
+            {[
+              { field: 'name',   type: 'string', req: false, desc: 'Full name of the lead' },
+              { field: 'phone',  type: 'string', req: false, desc: 'Phone number — Indian numbers auto-normalized to E.164' },
+              { field: 'email',  type: 'string', req: false, desc: 'Email address' },
+              { field: 'source', type: 'string', req: false, desc: 'Label shown in dashboard, e.g. "Landing Page" or "Google Ad"' },
+              { field: '…',      type: 'string', req: false, desc: 'Any extra fields (budget, city, bhk…) are saved and usable in message templates' },
+            ].map(r => (
+              <div key={r.field} className="flex items-start gap-3 text-xs py-1.5 border-b border-slate-50 last:border-0">
+                <code className="font-mono text-violet-600 w-16 flex-shrink-0">{r.field}</code>
+                <code className="font-mono text-slate-400 w-12 flex-shrink-0">{r.type}</code>
+                <span className="text-slate-500 flex-1">{r.desc}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2">At least one of <code className="bg-slate-100 px-1 rounded">name</code>, <code className="bg-slate-100 px-1 rounded">phone</code>, or <code className="bg-slate-100 px-1 rounded">email</code> is required.</p>
+        </div>
+
+        {/* WhatsApp automation note */}
+        <div className="p-3.5 bg-green-50 border border-green-100 rounded-xl text-xs text-green-700 mb-5">
+          <p className="font-semibold mb-0.5">Auto-WhatsApp for landing page leads</p>
+          <p>In the Leads page → <strong>All forms</strong>, create a form automation named exactly <code className="bg-green-100 px-1 rounded">Landing Page</code> (or match your <code className="bg-green-100 px-1 rounded">source</code> value). New inbound leads will trigger that template automatically.</p>
+        </div>
+
+        {/* Code snippets */}
+        <div className="space-y-3">
+          {/* cURL */}
+          <div className="border border-slate-100 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setShowCurl(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-sm font-medium text-slate-700"
+            >
+              <span className="flex items-center gap-2"><code className="text-xs font-mono text-slate-500">cURL</code> example</span>
+              {showCurl ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showCurl && (
+              <div className="relative">
+                <pre className="bg-slate-900 text-green-400 text-[11px] font-mono p-4 overflow-x-auto leading-relaxed">{curlSnippet}</pre>
+                <button onClick={() => copy(curlSnippet, 'curl')}
+                  className="absolute top-2 right-2 flex items-center gap-1 text-[10px] text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition">
+                  {copied === 'curl' ? <CheckCircle2 size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                  {copied === 'curl' ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* HTML form */}
+          <div className="border border-slate-100 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setShowHtml(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-sm font-medium text-slate-700"
+            >
+              <span className="flex items-center gap-2"><code className="text-xs font-mono text-slate-500">HTML form</code> — paste on any landing page</span>
+              {showHtml ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showHtml && (
+              <div className="relative">
+                <pre className="bg-slate-900 text-green-400 text-[11px] font-mono p-4 overflow-x-auto leading-relaxed">{htmlSnippet}</pre>
+                <button onClick={() => copy(htmlSnippet, 'html')}
+                  className="absolute top-2 right-2 flex items-center gap-1 text-[10px] text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition">
+                  {copied === 'html' ? <CheckCircle2 size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                  {copied === 'html' ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* JS / Node */}
+          <div className="border border-slate-100 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setShowJs(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-sm font-medium text-slate-700"
+            >
+              <span className="flex items-center gap-2"><code className="text-xs font-mono text-slate-500">JavaScript / Node.js</code></span>
+              {showJs ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showJs && (
+              <div className="relative">
+                <pre className="bg-slate-900 text-green-400 text-[11px] font-mono p-4 overflow-x-auto leading-relaxed">{jsSnippet}</pre>
+                <button onClick={() => copy(jsSnippet, 'js')}
+                  className="absolute top-2 right-2 flex items-center gap-1 text-[10px] text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition">
+                  {copied === 'js' ? <CheckCircle2 size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                  {copied === 'js' ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Webhook URLs */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+      {/* Outbound Webhooks */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
-          <Webhook size={15} className="text-slate-600" /> Webhook Endpoints
+          <Webhook size={15} className="text-slate-600" /> Platform Webhook URLs
         </h2>
-        <p className="text-slate-500 text-xs mb-4">Register these URLs in the respective platforms</p>
-
-        <div className="space-y-3">
+        <p className="text-slate-500 text-xs mb-4">Register these in the respective platforms</p>
+        <div className="space-y-3 mb-5">
           {[
-            { label: 'Shopify Webhooks',   url: `${BASE_URL}/api/shopify/webhooks`,  note: 'checkouts/create, orders/create, orders/fulfilled' },
-            { label: 'Meta WhatsApp',      url: `${BASE_URL}/api/meta/webhook`,       note: 'messages, message_deliveries, message_reads' },
-            { label: 'Vercel Cron',        url: `${BASE_URL}/api/cron`,               note: 'Every 1 minute — processes automation queue' },
+            { label: 'Meta WhatsApp', url: `${BASE_URL}/api/meta/webhook`, note: 'messages, message_deliveries, message_reads' },
+            { label: 'Facebook Lead Ads', url: `${BASE_URL}/api/facebook/webhook`, note: 'leadgen — new leads from Lead Ad forms' },
           ].map(w => (
             <div key={w.label} className="rounded-xl bg-slate-50 p-3.5">
               <div className="flex items-center justify-between mb-1.5">
@@ -116,57 +307,16 @@ export default function DeveloperPage() {
             </div>
           ))}
         </div>
-      </div>
 
-      {/* API Endpoints */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
-        <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <Code2 size={15} className="text-slate-600" /> API Endpoints
-        </h2>
+        {/* Outbound events reference */}
+        <p className="text-xs font-semibold text-slate-700 mb-2">Outbound event types</p>
         <div className="space-y-2">
-          {endpoints.map(ep => (
-            <div key={ep.path} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition">
-              <span className={cn('text-[10px] font-bold px-2 py-1 rounded-md font-mono flex-shrink-0',
-                ep.method === 'GET' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700')}>
-                {ep.method}
-              </span>
-              <code className="text-xs font-mono text-slate-700 flex-1">{ep.path}</code>
-              <p className="text-xs text-slate-400 hidden lg:block">{ep.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Webhook events */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-            <Webhook size={15} className="text-slate-600" /> Outbound Webhook Events
-          </h2>
-          <button className="flex items-center gap-1.5 text-xs font-medium text-[#25D366] hover:underline">
-            <Plus size={12} /> Add Endpoint
-          </button>
-        </div>
-        <div className="space-y-2">
-          {WEBHOOK_DOCS.map(w => (
+          {OUTBOUND_EVENTS.map(w => (
             <div key={w.event} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
               <code className="text-[11px] font-mono bg-slate-200 text-slate-700 px-2 py-0.5 rounded flex-shrink-0">{w.event}</code>
               <p className="text-xs text-slate-500">{w.desc}</p>
             </div>
           ))}
-        </div>
-        <div className="mt-4 p-4 bg-slate-900 rounded-xl">
-          <p className="text-xs font-mono text-slate-400 mb-2">Example payload</p>
-          <pre className="text-[11px] font-mono text-green-400 overflow-x-auto">{`{
-  "event": "message.sent",
-  "store_id": "${storeId ?? 'your-store-id'}",
-  "data": {
-    "phone": "+91XXXXXXXXXX",
-    "type": "abandoned_cart",
-    "status": "sent"
-  },
-  "timestamp": "${new Date().toISOString()}"
-}`}</pre>
         </div>
       </div>
     </div>
