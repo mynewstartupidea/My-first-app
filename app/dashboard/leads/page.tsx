@@ -1555,7 +1555,6 @@ const FOLLOWUP_BUCKETS: {
 function FollowUpLeadCard({ lead, bucket, onCallLog }: {
   lead: Lead; bucket: FollowupBucket; onCallLog: () => void
 }) {
-  const bkt = FOLLOWUP_BUCKETS.find(b => b.id === bucket)!
   const STATUS_CLS: Record<string, string> = {
     hot:       'bg-red-100 text-red-700',
     warm:      'bg-amber-100 text-amber-700',
@@ -1565,54 +1564,58 @@ function FollowUpLeadCard({ lead, bucket, onCallLog }: {
     junk:      'bg-gray-100 text-gray-400',
     resolved:  'bg-purple-100 text-purple-600',
   }
+  const DUE_CLS: Record<FollowupBucket, string> = {
+    overdue:  'bg-red-100 text-red-600',
+    today:    'bg-amber-100 text-amber-700',
+    tomorrow: 'bg-sky-100 text-sky-700',
+    week:     'bg-indigo-50 text-indigo-600',
+    later:    'bg-gray-100 text-gray-500',
+  }
   const statusCls = lead.lead_status ? STATUS_CLS[lead.lead_status] : null
   const initials  = (lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()
 
   return (
-    <div className="flex items-center gap-0 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition group">
-      {/* Colored left stripe */}
-      <div className={`w-[3px] self-stretch flex-shrink-0 ${bkt.stripeCls}`} />
-
-      <div className="flex items-center gap-3.5 flex-1 min-w-0 px-5 py-3.5">
-        {/* Avatar */}
-        <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-gray-500 uppercase">
-          {initials}
-        </div>
-
-        {/* Name + status */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <p className="text-sm font-semibold text-gray-800 truncate">{lead.name ?? '—'}</p>
-            {statusCls && lead.lead_status && (
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize flex-shrink-0 ${statusCls}`}>
-                {lead.lead_status}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 font-mono tracking-tight">{lead.phone ?? 'No phone'}</p>
-        </div>
-
-        {/* Form badge — hidden on small screens */}
-        {lead.form_name && (
-          <span className="hidden md:inline-block text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0 max-w-[130px] truncate">
-            {lead.form_name}
-          </span>
-        )}
-
-        {/* Due label */}
-        <span className={`text-[11px] font-semibold flex-shrink-0 ${bkt.dueCls}`}>
-          {formatDueLabel(lead.followup_at!, bucket)}
-        </span>
-
-        {/* Log call button */}
-        <button
-          onClick={e => { e.stopPropagation(); onCallLog() }}
-          className="flex-shrink-0 w-8 h-8 rounded-full bg-[#25D366]/10 hover:bg-[#25D366]/25 flex items-center justify-center transition"
-          title="Log call outcome"
-        >
-          <Phone className="w-3.5 h-3.5 text-[#25D366]" />
-        </button>
+    <div className={`flex items-center gap-3.5 px-5 py-3 border-b border-gray-50 last:border-0 transition group ${
+      bucket === 'overdue' ? 'bg-red-50/25 hover:bg-red-50/50' : 'hover:bg-gray-50/60'
+    }`}>
+      {/* Avatar */}
+      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-gray-500 uppercase">
+        {initials}
       </div>
+
+      {/* Name + phone */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+          <p className="text-sm font-semibold text-gray-800 truncate">{lead.name ?? '—'}</p>
+          {statusCls && lead.lead_status && (
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize flex-shrink-0 ${statusCls}`}>
+              {lead.lead_status}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 font-mono tracking-tight">{lead.phone ?? 'No phone'}</p>
+      </div>
+
+      {/* Form — desktop only */}
+      {lead.form_name && (
+        <span className="hidden md:block text-[10px] text-gray-400 truncate max-w-[120px] flex-shrink-0">
+          {lead.form_name}
+        </span>
+      )}
+
+      {/* Due pill */}
+      <span className={`text-[11px] font-semibold px-2 py-1 rounded-md flex-shrink-0 ${DUE_CLS[bucket]}`}>
+        {formatDueLabel(lead.followup_at!, bucket)}
+      </span>
+
+      {/* Log call */}
+      <button
+        onClick={e => { e.stopPropagation(); onCallLog() }}
+        className="flex-shrink-0 w-8 h-8 rounded-full bg-[#25D366]/10 hover:bg-[#25D366]/25 flex items-center justify-center transition"
+        title="Log call outcome"
+      >
+        <Phone className="w-3.5 h-3.5 text-[#25D366]" />
+      </button>
     </div>
   )
 }
@@ -1772,12 +1775,12 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
             const isPulsing = bkt.id === 'overdue' || bkt.id === 'today'
             return (
               <div key={bkt.id}>
-                <div className={`flex items-center gap-3 px-5 py-3.5 ${bkt.headerCls}`}>
-                  <span className={`w-3 h-3 rounded-full flex-shrink-0 ${bkt.dotCls} ${isPulsing ? 'animate-pulse' : ''}`} />
-                  <span className="text-sm font-bold flex-1">{bkt.label}</span>
-                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${bkt.badgeCls}`}>
-                    {bktLeads.length} lead{bktLeads.length !== 1 ? 's' : ''}
-                  </span>
+                {/* Minimal section divider */}
+                <div className="flex items-center gap-2.5 px-5 py-2.5">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${bkt.dotCls} ${isPulsing ? 'animate-pulse' : ''}`} />
+                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{bkt.label}</span>
+                  <span className="text-[10px] text-gray-300 font-medium">{bktLeads.length}</span>
+                  <div className="flex-1 h-px bg-gray-100" />
                 </div>
                 {bktLeads.map(lead => (
                   <FollowUpLeadCard
