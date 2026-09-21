@@ -2107,7 +2107,7 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
 
   return (
     <>
-      <tr className="hover:bg-gray-50/40 transition-colors">
+      <tr onClick={onCallLog} className="hover:bg-gray-50/60 transition-colors cursor-pointer">
         <td className="px-5 py-3.5">
           <div className="flex items-center gap-2.5">
             {color && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color.dot }} />}
@@ -2132,7 +2132,7 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
               {/* Inline preview of first custom field — tells user there are answers */}
               {extra.length > 0 && (
                 <button
-                  onClick={() => setExpanded(e => !e)}
+                  onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
                   className="mt-1 flex items-center gap-1 text-left group/fields"
                 >
                   <span className="text-[11px] text-gray-400 truncate max-w-[200px]">
@@ -2177,7 +2177,7 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
             </p>
           )}
         </td>
-        <td className="px-5 py-3.5">
+        <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1">
             <button onClick={onCallLog}
               className="p-1.5 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-100 transition"
