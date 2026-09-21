@@ -1258,6 +1258,159 @@ interface ConvStatus {
   waStatus: string | null
 }
 
+// ── FollowupDatePicker ────────────────────────────────────────────────────────
+
+function FollowupDatePicker({ value, onChange }: {
+  value: string        // YYYY-MM-DD or ''
+  onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
+  const now   = new Date()
+  const [year,  setYear]  = useState(now.getFullYear())
+  const [month, setMonth] = useState(now.getMonth())
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  function pick(ds: string) { onChange(ds); setOpen(false) }
+  function clear() { onChange(''); setOpen(false) }
+
+  function prevMonth() {
+    if (month === 0) { setYear(y => y - 1); setMonth(11) }
+    else setMonth(m => m - 1)
+  }
+  function nextMonth() {
+    if (month === 11) { setYear(y => y + 1); setMonth(0) }
+    else setMonth(m => m + 1)
+  }
+
+  const mm = String(month + 1).padStart(2, '0')
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const firstDow    = new Date(year, month, 1).getDay()
+
+  // Quick presets
+  const addDays = (n: number) => {
+    const d = new Date(); d.setDate(d.getDate() + n)
+    return d.toISOString().split('T')[0]
+  }
+  const presets = [
+    { label: 'Tomorrow', ds: addDays(1) },
+    { label: '+2 days',  ds: addDays(2) },
+    { label: 'Next week', ds: addDays(7) },
+  ]
+
+  const displayLabel = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : 'Set follow-up date'
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center gap-2 px-3 py-2.5 border rounded-xl text-sm transition ${
+          value
+            ? 'border-blue-200 bg-blue-50 text-blue-700 font-medium'
+            : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
+        }`}
+      >
+        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="flex-1 text-left">{displayLabel}</span>
+        {value && (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); clear() }}
+            className="text-blue-400 hover:text-blue-600 flex-shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </button>
+
+      {/* Dropdown calendar */}
+      {open && (
+        <div className="absolute bottom-full left-0 mb-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-72">
+          {/* Quick presets */}
+          <div className="flex gap-1.5 mb-3">
+            {presets.map(p => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => pick(p.ds)}
+                className={`flex-1 text-[11px] font-semibold py-1.5 rounded-lg border transition ${
+                  value === p.ds
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Month nav */}
+          <div className="flex items-center justify-between mb-3">
+            <button type="button" onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded-lg transition">
+              <ChevronLeft className="w-4 h-4 text-gray-500" />
+            </button>
+            <span className="text-sm font-semibold text-gray-800">
+              {CAL_MONTHS[month]} {year}
+            </span>
+            <button type="button" onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded-lg transition">
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {CAL_DAYS.map(d => (
+              <div key={d} className="h-7 flex items-center justify-center text-[10px] font-medium text-gray-400">{d}</div>
+            ))}
+          </div>
+
+          {/* Days grid */}
+          <div className="grid grid-cols-7">
+            {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const d  = i + 1
+              const ds = `${year}-${mm}-${String(d).padStart(2, '0')}`
+              const isPast     = ds < today
+              const isSelected = ds === value
+              const isToday    = ds === today
+              return (
+                <button
+                  key={ds}
+                  type="button"
+                  disabled={isPast}
+                  onClick={() => pick(ds)}
+                  className={`h-8 w-full flex items-center justify-center text-xs rounded-lg transition ${
+                    isPast      ? 'text-gray-300 cursor-not-allowed' :
+                    isSelected  ? 'bg-blue-600 text-white font-bold' :
+                    isToday     ? 'ring-1 ring-blue-400 text-blue-600 font-semibold hover:bg-blue-50' :
+                                  'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
   lead: Lead
   teamMembers: TeamMember[]
@@ -1511,18 +1664,9 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none mb-3"
             />
 
-            <div className="flex items-start gap-2.5 mb-3">
-              <Calendar className="w-4 h-4 text-gray-400 mt-2.5 flex-shrink-0" />
-              <div className="flex-1">
-                <label className="text-xs text-gray-500 mb-1 block">Follow-up date (optional)</label>
-                <input
-                  type="date"
-                  value={followupAt}
-                  min={today}
-                  onChange={e => setFollowupAt(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                />
-              </div>
+            <div className="mb-3">
+              <label className="text-xs text-gray-500 mb-1.5 block">Follow-up date (optional)</label>
+              <FollowupDatePicker value={followupAt} onChange={setFollowupAt} />
             </div>
 
             <button onClick={handleSubmit} disabled={!outcome || submitting}
