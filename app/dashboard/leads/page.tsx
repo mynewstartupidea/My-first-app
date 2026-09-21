@@ -2085,14 +2085,98 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   )
 }
 
+// ── StatusPicker ──────────────────────────────────────────────────────────────
+
+function StatusPicker({ lead, onUpdate }: {
+  lead: Lead
+  onUpdate: (leadId: string, updates: Partial<Lead>) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const pick = async (status: string | null) => {
+    if (saving) return
+    setSaving(true)
+    setOpen(false)
+    await fetch(`/api/leads/${lead.id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    onUpdate(lead.id, { lead_status: status })
+    setSaving(false)
+  }
+
+  const OPTIONS: { value: string | null; label: string; dot: string; bg: string; text: string }[] = [
+    { value: 'hot',       label: 'Hot',       dot: '#ef4444', bg: '#fef2f2', text: '#991b1b' },
+    { value: 'warm',      label: 'Warm',      dot: '#f97316', bg: '#fff7ed', text: '#9a3412' },
+    { value: 'cold',      label: 'Cold',      dot: '#6366f1', bg: '#eef2ff', text: '#4338ca' },
+    { value: 'converted', label: 'Converted', dot: '#10b981', bg: '#ecfdf5', text: '#065f46' },
+    { value: 'lost',      label: 'Lost',      dot: '#6b7280', bg: '#f9fafb', text: '#374151' },
+    { value: 'junk',      label: 'Junk',      dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280' },
+    { value: null,        label: 'Clear tag', dot: '#d1d5db', bg: '#f9fafb', text: '#9ca3af' },
+  ]
+
+  const meta = lead.lead_status ? LEAD_STATUS_META[lead.lead_status] : null
+
+  return (
+    <div ref={ref} className="relative inline-block" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition hover:opacity-80 ${
+          meta ? '' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+        } ${saving ? 'opacity-50' : ''}`}
+        style={meta ? { background: meta.bg, color: meta.text } : undefined}
+        title="Change status"
+      >
+        {meta ? (
+          <>
+            <span className="w-1 h-1 rounded-full mr-0.5" style={{ background: meta.dot }} />
+            {meta.label}
+          </>
+        ) : '+ Tag'}
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[130px]">
+          {OPTIONS.map(opt => (
+            <button
+              key={opt.value ?? '__clear'}
+              onClick={() => pick(opt.value)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 transition text-left ${
+                lead.lead_status === opt.value ? 'font-semibold' : 'text-gray-600'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: opt.dot }} />
+              {opt.label}
+              {lead.lead_status === opt.value && <span className="ml-auto text-[10px] text-gray-400">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── LeadRow ───────────────────────────────────────────────────────────────────
 
-function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
+function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUpdate }: {
   lead: Lead
   activeForms: ActiveForm[]
   showFormBadge: boolean
   onWhatsApp: () => void
   onCallLog: () => void
+  onUpdate: (leadId: string, updates: Partial<Lead>) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const form  = activeForms.find(f => f.form_id === lead.form_id)
@@ -2103,24 +2187,17 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
     ? new Date(lead.followup_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : null
   const isOverdue = lead.followup_at ? new Date(lead.followup_at) < new Date() : false
-  const leadStatusMeta = lead.lead_status ? LEAD_STATUS_META[lead.lead_status] : null
 
   return (
     <>
-      <tr onClick={onCallLog} className="hover:bg-gray-50/60 transition-colors cursor-pointer">
+      <tr onClick={onCallLog} className="hover:bg-gray-50/60 transition-colors cursor-pointer group">
         <td className="px-5 py-3.5">
           <div className="flex items-center gap-2.5">
             {color && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color.dot }} />}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-medium text-gray-900 truncate">{lead.name ?? '—'}</p>
-                {leadStatusMeta && (
-                  <span className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                    style={{ background: leadStatusMeta.bg, color: leadStatusMeta.text }}>
-                    <span className="w-1 h-1 rounded-full" style={{ background: leadStatusMeta.dot }} />
-                    {leadStatusMeta.label}
-                  </span>
-                )}
+                <StatusPicker lead={lead} onUpdate={onUpdate} />
               </div>
               {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
               {lead.assigned_name && (
@@ -2179,6 +2256,9 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog }: {
         </td>
         <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1">
+            <span className="hidden group-hover:inline-flex items-center gap-1 text-[11px] text-blue-500 font-medium mr-1 whitespace-nowrap">
+              <Phone className="w-3 h-3" /> Log call
+            </span>
             <button onClick={onCallLog}
               className="p-1.5 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-100 transition"
               title="Log a call">
@@ -3149,6 +3229,7 @@ function LeadsContent() {
                         showFormBadge={selectedFormId === 'all'}
                         onWhatsApp={() => handleSendWhatsApp(lead)}
                         onCallLog={() => setCallLogLead(lead)}
+                        onUpdate={handleLeadUpdate}
                       />
                     ))}
                   </tbody>
