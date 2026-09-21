@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
-  CheckCircle, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
+  CheckCircle, CheckCircle2, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
   Loader2, Pause, Play, Search, Edit2, Download, Clock,
   AlertCircle, FileText, LogOut, Sparkles, Send,
   Phone, Calendar, UserCheck,
@@ -1772,8 +1772,8 @@ const FOLLOWUP_BUCKETS: {
   { id: 'later',    label: 'Later',         dotCls: 'bg-slate-300',  headerCls: 'bg-slate-50 border-slate-100 text-slate-500', stripeCls: 'bg-slate-200',  badgeCls: 'bg-slate-100 text-slate-500',    dueCls: 'text-slate-400' },
 ]
 
-function FollowUpLeadCard({ lead, bucket, onCallLog }: {
-  lead: Lead; bucket: FollowupBucket; onCallLog: () => void
+function FollowUpLeadCard({ lead, bucket, lastNote, onCallLog }: {
+  lead: Lead; bucket: FollowupBucket; lastNote?: { notes: string; outcome: string } | null; onCallLog: () => void
 }) {
   const STATUS_CLS: Record<string, string> = {
     hot:       'bg-red-100 text-red-700',
@@ -1791,19 +1791,28 @@ function FollowUpLeadCard({ lead, bucket, onCallLog }: {
     week:     'bg-indigo-50 text-indigo-600',
     later:    'bg-gray-100 text-gray-500',
   }
+  const OUTCOME_LABEL: Record<string, string> = {
+    connected: 'Connected', no_answer: 'No answer', voicemail: 'Voicemail', callback: 'Callback', busy: 'Busy',
+  }
   const statusCls = lead.lead_status ? STATUS_CLS[lead.lead_status] : null
   const initials  = (lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()
 
   return (
-    <div className={`flex items-center gap-3.5 px-5 py-3 border-b border-gray-50 last:border-0 transition group ${
-      bucket === 'overdue' ? 'bg-red-50/25 hover:bg-red-50/50' : 'hover:bg-gray-50/60'
-    }`}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onCallLog}
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onCallLog()}
+      className={`flex items-center gap-3.5 px-5 py-3 border-b border-gray-50 last:border-0 transition cursor-pointer group ${
+        bucket === 'overdue' ? 'bg-red-50/25 hover:bg-red-50/50' : 'hover:bg-gray-50/60'
+      }`}
+    >
       {/* Avatar */}
       <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-gray-500 uppercase">
         {initials}
       </div>
 
-      {/* Name + phone */}
+      {/* Name + phone + last note */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
           <p className="text-sm font-semibold text-gray-800 truncate">{lead.name ?? '—'}</p>
@@ -1814,6 +1823,12 @@ function FollowUpLeadCard({ lead, bucket, onCallLog }: {
           )}
         </div>
         <p className="text-xs text-gray-400 font-mono tracking-tight">{lead.phone ?? 'No phone'}</p>
+        {lastNote && (
+          <p className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[260px]">
+            <span className="font-medium text-gray-500">{OUTCOME_LABEL[lastNote.outcome] ?? lastNote.outcome}</span>
+            {lastNote.notes ? <span className="text-gray-400"> · {lastNote.notes}</span> : null}
+          </p>
+        )}
       </div>
 
       {/* Form — desktop only */}
@@ -1828,14 +1843,39 @@ function FollowUpLeadCard({ lead, bucket, onCallLog }: {
         {formatDueLabel(lead.followup_at!, bucket)}
       </span>
 
-      {/* Log call */}
-      <button
-        onClick={e => { e.stopPropagation(); onCallLog() }}
-        className="flex-shrink-0 w-8 h-8 rounded-full bg-[#25D366]/10 hover:bg-[#25D366]/25 flex items-center justify-center transition"
-        title="Log call outcome"
-      >
+      {/* Call icon — visual affordance, row itself is the click target */}
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#25D366]/10 group-hover:bg-[#25D366]/25 flex items-center justify-center transition">
         <Phone className="w-3.5 h-3.5 text-[#25D366]" />
-      </button>
+      </div>
+    </div>
+  )
+}
+
+function EmptyFollowupState({ filter, search }: { filter: FollowupBucket | 'all'; search: string }) {
+  if (search) {
+    return (
+      <div className="py-16 flex flex-col items-center gap-2 text-center px-8">
+        <Search className="w-8 h-8 text-gray-200 mb-1" />
+        <p className="text-sm font-semibold text-gray-600">No results for &ldquo;{search}&rdquo;</p>
+        <p className="text-xs text-gray-400">Try a different name or phone number</p>
+      </div>
+    )
+  }
+  const STATES: Record<FollowupBucket | 'all', { icon: typeof Calendar; color: string; title: string; body: string }> = {
+    all:      { icon: CheckCircle2, color: 'text-emerald-400', title: 'All caught up!',           body: 'No pending follow-ups. Log calls and set callback dates to fill this list.' },
+    overdue:  { icon: CheckCircle2, color: 'text-emerald-400', title: 'No overdue calls',          body: "You're on top of it — nothing is past its follow-up date." },
+    today:    { icon: Calendar,     color: 'text-amber-300',   title: 'Nothing scheduled today',   body: 'Clear day ahead. Set some follow-ups for today after your next calls.' },
+    tomorrow: { icon: Calendar,     color: 'text-sky-300',     title: 'Nothing for tomorrow',      body: 'Use the call log to schedule follow-ups for tomorrow.' },
+    week:     { icon: Calendar,     color: 'text-indigo-300',  title: 'Nothing in the next 7 days', body: 'No follow-ups planned for this week yet.' },
+    later:    { icon: Clock,        color: 'text-gray-300',    title: 'No future follow-ups',      body: 'Leads scheduled beyond next week will appear here.' },
+  }
+  const s = STATES[filter]
+  const Icon = s.icon
+  return (
+    <div className="py-16 flex flex-col items-center gap-2 text-center px-8">
+      <Icon className={`w-10 h-10 mb-1 ${s.color}`} />
+      <p className="text-sm font-semibold text-gray-700">{s.title}</p>
+      <p className="text-xs text-gray-400 max-w-xs leading-relaxed">{s.body}</p>
     </div>
   )
 }
@@ -1845,10 +1885,11 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   selectedFormId: string
   onCallLog: (lead: Lead) => void
 }) {
-  const [leads,   setLeads]   = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter,  setFilter]  = useState<FollowupBucket | 'all'>('all')
-  const [search,  setSearch]  = useState('')
+  const [leads,     setLeads]     = useState<Lead[]>([])
+  const [lastNotes, setLastNotes] = useState<Record<string, { notes: string; outcome: string }>>({})
+  const [loading,   setLoading]   = useState(true)
+  const [filter,    setFilter]    = useState<FollowupBucket | 'all'>('overdue')
+  const [search,    setSearch]    = useState('')
 
   const load = useCallback(async () => {
     if (!pageId) return
@@ -1858,13 +1899,26 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
     else p.set('page_id', pageId)
     const r = await fetch(`/api/facebook/leads?${p}`)
     const d = await r.json() as { leads?: Lead[] }
-    setLeads(d.leads ?? [])
+    const loaded = d.leads ?? []
+    setLeads(loaded)
+
+    // Batch-fetch most recent call note for every follow-up lead
+    const ids = loaded.map(l => l.id).join(',')
+    if (ids) {
+      fetch(`/api/leads/call-logs?lead_ids=${ids}`)
+        .then(nr => nr.json() as Promise<{ notes?: Record<string, { notes: string; outcome: string }> }>)
+        .then(nd => setLastNotes(nd.notes ?? {}))
+        .catch(() => {})
+    }
     setLoading(false)
   }, [pageId, selectedFormId])
 
   useEffect(() => { load() }, [load])
 
-  const grouped = leads.reduce<Record<FollowupBucket, Lead[]>>(
+  // Exclude junk/lost leads from follow-ups — they are dead ends, not actionable
+  const activeLeads = leads.filter(l => l.lead_status !== 'junk' && l.lead_status !== 'lost')
+
+  const grouped = activeLeads.reduce<Record<FollowupBucket, Lead[]>>(
     (acc, lead) => {
       if (lead.followup_at) acc[getFollowupBucket(lead.followup_at)].push(lead)
       return acc
@@ -1876,7 +1930,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
 
   // Filter chips definition — only show chips that have leads
   const allChips: { id: FollowupBucket | 'all'; label: string; count: number; activeCls: string; inactiveCls: string; dotCls?: string; pulse?: boolean }[] = [
-    { id: 'all',      label: 'All',         count: leads.length,            activeCls: 'bg-gray-900 text-white border-gray-900',         inactiveCls: 'bg-white border-gray-200 text-gray-600' },
+    { id: 'all',      label: 'All',         count: activeLeads.length,      activeCls: 'bg-gray-900 text-white border-gray-900',         inactiveCls: 'bg-white border-gray-200 text-gray-600' },
     { id: 'overdue',  label: 'Overdue',     count: grouped.overdue.length,  activeCls: 'bg-red-500 text-white border-red-500',           inactiveCls: 'bg-red-50 border-red-200 text-red-600',    dotCls: 'bg-red-500',    pulse: true },
     { id: 'today',    label: 'Today',       count: grouped.today.length,    activeCls: 'bg-amber-500 text-white border-amber-500',       inactiveCls: 'bg-amber-50 border-amber-200 text-amber-700', dotCls: 'bg-amber-400', pulse: true },
     { id: 'tomorrow', label: 'Tomorrow',    count: grouped.tomorrow.length, activeCls: 'bg-sky-500 text-white border-sky-500',           inactiveCls: 'bg-sky-50 border-sky-200 text-sky-700',    dotCls: 'bg-sky-500' },
@@ -1887,7 +1941,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
 
   // Visible leads: filter by chip + search
   const q = search.trim().toLowerCase()
-  const visibleLeads = leads.filter(lead => {
+  const visibleLeads = activeLeads.filter(lead => {
     if (!lead.followup_at) return false
     if (filter !== 'all' && getFollowupBucket(lead.followup_at) !== filter) return false
     if (q && !lead.name?.toLowerCase().includes(q) && !lead.phone?.includes(q)) return false
@@ -1900,7 +1954,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
     </div>
   )
 
-  if (leads.length === 0) return (
+  if (activeLeads.length === 0) return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-8">
       <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
         <Calendar className="w-7 h-7 text-amber-300" />
@@ -1948,7 +2002,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
           )}
         </div>
 
-        <span className="text-xs text-gray-400 flex-shrink-0">{leads.length} total</span>
+        <span className="text-xs text-gray-400 flex-shrink-0">{activeLeads.length} total</span>
 
         <button onClick={load} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition flex-shrink-0 ml-auto">
           <RefreshCw className="w-3 h-3" /> Refresh
@@ -1983,9 +2037,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
 
       {/* Lead list — grouped by bucket when showing "All", flat otherwise */}
       {visibleLeads.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-400">
-          {search ? `No results for "${search}"` : 'No leads in this group'}
-        </div>
+        <EmptyFollowupState filter={filter} search={search} />
       ) : filter === 'all' ? (
         // Grouped view with section headers
         <div>
@@ -2007,6 +2059,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
                     key={lead.id}
                     lead={lead}
                     bucket={bkt.id}
+                    lastNote={lastNotes[lead.id]}
                     onCallLog={() => onCallLog(lead)}
                   />
                 ))}
@@ -2022,6 +2075,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
               key={lead.id}
               lead={lead}
               bucket={getFollowupBucket(lead.followup_at!)}
+              lastNote={lastNotes[lead.id]}
               onCallLog={() => onCallLog(lead)}
             />
           ))}

@@ -12,16 +12,42 @@ const FOLLOWUP_TEMPLATES: Record<string, { name: string; body: string }> = {
 }
 
 // GET /api/leads/call-logs?lead_id=xxx
+// GET /api/leads/call-logs?lead_ids=id1,id2,...  → returns { notes: Record<lead_id, {notes,outcome}> }
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
+  const service = createServiceClient()
+
+  // Batch mode: return most recent log per lead
+  const leadIdsParam = searchParams.get('lead_ids')
+  if (leadIdsParam) {
+    const leadIds = leadIdsParam.split(',').map(s => s.trim()).filter(Boolean).slice(0, 500)
+    if (leadIds.length === 0) return NextResponse.json({ notes: {} })
+
+    // Only return logs for leads owned by this user
+    const { data: ownedLeads } = await service
+      .from('leads').select('id').in('id', leadIds).eq('user_id', user.id)
+    const ownedIds = (ownedLeads ?? []).map(l => l.id)
+    if (ownedIds.length === 0) return NextResponse.json({ notes: {} })
+
+    const { data } = await service
+      .from('call_logs')
+      .select('lead_id, notes, outcome, created_at')
+      .in('lead_id', ownedIds)
+      .order('created_at', { ascending: false })
+
+    const notes: Record<string, { notes: string; outcome: string }> = {}
+    for (const log of data ?? []) {
+      if (!notes[log.lead_id]) notes[log.lead_id] = { notes: log.notes, outcome: log.outcome }
+    }
+    return NextResponse.json({ notes })
+  }
+
   const leadId = searchParams.get('lead_id')
   if (!leadId) return NextResponse.json({ logs: [] })
-
-  const service = createServiceClient()
 
   // Verify the lead belongs to the requesting user before returning its call logs
   const { data: lead } = await service
