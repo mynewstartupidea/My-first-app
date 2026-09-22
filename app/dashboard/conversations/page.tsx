@@ -125,20 +125,20 @@ export default function ConversationsPage() {
   })
 
   return (
-    <div className="p-6 lg:p-8 space-y-5">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Conversations</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Conversations</h1>
+          <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
             {conversations.length > 0
               ? `${conversations.length} customer threads · ${stats.totalMsgs.toLocaleString()} messages`
               : 'All WhatsApp conversations with your customers'}
           </p>
         </div>
         <button onClick={load}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition shadow-sm">
+          className="flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition shadow-sm w-full sm:w-auto flex-shrink-0">
           <RefreshCw className="w-3.5 h-3.5" /> Refresh
         </button>
       </div>
@@ -152,8 +152,8 @@ export default function ConversationsPage() {
             { label: 'Failed',           value: stats.failed,    color: '#ef4444' },
             { label: 'Total messages',   value: stats.totalMsgs, color: '#3b82f6' },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
+            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 sm:p-4 min-w-0">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
                 <p className="text-xs text-gray-400">{s.label}</p>
@@ -229,15 +229,15 @@ export default function ConversationsPage() {
           ) : (
             <div className="divide-y divide-gray-50">
               {filtered.map(conv => (
-                <div key={conv.customerPhone} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/40 transition-colors cursor-pointer">
+                <div key={conv.customerPhone} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 hover:bg-gray-50/40 transition-colors cursor-pointer">
                   {/* Avatar */}
                   <div className={cn('w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm', avatarColor(conv.customerPhone))}>
                     {initials(conv.customerName, conv.customerPhone)}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-gray-800">{conv.customerName ?? conv.customerPhone}</p>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{conv.customerName ?? conv.customerPhone}</p>
                       {conv.customerName && (
                         <span className="hidden sm:flex items-center gap-1 text-[10px] text-gray-400">
                           <Phone className="w-2.5 h-2.5" /> {conv.customerPhone}
@@ -249,7 +249,7 @@ export default function ConversationsPage() {
 
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                      <span className="hidden sm:inline-block text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
                         {TYPE_LABELS[conv.lastType] ?? conv.lastType}
                       </span>
                       <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full capitalize', STATUS_STYLES[conv.lastStatus] ?? 'bg-gray-100 text-gray-500')}>
@@ -272,11 +272,11 @@ export default function ConversationsPage() {
 
       {/* Two-way inbox coming soon */}
       {conversations.length > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex items-start gap-4">
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
           <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
             <Zap className="w-4 h-4 text-blue-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="font-semibold text-blue-900 text-sm">Two-way inbox coming soon</p>
             <p className="text-blue-700 text-xs mt-0.5">
               You&apos;ll be able to read and reply to customer WhatsApp messages directly from here.

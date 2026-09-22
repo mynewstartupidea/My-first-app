@@ -87,14 +87,14 @@ export default function AnalyticsPage() {
   const kpis = data?.kpis
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 md:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Lead Analytics</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Track your lead quality, ad performance, and close rate</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between mb-5 md:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Lead Analytics</h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Track your lead quality, ad performance, and close rate</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex bg-white border border-slate-200 rounded-xl p-0.5 shadow-sm">
             {(['7d', '30d', '90d'] as Range[]).map(r => (
               <button key={r} onClick={() => { setRange(r); load(r) }}
@@ -106,11 +106,11 @@ export default function AnalyticsPage() {
           </div>
           <button onClick={() => load(range)}
             className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition shadow-sm">
-            <RefreshCw size={13} /> Refresh
+            <RefreshCw size={13} /> <span className="hidden sm:inline">Refresh</span>
           </button>
           <button onClick={exportCSV}
             className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition shadow-sm">
-            <Download size={13} /> Export
+            <Download size={13} /> <span className="hidden sm:inline">Export</span>
           </button>
         </div>
       </div>
@@ -127,30 +127,30 @@ export default function AnalyticsPage() {
       ) : (
         <>
           {/* KPI cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
             {[
               { label: 'Total Leads',    value: kpis!.total,             icon: Users,       cls: 'text-slate-600 bg-slate-100' },
               { label: 'Sales',          value: kpis!.converted,         icon: CheckCircle2,cls: 'text-emerald-600 bg-emerald-50' },
               { label: 'Close Rate',     value: `${kpis!.closeRate}%`,   icon: TrendingUp,  cls: 'text-indigo-600 bg-indigo-50' },
               { label: 'Junk Leads',     value: kpis!.junk,              icon: Trash2,      cls: 'text-red-500 bg-red-50' },
             ].map(k => (
-              <div key={k.label} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-slate-500 text-xs font-medium">{k.label}</p>
-                  <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', k.cls.split(' ')[1])}>
+              <div key={k.label} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-sm min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-slate-500 text-xs font-medium min-w-0 truncate">{k.label}</p>
+                  <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0', k.cls.split(' ')[1])}>
                     <k.icon size={15} className={k.cls.split(' ')[0]} />
                   </div>
                 </div>
-                <p className="text-2xl font-bold text-slate-900 tracking-tight">{k.value}</p>
+                <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{k.value}</p>
                 <p className="text-xs text-slate-400 mt-1">Last {range}</p>
               </div>
             ))}
           </div>
 
           {/* Charts row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5 md:mb-6">
             {/* Lead volume chart */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 min-w-0">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-semibold text-slate-800">Lead Volume</h2>
@@ -188,7 +188,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Lead quality breakdown */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 min-w-0">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-semibold text-slate-800">Lead Quality</h2>
@@ -228,8 +228,8 @@ export default function AnalyticsPage() {
           {/* Ad attribution — only shown if any leads have ad source */}
           {data.byAd.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-5">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-                <Megaphone size={15} className="text-indigo-500" />
+              <div className="px-4 sm:px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                <Megaphone size={15} className="text-indigo-500 flex-shrink-0" />
                 <h2 className="font-semibold text-slate-800">Ad Performance</h2>
                 <span className="text-xs text-slate-400 ml-auto">{data.byAd.length} ads</span>
               </div>
@@ -276,8 +276,8 @@ export default function AnalyticsPage() {
           {/* Form performance */}
           {data.byForm.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-                <FileText size={15} className="text-sky-500" />
+              <div className="px-4 sm:px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                <FileText size={15} className="text-sky-500 flex-shrink-0" />
                 <h2 className="font-semibold text-slate-800">Form Performance</h2>
                 <span className="text-xs text-slate-400 ml-auto">{data.byForm.length} forms</span>
               </div>

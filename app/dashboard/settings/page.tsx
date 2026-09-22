@@ -619,12 +619,12 @@ function SettingsInner() {
   ] as const
 
   return (
-    <div className="p-6 lg:p-8 animate-fade-in max-w-3xl">
+    <div className="p-4 md:p-6 lg:p-8 animate-fade-in max-w-3xl">
 
       {/* Toast */}
       {toast && (
         <div className={cn(
-          'fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium max-w-sm',
+          'fixed top-4 left-4 right-4 sm:left-auto sm:top-5 sm:right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium sm:max-w-sm',
           toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white'
         )}>
           {toast.ok ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
@@ -632,13 +632,13 @@ function SettingsInner() {
         </div>
       )}
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 text-sm mt-1">Manage your account, store, usage, and team</p>
+      <div className="mb-5 md:mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="text-slate-500 text-xs sm:text-sm mt-1">Manage your account, store, usage, and team</p>
       </div>
 
       {/* Tab navigation */}
-      <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1 mb-7 overflow-x-auto">
+      <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1 mb-5 md:mb-7 overflow-x-auto -mx-1 px-1 sm:mx-0">
         {TABS.map(({ id, label }) => (
           <button
             key={id}
@@ -654,7 +654,7 @@ function SettingsInner() {
       </div>
 
       {/* ── Account ─────────────────────────────────────────────────────────── */}
-      <section className={cn('bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-5', activeTab !== 'account' && 'hidden')}>
+      <section className={cn('bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 mb-4 sm:mb-5', activeTab !== 'account' && 'hidden')}>
         <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
           <div className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center">
             <Store className="w-3.5 h-3.5 text-slate-500" />
@@ -662,18 +662,18 @@ function SettingsInner() {
           Account
         </h2>
         <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-          <div className="w-10 h-10 bg-[#25D366] rounded-xl flex items-center justify-center text-white font-bold text-sm">
+          <div className="w-10 h-10 bg-[#25D366] rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
             {userEmail[0]?.toUpperCase() ?? 'U'}
           </div>
-          <div>
-            <p className="font-medium text-slate-800">{userEmail}</p>
+          <div className="min-w-0">
+            <p className="font-medium text-slate-800 truncate">{userEmail}</p>
             <p className="text-slate-400 text-xs">Account email · {planLabel} plan</p>
           </div>
         </div>
       </section>
 
       {/* ── Ecommerce Store ──────────────────────────────────────────────────── */}
-      <section className={cn('bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-5', activeTab !== 'store' && 'hidden')}>
+      <section className={cn('bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 mb-4 sm:mb-5', activeTab !== 'store' && 'hidden')}>
         <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
           <div className="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center">
             <Store className="w-3.5 h-3.5 text-green-600" />
@@ -721,7 +721,7 @@ function SettingsInner() {
         <div className="space-y-5">
           {/* Meta connection status */}
           {waConnected ? (
-            <section className="bg-white rounded-2xl shadow-sm border border-[#25D366]/30 p-6">
+            <section className="bg-white rounded-2xl shadow-sm border border-[#25D366]/30 p-4 sm:p-6">
               <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <div className="w-7 h-7 bg-[#25D366]/10 rounded-lg flex items-center justify-center">
                   <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
@@ -730,10 +730,10 @@ function SettingsInner() {
               </h2>
 
               {/* Connected number row */}
-              <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between gap-3 p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
+                <div className="flex items-center gap-3 min-w-0">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-semibold text-green-800">Meta WhatsApp Cloud API</p>
                     <p className="text-green-600 text-sm">{waDisplayPhone || 'Number connected'}</p>
                     {waTokenType === 'system_user_token' && (
@@ -743,7 +743,7 @@ function SettingsInner() {
                     )}
                   </div>
                 </div>
-                <span className="flex items-center gap-1 text-[10px] font-medium bg-green-100 text-green-700 px-2.5 py-1 rounded-full">
+                <span className="flex items-center gap-1 text-[10px] font-medium bg-green-100 text-green-700 px-2.5 py-1 rounded-full flex-shrink-0">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Live
                 </span>
               </div>
@@ -800,7 +800,7 @@ function SettingsInner() {
                               note: 'Trigger a Vercel redeploy, then click Disconnect WhatsApp below and reconnect. The next Embedded Signup will assign the System User to each merchant WABA and record token_type = system_user_token.',
                             },
                           ].map(({ step, title, desc, vars, note }) => (
-                            <div key={step} className="flex gap-3">
+                            <div key={step} className="flex gap-3 min-w-0">
                               <div className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                                 {step}
                               </div>
@@ -808,7 +808,7 @@ function SettingsInner() {
                                 <p className="font-semibold text-slate-800">{title}</p>
                                 <p className="text-slate-500 mt-0.5">{desc}</p>
                                 {vars?.map(v => (
-                                  <code key={v} className="block mt-1 text-[10px] bg-slate-100 px-2 py-1 rounded font-mono">{v}</code>
+                                  <code key={v} className="block mt-1 text-[10px] bg-slate-100 px-2 py-1 rounded font-mono break-all">{v}</code>
                                 ))}
                                 {note && <p className="text-slate-400 mt-1.5 italic">{note}</p>}
                               </div>
@@ -827,7 +827,7 @@ function SettingsInner() {
               </button>
             </section>
           ) : (
-            <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
               <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
                 <div className="w-7 h-7 bg-[#25D366]/10 rounded-lg flex items-center justify-center">
                   <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
@@ -837,7 +837,7 @@ function SettingsInner() {
               <p className="text-slate-400 text-xs mb-5 ml-9">Choose how to connect your WhatsApp Business number</p>
 
               {/* Option 1: Meta Cloud API */}
-              <div className="bg-gradient-to-br from-blue-50 to-[#25D366]/5 border border-blue-200 rounded-2xl p-5 mb-4">
+              <div className="bg-gradient-to-br from-blue-50 to-[#25D366]/5 border border-blue-200 rounded-2xl p-4 sm:p-5 mb-4">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
                     <span className="text-2xl">💬</span>
@@ -954,7 +954,7 @@ function SettingsInner() {
           )}
 
           {/* Send Test Message */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
               <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
                 <MessageCircle className="w-3.5 h-3.5 text-blue-600" />
@@ -1003,7 +1003,7 @@ function SettingsInner() {
           ) : (
             <>
               {/* Current plan + usage */}
-              <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold text-slate-800 flex items-center gap-2">
                     <div className="w-7 h-7 bg-[#25D366]/10 rounded-lg flex items-center justify-center">
@@ -1043,7 +1043,7 @@ function SettingsInner() {
                       style={{ width: `${usagePct}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between mt-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-1">
                     <p className="text-xs text-slate-400">Resets on the 1st of each month</p>
                     <p className="text-xs text-slate-500 font-medium">{(billing?.messages_remaining ?? 500).toLocaleString()} remaining</p>
                   </div>
@@ -1051,7 +1051,7 @@ function SettingsInner() {
               </section>
 
               {/* All plans comparison */}
-              <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
                 <h3 className="font-semibold text-slate-800 mb-1">All Plans</h3>
                 <p className="text-slate-400 text-xs mb-5">Billed monthly. To upgrade, contact us on WhatsApp.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -1133,7 +1133,7 @@ function SettingsInner() {
       {activeTab === 'team' && (
         <div className="space-y-5">
           {/* Invite form */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
               <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
                 <UserPlus className="w-3.5 h-3.5 text-blue-600" />
@@ -1175,7 +1175,7 @@ function SettingsInner() {
           </section>
 
           {/* Members list */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-800">Team Members</h3>
               <button onClick={loadMembers} disabled={loadingMembers}
@@ -1185,17 +1185,17 @@ function SettingsInner() {
             </div>
 
             {/* Always show owner */}
-            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl mb-2">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-[#25D366] rounded-full flex items-center justify-center text-white font-bold text-sm">
+            <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl mb-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 bg-[#25D366] rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                   {userEmail[0]?.toUpperCase() ?? 'Y'}
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{userEmail}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{userEmail}</p>
                   <p className="text-xs text-slate-400">Owner · Full access</p>
                 </div>
               </div>
-              <span className="text-xs bg-[#25D366]/10 text-[#25D366] font-semibold px-2.5 py-1 rounded-full">Owner</span>
+              <span className="text-xs bg-[#25D366]/10 text-[#25D366] font-semibold px-2.5 py-1 rounded-full flex-shrink-0">Owner</span>
             </div>
 
             {loadingMembers ? (
@@ -1207,17 +1207,17 @@ function SettingsInner() {
             ) : (
               <div className="space-y-2 mt-2">
                 {members.map(m => (
-                  <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                    <div className="flex items-center gap-3">
+                  <div key={m.id} className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={cn(
-                        'w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm',
+                        'w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0',
                         m.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
                       )}>
                         {m.email[0].toUpperCase()}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{m.email}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{m.email}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                           <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize', ROLE_COLORS[m.role] ?? ROLE_COLORS.member)}>
                             {m.role === 'member' ? 'Sales' : m.role}
                           </span>
@@ -1233,7 +1233,7 @@ function SettingsInner() {
                     <button
                       onClick={() => handleRemoveMember(m.id, m.email)}
                       disabled={removingId === m.id}
-                      className="text-slate-400 hover:text-red-500 transition p-1.5 rounded-lg hover:bg-red-50">
+                      className="text-slate-400 hover:text-red-500 transition p-1.5 rounded-lg hover:bg-red-50 flex-shrink-0">
                       {removingId === m.id
                         ? <Loader2 className="w-4 h-4 animate-spin" />
                         : <XCircle className="w-4 h-4" />}
@@ -1245,7 +1245,7 @@ function SettingsInner() {
           </section>
 
           {/* Lead Distribution */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
               <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
                 <Users className="w-3.5 h-3.5 text-purple-600" />
@@ -1340,7 +1340,7 @@ function SettingsInner() {
       {/* ── Security ─────────────────────────────────────────────────────────── */}
       {activeTab === 'security' && (
         <div className="space-y-5">
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
               <div className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center">
                 <Lock className="w-3.5 h-3.5 text-slate-500" />
@@ -1362,7 +1362,7 @@ function SettingsInner() {
             </button>
           </section>
 
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
             <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
               <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
                 <Shield className="w-3.5 h-3.5 text-blue-600" />
@@ -1370,16 +1370,16 @@ function SettingsInner() {
               Two-Factor Authentication
             </h2>
             <p className="text-slate-400 text-xs mb-4 ml-9">Add an extra layer of security</p>
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-              <div>
+            <div className="flex items-center justify-between gap-3 p-4 bg-slate-50 rounded-xl">
+              <div className="min-w-0">
                 <p className="font-medium text-slate-800 text-sm">Authenticator App</p>
                 <p className="text-slate-400 text-xs mt-0.5">Use Google Authenticator or similar</p>
               </div>
-              <span className="text-xs bg-slate-200 text-slate-500 px-2.5 py-1 rounded-full font-medium">Coming soon</span>
+              <span className="text-xs bg-slate-200 text-slate-500 px-2.5 py-1 rounded-full font-medium flex-shrink-0 whitespace-nowrap">Coming soon</span>
             </div>
           </section>
 
-          <section className="bg-white rounded-2xl shadow-sm border border-red-100 p-6">
+          <section className="bg-white rounded-2xl shadow-sm border border-red-100 p-4 sm:p-6">
             <h2 className="font-semibold text-red-700 mb-1 flex items-center gap-2">
               <div className="w-7 h-7 bg-red-100 rounded-lg flex items-center justify-center">
                 <Trash2 className="w-3.5 h-3.5 text-red-500" />

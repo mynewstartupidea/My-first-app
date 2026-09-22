@@ -211,12 +211,12 @@ function IntegrationsInner() {
   )
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 md:p-6 lg:p-8">
 
       {/* Toast */}
       {toast && (
         <div className={cn(
-          'fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium max-w-sm',
+          'fixed top-4 left-4 right-4 sm:left-auto sm:top-5 sm:right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium sm:max-w-sm',
           toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white'
         )}>
           {toast.ok
@@ -226,26 +226,26 @@ function IntegrationsInner() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Integrations</h1>
-          <p className="text-slate-500 text-sm mt-1">Connect Wapaci with your ecommerce stack</p>
+      <div className="flex items-center justify-between mb-6 md:mb-8">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Integrations</h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">Connect Wapaci with your ecommerce stack</p>
         </div>
       </div>
 
       {/* ── Shopify status banner ───────────────────────────────────────────── */}
       {loadingStore ? (
-        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-8">
+        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 mb-6 md:mb-8">
           <Loader2 className="w-4 h-4 animate-spin text-slate-400 flex-shrink-0" />
           <p className="text-slate-500 text-sm">Checking store connection…</p>
         </div>
 
       ) : isShopifyConnected ? (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-5 mb-8">
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 sm:p-5 mb-6 md:mb-8">
           <div className="flex items-start gap-4">
             <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-green-800">
+              <p className="font-semibold text-green-800 break-words">
                 {store.shop_name ?? store.shopify_domain} — Shopify connected
               </p>
               <p className="text-green-700 text-sm mt-0.5 truncate">{store.shopify_domain}</p>
@@ -274,7 +274,7 @@ function IntegrationsInner() {
           </div>
 
           {/* Action bar */}
-          <div className="flex items-center gap-3 mt-4 ml-9 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 mt-4 ml-0 sm:ml-9 flex-wrap">
             <button
               onClick={handleTestConnection}
               disabled={testing}
@@ -319,7 +319,7 @@ function IntegrationsInner() {
         </div>
 
       ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-8">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 mb-6 md:mb-8">
           <div className="flex items-start gap-4">
             <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
@@ -369,7 +369,7 @@ function IntegrationsInner() {
         ))}
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
 
         {/* Shopify card — always shown when in Ecommerce or All */}
         {(activeCategory === 'All' || activeCategory === 'Ecommerce') && (

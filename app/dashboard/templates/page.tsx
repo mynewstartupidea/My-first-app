@@ -713,7 +713,7 @@ export default function TemplatesPage() {
   ]
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 md:p-6 lg:p-8">
       {/* Toast */}
       {toast && (
         <div className={cn('fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium', toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white')}>
@@ -731,14 +731,14 @@ export default function TemplatesPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Templates</h1>
-          <p className="text-slate-500 text-sm mt-1">All your WhatsApp message templates in one place</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 md:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Templates</h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">All your WhatsApp message templates in one place</p>
         </div>
         <button
           onClick={() => { setEditTarget(undefined); setShowModal(true) }}
-          className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-lg shadow-green-500/20"
+          className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-lg shadow-green-500/20 w-full sm:w-auto flex-shrink-0"
         >
           <Plus className="w-4 h-4" /> New Template
         </button>
@@ -804,10 +804,10 @@ export default function TemplatesPage() {
       {/* ── Lead Ad Templates section ─────────────────────────────────── */}
       {visibleStarter.length > 0 && (
         <div className="mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="w-4 h-4 text-blue-500" />
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <MessageSquare className="w-4 h-4 text-blue-500 flex-shrink-0" />
             <h2 className="text-sm font-semibold text-slate-700">Lead Ad Templates</h2>
-            <span className="text-xs text-slate-400">— pre-approved by Meta, ready for cold outreach</span>
+            <span className="hidden sm:inline text-xs text-slate-400">— pre-approved by Meta, ready for cold outreach</span>
             <div className="ml-auto flex items-center gap-2">
               {starterTmpl.every(t => t.status === 'whatsapp_not_connected') ? (
                 <a href="/dashboard/settings?tab=whatsapp" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
@@ -839,10 +839,10 @@ export default function TemplatesPage() {
       {visibleBuiltin.length > 0 && (
         <div className="mb-8">
           {(showLead && visibleStarter.length > 0 || showMy && visibleSaved.length > 0) && (
-            <div className="flex items-center gap-2 mb-3">
-              <ShoppingCart className="w-4 h-4 text-orange-500" />
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <ShoppingCart className="w-4 h-4 text-orange-500 flex-shrink-0" />
               <h2 className="text-sm font-semibold text-slate-700">Ecommerce Templates</h2>
-              <span className="text-xs text-slate-400">— clone & customise for your store</span>
+              <span className="hidden sm:inline text-xs text-slate-400">— clone &amp; customise for your store</span>
             </div>
           )}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -12,7 +12,26 @@ interface Props {
 export default function WhatsAppStatusBanner({ connected, phone, tokenType }: Props) {
   if (connected && phone) {
     return (
-      <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4 mb-7">
+      <>
+      {/* Compact mobile variant */}
+      <Link
+        href="/dashboard/settings?tab=whatsapp"
+        className="sm:hidden flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-5"
+      >
+        <div className="w-8 h-8 bg-[#25D366] rounded-lg flex items-center justify-center flex-shrink-0">
+          <MessageCircle size={16} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-emerald-800 text-sm leading-tight">WhatsApp connected</p>
+          <p className="text-emerald-700 text-xs font-mono truncate">{phone}</p>
+        </div>
+        <span className="text-emerald-700 text-xs font-medium flex items-center gap-1 flex-shrink-0">
+          Manage <ArrowRight size={12} />
+        </span>
+      </Link>
+
+      {/* Full card */}
+      <div className="hidden sm:flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4 mb-7">
         <div className="w-9 h-9 bg-[#25D366] rounded-xl flex items-center justify-center flex-shrink-0">
           <MessageCircle size={18} className="text-white" />
         </div>
@@ -34,11 +53,28 @@ export default function WhatsAppStatusBanner({ connected, phone, tokenType }: Pr
           Manage <ArrowRight size={12} />
         </Link>
       </div>
+      </>
     )
   }
 
   return (
-    <div className="bg-gradient-to-br from-[#075E54]/5 via-white to-[#25D366]/5 border-2 border-dashed border-[#25D366]/30 rounded-2xl p-7 mb-7">
+    <>
+    {/* Compact mobile variant */}
+    <div className="sm:hidden flex items-center gap-3 px-4 py-3 mb-5 bg-white border-2 border-dashed border-[#25D366]/40 rounded-2xl">
+      <div className="w-8 h-8 bg-[#25D366] rounded-lg flex items-center justify-center flex-shrink-0">
+        <MessageCircle size={16} className="text-white" />
+      </div>
+      <p className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate">Connect WhatsApp</p>
+      <Link
+        href="/dashboard/settings?tab=whatsapp"
+        className="flex-shrink-0 bg-[#25D366] hover:bg-[#1aad54] text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition whitespace-nowrap"
+      >
+        Connect
+      </Link>
+    </div>
+
+    {/* Full card */}
+    <div className="hidden sm:block bg-gradient-to-br from-[#075E54]/5 via-white to-[#25D366]/5 border-2 border-dashed border-[#25D366]/30 rounded-2xl p-7 mb-7">
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
         <div className="w-14 h-14 bg-[#25D366] rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#25D366]/20">
           <MessageCircle size={28} className="text-white" />
@@ -70,5 +106,6 @@ export default function WhatsAppStatusBanner({ connected, phone, tokenType }: Pr
         </Link>
       </div>
     </div>
+    </>
   )
 }

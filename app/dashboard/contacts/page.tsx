@@ -392,7 +392,7 @@ export default function ContactsPage() {
         />
       )}
 
-      <div className="p-6 lg:p-8 space-y-5">
+      <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-5">
 
         {/* Banner */}
         {banner && (
@@ -408,10 +408,10 @@ export default function ContactsPage() {
         )}
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Contacts</h1>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
               {stats.total.toLocaleString()} contacts saved
               {stats.completed > 0 && ` · ${stats.completed} campaign${stats.completed !== 1 ? 's' : ''} completed`}
             </p>
@@ -441,8 +441,8 @@ export default function ContactsPage() {
             { label: 'Messages sent',   value: stats.sent,    color: '#3b82f6' },
             { label: 'Campaigns done',  value: stats.completed, color: '#f59e0b' },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
+            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 sm:p-4 min-w-0">
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
                 <p className="text-xs text-gray-400">{s.label}</p>
@@ -464,7 +464,7 @@ export default function ContactsPage() {
               <button
                 key={tab.id}
                 onClick={() => { setActiveTab(tab.id); setSearch('') }}
-                className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-gray-800 text-gray-900'
                     : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -534,7 +534,7 @@ export default function ContactsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[620px]">
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>

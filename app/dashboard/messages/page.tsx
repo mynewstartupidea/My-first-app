@@ -67,20 +67,20 @@ export default function MessagesPage() {
   })
 
   return (
-    <div className="p-6 lg:p-8 animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Messages</h1>
-          <p className="text-slate-500 text-sm mt-1">All WhatsApp messages sent to your customers</p>
+    <div className="p-4 md:p-6 lg:p-8 animate-fade-in">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 md:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Messages</h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">All WhatsApp messages sent to your customers</p>
         </div>
-        <button onClick={loadMessages} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-white transition border border-slate-200 bg-white shadow-sm">
+        <button onClick={loadMessages} className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-white transition border border-slate-200 bg-white shadow-sm w-full sm:w-auto flex-shrink-0">
           <RefreshCw className="w-3.5 h-3.5" /> Refresh
         </button>
       </div>
 
       {/* Filters + search */}
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+        <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm overflow-x-auto max-w-full">
           {FILTERS.map(f => (
             <button
               key={f}
@@ -123,7 +123,8 @@ export default function MessagesPage() {
             <p className="text-slate-400 text-sm mt-1">Messages will appear here once automations start running</p>
           </div>
         ) : (
-          <>
+          <div className="overflow-x-auto">
+            <div className="min-w-[760px]">
             <div className="grid grid-cols-[1fr,2fr,100px,100px,100px] text-xs font-semibold text-slate-400 uppercase tracking-wide px-6 py-3 border-b border-slate-100 bg-slate-50">
               <span>Customer</span>
               <span>Message preview</span>
@@ -134,11 +135,11 @@ export default function MessagesPage() {
             <div className="divide-y divide-slate-50">
               {filtered.map(msg => (
                 <div key={msg.id} className="grid grid-cols-[1fr,2fr,100px,100px,100px] items-center px-6 py-3.5 hover:bg-slate-50 transition">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{msg.customer_name ?? '—'}</p>
-                    <p className="text-xs text-slate-400">{msg.customer_phone}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{msg.customer_name ?? '—'}</p>
+                    <p className="text-xs text-slate-400 truncate">{msg.customer_phone}</p>
                   </div>
-                  <div className="pr-4">
+                  <div className="pr-4 min-w-0">
                     <p className="text-sm text-slate-500 truncate">{msg.message.slice(0, 70)}…</p>
                     {msg.status === 'failed' && !!msg.metadata?.error && (
                       <p className="text-xs text-red-500 mt-0.5 truncate">{String(msg.metadata.error)}</p>
@@ -154,7 +155,8 @@ export default function MessagesPage() {
                 </div>
               ))}
             </div>
-          </>
+            </div>
+          </div>
         )}
       </div>
     </div>

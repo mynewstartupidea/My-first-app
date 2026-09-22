@@ -116,7 +116,7 @@ function CreateCampaignModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
           <div>
             <h2 className="font-bold text-slate-900 text-base">New Campaign</h2>
             <div className="flex items-center gap-1 mt-1">
@@ -136,7 +136,7 @@ function CreateCampaignModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
               <AlertCircle size={14} /> {error}
@@ -147,7 +147,7 @@ function CreateCampaignModal({
           {step === 'type' && (
             <div>
               <p className="text-sm font-semibold text-slate-700 mb-3">What type of campaign?</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {CAMPAIGN_TYPES.map(t => (
                   <button key={t.id} onClick={() => { setCampaignType(t.id); if (!name) setName(t.label + ' Campaign') }}
                     className={cn('flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition',
@@ -335,7 +335,7 @@ function CreateCampaignModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3">
           <button onClick={() => { if (stepIdx > 0) setStep(steps[stepIdx - 1] as typeof step) }}
             className={cn('text-sm text-slate-500 hover:text-slate-700 transition', stepIdx === 0 ? 'invisible' : '')}>
             ← Back
@@ -557,7 +557,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
           <div>
             <h2 className="font-bold text-slate-900 text-base">New Lead Campaign</h2>
             <div className="flex items-center gap-1 mt-1">
@@ -577,7 +577,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
               <AlertCircle size={14} /> {error}
@@ -843,7 +843,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3">
           <button onClick={() => { if (stepIdx > 0) setStep(steps[stepIdx - 1]) }}
             className={cn('text-sm text-slate-500 hover:text-slate-700 transition', stepIdx === 0 ? 'invisible' : '')}>
             ← Back
@@ -1028,9 +1028,9 @@ export default function CampaignsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 md:p-6 lg:p-8">
       {toast && (
-        <div className={cn('fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold',
+        <div className={cn('fixed top-4 left-4 right-4 sm:left-auto sm:top-5 sm:right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold',
           toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white')}>
           {toast.ok ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />} {toast.msg}
         </div>
@@ -1052,21 +1052,21 @@ export default function CampaignsPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Campaigns</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Campaigns</h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
             {activeTab === 'ecommerce' ? 'WhatsApp broadcast campaigns for revenue generation' : 'Message your lead ad contacts at scale'}
           </p>
         </div>
         {activeTab === 'ecommerce' ? (
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md shadow-green-500/20">
+            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
             <Plus size={15} /> New Campaign
           </button>
         ) : (
           <button onClick={() => setShowLeadCreate(true)}
-            className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md shadow-green-500/20">
+            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
             <Plus size={15} /> New Lead Campaign
           </button>
         )}
@@ -1096,40 +1096,40 @@ export default function CampaignsPage() {
 
       {/* Stats */}
       {activeTab === 'ecommerce' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
           {[
             { label: 'Total Campaigns', value: campaigns.length,              icon: Megaphone,    cls: 'text-purple-600 bg-purple-50' },
             { label: 'Total Sent',      value: totalSent.toLocaleString(),     icon: Send,         cls: 'text-blue-600 bg-blue-50' },
             { label: 'Completed',       value: completed,                      icon: CheckCircle2, cls: 'text-emerald-600 bg-emerald-50' },
             { label: 'Revenue',         value: formatCurrency(totalRevenue),   icon: IndianRupee,  cls: 'text-amber-600 bg-amber-50' },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-slate-500 text-xs font-medium">{s.label}</p>
-                <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center', s.cls.split(' ')[1])}>
+            <div key={s.label} className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-sm min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-slate-500 text-xs font-medium min-w-0 truncate">{s.label}</p>
+                <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', s.cls.split(' ')[1])}>
                   <s.icon size={14} className={s.cls.split(' ')[0]} />
                 </div>
               </div>
-              <p className="text-xl font-bold text-slate-900">{s.value}</p>
+              <p className="text-lg sm:text-xl font-bold text-slate-900 truncate">{s.value}</p>
             </div>
           ))}
         </div>
       )}
       {activeTab === 'lead_ad' && (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-5 md:mb-6">
           {[
             { label: 'Lead Campaigns', value: leadCampaigns.length,                                                   icon: UserPlus,     cls: 'text-blue-600 bg-blue-50' },
             { label: 'Total Sent',     value: leadCampaigns.reduce((s, c) => s + c.sent_count, 0).toLocaleString(),   icon: Send,         cls: 'text-[#25D366] bg-[#25D366]/10' },
             { label: 'Completed',      value: leadCampaigns.filter(c => c.status === 'completed').length,             icon: CheckCircle2, cls: 'text-emerald-600 bg-emerald-50' },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-slate-500 text-xs font-medium">{s.label}</p>
-                <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center', s.cls.split(' ')[1])}>
+            <div key={s.label} className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-sm min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-slate-500 text-xs font-medium min-w-0 truncate">{s.label}</p>
+                <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', s.cls.split(' ')[1])}>
                   <s.icon size={14} className={s.cls.split(' ')[0]} />
                 </div>
               </div>
-              <p className="text-xl font-bold text-slate-900">{s.value}</p>
+              <p className="text-lg sm:text-xl font-bold text-slate-900 truncate">{s.value}</p>
             </div>
           ))}
         </div>
@@ -1173,13 +1173,13 @@ export default function CampaignsPage() {
                 const expanded  = expandedId === c.id
                 return (
                   <div key={c.id}>
-                    <div className="flex lg:grid lg:grid-cols-[auto_1fr_110px_80px_80px_80px_100px_100px] items-center gap-4 px-5 py-4 hover:bg-slate-50/70 transition">
+                    <div className="flex lg:grid lg:grid-cols-[auto_1fr_110px_80px_80px_80px_100px_100px] items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 hover:bg-slate-50/70 transition">
                       <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
                         <TypeIcon size={14} className="text-slate-500" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <p className="font-semibold text-slate-800 text-sm">{c.name}</p>
+                          <p className="font-semibold text-slate-800 text-sm truncate max-w-full">{c.name}</p>
                           <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize', STATUS_STYLES[c.status])}>
                             {c.status}
                           </span>
@@ -1202,7 +1202,7 @@ export default function CampaignsPage() {
                       <div className="hidden lg:block text-sm font-semibold text-emerald-600">
                         {c.revenue_attributed ? formatCurrency(c.revenue_attributed) : '—'}
                       </div>
-                      <div className="hidden lg:flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-shrink-0 lg:justify-start">
                         {c.status === 'draft' && (
                           <button onClick={() => sendCampaign(c.id)} disabled={sending === c.id}
                             className="flex items-center gap-1 text-xs font-semibold bg-[#25D366] text-white px-2.5 py-1.5 rounded-lg hover:bg-[#1aad54] disabled:opacity-50 transition">
@@ -1220,8 +1220,8 @@ export default function CampaignsPage() {
                       </div>
                     </div>
                     {expanded && c.status === 'completed' && (
-                      <div className="px-5 pb-4 bg-slate-50/50 border-t border-slate-100">
-                        <div className="grid grid-cols-4 gap-4 pt-4">
+                      <div className="px-4 sm:px-5 pb-4 bg-slate-50/50 border-t border-slate-100">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 pt-4">
                           {[
                             { label: 'Sent',      value: c.sent_count,                                        color: 'text-slate-700'   },
                             { label: 'Delivered', value: c.delivered_count, sub: `${delivRate}%`,             color: 'text-blue-600'    },
@@ -1279,13 +1279,13 @@ export default function CampaignsPage() {
                 const fmt = (ds: string) => new Date(ds).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 return (
                   <div key={c.id}
-                    className="flex lg:grid lg:grid-cols-[auto_1fr_120px_80px_80px_100px] items-center gap-4 px-5 py-4 hover:bg-slate-50/70 transition">
+                    className="flex lg:grid lg:grid-cols-[auto_1fr_120px_80px_80px_100px] items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 hover:bg-slate-50/70 transition">
                     <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                       <MessageCircle size={14} className="text-blue-500" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <p className="font-semibold text-slate-800 text-sm">{c.name}</p>
+                        <p className="font-semibold text-slate-800 text-sm truncate max-w-full">{c.name}</p>
                         <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', statusCfg.cls)}>
                           {statusCfg.label}
                         </span>

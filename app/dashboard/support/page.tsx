@@ -89,16 +89,16 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-3xl">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <LifeBuoy size={22} className="text-slate-700" /> Help & Support
+    <div className="p-4 md:p-6 lg:p-8 max-w-3xl">
+      <div className="mb-5 md:mb-7">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <LifeBuoy size={22} className="text-slate-700 flex-shrink-0" /> Help &amp; Support
         </h1>
-        <p className="text-slate-500 text-sm mt-1">Submit a query or report an issue — we respond within 24 hours</p>
+        <p className="text-slate-500 text-xs sm:text-sm mt-1">Submit a query or report an issue — we respond within 24 hours</p>
       </div>
 
       {/* Submit form */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-7">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 mb-5 md:mb-7">
         <h2 className="font-semibold text-slate-800 mb-5 flex items-center gap-2">
           <MessageSquare size={15} className="text-slate-600" /> New Support Request
         </h2>
@@ -129,7 +129,7 @@ export default function SupportPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Category</label>
               <select
@@ -180,7 +180,7 @@ export default function SupportPage() {
       {/* Previous tickets */}
       {tickets.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-4 sm:px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
             <h2 className="font-semibold text-slate-800 flex items-center gap-2">
               <Clock size={15} className="text-slate-500" /> My Tickets
             </h2>
@@ -194,7 +194,7 @@ export default function SupportPage() {
                 <div key={t.id}>
                   <button
                     onClick={() => setExpanded(isOpen ? null : t.id)}
-                    className="w-full flex items-center gap-3 px-5 py-4 hover:bg-slate-50/70 transition text-left">
+                    className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 hover:bg-slate-50/70 transition text-left">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="text-sm font-medium text-slate-800 truncate">{t.subject}</p>
@@ -213,7 +213,7 @@ export default function SupportPage() {
                   </button>
 
                   {isOpen && (
-                    <div className="px-5 pb-5 bg-slate-50/50 border-t border-slate-100">
+                    <div className="px-4 sm:px-5 pb-5 bg-slate-50/50 border-t border-slate-100">
                       <p className="text-sm text-slate-700 mt-4 leading-relaxed whitespace-pre-wrap">{t.message}</p>
                       {t.admin_notes && (
                         <div className="mt-4 bg-[#25D366]/8 border border-[#25D366]/20 rounded-xl p-4">
@@ -234,7 +234,7 @@ export default function SupportPage() {
       )}
 
       {/* Quick links */}
-      <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="mt-5 md:mt-7 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {[
           { icon: '📚', title: 'WhatsApp Setup Guide', desc: 'Step-by-step Meta Embedded Signup', href: '/dashboard/settings?tab=whatsapp' },
           { icon: '💬', title: 'Billing & Usage',          desc: 'View your plan and message usage',  href: '/dashboard/billing' },

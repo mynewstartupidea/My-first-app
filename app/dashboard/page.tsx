@@ -153,17 +153,17 @@ export default async function DashboardPage() {
   })()
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 md:p-6 lg:p-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-7">
-        <div>
-          <p className="text-slate-400 text-sm">{greeting}</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">
-            {store?.shop_name ?? 'Your Store'} Dashboard
+      <div className="flex items-center justify-between gap-3 mb-5 md:mb-7">
+        <div className="min-w-0">
+          <p className="text-slate-400 text-xs sm:text-sm">{greeting}</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 mt-0.5 truncate">
+            {store?.shop_name ?? 'Your Store'}<span className="hidden md:inline"> Dashboard</span>
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
           <Link href="/dashboard/automations"
             className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition shadow-sm">
             <Zap size={14} className="text-[#25D366]" /> Automations
@@ -178,11 +178,11 @@ export default async function DashboardPage() {
 
       {/* Low message credit banner */}
       {msgPct >= 80 && msgLimit < 999_999_999 && (
-        <div className={`rounded-2xl p-4 mb-6 flex items-center gap-4 ${msgPct >= 95 ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'}`}>
+        <div className={`rounded-2xl p-4 mb-5 md:mb-6 flex flex-wrap items-center gap-3 sm:gap-4 ${msgPct >= 95 ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'}`}>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${msgPct >= 95 ? 'bg-red-100' : 'bg-amber-100'}`}>
             <AlertCircle size={18} className={msgPct >= 95 ? 'text-red-500' : 'text-amber-500'} />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-[150px]">
             <p className={`font-semibold text-sm ${msgPct >= 95 ? 'text-red-800' : 'text-amber-800'}`}>
               {msgPct >= 95 ? 'Message limit almost reached' : `${msgPct}% of monthly messages used`}
             </p>
@@ -190,7 +190,7 @@ export default async function DashboardPage() {
               {msgLeft.toLocaleString()} messages remaining this month — automations will pause when the limit is hit.
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
             <div className="text-right hidden sm:block">
               <p className={`text-xs font-bold tabular-nums ${msgPct >= 95 ? 'text-red-700' : 'text-amber-700'}`}>
                 {msgUsed.toLocaleString()} / {msgLimit.toLocaleString()}
@@ -218,7 +218,7 @@ export default async function DashboardPage() {
       />
 
       {/* Revenue KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
         {[
           {
             label: 'WhatsApp Revenue', value: formatCurrency(totalRevenue),
@@ -245,15 +245,15 @@ export default async function DashboardPage() {
             trend: optInCount > 0,
           },
         ].map(card => (
-          <div key={card.label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-slate-500 text-xs font-medium">{card.label}</p>
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${card.bg}`}>
+          <div key={card.label} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="text-slate-500 text-xs font-medium min-w-0 truncate">{card.label}</p>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${card.bg}`}>
                 <card.icon size={15} className={card.color} />
               </div>
             </div>
-            <p className="text-2xl font-bold text-slate-900 tracking-tight">{card.value}</p>
-            <p className="text-slate-400 text-xs mt-1 flex items-center gap-1">
+            <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{card.value}</p>
+            <p className="text-slate-400 text-[11px] sm:text-xs mt-1 flex items-center gap-1 overflow-hidden">
               {card.trend && <TrendingUp size={11} className="text-emerald-500" />}
               {card.sub}
             </p>
@@ -262,10 +262,10 @@ export default async function DashboardPage() {
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 mb-5 md:mb-6">
 
         {/* Message volume sparkline */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 min-w-0">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="font-semibold text-slate-800">Message Volume</h2>
@@ -299,7 +299,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Quick stats */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 min-w-0">
           <h2 className="font-semibold text-slate-800 mb-4">Performance</h2>
           <div className="space-y-3.5">
             {[
@@ -334,10 +334,10 @@ export default async function DashboardPage() {
 
       {/* Follow-ups due widget — only shown when there are due leads */}
       {followupDue.length > 0 && (
-        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden mb-6">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-amber-100 bg-amber-50/40">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center">
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden mb-5 md:mb-6">
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-amber-100 bg-amber-50/40">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
                 <Phone size={14} className="text-amber-600" />
               </div>
               <div>
@@ -349,7 +349,7 @@ export default async function DashboardPage() {
             </div>
             <Link
               href="/dashboard/leads?sort=followup_due"
-              className="text-xs font-medium text-amber-600 hover:text-amber-800 flex items-center gap-1"
+              className="text-xs font-medium text-amber-600 hover:text-amber-800 flex items-center gap-1 flex-shrink-0"
             >
               View all <ArrowRight size={12} />
             </Link>
@@ -369,7 +369,7 @@ export default async function DashboardPage() {
                 <Link
                   key={lead.id}
                   href="/dashboard/leads?sort=followup_due"
-                  className="flex items-center gap-4 px-5 py-3 hover:bg-amber-50/30 transition"
+                  className="flex items-center gap-2.5 sm:gap-4 px-4 sm:px-5 py-3 hover:bg-amber-50/30 transition"
                 >
                   <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-700 text-xs font-bold">
                     {(lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()}
@@ -401,11 +401,11 @@ export default async function DashboardPage() {
       )}
 
       {/* Bottom: recent messages + campaigns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
         {/* Recent activity */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden min-w-0">
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100">
             <h2 className="font-semibold text-slate-800">Recent Messages</h2>
             <Link href="/dashboard/live-chat" className="text-[#25D366] text-xs font-medium flex items-center gap-1 hover:underline">
               Live Chat <ArrowRight size={12} />
@@ -415,7 +415,7 @@ export default async function DashboardPage() {
           {recentMessages.length > 0 ? (
             <div className="divide-y divide-slate-50">
               {recentMessages.map((msg: { id: string; customer_name?: string; customer_phone: string; message: string; type: string; status: string; created_at: string }) => (
-                <div key={msg.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/70 transition">
+                <div key={msg.id} className="flex items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-3 hover:bg-slate-50/70 transition">
                   <div className="w-8 h-8 rounded-full bg-[#25D366]/10 flex items-center justify-center flex-shrink-0 text-[#25D366] text-xs font-bold">
                     {(msg.customer_name ?? msg.customer_phone).slice(0, 2).toUpperCase()}
                   </div>
@@ -424,7 +424,7 @@ export default async function DashboardPage() {
                     <p className="text-xs text-slate-400 truncate">{msg.message.slice(0, 55)}…</p>
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">
+                    <span className="hidden sm:inline-block text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">
                       {typeLabels[msg.type] ?? msg.type}
                     </span>
                     <div className="flex items-center gap-1.5">
@@ -452,9 +452,9 @@ export default async function DashboardPage() {
         </div>
 
         {/* Right column */}
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5 min-w-0">
           {/* Automation status */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-800">Automations</h3>
               <Link href="/dashboard/automations" className="text-[#25D366] text-xs font-medium hover:underline">Manage</Link>
@@ -477,7 +477,7 @@ export default async function DashboardPage() {
 
           {/* Top campaigns */}
           {recentCampaigns.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-slate-800">Recent Campaigns</h3>
                 <Link href="/dashboard/campaigns" className="text-[#25D366] text-xs font-medium hover:underline">All</Link>
@@ -500,7 +500,7 @@ export default async function DashboardPage() {
           )}
 
           {/* CTA card */}
-          <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-5 text-white">
+          <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 text-white">
             <MousePointerClick size={18} className="mb-2 opacity-80" />
             <p className="font-semibold text-sm">Recover more revenue</p>
             <p className="text-green-100 text-xs mt-1 leading-relaxed">Abandoned cart automation recovers 15-25% of lost orders on average.</p>

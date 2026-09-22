@@ -113,16 +113,16 @@ const { success, lead_id } = await res.json()
 `
 
   return (
-    <div className="p-6 lg:p-8 max-w-4xl">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Code2 size={22} className="text-slate-700" /> Developer
+    <div className="p-4 md:p-6 lg:p-8 max-w-4xl">
+      <div className="mb-5 md:mb-7">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <Code2 size={22} className="text-slate-700 flex-shrink-0" /> Developer
         </h1>
-        <p className="text-slate-500 text-sm mt-1">Connect your landing pages and custom forms to Wapaci</p>
+        <p className="text-slate-500 text-xs sm:text-sm mt-1">Connect your landing pages and custom forms to Wapaci</p>
       </div>
 
       {/* API Key */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-5">
         <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <Key size={15} className="text-slate-600" /> API Key
         </h2>
@@ -165,7 +165,7 @@ const { success, lead_id } = await res.json()
       </div>
 
       {/* Lead Ingest Endpoint */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-5">
         <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <Globe size={15} className="text-slate-600" /> Lead Ingest Endpoint
         </h2>
@@ -285,7 +285,7 @@ const { success, lead_id } = await res.json()
       </div>
 
       {/* Go High Level */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-5">
         <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <Zap size={15} className="text-orange-500" /> Go High Level
         </h2>
@@ -363,7 +363,7 @@ const { success, lead_id } = await res.json()
       </div>
 
       {/* Outbound Webhooks */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
         <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <Webhook size={15} className="text-slate-600" /> Platform Webhook URLs
         </h2>
