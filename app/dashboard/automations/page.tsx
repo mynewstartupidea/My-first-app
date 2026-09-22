@@ -325,7 +325,7 @@ function MissedCallCard({ whatsappConnected, onNeedsWhatsapp }: {
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5 truncate">
             Auto-send a WhatsApp when a rep logs No Answer or Voicemail on a lead call.
           </p>
           <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
@@ -427,7 +427,7 @@ function LeadAdCard() {
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5 truncate">
             Auto-send a WhatsApp message the moment someone submits a Facebook Lead Ad form.
           </p>
           <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">

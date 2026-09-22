@@ -30,8 +30,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Desktop sidebar — hidden on mobile */}
       <Sidebar storeName={displayName} plan={store?.plan} role={role} />
 
-      {/* Main content — no left margin on mobile, sidebar margin on desktop */}
-      <main className="flex-1 ml-0 md:ml-[220px] min-h-screen pb-[76px] md:pb-0">
+      {/* Main content — no left margin on mobile, sidebar margin on desktop.
+          min-w-0 is load-bearing: without it, a flex item refuses to shrink below its
+          content's natural width, so any wide descendant (a button row that "should" wrap)
+          instead balloons this whole column past the viewport and everything below inherits
+          the inflated width — overflow-x:hidden on body then just clips the symptom. */}
+      <main className="flex-1 min-w-0 ml-0 md:ml-[220px] min-h-screen pb-[76px] md:pb-0">
         <MobileHeader />
         {children}
       </main>

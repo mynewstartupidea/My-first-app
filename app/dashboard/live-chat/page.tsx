@@ -493,9 +493,9 @@ export default function LiveChatPage() {
         </div>
       )}
 
-      {/* Customer info panel */}
+      {/* Customer info panel — desktop only; on mobile the message thread needs the full width */}
       {selected && customer && (
-        <div className="w-[240px] flex-shrink-0 bg-white border-l border-slate-100 overflow-y-auto">
+        <div className="hidden md:block md:w-[240px] flex-shrink-0 bg-white border-l border-slate-100 overflow-y-auto">
           <div className="p-4 border-b border-slate-100">
             <p className="font-semibold text-slate-800 text-sm mb-3 flex items-center gap-1.5">
               <User size={13} /> Customer

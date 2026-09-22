@@ -630,19 +630,20 @@ function EditFormModal({ form, onClose, onSave }: {
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const CAL_DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa']
 
-function CalendarMonth({ year, month, eFrom, eTo, today, onDay, onHover }: {
+function CalendarMonth({ year, month, eFrom, eTo, today, onDay, onHover, className }: {
   year: number; month: number
   eFrom: string | null; eTo: string | null
   today: string
   onDay: (ds: string) => void
   onHover: (ds: string | null) => void
+  className?: string
 }) {
   const firstDow   = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const mm = String(month + 1).padStart(2, '0')
 
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 ${className ?? ''}`}>
       <p className="text-sm font-semibold text-gray-800 text-center mb-3">
         {CAL_MONTHS[month]} {year}
       </p>
@@ -773,9 +774,10 @@ function DateRangePicker({ from, to, onChange }: {
         </button>
       </div>
 
-      {/* Two-month calendars */}
-      <div className="grid grid-cols-2 gap-6">
-        <CalendarMonth year={ly} month={lm} eFrom={eFrom} eTo={eTo} today={today} onDay={handleDay} onHover={setHover} />
+      {/* Two-month calendars — one month at a time on mobile (day cells are too small
+          to tap accurately once squeezed into a 2-column grid below ~640px) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <CalendarMonth year={ly} month={lm} eFrom={eFrom} eTo={eTo} today={today} onDay={handleDay} onHover={setHover} className="hidden sm:block" />
         <CalendarMonth year={ry} month={rm} eFrom={eFrom} eTo={eTo} today={today} onDay={handleDay} onHover={setHover} />
       </div>
     </div>
@@ -1526,8 +1528,8 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white h-full w-full max-w-md shadow-2xl flex flex-col overflow-hidden">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-overlay-in" onClick={onClose} />
+      <div className="relative bg-white h-full w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-sheet-up sm:animate-none">
 
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
@@ -1695,7 +1697,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
           </div>
 
           {/* Call history */}
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Call History</p>
             {loadingLogs ? (
               <div className="flex items-center justify-center py-8">
@@ -3004,9 +3006,12 @@ function LeadsContent() {
             <MessageCircle className="w-4 h-4" />
             Message
           </button>
+          {/* Hidden on mobile: icon-only + hover-only tooltip is an unclear affordance for a
+              destructive action with no hover on touch — same action is a labeled item in the
+              page dropdown above. Desktop keeps the quick-access icon button. */}
           <button
             onClick={handleDisconnectAll}
-            className="p-2 text-red-400 border border-red-100 bg-white rounded-lg hover:bg-red-50 hover:text-red-600 transition"
+            className="hidden sm:block p-2 text-red-400 border border-red-100 bg-white rounded-lg hover:bg-red-50 hover:text-red-600 transition"
             title="Disconnect all Facebook pages"
           >
             <LogOut className="w-4 h-4" />
