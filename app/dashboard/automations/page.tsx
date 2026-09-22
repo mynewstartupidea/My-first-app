@@ -559,7 +559,7 @@ export default function AutomationsPage() {
   const activeCount = whatsappConnected ? automations.filter(a => a.is_enabled).length : 0
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 md:p-6 lg:p-8">
       {toast && (
         <div className={cn('fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold transition',
           toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white')}>
@@ -597,29 +597,29 @@ export default function AutomationsPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Automations</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Automations</h1>
           <p className="text-slate-500 text-sm mt-0.5">
             {activeCount > 0
               ? `${activeCount} automation${activeCount > 1 ? 's' : ''} running — recovering revenue 24/7`
               : 'Set up automations to start recovering revenue automatically'}
           </p>
         </div>
-        <button onClick={load} className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
+        <button onClick={load} className="self-start flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
 
       {/* Revenue impact banner */}
       {activeCount === 0 && (
-        <div className="bg-gradient-to-r from-[#075E54] to-[#25D366] rounded-2xl p-5 mb-6 flex items-center gap-4">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Zap size={18} className="text-white" />
+        <div className="bg-gradient-to-r from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 mb-6 flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Zap size={17} className="text-white" />
           </div>
-          <div className="flex-1">
-            <p className="font-bold text-white">Enable automations to recover revenue while you sleep</p>
-            <p className="text-green-100 text-sm mt-0.5">Merchants with 3+ automations see avg. ₹25,000/month in recovered revenue.</p>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-white text-sm sm:text-base">Enable automations to recover revenue while you sleep</p>
+            <p className="text-green-100 text-xs sm:text-sm mt-0.5">Merchants with 3+ automations see avg. ₹25,000/month in recovered revenue.</p>
           </div>
         </div>
       )}

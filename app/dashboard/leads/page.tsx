@@ -2927,7 +2927,7 @@ function LeadsContent() {
   const enabledForms = activeForms.filter(f => f.is_enabled)
 
   return (
-    <div className="p-6 lg:p-8 space-y-5">
+    <div className="p-4 md:p-6 lg:p-8 space-y-5">
 
       {/* Sync toast — fixed bottom-right, no layout impact */}
       <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl shadow-lg pointer-events-none transition-all duration-300 ${syncToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
@@ -2945,9 +2945,9 @@ function LeadsContent() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Lead Ads</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Lead Ads</h1>
           <p className="text-sm text-gray-400 mt-0.5">
             {pages.length} page{pages.length !== 1 ? 's' : ''} connected
             {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} tracked`}
@@ -2962,17 +2962,16 @@ function LeadsContent() {
             onDisconnectAll={handleDisconnectAll}
             onReconnect={() => { window.location.href = '/api/facebook/auth' }}
           />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
-              title="Sync new leads from Facebook"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Syncing…' : 'Refresh leads'}
-            </button>
-          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+            title="Sync new leads from Facebook"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{refreshing ? 'Syncing…' : 'Refresh'}</span>
+            <span className="sm:hidden">{refreshing ? '…' : 'Refresh'}</span>
+          </button>
           <button
             onClick={() => {
               if (lockedPage && selectedPageId && lockedPage.page_id !== selectedPageId) {
@@ -2985,7 +2984,7 @@ function LeadsContent() {
             title="Send a WhatsApp message to existing leads"
           >
             <MessageCircle className="w-4 h-4" />
-            Message leads
+            Message
           </button>
           <button
             onClick={handleDisconnectAll}

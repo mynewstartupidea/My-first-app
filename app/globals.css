@@ -17,6 +17,11 @@ body {
   -webkit-font-smoothing: antialiased;
   background: #030812;
   color: #1e293b;
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 /* Grain / film-noise overlay — applies globally, makes dark backgrounds feel premium */

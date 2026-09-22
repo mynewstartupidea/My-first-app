@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
-  Tag, ChevronDown, MoreVertical, Inbox, Circle, AlertTriangle,
+  Tag, ChevronDown, MoreVertical, Inbox, Circle, AlertTriangle, ChevronLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
@@ -250,10 +250,13 @@ export default function LiveChatPage() {
   })
 
   return (
-    <div className="flex h-[calc(100vh-0px)] overflow-hidden bg-slate-50">
+    <div className="flex h-[calc(100vh-52px-76px)] md:h-[calc(100vh-0px)] overflow-hidden bg-slate-50">
 
-      {/* Thread list */}
-      <div className="w-[300px] flex-shrink-0 flex flex-col bg-white border-r border-slate-100">
+      {/* Thread list — full width on mobile when no thread selected, hidden when thread open */}
+      <div className={cn(
+        "flex-shrink-0 flex flex-col bg-white border-r border-slate-100",
+        selected ? "hidden md:flex md:w-[300px]" : "w-full md:w-[300px]"
+      )}>
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-slate-100">
           <div className="flex items-center justify-between mb-3">
@@ -353,9 +356,16 @@ export default function LiveChatPage() {
       {selected ? (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Thread header */}
-          <div className="bg-white border-b border-slate-100 px-5 py-3.5 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold', avatarColor(selected))}>
+          <div className="bg-white border-b border-slate-100 px-3 md:px-5 py-3.5 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* Back button — mobile only */}
+              <button
+                onClick={() => setSelected(null)}
+                className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 transition flex-shrink-0"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0', avatarColor(selected))}>
                 {initials(selectedThread?.name ?? null, selected)}
               </div>
               <div>
@@ -472,7 +482,7 @@ export default function LiveChatPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-slate-50">
+        <div className="hidden md:flex flex-1 items-center justify-center bg-slate-50">
           <div className="text-center">
             <div className="w-16 h-16 bg-[#25D366]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <MessageCircle size={28} className="text-[#25D366]" />
