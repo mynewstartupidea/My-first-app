@@ -2219,9 +2219,6 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
                 <p className="text-sm font-medium text-gray-900 truncate">{lead.name ?? '—'}</p>
                 <StatusPicker lead={lead} onUpdate={onUpdate} />
               </div>
-              {lead.phone && (
-                <p className="md:hidden text-xs text-gray-500 font-mono truncate mt-0.5">{lead.phone}</p>
-              )}
               {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
               {lead.assigned_name && (
                 <p className="text-[11px] text-blue-500 mt-0.5 flex items-center gap-1">
@@ -2323,6 +2320,104 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
         </tr>
       )}
     </>
+  )
+}
+
+// ── LeadCard (mobile) ────────────────────────────────────────────────────────
+// A real card list for phones — the desktop <table> above just hides columns at
+// this width, which works but reads as a squeezed spreadsheet, not a CRM app.
+// Same data and handlers as LeadRow, native-list layout: avatar, name + status,
+// phone number front and center, quick actions on the right.
+
+function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
+  lead: Lead
+  activeForms: ActiveForm[]
+  onWhatsApp: () => void
+  onCallLog: () => void
+  onUpdate: (leadId: string, updates: Partial<Lead>) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const extra = Object.entries(lead.fields ?? {}).filter(([k]) => !STANDARD_KEYS.has(k))
+  const initials = (lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()
+  const followupDate = lead.followup_at
+    ? new Date(lead.followup_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
+  const isOverdue = lead.followup_at ? new Date(lead.followup_at) < new Date() : false
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onCallLog}
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onCallLog()}
+      className="flex items-start gap-3 px-4 py-3.5 border-b border-gray-50 last:border-0 transition active:bg-slate-50 cursor-pointer"
+    >
+      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-gray-500 uppercase">
+        {initials}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-semibold text-gray-900 truncate">{lead.name ?? '—'}</p>
+          <StatusPicker lead={lead} onUpdate={onUpdate} />
+        </div>
+        {lead.phone && <p className="text-xs text-gray-500 font-mono mt-0.5">{lead.phone}</p>}
+        {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
+        {lead.assigned_name && (
+          <p className="text-[11px] text-blue-500 mt-0.5 flex items-center gap-1">
+            <UserCheck className="w-2.5 h-2.5" />
+            {lead.assigned_name}
+          </p>
+        )}
+        {followupDate && (
+          <p className={`text-[11px] flex items-center gap-1 mt-0.5 ${isOverdue ? 'text-red-500 font-medium' : 'text-orange-400'}`}>
+            <Calendar className="w-2.5 h-2.5" />
+            {isOverdue ? 'Overdue: ' : 'Follow up '}{followupDate}
+          </p>
+        )}
+        {extra.length > 0 && (
+          <button
+            onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
+            className="mt-1 flex items-center gap-1 text-left"
+          >
+            <span className="text-[11px] text-gray-400 truncate max-w-[220px]">
+              <span className="text-gray-500 font-medium capitalize">{extra[0][0].replace(/_/g, ' ')}: </span>
+              {extra[0][1]}
+            </span>
+            {extra.length > 1 && (
+              <span className="text-[10px] text-blue-400 font-medium flex-shrink-0">+{extra.length - 1} more</span>
+            )}
+          </button>
+        )}
+        {expanded && extra.length > 0 && (
+          <div onClick={e => e.stopPropagation()} className="mt-2 bg-gray-50 rounded-xl p-3 grid grid-cols-2 gap-2.5">
+            {extra.map(([k, v]) => (
+              <div key={k}>
+                <p className="text-[10px] text-gray-400 capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
+                <p className="text-xs font-medium text-gray-800">{v}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5" onClick={e => e.stopPropagation()}>
+        {lead.phone && lead.wa_status !== 'sent' && (
+          <button onClick={onWhatsApp}
+            className={`p-2 rounded-full transition ${
+              lead.wa_status === 'pending'
+                ? 'text-amber-400 bg-amber-50 hover:bg-amber-100'
+                : 'text-gray-400 bg-gray-50 hover:bg-green-50 hover:text-green-600'
+            }`}
+            title={lead.wa_status === 'pending' ? 'Resend WhatsApp' : 'Send WhatsApp'}>
+            <MessageCircle className="w-4 h-4" />
+          </button>
+        )}
+        <div className="w-9 h-9 rounded-full bg-[#25D366]/10 flex items-center justify-center flex-shrink-0">
+          <Phone className="w-3.5 h-3.5 text-[#25D366]" />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -3231,7 +3326,23 @@ function LeadsContent() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                {/* Mobile: native card list, not a squeezed table */}
+                <div className="md:hidden divide-y divide-gray-50">
+                  {leads.map(lead => (
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      activeForms={activeForms}
+                      onWhatsApp={() => handleSendWhatsApp(lead)}
+                      onCallLog={() => setCallLogLead(lead)}
+                      onUpdate={handleLeadUpdate}
+                    />
+                  ))}
+                </div>
+
+                {/* Desktop: full table with Phone/Form/Status/Date columns */}
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -3259,7 +3370,8 @@ function LeadsContent() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
 
             {/* Pagination footer */}
