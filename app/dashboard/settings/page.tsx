@@ -241,6 +241,17 @@ function SettingsInner() {
     if (activeTab === 'billing') loadBilling()
   }, [activeTab, loadBilling])
 
+  // Keep the active tab pill visible in the scrollable tab bar — matters when landing
+  // directly on a non-first tab (e.g. ?tab=team), where it'd otherwise start scrolled
+  // out of view with nothing visibly selected. Depends on `loading` too: the tab bar
+  // doesn't exist in the DOM until the loading skeleton (an early `if (loading) return`
+  // above) is replaced by the real content, which can happen after activeTab has
+  // already settled — without `loading` here this would silently never find the button.
+  useEffect(() => {
+    document.querySelector(`[data-settings-tab="${activeTab}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeTab, loading])
+
   // ── Load team members ─────────────────────────────────────────────────────────
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true)
@@ -642,6 +653,7 @@ function SettingsInner() {
         {TABS.map(({ id, label }) => (
           <button
             key={id}
+            data-settings-tab={id}
             onClick={() => setActiveTab(id)}
             className={cn(
               'flex-shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap',
@@ -1141,7 +1153,7 @@ function SettingsInner() {
               Invite Team Member
             </h2>
             <p className="text-slate-400 text-xs mb-4 ml-9">Invite colleagues to help manage your Wapaci account</p>
-            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <div className="flex-1 min-w-0">
                 <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
                   <Mail className="w-3 h-3" /> Email address
@@ -1151,7 +1163,7 @@ function SettingsInner() {
                   placeholder="colleague@yourstore.com"
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
               </div>
-              <div className="w-40 flex-shrink-0">
+              <div className="w-full sm:w-40 sm:flex-shrink-0">
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Role</label>
                 <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
@@ -1161,9 +1173,9 @@ function SettingsInner() {
                   <option value="support">Support</option>
                 </select>
               </div>
-              <div className="flex items-end">
+              <div className="flex sm:items-end">
                 <button onClick={handleInvite} disabled={sendingInvite || !inviteEmail.trim()}
-                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition whitespace-nowrap">
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition whitespace-nowrap">
                   {sendingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                   {sendingInvite ? 'Sending…' : 'Send invite'}
                 </button>

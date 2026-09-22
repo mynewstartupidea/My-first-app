@@ -5,19 +5,24 @@ import Link from 'next/link'
 import { MessageCircle } from 'lucide-react'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard':             'Dashboard',
-  '/dashboard/leads':       'Lead Ads',
-  '/dashboard/live-chat':   'Live Chat',
-  '/dashboard/automations': 'Automations',
-  '/dashboard/campaigns':   'Campaigns',
-  '/dashboard/analytics':   'Analytics',
-  '/dashboard/templates':   'Templates',
-  '/dashboard/contacts':    'Contacts',
-  '/dashboard/integrations':'Integrations',
-  '/dashboard/developer':   'Developer',
-  '/dashboard/support':     'Support',
-  '/dashboard/settings':    'Settings',
-  '/dashboard/team':        'Team',
+  '/dashboard':              'Dashboard',
+  '/dashboard/leads':        'Lead Ads',
+  '/dashboard/live-chat':    'Live Chat',
+  '/dashboard/automations':  'Automations',
+  '/dashboard/campaigns':    'Campaigns',
+  '/dashboard/analytics':    'Analytics',
+  '/dashboard/templates':    'Templates',
+  '/dashboard/contacts':     'Contacts',
+  '/dashboard/customers':    'Customers',
+  '/dashboard/conversations':'Conversations',
+  '/dashboard/messages':     'Messages',
+  '/dashboard/integrations': 'Integrations',
+  '/dashboard/developer':    'Developer',
+  '/dashboard/support':      'Support',
+  '/dashboard/settings':     'Settings',
+  '/dashboard/team':         'Team',
+  '/dashboard/billing':      'Billing',
+  '/dashboard/shopify':      'Shopify',
 }
 
 export default function MobileHeader() {

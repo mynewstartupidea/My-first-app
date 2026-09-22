@@ -7,7 +7,10 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://wapaci.com'
+// A typeof-window branch here would compute a different value on the server (no window)
+// vs. the client (window.location.origin), causing a hydration mismatch on every load —
+// use the build-time env var so server and client render the identical string.
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.wapaci.com'
 
 const OUTBOUND_EVENTS = [
   { event: 'message.sent',      desc: 'Fired when a WhatsApp message is sent to a lead' },
