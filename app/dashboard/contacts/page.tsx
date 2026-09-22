@@ -106,8 +106,12 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-y-auto sm:overflow-hidden max-h-[90vh] sm:max-h-none animate-sheet-up sm:animate-none pb-[env(safe-area-inset-bottom)] sm:pb-0">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden sticky top-0 z-10 bg-white flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
@@ -252,8 +256,12 @@ function BroadcastModal({ contactCount, onClose, onSent }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg overflow-y-auto sm:overflow-hidden max-h-[90vh] sm:max-h-none animate-sheet-up sm:animate-none pb-[env(safe-area-inset-bottom)] sm:pb-0">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden sticky top-0 z-10 bg-white flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">

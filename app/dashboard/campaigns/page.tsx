@@ -113,8 +113,12 @@ function CreateCampaignModal({
   const audienceCount = customerCounts[audience] ?? 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto animate-sheet-up sm:animate-none pb-[env(safe-area-inset-bottom)] sm:pb-0">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden sticky top-0 z-10 bg-white flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
           <div>
@@ -350,12 +354,12 @@ function CreateCampaignModal({
                   if (step === 'compose' && (!name.trim() || !message.trim())) { setError('Name and message required.'); return }
                   setStep(steps[stepIdx + 1] as typeof step)
                 }}
-                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2 rounded-xl transition active:scale-[0.97]">
                 Next <ChevronRight size={14} />
               </button>
             ) : (
               <button onClick={handleCreate} disabled={loading}
-                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition active:scale-[0.97]">
                 {loading ? <Loader2 size={14} className="animate-spin" /> : sendNow ? <Send size={14} /> : <CheckCircle2 size={14} />}
                 {loading ? 'Creating…' : sendNow ? 'Create & Send' : 'Save Draft'}
               </button>
@@ -553,8 +557,13 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
   const fmt = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto animate-sheet-up sm:animate-none pb-[env(safe-area-inset-bottom)] sm:pb-0">
+
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden sticky top-0 z-10 bg-white flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
 
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
@@ -654,8 +663,12 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
 
               {/* Lock popup — shown when user tries to change a locked page */}
               {showLockPopup && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4 animate-overlay-in">
+                  <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 max-h-[90vh] overflow-y-auto animate-sheet-up sm:animate-none">
+                    {/* Drag handle — mobile only */}
+                    <div className="sm:hidden flex justify-center -mt-3 mb-3 flex-shrink-0">
+                      <div className="w-9 h-1 rounded-full bg-slate-300" />
+                    </div>
                     <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <MessageCircle size={22} className="text-amber-600" />
                     </div>
@@ -671,7 +684,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
                     </p>
                     <button
                       onClick={() => setShowLockPopup(false)}
-                      className="w-full bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold py-2.5 rounded-xl transition">
+                      className="w-full bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold py-2.5 rounded-xl transition active:scale-[0.97]">
                       Got it
                     </button>
                   </div>
@@ -858,12 +871,12 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
                   if (step === 'audience' && (!count || count === 0)) { setError('No leads match these filters'); return }
                   setStep(steps[stepIdx + 1])
                 }}
-                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2 rounded-xl transition active:scale-[0.97]">
                 Next <ChevronRight size={14} />
               </button>
             ) : (
               <button onClick={handleCreate} disabled={loading}
-                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition active:scale-[0.97]">
                 {loading ? <Loader2 size={14} className="animate-spin" /> : sendNow ? <Send size={14} /> : <CheckCircle2 size={14} />}
                 {loading ? 'Creating…' : sendNow ? 'Create & Send' : 'Save Draft'}
               </button>
@@ -1061,12 +1074,12 @@ export default function CampaignsPage() {
         </div>
         {activeTab === 'ecommerce' ? (
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
+            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97] shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
             <Plus size={15} /> New Campaign
           </button>
         ) : (
           <button onClick={() => setShowLeadCreate(true)}
-            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
+            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97] shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
             <Plus size={15} /> New Lead Campaign
           </button>
         )}
@@ -1155,7 +1168,7 @@ export default function CampaignsPage() {
             <p className="font-bold text-slate-800">No campaigns yet</p>
             <p className="text-slate-400 text-sm mt-1 max-w-xs mx-auto">Create a WhatsApp broadcast to re-engage customers and generate revenue.</p>
             <button onClick={() => setShowCreate(true)}
-              className="mt-5 inline-flex items-center gap-2 bg-[#25D366] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1aad54] transition">
+              className="mt-5 inline-flex items-center gap-2 bg-[#25D366] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1aad54] transition active:scale-[0.97]">
               <Plus size={14} /> Create first campaign
             </button>
           </div>
@@ -1205,7 +1218,7 @@ export default function CampaignsPage() {
                       <div className="flex items-center gap-1.5 flex-shrink-0 lg:justify-start">
                         {c.status === 'draft' && (
                           <button onClick={() => sendCampaign(c.id)} disabled={sending === c.id}
-                            className="flex items-center gap-1 text-xs font-semibold bg-[#25D366] text-white px-2.5 py-1.5 rounded-lg hover:bg-[#1aad54] disabled:opacity-50 transition">
+                            className="flex items-center gap-1 text-xs font-semibold bg-[#25D366] text-white px-2.5 py-1.5 rounded-lg hover:bg-[#1aad54] disabled:opacity-50 transition active:scale-[0.97]">
                             {sending === c.id ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Send
                           </button>
                         )}
@@ -1263,7 +1276,7 @@ export default function CampaignsPage() {
               Create a campaign to message historical leads from your Facebook Lead Ads forms.
             </p>
             <button onClick={() => setShowLeadCreate(true)}
-              className="mt-5 inline-flex items-center gap-2 bg-[#25D366] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1aad54] transition">
+              className="mt-5 inline-flex items-center gap-2 bg-[#25D366] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1aad54] transition active:scale-[0.97]">
               <Plus size={14} /> Create first lead campaign
             </button>
           </div>

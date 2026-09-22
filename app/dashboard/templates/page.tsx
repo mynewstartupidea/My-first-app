@@ -363,8 +363,12 @@ function TemplateModal({
   const [category, setCategory] = useState(initial?.category ?? 'custom')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] sm:max-h-[92vh] overflow-y-auto animate-sheet-up sm:animate-none pb-[env(safe-area-inset-bottom)] sm:pb-0">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden sticky top-0 z-10 bg-white flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-900">{initial?.id ? 'Edit Template' : 'New Template'}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition">

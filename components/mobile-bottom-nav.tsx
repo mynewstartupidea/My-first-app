@@ -30,7 +30,7 @@ export default function MobileBottomNav() {
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center justify-center gap-1 flex-1 h-full"
+              className="flex flex-col items-center justify-center gap-1 flex-1 h-full active:scale-90 transition-transform duration-100"
             >
               <Icon
                 size={21}

@@ -169,7 +169,7 @@ export default async function DashboardPage() {
             <Zap size={14} className="text-[#25D366]" /> Automations
           </Link>
           <Link href="/dashboard/campaigns"
-            className="flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-3 py-2 rounded-xl hover:bg-[#1aad54] transition shadow-sm">
+            className="flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-3 py-2 rounded-xl hover:bg-[#1aad54] transition active:scale-[0.97] shadow-sm">
             <Send size={14} /> New Campaign
           </Link>
         </div>

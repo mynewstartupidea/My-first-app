@@ -255,7 +255,7 @@ function AutomationCard({
           </div>
 
           <button onClick={save} disabled={saving}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition">
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97]">
             {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Save size={14} />}
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
@@ -495,7 +495,7 @@ function LeadAdCard() {
           </div>
 
           <a href="/dashboard/leads"
-            className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition">
+            className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97]">
             <Users size={14} /> Manage in Lead Ads <ArrowRight size={13} />
           </a>
         </div>
@@ -569,8 +569,12 @@ export default function AutomationsPage() {
 
       {/* WhatsApp not connected popup */}
       {showWaPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4 animate-overlay-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 max-h-[90vh] overflow-y-auto animate-sheet-up sm:animate-none">
+            {/* Drag handle — mobile only */}
+            <div className="sm:hidden flex justify-center -mt-3 mb-3 flex-shrink-0">
+              <div className="w-9 h-1 rounded-full bg-slate-300" />
+            </div>
             <div className="w-12 h-12 bg-[#25D366]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <MessageSquare size={22} className="text-[#25D366]" />
             </div>
@@ -588,7 +592,7 @@ export default function AutomationsPage() {
               </button>
               <a
                 href="/dashboard/settings?tab=whatsapp"
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-xl transition text-center">
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-xl transition active:scale-[0.97] text-center">
                 Connect WhatsApp
               </a>
             </div>

@@ -274,8 +274,12 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] animate-sheet-up sm:animate-none overflow-hidden pb-[env(safe-area-inset-bottom)] sm:pb-0">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Activate a lead form</h2>
@@ -409,7 +413,7 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
                 </a>
               ) : (
                 <button onClick={handleActivate} disabled={activating || loadingForms || !connectionId}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97] disabled:opacity-60">
                   {(activating || loadingForms) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                   {activating ? 'Activating…' : loadingForms ? 'Loading…' : `Activate "${selectedForm.name}"`}
                 </button>
@@ -489,8 +493,12 @@ function EditFormModal({ form, onClose, onSave }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl shadow-2xl max-h-[90vh] sm:max-h-[90vh] flex flex-col animate-sheet-up sm:animate-none overflow-hidden pb-[env(safe-area-inset-bottom)] sm:pb-0">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
         <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full" style={{ background: c.dot }} />
@@ -607,7 +615,7 @@ function EditFormModal({ form, onClose, onSave }: {
         <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-100 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition">Cancel</button>
           <button onClick={handleSave} disabled={saving || !template.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60">
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97] disabled:opacity-60">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {saving ? 'Saving…' : 'Save changes'}
           </button>
@@ -845,8 +853,13 @@ function ImportModal({ form, onClose, onImport }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl shadow-2xl max-h-[90vh] sm:max-h-[90vh] flex flex-col animate-sheet-up sm:animate-none overflow-hidden pb-[env(safe-area-inset-bottom)] sm:pb-0">
+
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
@@ -917,7 +930,7 @@ function ImportModal({ form, onClose, onImport }: {
               {exporting ? 'Exporting…' : 'Download CSV'}
             </button>
             <button onClick={handleImport} disabled={!from || !to || importing || exporting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97] disabled:opacity-50">
               {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
               {importing ? 'Importing…' : from && to ? 'Import to CRM' : 'Select a date range'}
             </button>
@@ -1007,8 +1020,13 @@ function BulkMessageModal({ activeForms, onClose, onSent }: {
   const fmt = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4 animate-overlay-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl shadow-2xl max-h-[90vh] sm:max-h-[90vh] flex flex-col animate-sheet-up sm:animate-none overflow-hidden pb-[env(safe-area-inset-bottom)] sm:pb-0">
+
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="w-9 h-1 rounded-full bg-slate-300" />
+        </div>
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
@@ -1205,7 +1223,7 @@ function BulkMessageModal({ activeForms, onClose, onSent }: {
               <button
                 onClick={() => { setError(null); setStep('template') }}
                 disabled={!count || loadingCount}
-                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97] disabled:opacity-50">
                 Next: Choose template
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -1218,7 +1236,7 @@ function BulkMessageModal({ activeForms, onClose, onSent }: {
               <button
                 onClick={handleSend}
                 disabled={!selectedTemplate || sending}
-                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97] disabled:opacity-50">
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 {sending ? 'Sending…' : `Send to ${count?.toLocaleString() ?? '?'} leads`}
               </button>
@@ -1568,7 +1586,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
               </select>
             ) : !localAssignedName && (
               <button onClick={() => handleAssign()} disabled={assigning}
-                className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition disabled:opacity-60 flex items-center gap-1.5 flex-shrink-0">
+                className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition active:scale-[0.97] disabled:opacity-60 flex items-center gap-1.5 flex-shrink-0">
                 <UserCheck className="w-3 h-3" />
                 Take this lead
               </button>
@@ -1670,7 +1688,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
             </div>
 
             <button onClick={handleSubmit} disabled={!outcome || submitting}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition">
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97]">
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
               {submitting ? 'Saving…' : 'Save call log'}
             </button>
@@ -1803,7 +1821,7 @@ function FollowUpLeadCard({ lead, bucket, lastNote, onCallLog }: {
       tabIndex={0}
       onClick={onCallLog}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onCallLog()}
-      className={`flex items-center gap-3.5 px-5 py-3 border-b border-gray-50 last:border-0 transition cursor-pointer group ${
+      className={`flex items-center gap-3.5 px-5 py-3 border-b border-gray-50 last:border-0 transition active:bg-slate-50 cursor-pointer group ${
         bucket === 'overdue' ? 'bg-red-50/25 hover:bg-red-50/50' : 'hover:bg-gray-50/60'
       }`}
     >
@@ -2190,7 +2208,7 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
 
   return (
     <>
-      <tr onClick={onCallLog} className="hover:bg-gray-50/60 transition-colors cursor-pointer group">
+      <tr onClick={onCallLog} className="hover:bg-gray-50/60 active:bg-slate-100 transition-colors cursor-pointer group">
         <td className="px-5 py-3.5">
           <div className="flex items-center gap-2.5">
             {color && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color.dot }} />}
@@ -2500,7 +2518,7 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
                 ) : (
                   <button
                     onClick={() => onActivate(f)}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition shadow-sm">
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition active:scale-[0.97] shadow-sm">
                     <Zap className="w-3.5 h-3.5" /> Set up automation
                   </button>
                 )}
@@ -2915,7 +2933,7 @@ function LeadsContent() {
           <p className="text-sm text-gray-400 max-w-sm">Connect your Facebook pages to receive leads and send automated WhatsApp messages.</p>
         </div>
         <a href="/api/facebook/auth"
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition">
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97]">
           <Facebook className="w-4 h-4" /> Connect Facebook
         </a>
       </div>
@@ -2980,7 +2998,7 @@ function LeadsContent() {
                 setShowBulkMsg(true)
               }
             }}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition active:scale-[0.97] shadow-sm"
             title="Send a WhatsApp message to existing leads"
           >
             <MessageCircle className="w-4 h-4" />
@@ -2994,7 +3012,7 @@ function LeadsContent() {
             <LogOut className="w-4 h-4" />
           </button>
           <a href="/api/facebook/auth"
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition active:scale-[0.97]">
             <Plus className="w-4 h-4" /> Add page
           </a>
         </div>
@@ -3327,8 +3345,12 @@ function LeadsContent() {
 
       {/* Page lock popup — shown when user tries to message leads from a different page */}
       {showPageLockPopup && lockedPage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4 animate-overlay-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 max-h-[90vh] overflow-y-auto animate-sheet-up sm:animate-none">
+            {/* Drag handle — mobile only */}
+            <div className="sm:hidden flex justify-center -mt-3 mb-3 flex-shrink-0">
+              <div className="w-9 h-1 rounded-full bg-slate-300" />
+            </div>
             <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <MessageCircle className="w-6 h-6 text-amber-500" />
             </div>
@@ -3340,7 +3362,7 @@ function LeadsContent() {
             </p>
             <button
               onClick={() => setShowPageLockPopup(false)}
-              className="w-full py-2.5 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition">
+              className="w-full py-2.5 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition active:scale-[0.97]">
               Got it
             </button>
           </div>
