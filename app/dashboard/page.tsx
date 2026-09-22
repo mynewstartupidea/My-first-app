@@ -2,9 +2,9 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import {
-  IndianRupee, MessageSquare, ShoppingCart, TrendingUp,
-  ArrowRight, Zap, Store, AlertCircle, CheckCircle2,
-  Send, Eye, MousePointerClick, RefreshCw, Users, Target,
+  IndianRupee, MessageSquare, TrendingUp,
+  ArrowRight, Zap, AlertCircle, CheckCircle2,
+  Send, Eye, MousePointerClick, Users, Target,
   Phone, Calendar,
 } from 'lucide-react'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
@@ -89,12 +89,13 @@ export default async function DashboardPage() {
     lead_status: string | null; followup_at: string; wa_status: string
   }>
 
-  const [analyticsRes, messagesRes, campaignsRes, customersRes, automationsRes] = await Promise.all([
+  const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes] = await Promise.all([
     store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? supabase.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? supabase.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
-    store ? supabase.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id).eq('whatsapp_opt_in', true) : Promise.resolve({ count: 0 }),
-    store ? supabase.from('automations').select('type,is_enabled').eq('store_id', store.id) : Promise.resolve({ data: [] }),
+    supabase.from('leads').select('lead_status, wa_status').eq('user_id', user.id),
+    supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id),
+    supabase.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),
   ])
 
   const analytics = analyticsRes.data ?? []
@@ -103,24 +104,28 @@ export default async function DashboardPage() {
     id: string; name: string; status: string; sent_count: number;
     delivered_count: number; read_count?: number; revenue_attributed?: number; created_at: string
   }>
-  const optInCount = customersRes.count ?? 0
-  const automations = automationsRes.data ?? []
-  const activeAutomations = automations.filter(a => a.is_enabled).length
+
+  // Lead-gen KPIs — this business runs on Facebook Lead Ads, not Shopify, so
+  // revenue/cart/COD figures from analytics_daily are always zero and misleading.
+  const leadStats = leadsStatsRes.data ?? []
+  const totalLeads = leadStats.length
+  const hotLeads = leadStats.filter(l => l.lead_status === 'hot').length
+  const respondedLeads = leadStats.filter(l => l.wa_status === 'sent').length
+  const convertedLeads = leadStats.filter(l => l.lead_status === 'converted').length
+  const responseRate = totalLeads > 0 ? Math.round((respondedLeads / totalLeads) * 100) : 0
+  const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0
+
+  const leadForms = leadFormsRes.data ?? []
+  const activeLeadForms = leadForms.filter(f => f.is_enabled).length
+  const missedCallFollowupOn = profileRes.data?.missed_call_followup_enabled ?? false
 
   const totals = analytics.reduce(
     (acc, row) => ({
-      revenue:   acc.revenue   + Number(row.revenue_recovered ?? 0),
       sent:      acc.sent      + (row.messages_sent ?? 0),
       delivered: acc.delivered + (row.messages_delivered ?? 0),
-      carts:     acc.carts     + (row.carts_recovered ?? 0),
-      cod:       acc.cod       + (row.cod_verified ?? 0),
     }),
-    { revenue: 0, sent: 0, delivered: 0, carts: 0, cod: 0 }
+    { sent: 0, delivered: 0 }
   )
-
-  // Revenue from messages table (attributed)
-  const attributedRevenue = recentMessages.reduce((sum, m) => sum + Number(m.revenue_attributed ?? 0), 0)
-  const totalRevenue = Math.max(totals.revenue, attributedRevenue)
 
   // Build 14-day sparkline data
   const last14 = Array.from({ length: 14 }, (_, i) => {
@@ -217,14 +222,14 @@ export default async function DashboardPage() {
         tokenType={waAccount?.token_type ?? null}
       />
 
-      {/* Revenue KPIs */}
+      {/* Lead KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
         {[
           {
-            label: 'WhatsApp Revenue', value: formatCurrency(totalRevenue),
-            icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50',
-            sub: totalRevenue > 0 ? 'from WhatsApp messages' : 'connect store to track',
-            trend: totalRevenue > 0,
+            label: 'Total Leads', value: formatNumber(totalLeads),
+            icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50',
+            sub: totalLeads > 0 ? `${responseRate}% messaged` : 'from Facebook Lead Ads',
+            trend: totalLeads > 0,
           },
           {
             label: 'Messages Sent', value: formatNumber(totals.sent),
@@ -239,10 +244,10 @@ export default async function DashboardPage() {
             trend: readRate > 50,
           },
           {
-            label: 'Opt-in Contacts', value: formatNumber(optInCount),
-            icon: Users, color: 'text-orange-600', bg: 'bg-orange-50',
-            sub: `${activeAutomations} automations active`,
-            trend: optInCount > 0,
+            label: 'Hot Leads', value: formatNumber(hotLeads),
+            icon: Target, color: 'text-orange-600', bg: 'bg-orange-50',
+            sub: totalLeads > 0 ? `${conversionRate}% converted` : 'tag leads to track',
+            trend: hotLeads > 0,
           },
         ].map(card => (
           <div key={card.label} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100 min-w-0">
@@ -303,10 +308,10 @@ export default async function DashboardPage() {
           <h2 className="font-semibold text-slate-800 mb-4">Performance</h2>
           <div className="space-y-3.5">
             {[
-              { label: 'Delivery Rate', value: totals.sent > 0 ? `${deliveryRate}%` : '—', color: 'bg-blue-500', pct: deliveryRate },
-              { label: 'Read Rate',     value: totals.sent > 0 ? `${readRate}%` : '—',     color: 'bg-purple-500', pct: readRate },
-              { label: 'Cart Recovery', value: totals.carts > 0 ? `${totals.carts}` : '—', color: 'bg-emerald-500', pct: totals.carts > 0 ? 75 : 0 },
-              { label: 'COD Verified',  value: totals.cod > 0 ? `${totals.cod}` : '—',     color: 'bg-orange-400', pct: totals.cod > 0 ? 60 : 0 },
+              { label: 'Delivery Rate',   value: totals.sent > 0 ? `${deliveryRate}%` : '—', color: 'bg-blue-500', pct: deliveryRate },
+              { label: 'Read Rate',       value: totals.sent > 0 ? `${readRate}%` : '—',     color: 'bg-purple-500', pct: readRate },
+              { label: 'Response Rate',   value: totalLeads > 0 ? `${responseRate}%` : '—',  color: 'bg-emerald-500', pct: responseRate },
+              { label: 'Conversion Rate', value: totalLeads > 0 ? `${conversionRate}%` : '—', color: 'bg-orange-400', pct: conversionRate },
             ].map(stat => (
               <div key={stat.label}>
                 <div className="flex items-center justify-between mb-1">
@@ -318,16 +323,6 @@ export default async function DashboardPage() {
                 </div>
               </div>
             ))}
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-slate-100">
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-              <Target size={12} className="text-[#25D366]" /> Revenue Goal
-            </div>
-            <p className="text-slate-800 font-semibold text-sm">{formatCurrency(totalRevenue)} <span className="text-slate-400 font-normal">/ ₹1,00,000</span></p>
-            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1.5">
-              <div className="h-full bg-gradient-to-r from-[#25D366] to-[#128C7E] rounded-full" style={{ width: `${Math.min(100, (totalRevenue / 100000) * 100)}%` }} />
-            </div>
           </div>
         </div>
       </div>
@@ -460,18 +455,25 @@ export default async function DashboardPage() {
               <Link href="/dashboard/automations" className="text-[#25D366] text-xs font-medium hover:underline">Manage</Link>
             </div>
             <div className="space-y-2.5">
-              {automations.length > 0 ? automations.slice(0, 5).map((auto: { type: string; is_enabled: boolean }) => (
-                <div key={auto.type} className="flex items-center justify-between">
-                  <span className="text-slate-600 text-xs">{typeLabels[auto.type] ?? auto.type}</span>
-                  <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${auto.is_enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {auto.is_enabled
-                      ? <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> On</>
-                      : 'Off'}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 text-xs">Lead Ad Response</span>
+                {leadForms.length > 0 ? (
+                  <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${activeLeadForms > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {activeLeadForms > 0 && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                    {activeLeadForms} of {leadForms.length} forms
                   </span>
-                </div>
-              )) : (
-                <p className="text-slate-400 text-xs">No automations configured</p>
-              )}
+                ) : (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Not set up</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 text-xs">Missed Call Follow-up</span>
+                <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${missedCallFollowupOn ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                  {missedCallFollowupOn
+                    ? <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> On</>
+                    : 'Off'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -502,10 +504,10 @@ export default async function DashboardPage() {
           {/* CTA card */}
           <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 text-white">
             <MousePointerClick size={18} className="mb-2 opacity-80" />
-            <p className="font-semibold text-sm">Recover more revenue</p>
-            <p className="text-green-100 text-xs mt-1 leading-relaxed">Abandoned cart automation recovers 15-25% of lost orders on average.</p>
-            <Link href="/dashboard/automations" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
-              Enable now <ArrowRight size={12} />
+            <p className="font-semibold text-sm">Speed to lead wins deals</p>
+            <p className="text-green-100 text-xs mt-1 leading-relaxed">Leads messaged within 5 minutes convert up to 9x more often than those contacted an hour later.</p>
+            <Link href="/dashboard/leads" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
+              View leads <ArrowRight size={12} />
             </Link>
           </div>
         </div>
