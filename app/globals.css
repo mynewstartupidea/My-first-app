@@ -18,7 +18,10 @@ body {
   background: #030812;
   color: #1e293b;
   overflow-x: hidden;
-  overscroll-behavior-y: contain;
+  /* overscroll-behavior-y: contain was here to stop rubber-band bounce, but it's a known
+     WebKit/iOS Safari trouble spot: combined with a fixed-position element (the mobile
+     bottom nav), it can break vertical scrolling entirely on real devices — a purely
+     cosmetic property isn't worth that risk. Removed. */
 }
 
 html {
