@@ -70,17 +70,36 @@ export default async function DashboardPage() {
   const msgPct   = msgLimit >= 999_999_999 ? 0 : Math.min(100, Math.round((msgUsed / msgLimit) * 100))
   const msgLeft  = Math.max(0, msgLimit - msgUsed)
 
+  const service = createServiceClient()
+
+  // Lead-based dashboard metrics need to match what the Leads page shows by default:
+  // it defaults to the earliest-connected Facebook Page (facebook_connections ordered
+  // by created_at) unless the browser has a different page cached in sessionStorage —
+  // which a server-rendered dashboard can't see. Scoping to that same default page
+  // keeps "Total Leads" here in sync with what the user sees when they open Leads,
+  // instead of summing every page the account has ever connected.
+  const { data: defaultConnection } = await service
+    .from('facebook_connections')
+    .select('id, page_id, page_name')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const defaultPageId = defaultConnection?.page_id ?? null
+  const defaultConnectionId = defaultConnection?.id ?? null
+
   // Follow-ups due today or overdue — for the sales team widget.
   // Uses service client + explicit filter so team members see their assigned leads
   // even if RLS only permits rows where user_id = auth.uid().
-  const service = createServiceClient()
-  const { data: followupLeads } = await service
+  let followupQuery = service
     .from('leads')
     .select('id, name, phone, lead_status, followup_at, wa_status')
     .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`)
     .not('followup_at', 'is', null)
     .lte('followup_at', new Date().toISOString())
     .not('lead_status', 'in', '("converted","lost","junk")')
+  if (defaultPageId) followupQuery = followupQuery.eq('page_id', defaultPageId)
+  const { data: followupLeads } = await followupQuery
     .order('followup_at', { ascending: true })
     .limit(5)
 
@@ -93,8 +112,12 @@ export default async function DashboardPage() {
     store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? supabase.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? supabase.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
-    supabase.from('leads').select('lead_status, wa_status').eq('user_id', user.id),
-    supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id),
+    defaultPageId
+      ? supabase.from('leads').select('lead_status, wa_status').eq('user_id', user.id).eq('page_id', defaultPageId)
+      : supabase.from('leads').select('lead_status, wa_status').eq('user_id', user.id),
+    defaultConnectionId
+      ? supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id).eq('connection_id', defaultConnectionId)
+      : supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id),
     supabase.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),
   ])
 
