@@ -546,9 +546,9 @@ export default function ContactsPage() {
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">WhatsApp</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Added</th>
+                    <th className="hidden md:table-cell px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
+                    <th className="hidden md:table-cell px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">WhatsApp</th>
+                    <th className="hidden md:table-cell px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Added</th>
                     <th className="px-5 py-3 w-16" />
                   </tr>
                 </thead>
@@ -564,21 +564,29 @@ export default function ContactsPage() {
                             <p className="text-sm font-medium text-gray-900 truncate">
                               {c.name ?? <span className="text-gray-400 font-normal italic">No name</span>}
                             </p>
+                            {c.phone && (
+                              <p className="md:hidden text-xs text-gray-500 font-mono truncate mt-0.5">{c.phone}</p>
+                            )}
                             {c.email && <p className="text-xs text-gray-400 truncate mt-0.5">{c.email}</p>}
+                            <span className={`md:hidden inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium mt-1 ${
+                              c.whatsapp_opt_in ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {c.whatsapp_opt_in ? 'Opted in' : 'Opted out'}
+                            </span>
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="hidden md:table-cell px-5 py-3.5">
                         <span className="text-xs text-gray-600 font-mono">{c.phone}</span>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="hidden md:table-cell px-5 py-3.5">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                           c.whatsapp_opt_in ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                         }`}>
                           {c.whatsapp_opt_in ? 'Opted in' : 'Opted out'}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="hidden md:table-cell px-5 py-3.5">
                         <span className="text-xs text-gray-400">
                           {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>

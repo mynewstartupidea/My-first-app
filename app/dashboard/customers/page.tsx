@@ -155,11 +155,12 @@ export default function CustomersPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium text-slate-800 truncate">{c.name ?? '—'}</p>
+                          <p className="md:hidden text-xs text-slate-500 font-mono truncate">{c.phone}</p>
                           <p className="text-xs text-slate-400 hidden sm:block truncate">{c.email ?? '—'}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">{c.phone}</td>
+                    <td className="hidden md:table-cell px-5 py-3.5 text-slate-600 whitespace-nowrap">{c.phone}</td>
                     <td className="px-5 py-3.5 hidden md:table-cell">
                       <div className="flex items-center gap-1.5 text-slate-600">
                         <ShoppingBag className="w-3.5 h-3.5 text-slate-400" /> {c.total_orders}
@@ -171,7 +172,7 @@ export default function CustomersPage() {
                     <td className="px-5 py-3.5 hidden lg:table-cell text-slate-500 text-xs">
                       {c.last_order_at ? timeAgo(c.last_order_at) : '—'}
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="hidden md:table-cell px-5 py-3.5">
                       {c.whatsapp_opt_in ? (
                         <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-[10px] font-medium px-2 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Opted in

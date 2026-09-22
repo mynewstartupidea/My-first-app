@@ -2219,6 +2219,9 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
                 <p className="text-sm font-medium text-gray-900 truncate">{lead.name ?? '—'}</p>
                 <StatusPicker lead={lead} onUpdate={onUpdate} />
               </div>
+              {lead.phone && (
+                <p className="md:hidden text-xs text-gray-500 font-mono truncate mt-0.5">{lead.phone}</p>
+              )}
               {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
               {lead.assigned_name && (
                 <p className="text-[11px] text-blue-500 mt-0.5 flex items-center gap-1">
@@ -2246,11 +2249,11 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
             </div>
           </div>
         </td>
-        <td className="px-5 py-3.5">
+        <td className="hidden md:table-cell px-5 py-3.5">
           <span className="text-xs text-gray-600 font-mono">{lead.phone ?? '—'}</span>
         </td>
         {showFormBadge && (
-          <td className="px-5 py-3.5">
+          <td className="hidden md:table-cell px-5 py-3.5">
             {color && form ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium max-w-[160px]"
                 style={{ background: color.bg, color: color.text }}>
@@ -2262,8 +2265,8 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
             )}
           </td>
         )}
-        <td className="px-5 py-3.5"><StatusBadge status={lead.wa_status} /></td>
-        <td className="px-5 py-3.5">
+        <td className="hidden md:table-cell px-5 py-3.5"><StatusBadge status={lead.wa_status} /></td>
+        <td className="hidden md:table-cell px-5 py-3.5">
           <span className="text-xs text-gray-400">
             {new Date(lead.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
@@ -3233,12 +3236,12 @@ function LeadsContent() {
                   <thead>
                     <tr className="border-b border-gray-100">
                       <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
+                      <th className="hidden md:table-cell px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
                       {selectedFormId === 'all' && (
-                        <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-48">Form</th>
+                        <th className="hidden md:table-cell px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-48">Form</th>
                       )}
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                      <th className="hidden md:table-cell px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                      <th className="hidden md:table-cell px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
                       <th className="px-5 py-3 w-16" />
                     </tr>
                   </thead>
