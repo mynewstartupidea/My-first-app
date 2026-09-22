@@ -131,7 +131,7 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }:
   const visibleNavBottom = NAV_BOTTOM.filter(item => canAccess(role, item.href))
 
   return (
-    <aside className="w-[220px] min-h-screen bg-[#0a0f1e] flex flex-col fixed left-0 top-0 z-30 border-r border-white/[0.05]">
+    <aside className="w-[220px] min-h-screen bg-[#0a0f1e] hidden md:flex flex-col fixed left-0 top-0 z-30 border-r border-white/[0.05]">
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/[0.06] flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2.5">
