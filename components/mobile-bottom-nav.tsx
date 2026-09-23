@@ -2,19 +2,33 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, UserPlus, MessageSquare, Zap, Settings } from 'lucide-react'
+import { LayoutDashboard, UserPlus, MessageSquare, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// Only these three get a permanent tab — the things done constantly (checking
+// leads, replying to chats). Everything else (Automations, Campaigns,
+// Analytics, Templates, Settings, ...) lives behind "More" instead of eating
+// a tab slot for something opened once a week. Matches how Salesforce,
+// HubSpot, Pipedrive and Close all structure mobile nav for this category of
+// app: a few core destinations always visible, one hub for the rest — never
+// a top hamburger hiding the core workflow itself.
 const TABS = [
-  { href: '/dashboard',             icon: LayoutDashboard, label: 'Home'        },
-  { href: '/dashboard/leads',       icon: UserPlus,        label: 'Leads'       },
-  { href: '/dashboard/live-chat',   icon: MessageSquare,   label: 'Chat'        },
-  { href: '/dashboard/automations', icon: Zap,             label: 'Automations' },
-  { href: '/dashboard/settings',    icon: Settings,        label: 'Settings'    },
+  { href: '/dashboard',           icon: LayoutDashboard, label: 'Home'  },
+  { href: '/dashboard/leads',     icon: UserPlus,        label: 'Leads' },
+  { href: '/dashboard/live-chat', icon: MessageSquare,   label: 'Chat'  },
+  { href: '/dashboard/more',      icon: Menu,            label: 'More'  },
 ]
 
 export default function MobileBottomNav() {
   const pathname = usePathname()
+
+  const isHome  = pathname === '/dashboard'
+  const isLeads = pathname.startsWith('/dashboard/leads')
+  const isChat  = pathname.startsWith('/dashboard/live-chat')
+  // Any route that isn't one of the three primary tabs is reachable only via
+  // More (Settings, Automations, Campaigns, ...), so More stays highlighted
+  // there too — otherwise landing on Settings would show no active tab at all.
+  const isMore  = !isHome && !isLeads && !isChat
 
   return (
     <nav
@@ -23,9 +37,10 @@ export default function MobileBottomNav() {
     >
       <div className="flex items-center justify-around h-[60px]">
         {TABS.map(({ href, icon: Icon, label }) => {
-          const active = href === '/dashboard'
-            ? pathname === '/dashboard'
-            : pathname.startsWith(href)
+          const active = href === '/dashboard' ? isHome
+            : href === '/dashboard/leads' ? isLeads
+            : href === '/dashboard/live-chat' ? isChat
+            : isMore
           return (
             <Link
               key={href}

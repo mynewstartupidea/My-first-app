@@ -34,5 +34,10 @@ export const ROLE_NAV_ACCESS: Record<UserRole, string[]> = {
 export function canAccess(role: UserRole, href: string): boolean {
   const allowed = ROLE_NAV_ACCESS[role]
   if (allowed.includes('*')) return true
-  return allowed.some(a => href === a || href.startsWith(a + '/'))
+  // '/dashboard' is in every restricted role's list (it's the home page), but
+  // every other route also starts with '/dashboard/' — so prefix-matching it
+  // like any other entry silently granted every role access to every route.
+  // Exact-match it instead; keep prefix matching for actual section entries
+  // (e.g. '/dashboard/leads' still covers '/dashboard/leads/123').
+  return allowed.some(a => href === a || (a !== '/dashboard' && href.startsWith(a + '/')))
 }
