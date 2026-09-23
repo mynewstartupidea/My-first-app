@@ -38,8 +38,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           Bottom padding must match MobileBottomNav's actual height (60px + its own
           safe-area-inset-bottom padding) or the last rows of a long scrollable list (e.g.
           leads) end up hidden behind the fixed nav on phones with a home indicator, where
-          that safe-area inset is ~34px — a flat 76px undershoots it there. */}
-      <main className="flex-1 min-w-0 ml-0 md:ml-[220px] min-h-screen pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0">
+          that safe-area inset is ~34px — a flat 76px undershoots it there.
+          MobileHeader is position:fixed (not sticky — see its own comment), so it's
+          taken out of flow; pt- here reserves the same space so content starts below
+          it instead of sliding underneath. */}
+      <main className="flex-1 min-w-0 ml-0 md:ml-[220px] min-h-screen pt-[calc(52px+env(safe-area-inset-top))] md:pt-0 pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0">
         <MobileHeader />
         {children}
       </main>

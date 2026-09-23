@@ -1,5 +1,17 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
+
+// Self-hosted via next/font instead of the old @import from fonts.googleapis.com —
+// that was a render-blocking external request on every page load (extra DNS/TLS
+// round trip before the CSSOM could finish), worst on mobile networks. This inlines
+// the font file at build time with no runtime fetch and no flash of fallback text.
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title:       'Wapaci – WhatsApp Lead CRM',
@@ -35,7 +47,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>{children}</body>
     </html>
   )
