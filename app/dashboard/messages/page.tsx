@@ -70,7 +70,7 @@ export default function MessagesPage() {
     <div className="p-4 md:p-6 lg:p-8 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 md:mb-6">
         <div className="min-w-0">
-          <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-slate-900">Messages</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Messages</h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">All WhatsApp messages sent to your customers</p>
         </div>
         <button onClick={loadMessages} className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-white transition border border-slate-200 bg-white shadow-sm w-full sm:w-auto flex-shrink-0">

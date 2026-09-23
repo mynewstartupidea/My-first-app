@@ -603,7 +603,7 @@ export default function AutomationsPage() {
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-slate-900">Automations</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Automations</h1>
           <p className="text-slate-500 text-sm mt-0.5">
             {activeCount > 0
               ? `${activeCount} automation${activeCount > 1 ? 's' : ''} running — recovering revenue 24/7`

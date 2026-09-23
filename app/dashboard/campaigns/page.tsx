@@ -1067,7 +1067,7 @@ export default function CampaignsPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
         <div className="min-w-0">
-          <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-slate-900">Campaigns</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Campaigns</h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
             {activeTab === 'ecommerce' ? 'WhatsApp broadcast campaigns for revenue generation' : 'Message your lead ad contacts at scale'}
           </p>

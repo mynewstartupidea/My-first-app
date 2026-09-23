@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between mb-5 md:mb-6">
         <div className="min-w-0">
-          <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-slate-900">Lead Analytics</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Lead Analytics</h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Track your lead quality, ad performance, and close rate</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

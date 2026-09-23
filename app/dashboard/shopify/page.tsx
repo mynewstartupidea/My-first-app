@@ -44,7 +44,7 @@ export default async function ShopifyPage() {
     <div className="p-6 lg:p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-7">
         <div>
-          <h1 className="hidden md:flex text-2xl font-bold text-slate-900 items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <ShoppingBag size={22} className="text-[#96bf48]" /> Shopify Integration
           </h1>
           <p className="text-slate-500 text-sm mt-1">Deep integration with your Shopify store for WhatsApp automation</p>

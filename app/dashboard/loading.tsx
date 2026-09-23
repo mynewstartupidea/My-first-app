@@ -2,8 +2,8 @@
 // page's server data is still in flight — without this, Next.js has no
 // Suspense fallback here, so a tap just sits frozen until the full response
 // lands, which reads as a slow website rather than an app. This wraps every
-// route under /dashboard (Sidebar/MobileHeader/MobileBottomNav live in the
-// persisted layout above {children}, so only the content area pulses).
+// route under /dashboard (Sidebar/MobileBottomNav live in the persisted
+// layout above {children}, so only the content area pulses).
 export default function DashboardLoading() {
   return (
     <div className="p-4 md:p-6 lg:p-8 animate-pulse">

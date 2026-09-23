@@ -418,7 +418,7 @@ export default function ContactsPage() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap">
           <div className="min-w-0">
-            <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-gray-900">Contacts</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Contacts</h1>
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
               {stats.total.toLocaleString()} contacts saved
               {stats.completed > 0 && ` · ${stats.completed} campaign${stats.completed !== 1 ? 's' : ''} completed`}

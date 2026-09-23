@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/sidebar'
 import MobileBottomNav from '@/components/mobile-bottom-nav'
-import MobileHeader from '@/components/mobile-header'
 import PageTransition from '@/components/page-transition'
 import RouteProgress from '@/components/route-progress'
 import { getUserRole } from '@/lib/get-user-role'
@@ -42,11 +41,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           safe-area-inset-bottom padding) or the last rows of a long scrollable list (e.g.
           leads) end up hidden behind the fixed nav on phones with a home indicator, where
           that safe-area inset is ~34px — a flat 76px undershoots it there.
-          MobileHeader is position:fixed (not sticky — see its own comment), so it's
-          taken out of flow; pt- here reserves the same space so content starts below
-          it instead of sliding underneath. */}
-      <main className="flex-1 min-w-0 ml-0 md:ml-[220px] min-h-screen pt-[calc(52px+env(safe-area-inset-top))] md:pt-0 pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0">
-        <MobileHeader />
+          No fixed mobile header anymore — every page already renders its own title
+          in-content (icon + name, sometimes with its own action buttons), and a
+          second bar above that duplicating the same text just ate screen space for
+          nothing. pt- here only needs to clear the phone's own status bar/notch. */}
+      <main className="flex-1 min-w-0 ml-0 md:ml-[220px] min-h-screen pt-[env(safe-area-inset-top)] md:pt-0 pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0">
         <PageTransition>{children}</PageTransition>
       </main>
 
