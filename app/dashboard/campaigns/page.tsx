@@ -956,7 +956,12 @@ function CampaignsContent() {
   const [customerCounts, setCounts]       = useState<CustomerCounts>({})
   const [loading, setLoading]             = useState(true)
   const [hasStore, setHasStore]           = useState(true)
-  const [activeTab, setActiveTab]         = useState<'ecommerce' | 'lead_ad'>('ecommerce')
+  // Defaults to Lead Ad, not Ecommerce — this account is lead-gen only (see
+  // the same call on Dashboard home), so the first thing shown here shouldn't
+  // be a "Revenue ₹0" card and ecommerce broadcast copy for a business that
+  // doesn't have orders or carts. ?tab=lead_ad from the Leads page still works
+  // the same either way, this just fixes what a cold visit to this page shows.
+  const [activeTab, setActiveTab]         = useState<'ecommerce' | 'lead_ad'>('lead_ad')
   const [showCreate, setShowCreate]       = useState(false)
   const [showLeadCreate, setShowLeadCreate] = useState(false)
   const [sending, setSending]             = useState<string | null>(null)

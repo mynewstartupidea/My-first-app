@@ -606,8 +606,8 @@ export default function AutomationsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Automations</h1>
           <p className="text-slate-500 text-sm mt-0.5">
             {activeCount > 0
-              ? `${activeCount} automation${activeCount > 1 ? 's' : ''} running — recovering revenue 24/7`
-              : 'Set up automations to start recovering revenue automatically'}
+              ? `${activeCount} automation${activeCount > 1 ? 's' : ''} running`
+              : 'Set up automations so leads get an instant reply, even after hours'}
           </p>
         </div>
         <button onClick={load} className="self-start flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition">
@@ -615,15 +615,18 @@ export default function AutomationsPage() {
         </button>
       </div>
 
-      {/* Revenue impact banner */}
+      {/* Speed-to-lead banner — same claim and framing as the Dashboard home
+          card, not "recover revenue" copy left over from before this was a
+          lead-gen-only product. That framing didn't fit an account with no
+          orders or carts to recover. */}
       {activeCount === 0 && (
         <div className="bg-gradient-to-r from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 mb-6 flex items-center gap-3 sm:gap-4">
           <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
             <Zap size={17} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-white text-sm sm:text-base">Enable automations to recover revenue while you sleep</p>
-            <p className="text-green-100 text-xs sm:text-sm mt-0.5">Merchants with 3+ automations see avg. ₹25,000/month in recovered revenue.</p>
+            <p className="font-bold text-white text-sm sm:text-base">Enable automations so no lead waits for a reply</p>
+            <p className="text-green-100 text-xs sm:text-sm mt-0.5">Leads messaged within 5 minutes convert up to 9x more often than those contacted an hour later.</p>
           </div>
         </div>
       )}

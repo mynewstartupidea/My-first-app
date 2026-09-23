@@ -661,21 +661,28 @@ function SettingsInner() {
         <p className="text-slate-500 text-xs sm:text-sm mt-1">Manage your account, store, usage, and team</p>
       </div>
 
-      {/* Tab navigation */}
-      <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1 mb-5 md:mb-7 overflow-x-auto -mx-1 px-1 sm:mx-0">
-        {TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            data-settings-tab={id}
-            onClick={() => setActiveTab(id)}
-            className={cn(
-              'flex-shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap',
-              activeTab === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Tab navigation — 6 tabs don't fit a phone width, so this scrolls. Unlike
+          an underlined tab row, a solid pill control gives no visual hint it's
+          cut off — it just looks like a complete, self-contained row — which is
+          how Team ended up invisible on mobile with nothing suggesting it was
+          one swipe away. The fade at least signals there's more. */}
+      <div className="relative mb-5 md:mb-7">
+        <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1 overflow-x-auto -mx-1 px-1 sm:mx-0">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              data-settings-tab={id}
+              onClick={() => setActiveTab(id)}
+              className={cn(
+                'flex-shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap',
+                activeTab === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="md:hidden pointer-events-none absolute top-1 right-1 bottom-1 w-8 rounded-r-2xl bg-gradient-to-l from-slate-100 to-transparent" />
       </div>
 
       {/* ── Account ─────────────────────────────────────────────────────────── */}
