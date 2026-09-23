@@ -1863,10 +1863,22 @@ function FollowUpLeadCard({ lead, bucket, lastNote, onCallLog }: {
         {formatDueLabel(lead.followup_at!, bucket)}
       </span>
 
-      {/* Call icon — visual affordance, row itself is the click target */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#25D366]/10 group-hover:bg-[#25D366]/25 flex items-center justify-center transition">
-        <Phone className="w-3.5 h-3.5 text-[#25D366]" />
-      </div>
+      {/* Call icon dials the number directly; the row itself (anywhere else,
+          including this icon's own stopPropagation) opens the feedback sheet. */}
+      {lead.phone ? (
+        <a
+          href={`tel:${lead.phone}`}
+          onClick={e => e.stopPropagation()}
+          title={`Call ${lead.phone}`}
+          className="flex-shrink-0 w-8 h-8 rounded-full bg-[#25D366]/10 hover:bg-[#25D366]/25 active:scale-95 flex items-center justify-center transition"
+        >
+          <Phone className="w-3.5 h-3.5 text-[#25D366]" />
+        </a>
+      ) : (
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+          <Phone className="w-3.5 h-3.5 text-gray-300" />
+        </div>
+      )}
     </div>
   )
 }
@@ -2279,11 +2291,18 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
             <span className="hidden group-hover:inline-flex items-center gap-1 text-[11px] text-blue-500 font-medium mr-1 whitespace-nowrap">
               <Phone className="w-3 h-3" /> Log call
             </span>
-            <button onClick={onCallLog}
-              className="p-1.5 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-100 transition"
-              title="Log a call">
-              <Phone className="w-4 h-4" />
-            </button>
+            {/* Dials directly — logging feedback happens by clicking anywhere else on the row */}
+            {lead.phone ? (
+              <a href={`tel:${lead.phone}`}
+                className="p-1.5 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-100 transition"
+                title={`Call ${lead.phone}`}>
+                <Phone className="w-4 h-4" />
+              </a>
+            ) : (
+              <span className="p-1.5 rounded-lg bg-gray-50 text-gray-300" title="No phone number">
+                <Phone className="w-4 h-4" />
+              </span>
+            )}
             {lead.phone && lead.wa_status !== 'sent' && (
               <button onClick={onWhatsApp}
                 className={`p-1.5 rounded-lg transition ${
@@ -2413,9 +2432,18 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
             <MessageCircle className="w-4 h-4" />
           </button>
         )}
-        <div className="w-9 h-9 rounded-full bg-[#25D366]/10 flex items-center justify-center flex-shrink-0">
-          <Phone className="w-3.5 h-3.5 text-[#25D366]" />
-        </div>
+        {/* Dials directly — tapping the card anywhere else opens the feedback sheet */}
+        {lead.phone ? (
+          <a href={`tel:${lead.phone}`}
+            className="w-9 h-9 rounded-full bg-[#25D366]/10 active:bg-[#25D366]/25 flex items-center justify-center flex-shrink-0 transition"
+            title={`Call ${lead.phone}`}>
+            <Phone className="w-3.5 h-3.5 text-[#25D366]" />
+          </a>
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <Phone className="w-3.5 h-3.5 text-gray-300" />
+          </div>
+        )}
       </div>
     </div>
   )
