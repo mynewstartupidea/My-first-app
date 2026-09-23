@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Wapaci</string>
+    <string name="title_activity_main">Wapaci</string>
+    <string name="package_name">com.wapaci.app</string>
+    <string name="custom_url_scheme">com.wapaci.app</string>
+</resources>
