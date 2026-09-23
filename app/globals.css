@@ -43,12 +43,18 @@ button, a, [role="button"] {
 }
 .animate-route-progress { animation: route-progress 1s cubic-bezier(0.1, 0.7, 0.3, 1) forwards; }
 
-/* Bottom-sheet modals on mobile — slide up from the bottom like a native sheet */
+/* Bottom-sheet modals on mobile — slide up from the bottom like a native sheet.
+   No `forwards` — same reasoning as .animate-fade-in above: this class sits
+   directly on modal content wrappers across the app, some of which render
+   their own nested `position: fixed` elements (date pickers, dropdowns). A
+   stuck transform: translateY(0) would trap those inside this box instead of
+   the viewport. Dropping `forwards` ends at the same translateY(0)/none —
+   visually identical, just doesn't stick around after the slide-up finishes. */
 @keyframes sheet-up {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
 }
-.animate-sheet-up { animation: sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+.animate-sheet-up { animation: sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
 
 @keyframes overlay-in {
   from { opacity: 0; }
@@ -86,7 +92,19 @@ body::after {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in { animation: fadeIn 0.3s ease forwards; }
+/* No `forwards` here — this is load-bearing, not a style choice. With
+   animation-fill-mode: forwards, the element keeps the last keyframe's
+   transform (translateY(0)) applied forever after the animation ends. Any
+   non-'none' transform — even a no-op translateY(0) — creates a new CSS
+   containing block for `position: fixed` descendants, so every fixed-position
+   modal nested anywhere under an .animate-fade-in ancestor (e.g. every
+   dashboard page, via PageTransition) stops being fixed to the viewport and
+   instead gets fixed to that ancestor's scrollable box — which is how a lead
+   modal opened while the page was scrolled down showed its bottom half
+   first. Dropping `forwards` is visually identical (opacity reverts to its
+   default of 1, transform to its default of none — exactly the 'to'
+   keyframe) but stops leaving that transform stuck on the element. */
+.animate-fade-in { animation: fadeIn 0.3s ease; }
 
 @keyframes pulse-green {
   0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.4); }

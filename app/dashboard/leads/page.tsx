@@ -3109,6 +3109,7 @@ function LeadsContent() {
   const enabledForms = activeForms.filter(f => f.is_enabled)
 
   return (
+    <>
     <div className="p-4 md:p-6 lg:p-8 space-y-5">
 
       {/* Sync toast — fixed bottom-right, no layout impact */}
@@ -3477,9 +3478,15 @@ function LeadsContent() {
           </>
         )}
       </div>
+    </div>
 
-      {/* Modals */}
-      {showActivate && (
+    {/* Modals — rendered as siblings of the space-y-5 content div, not inside it.
+        They used to be its later children, which meant Tailwind's space-y-5 (it adds
+        margin-top to every non-first child) pushed each fixed inset-0 modal down 20px
+        from the true viewport top — on a long scrolled page, opening the call-log
+        sheet would show its middle/bottom instead of its header until you scrolled
+        the page itself back up to reveal it. */}
+    {showActivate && (
         <ActivateFormModal
           selectedPageId={selectedPageId}
           activeForms={activeForms}
@@ -3552,7 +3559,7 @@ function LeadsContent() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
