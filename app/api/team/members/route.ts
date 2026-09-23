@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveManagedOrg } from '@/lib/resolve-managed-org'
 
 export async function GET() {
   const supabase = await createClient()
@@ -7,13 +8,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
-
-  const { data: org } = await service
-    .from('organizations')
-    .select('id, name')
-    .eq('owner_id', user.id)
-    .maybeSingle()
-
+  const org = await resolveManagedOrg(service, user.id, user.email ?? '')
   if (!org) return NextResponse.json({ members: [], org: null })
 
   const { data: members } = await service
@@ -35,14 +30,7 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const service = createServiceClient()
-
-  // Verify ownership through org
-  const { data: org } = await service
-    .from('organizations')
-    .select('id')
-    .eq('owner_id', user.id)
-    .maybeSingle()
-
+  const org = await resolveManagedOrg(service, user.id, user.email ?? '')
   if (!org) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { error } = await service
@@ -68,12 +56,7 @@ export async function PATCH(request: Request) {
   if (!VALID_ROLES.includes(role)) return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
 
   const service = createServiceClient()
-  const { data: org } = await service
-    .from('organizations')
-    .select('id')
-    .eq('owner_id', user.id)
-    .maybeSingle()
-
+  const org = await resolveManagedOrg(service, user.id, user.email ?? '')
   if (!org) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data, error } = await service

@@ -29,16 +29,27 @@ export default async function DashboardPage() {
 
   if (!store) {
     try {
-      const { data: profile } = await supabase
-        .from('user_profiles').select('company_name').eq('id', user.id).maybeSingle()
-      const shopName = profile?.company_name || (user.user_metadata?.company_name as string | undefined) || 'My Store'
-      const { data: newStore } = await supabase
-        .from('stores')
-        .insert({ user_id: user.id, shop_name: shopName, is_active: true, whatsapp_bsp: 'mock', plan: 'starter' })
-        .select('*').single()
-      if (newStore) {
-        store = newStore
-        await supabase.rpc('create_default_automations', { p_store_id: newStore.id })
+      // Don't auto-provision a store for an invited teammate — this used to run for
+      // anyone with zero stores, so any Sales/Admin rep's very first dashboard visit
+      // silently created them their own empty "My Store" and made getUserRole() see
+      // stores.user_id = them and classify them as 'owner', overriding the role they
+      // were actually invited with. Only self-serve signups (no active team_members
+      // row) should get auto-provisioned.
+      const { data: membership } = await supabase
+        .from('team_members').select('id').eq('email', user.email ?? '').eq('status', 'active').maybeSingle()
+
+      if (!membership) {
+        const { data: profile } = await supabase
+          .from('user_profiles').select('company_name').eq('id', user.id).maybeSingle()
+        const shopName = profile?.company_name || (user.user_metadata?.company_name as string | undefined) || 'My Store'
+        const { data: newStore } = await supabase
+          .from('stores')
+          .insert({ user_id: user.id, shop_name: shopName, is_active: true, whatsapp_bsp: 'mock', plan: 'starter' })
+          .select('*').single()
+        if (newStore) {
+          store = newStore
+          await supabase.rpc('create_default_automations', { p_store_id: newStore.id })
+        }
       }
     } catch { /* non-fatal */ }
   }

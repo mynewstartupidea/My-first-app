@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getAppUrl } from '@/lib/get-app-url'
+import { resolveManagedOrg } from '@/lib/resolve-managed-org'
 
 const VALID_ROLES = ['admin', 'manager', 'support', 'member'] as const
 type Role = typeof VALID_ROLES[number]
@@ -21,14 +22,21 @@ export async function POST(request: Request) {
 
   const service = createServiceClient()
 
-  // Get or create organization for this owner
-  let { data: org } = await service
-    .from('organizations')
-    .select('id, name')
-    .eq('owner_id', user.id)
-    .maybeSingle()
+  // Get this user's existing org (owned, or as an active admin teammate — see
+  // resolveManagedOrg). Only fall through to creating a brand-new organization for
+  // a genuine first-time self-serve signup: previously this checked owner_id alone,
+  // so an admin teammate inviting someone would silently spin up a second, separate
+  // organization instead of adding to the one they already belong to.
+  let org = await resolveManagedOrg(service, user.id, user.email ?? '')
 
   if (!org) {
+    const { data: existingMembership } = await service
+      .from('team_members').select('id').eq('email', user.email ?? '').eq('status', 'active').maybeSingle()
+    if (existingMembership) {
+      // An active teammate without invite rights (e.g. a Sales/Support/Manager role) — not a fresh signup.
+      return NextResponse.json({ error: 'You do not have permission to invite team members.' }, { status: 403 })
+    }
+
     const [{ data: store }, { data: profile }] = await Promise.all([
       supabase.from('stores').select('shop_name').eq('user_id', user.id).eq('is_active', true)
         .order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle(),
@@ -38,10 +46,11 @@ export async function POST(request: Request) {
     const { data: newOrg, error: orgErr } = await service
       .from('organizations')
       .insert({ name: orgName, owner_id: user.id })
-      .select('id, name').single()
+      .select('*').single()
     if (orgErr) return NextResponse.json({ error: 'Could not create organization' }, { status: 500 })
     org = newOrg
   }
+  if (!org) return NextResponse.json({ error: 'Could not resolve organization' }, { status: 500 })
 
   // Prevent duplicate invites
   const { data: existing } = await service

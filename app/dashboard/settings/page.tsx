@@ -8,7 +8,8 @@ import {
   Store, MessageCircle, Loader2, Save, CheckCircle2,
   AlertCircle, ExternalLink, Trash2, Info, ChevronDown, ChevronUp,
   CreditCard, Users, Shield,
-  UserPlus, Mail, Lock, RefreshCw, XCircle, ArrowUpRight
+  UserPlus, Mail, Lock, RefreshCw, XCircle, ArrowUpRight,
+  BarChart2, Phone, Target,
 } from 'lucide-react'
 // Lead-ads billing plans (Razorpay)
 const LEAD_PLANS = [
@@ -18,7 +19,7 @@ const LEAD_PLANS = [
   { id: 'enterprise', name: 'Enterprise', price: '₹24,999',messages: 999999999, description: 'Unlimited for large teams',        recommended: false },
 ] as const
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, timeAgo } from '@/lib/utils'
 import type { Store as StoreType } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -126,6 +127,12 @@ function SettingsInner() {
   const [distMembers, setDistMembers]         = useState<{user_id:string;email:string;weight:number}[]>([])
   const [activeMembers, setActiveMembers]     = useState<{id:string;user_id:string|null;email:string}[]>([])
   const [savingDist,  setSavingDist]          = useState(false)
+  // Team activity — owner/admin only, 403s silently for everyone else (see loadActivity)
+  const [teamActivity, setTeamActivity]       = useState<{
+    user_id: string; email: string; role: string
+    leads_assigned: number; converted: number; calls_logged: number; last_activity_at: string | null
+  }[] | null>(null)
+  const [loadingActivity, setLoadingActivity] = useState(false)
 
   const router  = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -266,6 +273,12 @@ function SettingsInner() {
   useEffect(() => {
     if (activeTab === 'team') {
       loadMembers()
+      setLoadingActivity(true)
+      fetch('/api/settings/team-activity')
+        .then(r => (r.ok ? r.json() : Promise.reject()) as Promise<{ activity: typeof teamActivity }>)
+        .then(d => setTeamActivity(d.activity ?? []))
+        .catch(() => setTeamActivity(null)) // 403 for non-admins, or any failure — section just stays hidden
+        .finally(() => setLoadingActivity(false))
       fetch('/api/settings/lead-distribution')
         .then(r => r.json() as Promise<{mode?:string;distribution_members?:{user_id:string;weight:number}[];active_members?:{id:string;user_id:string|null;email:string}[]}>)
         .then(d => {
@@ -1196,19 +1209,25 @@ function SettingsInner() {
               </button>
             </div>
 
-            {/* Always show owner */}
-            <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl mb-2">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 bg-[#25D366] rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                  {userEmail[0]?.toUpperCase() ?? 'Y'}
+            {/* Show the current viewer as "Owner" only when they actually are — derived
+                from teamActivity (owner/admin only; null for everyone else, who by
+                definition of that gate can't be the owner either). This used to render
+                unconditionally for whoever was logged in, so an invited Sales rep saw
+                themselves labeled "Owner · Full access" on their own Settings page. */}
+            {(teamActivity?.some(p => p.role === 'owner' && p.email === userEmail) ?? false) && (
+              <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl mb-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 bg-[#25D366] rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {userEmail[0]?.toUpperCase() ?? 'Y'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{userEmail}</p>
+                    <p className="text-xs text-slate-400">Owner · Full access</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{userEmail}</p>
-                  <p className="text-xs text-slate-400">Owner · Full access</p>
-                </div>
+                <span className="text-xs bg-[#25D366]/10 text-[#25D366] font-semibold px-2.5 py-1 rounded-full flex-shrink-0">Owner</span>
               </div>
-              <span className="text-xs bg-[#25D366]/10 text-[#25D366] font-semibold px-2.5 py-1 rounded-full flex-shrink-0">Owner</span>
-            </div>
+            )}
 
             {loadingMembers ? (
               <div className="flex items-center justify-center py-8">
@@ -1346,6 +1365,76 @@ function SettingsInner() {
                 : <><Save className="w-3.5 h-3.5" /> Save distribution settings</>}
             </button>
           </section>
+
+          {/* Team Activity — owner/admin only. teamActivity stays null (section hidden)
+              for anyone the API 403s, so a sales rep with Settings access never sees
+              teammates' individual numbers. */}
+          {teamActivity && teamActivity.length > 0 && (
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
+              <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+                <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <BarChart2 className="w-3.5 h-3.5 text-blue-600" />
+                </div>
+                Team Activity
+              </h3>
+              <p className="text-slate-400 text-xs mb-5 ml-9">Who's working which leads, and how much</p>
+
+              {loadingActivity ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#25D366]" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {[...teamActivity]
+                    .sort((a, b) => b.calls_logged - a.calls_logged)
+                    .map(person => {
+                      const conversionRate = person.leads_assigned > 0
+                        ? Math.round((person.converted / person.leads_assigned) * 100)
+                        : 0
+                      return (
+                        <div key={person.user_id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                              {person.email[0]?.toUpperCase() ?? '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-medium text-slate-800 truncate">{person.email}</p>
+                                <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize flex-shrink-0', ROLE_COLORS[person.role] ?? ROLE_COLORS.member)}>
+                                  {person.role === 'member' ? 'Sales' : person.role}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                {person.last_activity_at ? `Last call ${timeAgo(person.last_activity_at)}` : 'No calls logged yet'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 sm:gap-4 flex-shrink-0 text-right pl-12 sm:pl-0 sm:ml-auto">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800 tabular-nums flex items-center gap-1 justify-end">
+                                <Phone className="w-3 h-3 text-slate-400" /> {person.calls_logged}
+                              </p>
+                              <p className="text-[10px] text-slate-400">calls</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800 tabular-nums">{person.leads_assigned}</p>
+                              <p className="text-[10px] text-slate-400">leads</p>
+                            </div>
+                            <div>
+                              <p className={cn('text-sm font-semibold tabular-nums flex items-center gap-1 justify-end',
+                                conversionRate > 0 ? 'text-emerald-600' : 'text-slate-800')}>
+                                <Target className="w-3 h-3 text-slate-400" /> {conversionRate}%
+                              </p>
+                              <p className="text-[10px] text-slate-400">converted</p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       )}
 
