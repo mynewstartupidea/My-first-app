@@ -91,7 +91,7 @@ export default function SupportPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-3xl">
       <div className="mb-5 md:mb-7">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+        <h1 className="hidden md:flex text-xl sm:text-2xl font-bold text-slate-900 items-center gap-2">
           <LifeBuoy size={22} className="text-slate-700 flex-shrink-0" /> Help &amp; Support
         </h1>
         <p className="text-slate-500 text-xs sm:text-sm mt-1">Submit a query or report an issue — we respond within 24 hours</p>

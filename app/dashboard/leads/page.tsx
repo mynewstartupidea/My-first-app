@@ -3129,7 +3129,7 @@ function LeadsContent() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Lead Ads</h1>
+          <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-gray-900">Lead Ads</h1>
           <p className="text-sm text-gray-400 mt-0.5">
             {pages.length} page{pages.length !== 1 ? 's' : ''} connected
             {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} tracked`}

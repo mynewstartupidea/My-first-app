@@ -657,7 +657,7 @@ function SettingsInner() {
       )}
 
       <div className="mb-5 md:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Settings</h1>
+        <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-slate-900">Settings</h1>
         <p className="text-slate-500 text-xs sm:text-sm mt-1">Manage your account, store, usage, and team</p>
       </div>
 

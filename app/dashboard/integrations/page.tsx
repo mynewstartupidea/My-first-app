@@ -228,7 +228,7 @@ function IntegrationsInner() {
 
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Integrations</h1>
+          <h1 className="hidden md:block text-xl sm:text-2xl font-bold text-slate-900">Integrations</h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">Connect Wapaci with your ecommerce stack</p>
         </div>
       </div>
