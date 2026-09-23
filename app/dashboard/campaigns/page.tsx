@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Megaphone, Plus, Users, Send, Loader2, X, CheckCircle2,
@@ -946,7 +947,9 @@ function LeadDateRangePicker({ from, to, onChange }: {
 
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 
-export default function CampaignsPage() {
+function CampaignsContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [campaigns, setCampaigns]         = useState<Campaign[]>([])
   const [leadCampaigns, setLeadCampaigns] = useState<LeadCampaign[]>([])
   const [templates, setTemplates]         = useState<Template[]>([])
@@ -960,6 +963,16 @@ export default function CampaignsPage() {
   const [toast, setToast]                 = useState<{ msg: string; ok: boolean } | null>(null)
   const [expandedId, setExpandedId]       = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
+
+  // Deep-link support: the Leads page's "Message" button sends people here
+  // instead of opening its own duplicate send flow — this is the one place
+  // that flow lives now, with campaign history and naming the old modal never
+  // had. ?tab=lead_ad switches tabs, ?new=1 opens the create flow directly.
+  useEffect(() => {
+    if (searchParams.get('tab') === 'lead_ad') setActiveTab('lead_ad')
+    if (searchParams.get('new') === '1') setShowLeadCreate(true)
+    if (searchParams.get('tab') || searchParams.get('new')) router.replace('/dashboard/campaigns', { scroll: false })
+  }, [searchParams, router])
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok })
@@ -1335,5 +1348,13 @@ export default function CampaignsPage() {
         )
       )}
     </div>
+  )
+}
+
+export default function CampaignsPage() {
+  return (
+    <Suspense fallback={null}>
+      <CampaignsContent />
+    </Suspense>
   )
 }

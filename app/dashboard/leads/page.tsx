@@ -979,313 +979,6 @@ function ImportModal({ form, onClose, onImport }: {
   )
 }
 
-// ── BulkMessageModal ──────────────────────────────────────────────────────────
-
-function BulkMessageModal({ activeForms, onClose, onSent }: {
-  activeForms: ActiveForm[]
-  onClose: () => void
-  onSent: (count: number) => void
-}) {
-  type WaTemplate = StarterTemplate & { status: string }
-
-  const [step,             setStep]             = useState<'filters' | 'template'>('filters')
-  const [selectedFormId,   setSelectedFormId]   = useState<string | null>(null)
-  const [dateFrom,         setDateFrom]         = useState<string | null>(null)
-  const [dateTo,           setDateTo]           = useState<string | null>(null)
-  const [count,            setCount]            = useState<number | null>(null)
-  const [loadingCount,     setLoadingCount]     = useState(false)
-  const [templates,        setTemplates]        = useState<WaTemplate[]>([])
-  const [loadingTemplates, setLoadingTemplates] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<WaTemplate | null>(null)
-  const [sending,          setSending]          = useState(false)
-  const [error,            setError]            = useState<string | null>(null)
-
-  // Fetch count on mount and whenever filters change
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      setLoadingCount(true)
-      const p = new URLSearchParams()
-      if (selectedFormId) p.set('form_id', selectedFormId)
-      if (dateFrom) p.set('date_from', dateFrom)
-      if (dateTo)   p.set('date_to', dateTo)
-      try {
-        const r = await fetch(`/api/leads/bulk-message?${p}`)
-        const d = await r.json() as { count?: number }
-        setCount(d.count ?? 0)
-      } catch { setCount(null) }
-      setLoadingCount(false)
-    }, 500)
-    return () => clearTimeout(t)
-  }, [selectedFormId, dateFrom, dateTo])
-
-  // Fetch approved templates when moving to template step
-  useEffect(() => {
-    if (step !== 'template') return
-    setLoadingTemplates(true)
-    fetch('/api/whatsapp/templates')
-      .then(r => r.json())
-      .then((d: { templates?: WaTemplate[] }) =>
-        setTemplates((d.templates ?? []).filter(t => t.status === 'APPROVED'))
-      )
-      .catch(() => setTemplates([]))
-      .finally(() => setLoadingTemplates(false))
-  }, [step])
-
-  const handleSend = async () => {
-    if (!selectedTemplate) { setError('Choose a template first'); return }
-    setSending(true); setError(null)
-    try {
-      const r = await fetch('/api/leads/bulk-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          form_id:           selectedFormId,
-          date_from:         dateFrom,
-          date_to:           dateTo,
-          template_name:     selectedTemplate.name,
-          template_language: selectedTemplate.language,
-          message:           selectedTemplate.bodyPreview,
-        }),
-      })
-      const d = await r.json() as { queued?: number; error?: string }
-      if (!r.ok) { setError(d.error ?? 'Failed'); return }
-      onSent(d.queued ?? 0)
-    } catch { setError('Network error') }
-    finally { setSending(false) }
-  }
-
-  const selectedForm = activeForms.find(f => f.form_id === selectedFormId)
-  const fmt = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4 animate-overlay-in">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl shadow-2xl max-h-[90vh] sm:max-h-[90vh] flex flex-col animate-sheet-up sm:animate-none overflow-hidden pb-[env(safe-area-inset-bottom)] sm:pb-0">
-
-        {/* Drag handle — mobile only */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-1 flex-shrink-0">
-          <div className="w-9 h-1 rounded-full bg-slate-300" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <MessageCircle className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">Message existing leads</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Send a WhatsApp template to historical leads</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-
-        {/* Step indicator */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-50 bg-gray-50/60 flex-shrink-0">
-          {(['filters', 'template'] as const).map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition
-                ${step === 'template' && s === 'filters'
-                  ? 'bg-green-600 text-white'
-                  : step === s ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                {step === 'template' && s === 'filters' ? '✓' : i + 1}
-              </div>
-              <span className={`text-xs font-medium ${step === s ? 'text-gray-800' : 'text-gray-400'}`}>
-                {s === 'filters' ? 'Choose audience' : 'Pick template'}
-              </span>
-              {i === 0 && (
-                <div className={`w-8 h-0.5 ${step === 'template' ? 'bg-green-600' : 'bg-gray-200'}`} />
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5">
-          {error && (
-            <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl mb-4">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-            </div>
-          )}
-
-          {/* Step 1: Filters */}
-          {step === 'filters' && (
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Lead form</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setSelectedFormId(null)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm text-left transition
-                      ${selectedFormId === null
-                        ? 'border-green-500 bg-green-50 text-green-800'
-                        : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
-                    <Users className="w-4 h-4 flex-shrink-0" />
-                    <span className="font-medium">All forms</span>
-                  </button>
-                  {activeForms.map(f => {
-                    const c = getColor(f.color_index)
-                    return (
-                      <button
-                        key={f.form_id}
-                        onClick={() => setSelectedFormId(f.form_id)}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm text-left transition
-                          ${selectedFormId === f.form_id
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-200 hover:border-gray-300'}`}>
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
-                        <span className="font-medium text-gray-800 truncate" title={f.form_name}>{f.form_name}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Date range <span className="font-normal text-gray-400">(optional)</span>
-                </label>
-                <p className="text-xs text-gray-400 mb-3">Filter by when leads submitted the form</p>
-                <DateRangePicker from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
-              </div>
-
-              {/* Count preview */}
-              <div className={`flex items-center gap-3 p-4 rounded-xl border transition-colors
-                ${count === null ? 'border-gray-200 bg-gray-50'
-                  : count === 0 ? 'border-amber-200 bg-amber-50'
-                  : 'border-green-200 bg-green-50'}`}>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0
-                  ${count === null ? 'bg-gray-100' : count === 0 ? 'bg-amber-100' : 'bg-green-100'}`}>
-                  {loadingCount
-                    ? <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                    : <Users className={`w-5 h-5 ${count === 0 ? 'text-amber-600' : count !== null ? 'text-green-600' : 'text-gray-400'}`} />}
-                </div>
-                <div>
-                  {loadingCount ? (
-                    <p className="text-sm text-gray-400">Calculating…</p>
-                  ) : count === null ? (
-                    <p className="text-sm text-gray-500">Select filters to see lead count</p>
-                  ) : count === 0 ? (
-                    <>
-                      <p className="text-sm font-semibold text-amber-800">No matching leads</p>
-                      <p className="text-xs text-amber-600 mt-0.5">Try different filters, or check if leads are already marked &quot;Sent&quot;</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-lg font-bold text-green-800">{count.toLocaleString()} leads</p>
-                      <p className="text-xs text-green-600">with a phone number, not yet messaged</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Template */}
-          {step === 'template' && (
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-gray-700 mb-0.5">Choose a WhatsApp template</p>
-                <p className="text-xs text-gray-400 mb-3">
-                  Only Meta-approved templates can be sent to leads who haven&apos;t messaged you first.
-                </p>
-
-                {loadingTemplates ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                  </div>
-                ) : templates.length === 0 ? (
-                  <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-200">
-                    <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-                    <p className="text-sm font-semibold text-gray-700">No approved templates found</p>
-                    <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
-                      Make sure your WhatsApp is connected and your templates are approved by Meta.
-                    </p>
-                    <a href="/dashboard/templates"
-                      className="inline-block mt-3 text-xs font-semibold text-blue-600 hover:underline">
-                      Manage templates →
-                    </a>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {templates.map(t => (
-                      <button
-                        key={t.name}
-                        onClick={() => setSelectedTemplate(t)}
-                        className={`w-full text-left p-4 rounded-xl border-2 transition
-                          ${selectedTemplate?.name === t.name
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-mono font-semibold text-gray-500">{t.name}</span>
-                          <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Approved</span>
-                        </div>
-                        <p className="text-sm font-medium text-gray-800 mb-1">{t.description}</p>
-                        <p className="text-xs text-gray-500 italic">{t.bodyPreview}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Summary */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm border border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Summary</p>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Audience</span>
-                  <span className="font-semibold text-gray-800">
-                    {selectedFormId ? (selectedForm?.form_name ?? selectedFormId) : 'All forms'}
-                  </span>
-                </div>
-                {dateFrom && dateTo && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Date range</span>
-                    <span className="font-semibold text-gray-800">{fmt(dateFrom)} — {fmt(dateTo)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Recipients</span>
-                  <span className="font-bold text-green-700">{count?.toLocaleString() ?? '?'} leads</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between p-5 border-t border-gray-100 flex-shrink-0">
-          {step === 'filters' ? (
-            <>
-              <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 transition">Cancel</button>
-              <button
-                onClick={() => { setError(null); setStep('template') }}
-                disabled={!count || loadingCount}
-                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97] disabled:opacity-50">
-                Next: Choose template
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setStep('filters')} className="text-sm text-gray-500 hover:text-gray-700 transition">
-                ← Back
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={!selectedTemplate || sending}
-                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97] disabled:opacity-50">
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {sending ? 'Sending…' : `Send to ${count?.toLocaleString() ?? '?'} leads`}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Call log constants ────────────────────────────────────────────────────────
 
 const OUTCOME_META: Record<string, { label: string; dot: string; bg: string; text: string; border: string }> = {
@@ -2705,18 +2398,23 @@ function LeadsContent() {
   const [loadingForms,   setLoadingForms]   = useState(false)
   const [loadingLeads,   setLoadingLeads]   = useState(false)
   const [refreshing,     setRefreshing]     = useState(false)
-  const [pages,          setPages]          = useState<Page[]>(() => {
-    try { return JSON.parse(sessionStorage.getItem('_wpl_pages') ?? 'null') ?? [] } catch { return [] }
-  })
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(() => {
-    try { return sessionStorage.getItem('_wpl_pid') } catch { return null }
-  })
+  // Start empty/null — matching what the server renders — not read from
+  // sessionStorage here. A lazy useState initializer runs during render, on
+  // both the server (no sessionStorage, always falls back empty) and the
+  // client's first hydration pass (real sessionStorage, often non-empty on a
+  // same-session revisit) — that mismatch is a real, reproducible hydration
+  // failure (React error #418), caught by tracing it through a debug build.
+  // The cache-priming effect below restores the instant-revisit feel this
+  // was for, just one tick after mount instead of during the render itself.
+  const [pages,          setPages]          = useState<Page[]>([])
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [total,          setTotal]          = useState(0)
   const [pageStats,      setPageStats]      = useState({ total: 0, withPhone: 0, sent: 0, pending: 0 })
   const [perPage,        setPerPage]        = useState<25 | 50 | 100>(50)
   const [currentPage,    setCurrentPage]    = useState(1)
+  const [loadingMore,    setLoadingMore]    = useState(false)
   const [leadSearch,     setLeadSearch]     = useState('')
   const [selectedFormId, setSelectedFormId] = useState<string | 'all' | '__forms'>('all')
   const [sortBy,         setSortBy]         = useState<'default' | 'followup_due'>('default')
@@ -2728,9 +2426,6 @@ function LeadsContent() {
   const [editingForm,    setEditingForm]    = useState<ActiveForm | null>(null)
   const [importingForm,  setImportingForm]  = useState<ActiveForm | null>(null)
   const [togglingId,     setTogglingId]     = useState<string | null>(null)
-  const [showBulkMsg,    setShowBulkMsg]    = useState(false)
-  const [lockedPage,     setLockedPage]     = useState<{ page_id: string; page_name: string } | null>(null)
-  const [showPageLockPopup, setShowPageLockPopup] = useState(false)
   const [callLogLead,    setCallLogLead]    = useState<Lead | null>(null)
   const [teamMembers,    setTeamMembers]    = useState<TeamMember[]>([])
   const [syncToast,      setSyncToast]      = useState(false)
@@ -2801,6 +2496,19 @@ function LeadsContent() {
     setTotal(d.total ?? 0)
   }, [])
 
+  // Restore the same-session cache into state right after mount — after
+  // hydration, not during it (see the state declarations above). Runs before
+  // the init effect below since it's declared first, so cachedPageId there
+  // still sees the same sessionStorage value; this just also paints it.
+  useEffect(() => {
+    try {
+      const cachedPages = JSON.parse(sessionStorage.getItem('_wpl_pages') ?? 'null')
+      if (cachedPages) setPages(cachedPages)
+      const cachedPid = sessionStorage.getItem('_wpl_pid')
+      if (cachedPid) setSelectedPageId(cachedPid)
+    } catch {}
+  }, [])
+
   // ── Init ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -2825,9 +2533,8 @@ function LeadsContent() {
       let cachedPageId: string | null = null
       try { cachedPageId = sessionStorage.getItem('_wpl_pid') } catch {}
 
-      const [p, assocData] = await Promise.all([
+      const [p] = await Promise.all([
         fetchPages(),
-        fetch('/api/leads/whatsapp-association').then(r => r.json()),
         fetch('/api/team/members').then(r => r.json() as Promise<{ members?: TeamMember[] }>).then(d => setTeamMembers(d.members ?? [])).catch(() => {}),
         fetch('/api/me/role').then(r => r.json() as Promise<{ role?: UserRole }>).then(d => {
           if (d.role) {
@@ -2837,9 +2544,7 @@ function LeadsContent() {
           }
         }).catch(() => {}),
         ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId, 1, 50, '', sortParam === 'followup_due' ? 'followup_due' : 'default'), fetchStats(cachedPageId)] : []),
-      ]) as [Page[], { locked_pages?: { page_id: string; page_name: string }[] }, ...unknown[]]
-      const locked = (assocData?.locked_pages ?? [])[0] ?? null
-      setLockedPage(locked)
+      ]) as [Page[], ...unknown[]]
 
       setPagesLoaded(true)
 
@@ -3091,6 +2796,53 @@ function LeadsContent() {
     return pages
   })()
 
+  // Mobile only — numbered pagination + a page-size picker is desktop-table
+  // furniture; a phone just keeps appending results as you scroll, same as
+  // every native list. Mirrors fetchLeads' own param-building but appends
+  // instead of replacing, since goToPage's job is "jump to page N in
+  // isolation" and this one's job is "grow the list I'm already looking at."
+  const loadMoreLeads = useCallback(async () => {
+    if (!selectedPageId || loadingMore || leads.length >= total) return
+    setLoadingMore(true)
+    const nextPage = currentPage + 1
+    const p = new URLSearchParams({ limit: String(perPage), offset: String((nextPage - 1) * perPage) })
+    if (selectedFormId !== 'all' && selectedFormId !== '__forms') p.set('form_id', selectedFormId)
+    else p.set('page_id', selectedPageId)
+    if (leadSearch.trim()) p.set('q', leadSearch.trim())
+    try {
+      const r = await fetch(`/api/facebook/leads?${p}`)
+      const d = await r.json() as { leads?: Lead[] }
+      setLeads(prev => [...prev, ...(d.leads ?? [])])
+      setCurrentPage(nextPage)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [selectedPageId, loadingMore, leads.length, total, currentPage, perPage, selectedFormId, leadSearch])
+
+  // Fires loadMoreLeads the moment the sentinel below the list scrolls into
+  // view — true infinite scroll, not a tap-required "Load more" button.
+  // Deliberately a callback ref, not useRef + a useEffect reading .current:
+  // the sentinel only enters the DOM once leads.length < total flips true (it
+  // doesn't exist on first paint), and a plain useEffect keyed on loadMoreLeads
+  // ran and captured a null ref before that happened, then never re-fired —
+  // observed directly by logging the ref on every run. A callback ref is
+  // called by React exactly when the node mounts/unmounts, no timing gap.
+  // loadMoreLeadsRef holds the latest closure so the observer (set up once,
+  // since setSentinelRef itself never changes) always calls current code
+  // instead of a stale closure from whenever the sentinel first mounted.
+  const loadMoreObserverRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreLeadsRef = useRef(loadMoreLeads)
+  useEffect(() => { loadMoreLeadsRef.current = loadMoreLeads }, [loadMoreLeads])
+  const setSentinelRef = useCallback((el: HTMLDivElement | null) => {
+    loadMoreObserverRef.current?.disconnect()
+    if (!el) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) loadMoreLeadsRef.current()
+    }, { rootMargin: '400px' })
+    observer.observe(el)
+    loadMoreObserverRef.current = observer
+  }, [])
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   // "Connect Facebook" empty state — only shown after we've confirmed pages is empty
@@ -3175,14 +2927,12 @@ function LeadsContent() {
             <span className="hidden sm:inline">{refreshing ? 'Syncing…' : 'Refresh'}</span>
             <span className="sm:hidden">{refreshing ? '…' : 'Refresh'}</span>
           </button>
+          {/* Bulk-sending used to open its own one-off modal here — it's now one
+              feature, not two: this sends to Campaigns, which has the fuller
+              flow (named campaigns, history, its own page-lock check) instead
+              of duplicating a second, untracked version of the same send. */}
           <button
-            onClick={() => {
-              if (lockedPage && selectedPageId && lockedPage.page_id !== selectedPageId) {
-                setShowPageLockPopup(true)
-              } else {
-                setShowBulkMsg(true)
-              }
-            }}
+            onClick={() => router.push('/dashboard/campaigns?tab=lead_ad&new=1')}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] rounded-lg transition active:scale-[0.97] shadow-sm"
             title="Send a WhatsApp message to existing leads"
           >
@@ -3271,7 +3021,10 @@ function LeadsContent() {
       {/* Main content card with tab bar */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-        {/* Tab bar */}
+        {/* Tab bar — the fade hints there's more to scroll to on mobile, where
+            "All forms" and per-form tabs routinely get cut off at the edge
+            with nothing signaling the row keeps going. */}
+        <div className="relative">
         <div className="flex items-center border-b border-gray-100 overflow-x-auto">
           {/* All leads */}
           <button
@@ -3338,6 +3091,11 @@ function LeadsContent() {
             </button>
           </div>
         </div>
+        {/* Static fade, not scroll-position-aware — cheap and never wrong: a sliver
+            of white-to-transparent at the trailing edge reads as "keep scrolling"
+            whether or not this particular tab set actually overflows today. */}
+        <div className="md:hidden pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent" />
+        </div>
 
         {/* ── All forms view ── */}
         {selectedFormId === '__forms' ? (
@@ -3360,9 +3118,10 @@ function LeadsContent() {
           />
         ) : (
           <>
-            {/* Search + per-page toolbar */}
+            {/* Search + per-page toolbar — the page-size picker is desktop-only:
+                mobile has no "page size" concept once it's infinite scroll. */}
             <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 bg-gray-50/40">
-              <div className="relative flex-1 max-w-xs">
+              <div className="relative flex-1 md:max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
@@ -3388,7 +3147,7 @@ function LeadsContent() {
                     fetchLeads(selectedFormId, selectedPageId, 1, v, leadSearch).finally(() => setLoadingLeads(false))
                   }
                 }}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none text-gray-500 cursor-pointer"
+                className="hidden md:block text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none text-gray-500 cursor-pointer"
               >
                 <option value={25}>25 / page</option>
                 <option value={50}>50 / page</option>
@@ -3435,6 +3194,14 @@ function LeadsContent() {
                       onUpdate={handleLeadUpdate}
                     />
                   ))}
+                  {/* Infinite scroll sentinel — invisible, just a trigger for the
+                      IntersectionObserver above. Only rendered while there's more
+                      to fetch, so it's never sitting there doing nothing forever. */}
+                  {leads.length < total && (
+                    <div ref={setSentinelRef} className="flex items-center justify-center py-6">
+                      {loadingMore && <Loader2 className="w-4 h-4 animate-spin text-gray-300" />}
+                    </div>
+                  )}
                 </div>
 
                 {/* Desktop: full table with Phone/Form/Status/Date columns */}
@@ -3470,9 +3237,10 @@ function LeadsContent() {
               </>
             )}
 
-            {/* Pagination footer */}
+            {/* Pagination footer — desktop only, mobile scrolls instead (see the
+                sentinel + loadMoreLeads above the table). */}
             {total > 0 && totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/30">
+              <div className="hidden md:flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/30">
                 <p className="text-xs text-gray-400 tabular-nums">
                   {((currentPage - 1) * perPage) + 1}–{Math.min(currentPage * perPage, total).toLocaleString()} of {total.toLocaleString()} leads
                 </p>
@@ -3540,21 +3308,6 @@ function LeadsContent() {
           onImport={(from, to) => handleImport(importingForm, from, to)}
         />
       )}
-      {showBulkMsg && (
-        <BulkMessageModal
-          activeForms={activeForms}
-          onClose={() => setShowBulkMsg(false)}
-          onSent={count => {
-            setShowBulkMsg(false)
-            setBanner({ type: 'success', msg: `${count.toLocaleString()} leads queued for WhatsApp messages` })
-            if (selectedPageId) {
-              fetchStats(selectedPageId)
-              if (selectedFormId !== '__forms') fetchLeads(selectedFormId, selectedPageId, currentPage, perPage, leadSearch)
-            }
-          }}
-        />
-      )}
-
       {/* Call log modal */}
       {callLogLead && (
         <CallLogModal
@@ -3563,32 +3316,6 @@ function LeadsContent() {
           onClose={() => setCallLogLead(null)}
           onUpdate={handleLeadUpdate}
         />
-      )}
-
-      {/* Page lock popup — shown when user tries to message leads from a different page */}
-      {showPageLockPopup && lockedPage && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4 animate-overlay-in">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 max-h-[90vh] overflow-y-auto animate-sheet-up sm:animate-none">
-            {/* Drag handle — mobile only */}
-            <div className="sm:hidden flex justify-center -mt-3 mb-3 flex-shrink-0">
-              <div className="w-9 h-1 rounded-full bg-slate-300" />
-            </div>
-            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <MessageCircle className="w-6 h-6 text-amber-500" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900 text-center mb-2">
-              WhatsApp already linked to another page
-            </h3>
-            <p className="text-sm text-slate-500 text-center leading-relaxed mb-5">
-              Your WhatsApp is already connected to <span className="font-semibold text-slate-700">{lockedPage.page_name}</span>. Each Wapaci account can only message leads from one Facebook page. To manage a different page, create a separate Wapaci account.
-            </p>
-            <button
-              onClick={() => setShowPageLockPopup(false)}
-              className="w-full py-2.5 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition active:scale-[0.97]">
-              Got it
-            </button>
-          </div>
-        </div>
       )}
     </>
   )
