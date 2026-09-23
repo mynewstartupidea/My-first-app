@@ -22,6 +22,7 @@ async function processMetaCode(
   sessionInfo?: MetaSessionInfo,
   rawAuthResponseKeys?: string[],
   rawAuthResponse?: Record<string, unknown>,
+  connectionMode: 'cloud_api' | 'coexistence' = 'cloud_api',
 ): Promise<ProcessResult> {
   console.log(`[Meta callback] processing code, redirectUri=${redirectUri ?? 'none (SDK flow)'}, sessionInfo=${sessionInfo?.wabaID ? `wabaID=${sessionInfo.wabaID}` : 'absent'}`)
 
@@ -85,6 +86,7 @@ async function processMetaCode(
     token_type:           tokenType,
     status:               'connected',
     provider:             'meta',
+    connection_mode:      connectionMode,
     updated_at:           new Date().toISOString(),
   })
 
@@ -125,6 +127,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as {
     code?:                string
     sessionInfo?:         MetaSessionInfo
+    connectionMode?:      'cloud_api' | 'coexistence'
     rawAuthResponseKeys?: string[]
     rawAuthResponse?:     Record<string, unknown>
   }
@@ -133,8 +136,12 @@ export async function POST(request: Request) {
   // Log key names only — never log the raw authResponse values (may contain OAuth tokens)
   console.log('[Meta callback] rawAuthResponseKeys:', JSON.stringify(body.rawAuthResponseKeys ?? []))
   console.log('[Meta callback] sessionInfo received:', JSON.stringify(body.sessionInfo ?? null))
+  console.log('[Meta callback] connectionMode:', body.connectionMode ?? 'cloud_api')
 
-  const result = await processMetaCode(body.code, undefined, user.id, body.sessionInfo, body.rawAuthResponseKeys, body.rawAuthResponse)
+  const result = await processMetaCode(
+    body.code, undefined, user.id, body.sessionInfo, body.rawAuthResponseKeys, body.rawAuthResponse,
+    body.connectionMode ?? 'cloud_api',
+  )
   return NextResponse.json(result)
 }
 

@@ -149,6 +149,117 @@ export async function POST(request: Request) {
         continue
       }
 
+      // ── Coexistence: message sent from the WhatsApp Business mobile app ───
+      // Without this, a rep replying from their phone (not Wapaci) would never
+      // show up in the CRM thread. Field name/shape verified against Meta's
+      // docs for the *webhook subscription topic* (smb_message_echoes); the
+      // exact array key inside `value` wasn't confirmed against a live
+      // payload, so this tries the documented convention (`message_echoes`)
+      // and falls back to `messages` in case Meta reuses that key — check
+      // this against a real payload during Test B before relying on it.
+      if (change.field === 'smb_message_echoes') {
+        const echoValue = value as unknown as {
+          metadata?:       { phone_number_id?: string; display_phone_number?: string }
+          message_echoes?: { id: string; to: string; type: string; text?: { body: string }; timestamp: string }[]
+          messages?:       { id: string; to?: string; type: string; text?: { body: string }; timestamp: string }[]
+        }
+        const echoes = echoValue.message_echoes ?? echoValue.messages ?? []
+        const wabaId = echoValue.metadata?.phone_number_id ?? ''
+
+        console.log(`[Meta webhook] smb_message_echoes count=${echoes.length} wabaId=${wabaId}`)
+
+        const { data: waAccount } = await supabase
+          .from('whatsapp_accounts')
+          .select('store_id')
+          .eq('phone_number_id', wabaId)
+          .maybeSingle()
+
+        for (const echo of echoes) {
+          const toPhone = echo.to ?? ''
+          const body    = echo.type === 'text' ? echo.text?.body ?? '' : `[${echo.type}]`
+          const { error: echoErr } = await supabase.from('messages').insert({
+            store_id:       waAccount?.store_id ?? null,
+            customer_phone: toPhone,
+            type:           'whatsapp_business_app',
+            message:        body,
+            status:         'sent',
+            bsp_message_id: echo.id,
+          })
+          if (echoErr) console.error('[Meta webhook] smb_message_echoes insert error:', echoErr.message)
+        }
+        continue
+      }
+
+      // ── Coexistence: WhatsApp Business App contact/state sync ─────────────
+      // Logged for now — not rendered anywhere yet. Meta docs describe this as
+      // syncing the business's app-side contacts, not chat messages.
+      if (change.field === 'smb_app_state_sync') {
+        console.log(`[Meta webhook] smb_app_state_sync received for waba=${entry.id}`)
+        continue
+      }
+
+      // ── Coexistence: historical chat sync (first 24h after onboarding) ────
+      // Meta backfills up to 6 months of existing WhatsApp Business App chat
+      // history. Payload shape wasn't confirmed against a live delivery —
+      // this makes a best-effort attempt to route each message by direction
+      // and logs anything it can't parse instead of silently dropping it.
+      if (change.field === 'history') {
+        const historyValue = value as unknown as {
+          metadata?: { phone_number_id?: string; display_phone_number?: string }
+          history?: {
+            phase?:    number
+            progress?: number
+            threads?: {
+              id?: string
+              messages?: { id: string; from?: string; to?: string; type: string; text?: { body: string }; timestamp: string }[]
+            }[]
+          }[]
+        }
+        const businessPhone = historyValue.metadata?.display_phone_number ?? ''
+        const wabaId         = historyValue.metadata?.phone_number_id ?? ''
+        const { data: waAccount } = await supabase
+          .from('whatsapp_accounts')
+          .select('store_id')
+          .eq('phone_number_id', wabaId)
+          .maybeSingle()
+
+        let historyMsgCount = 0
+        for (const chunk of historyValue.history ?? []) {
+          console.log(`[Meta webhook] history chunk phase=${chunk.phase} progress=${chunk.progress}`)
+          for (const thread of chunk.threads ?? []) {
+            for (const msg of thread.messages ?? []) {
+              historyMsgCount++
+              const body      = msg.type === 'text' ? msg.text?.body ?? '' : `[${msg.type}]`
+              const isFromBiz = !!businessPhone && msg.from === businessPhone
+              if (isFromBiz) {
+                await supabase.from('messages').insert({
+                  store_id:       waAccount?.store_id ?? null,
+                  customer_phone: msg.to ?? '',
+                  type:           'whatsapp_business_app',
+                  message:        body,
+                  status:         'sent',
+                  bsp_message_id: msg.id,
+                })
+              } else {
+                await supabase.from('inbound_messages').insert({
+                  store_id:     waAccount?.store_id ?? null,
+                  waba_id:      wabaId,
+                  from_phone:   msg.from ?? '',
+                  to_phone:     businessPhone,
+                  message_id:   msg.id,
+                  message_type: msg.type,
+                  body,
+                  status:       'received',
+                  raw_payload:  msg as unknown as Record<string, unknown>,
+                })
+              }
+            }
+          }
+        }
+        console.log(`[Meta webhook] history processed messages=${historyMsgCount}`)
+        continue
+      }
+
       // ── Incoming messages ──────────────────────────────────────────────────
       for (const msg of value.messages ?? []) {
         msgCount++

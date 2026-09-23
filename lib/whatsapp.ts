@@ -352,11 +352,16 @@ export async function exchangeMetaCode(
 
   // ── Fast path: sessionInfo from Embedded Signup ──────────────────────────
   // When the FB JS SDK Embedded Signup flow completes, the authResponse includes
-  // sessionInfo with the exact WABA ID, phone number ID, and business ID the user
-  // selected — no /me/businesses or WABA lookup needed.
-  // business_management scope is not required in this path.
-  if (sessionInfo?.wabaID && sessionInfo?.phoneNumberID && sessionInfo?.businessID) {
-    console.log('[Meta] sessionInfo fast path — wabaID:', sessionInfo.wabaID, 'phoneID:', sessionInfo.phoneNumberID, 'bizID:', sessionInfo.businessID)
+  // sessionInfo with the WABA ID and business ID the user selected — no
+  // /me/businesses or WABA lookup needed. business_management scope is not
+  // required in this path.
+  //
+  // Coexistence completion events frequently omit phoneNumberID (Meta's own
+  // docs example payload for FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING only
+  // includes waba_id) — in that case we look it up from the WABA directly,
+  // since a freshly-coexisted WABA has exactly one phone number on it.
+  if (sessionInfo?.wabaID && sessionInfo?.businessID) {
+    console.log('[Meta] sessionInfo fast path — wabaID:', sessionInfo.wabaID, 'phoneID:', sessionInfo.phoneNumberID ?? '(missing — will look up)', 'bizID:', sessionInfo.businessID)
 
     // Still check the two WA-specific scopes (not business_management)
     if (granted.length > 0 && (!hasWaBizMgmt || !hasWaMsg)) {
@@ -372,12 +377,41 @@ export async function exchangeMetaCode(
     debug.business_ids        = [sessionInfo.businessID]
     debug.waba_counts         = { [sessionInfo.businessID]: 1 }
 
+    let phoneNumberId      = sessionInfo.phoneNumberID
+    let displayPhoneNumber = sessionInfo.displayPhoneNumber ?? ''
+
+    if (!phoneNumberId) {
+      const phoneRes = await fetch(
+        `https://graph.facebook.com/v21.0/${sessionInfo.wabaID}?fields=phone_numbers{id,display_phone_number}&access_token=${userToken}`
+      )
+      const phoneRaw = await phoneRes.text()
+      console.log('[Meta] coexistence phone lookup HTTP:', phoneRes.status, 'raw:', phoneRaw)
+      try {
+        const phoneData = JSON.parse(phoneRaw) as { phone_numbers?: { data?: { id: string; display_phone_number: string }[] } }
+        const firstPhone = phoneData.phone_numbers?.data?.[0]
+        if (firstPhone) {
+          phoneNumberId      = firstPhone.id
+          displayPhoneNumber = firstPhone.display_phone_number
+        }
+      } catch { /* leave phoneNumberId unset — handled below */ }
+
+      if (!phoneNumberId) {
+        console.error('[Meta] coexistence phone lookup found no phone number on WABA', sessionInfo.wabaID)
+        return {
+          ok:    false,
+          error: 'Could not find a phone number on this WhatsApp Business Account. It may not be eligible for Coexistence yet.',
+          step:  'phone_lookup',
+          debug,
+        }
+      }
+    }
+
     return {
       ok:   true,
       info: {
         wabaId:             sessionInfo.wabaID,
-        phoneNumberId:      sessionInfo.phoneNumberID,
-        displayPhoneNumber: sessionInfo.displayPhoneNumber ?? '',
+        phoneNumberId,
+        displayPhoneNumber,
         businessId:         sessionInfo.businessID,
         accessToken:        userToken,
       },

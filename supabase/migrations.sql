@@ -390,3 +390,28 @@ CREATE POLICY "qualifying_progress_own" ON lead_qualifying_progress FOR ALL
 
 CREATE INDEX IF NOT EXISTS lead_qualifying_progress_store_phone_idx
   ON lead_qualifying_progress(store_id, phone, status);
+
+-- ─── WhatsApp Coexistence ───────────────────────────────────────────────────
+-- connection_mode distinguishes a normal Cloud-API-only number from one that
+-- stays active in the merchant's WhatsApp Business mobile app while also
+-- connected here (Coexistence). Drives which webhook fields/UI apply.
+
+ALTER TABLE whatsapp_accounts
+  ADD COLUMN IF NOT EXISTS connection_mode TEXT DEFAULT 'cloud_api'
+    CHECK (connection_mode IN ('cloud_api', 'coexistence'));
+
+-- Meta requires "session logging" for Coexistence: the Embedded Signup popup
+-- posts window.postMessage events (FINISH/CANCEL/ERROR) independently of the
+-- FB.login() callback, and they can arrive out of order or not at all if the
+-- callback fires first. Logging both sides here lets us debug a failed signup
+-- without asking the merchant to reproduce it.
+CREATE TABLE IF NOT EXISTS meta_signup_events (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  event_type   TEXT NOT NULL,   -- e.g. FINISH, FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING, CANCEL, ERROR
+  session_id   TEXT,
+  data         JSONB DEFAULT '{}',
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE meta_signup_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "meta_signup_events_own" ON meta_signup_events FOR ALL USING (user_id = auth.uid());

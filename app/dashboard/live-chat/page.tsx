@@ -22,15 +22,16 @@ const STATUS_META: Record<LeadStatus, { label: string; dot: string; bg: string; 
   resolved:  { label: 'Resolved',  dot: '#3b82f6', bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe' },
 }
 
-interface Message {
+// Unified shape for rendering a thread — merges outbound `messages` rows with
+// inbound `inbound_messages` rows (previously never read anywhere, so replies
+// never appeared in this inbox at all).
+interface ChatMsg {
   id: string
-  customer_phone: string
-  customer_name: string | null
-  message: string
+  text: string
   type: string
   status: string
+  direction: 'in' | 'out'
   created_at: string
-  revenue_attributed: number
 }
 
 interface Customer {
@@ -61,7 +62,7 @@ const TYPE_LABELS: Record<string, string> = {
   order_confirmation: 'Order', shipping_update: 'Shipping',
   post_purchase_upsell: 'Upsell', win_back: 'Win-back',
   review_request: 'Review', broadcast: 'Campaign',
-  lead_ad: 'Lead Form',
+  lead_ad: 'Lead Form', whatsapp_business_app: 'Sent from phone',
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -129,7 +130,7 @@ function TagDropdown({ currentTag, onSelect, onClose }: {
 
 export default function LiveChatPage() {
   const [threads, setThreads]           = useState<Thread[]>([])
-  const [messages, setMessages]         = useState<Message[]>([])
+  const [messages, setMessages]         = useState<ChatMsg[]>([])
   const [customer, setCustomer]         = useState<Customer | null>(null)
   const [selected, setSelected]         = useState<string | null>(null)
   const [search, setSearch]             = useState('')
@@ -154,12 +155,20 @@ export default function LiveChatPage() {
     if (!store) { setLoading(false); return }
     setStoreId(store.id)
 
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('id,customer_phone,customer_name,message,type,status,created_at,revenue_attributed')
-      .eq('store_id', store.id)
-      .order('created_at', { ascending: false })
-      .limit(1000)
+    const [{ data: msgs }, { data: inbound }] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('id,customer_phone,customer_name,message,type,status,created_at,revenue_attributed')
+        .eq('store_id', store.id)
+        .order('created_at', { ascending: false })
+        .limit(1000),
+      supabase
+        .from('inbound_messages')
+        .select('id,from_phone,body,message_type,status,received_at')
+        .eq('store_id', store.id)
+        .order('received_at', { ascending: false })
+        .limit(1000),
+    ])
 
     const map = new Map<string, Thread>()
     for (const m of msgs ?? []) {
@@ -176,6 +185,27 @@ export default function LiveChatPage() {
         if (m.created_at > ex.lastTime) {
           ex.lastMsg = m.message; ex.lastTime = m.created_at
           ex.status = m.status; ex.type = m.type
+        }
+      }
+    }
+    // Inbound replies — a reply is the strongest "needs attention" signal, so it
+    // always marks the thread unread regardless of the last outbound status.
+    for (const m of inbound ?? []) {
+      const ex = map.get(m.from_phone)
+      const body = m.body ?? `[${m.message_type ?? 'message'}]`
+      if (!ex) {
+        map.set(m.from_phone, {
+          phone: m.from_phone, name: null,
+          lastMsg: body, lastTime: m.received_at,
+          count: 1, status: 'received', unread: true,
+          type: m.message_type ?? 'text', tag: null,
+        })
+      } else {
+        ex.count++
+        if (m.received_at > ex.lastTime) {
+          ex.lastMsg = body; ex.lastTime = m.received_at
+          ex.status = 'received'; ex.type = m.message_type ?? 'text'
+          ex.unread = true
         }
       }
     }
@@ -200,13 +230,23 @@ export default function LiveChatPage() {
   const loadThread = useCallback(async (phone: string) => {
     if (!storeId) return
     setLoadingThread(true)
-    const [msgsRes, custRes] = await Promise.all([
+    const [msgsRes, inboundRes, custRes] = await Promise.all([
       supabase.from('messages').select('*').eq('store_id', storeId)
         .eq('customer_phone', phone).order('created_at', { ascending: true }),
+      supabase.from('inbound_messages').select('*').eq('store_id', storeId)
+        .eq('from_phone', phone).order('received_at', { ascending: true }),
       supabase.from('customers').select('*').eq('store_id', storeId)
         .eq('phone', phone).maybeSingle(),
     ])
-    setMessages(msgsRes.data ?? [])
+    const out: ChatMsg[] = (msgsRes.data ?? []).map(m => ({
+      id: m.id, text: m.message, type: m.type, status: m.status,
+      direction: 'out', created_at: m.created_at,
+    }))
+    const inb: ChatMsg[] = (inboundRes.data ?? []).map(m => ({
+      id: m.id, text: m.body ?? `[${m.message_type ?? 'message'}]`, type: m.message_type ?? 'text',
+      status: 'received', direction: 'in', created_at: m.received_at,
+    }))
+    setMessages([...out, ...inb].sort((a, b) => a.created_at.localeCompare(b.created_at)))
     setCustomer(custRes.data ?? null)
     setLoadingThread(false)
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
@@ -427,16 +467,21 @@ export default function LiveChatPage() {
                 <Loader2 size={18} className="animate-spin text-[#25D366]" />
               </div>
             ) : messages.map(msg => (
-              <div key={msg.id} className="flex justify-end">
+              <div key={msg.id} className={cn('flex', msg.direction === 'in' ? 'justify-start' : 'justify-end')}>
                 <div className="max-w-[70%]">
-                  <div className="bg-[#DCF8C6] rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
-                    <p className="text-slate-800 text-[13px] leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+                  <div className={cn(
+                    'rounded-2xl px-4 py-2.5 shadow-sm',
+                    msg.direction === 'in'
+                      ? 'bg-white border border-slate-100 rounded-tl-sm'
+                      : 'bg-[#DCF8C6] rounded-tr-sm'
+                  )}>
+                    <p className="text-slate-800 text-[13px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                   </div>
-                  <div className="flex items-center justify-end gap-1.5 mt-1 px-1">
+                  <div className={cn('flex items-center gap-1.5 mt-1 px-1', msg.direction === 'in' ? 'justify-start' : 'justify-end')}>
                     <span className="text-[10px] text-slate-400">{timeAgo(msg.created_at)}</span>
-                    {STATUS_ICON[msg.status]}
+                    {msg.direction === 'out' && STATUS_ICON[msg.status]}
                     <span className="text-[9px] text-slate-300 bg-slate-100 px-1.5 rounded-full">
-                      {TYPE_LABELS[msg.type] ?? msg.type}
+                      {msg.direction === 'in' ? 'Reply' : (TYPE_LABELS[msg.type] ?? msg.type)}
                     </span>
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, Suspense } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { hasShopifyConnection, pickPreferredStore } from '@/lib/store-selection'
@@ -94,9 +94,17 @@ function SettingsInner() {
   const [waConnected, setWaConnected]         = useState(false)
   const [waDisplayPhone, setWaDisplayPhone]   = useState('')
   const [waTokenType, setWaTokenType]         = useState<'user_token' | 'system_user_token' | null>(null)
+  const [waConnectionMode, setWaConnectionMode] = useState<'cloud_api' | 'coexistence'>('cloud_api')
   const [showSysUserGuide, setShowSysUserGuide] = useState(false)
   const [fbReady, setFbReady]                 = useState(false)
   const [connectingMeta, setConnectingMeta]   = useState(false)
+  // Which onboarding path the merchant picked — drives featureType in the
+  // Embedded Signup extras. 'existing' = Coexistence (keep using the WhatsApp
+  // Business mobile app); 'new' = normal Cloud-API-only onboarding.
+  const [signupMode, setSignupMode]           = useState<'new' | 'existing'>('new')
+  // Latest WA_EMBEDDED_SIGNUP window.postMessage event — set by the listener
+  // below, read once FB.login()'s own callback fires.
+  const lastSignupEventRef = useRef<{ eventType: string; sessionId?: string } | null>(null)
   const [scopeError, setScopeError]           = useState<string | null>(null)
   const [showManual, setShowManual]           = useState(false)
   const [manualWabaId, setManualWabaId]       = useState('')
@@ -173,13 +181,14 @@ function SettingsInner() {
     // Load WhatsApp account (for Meta status + token type)
     const { data: wa } = await supabase
       .from('whatsapp_accounts')
-      .select('status, display_phone_number, token_type')
+      .select('status, display_phone_number, token_type, connection_mode')
       .eq('user_id', user.id)
       .maybeSingle()
     if (wa) {
       setWaConnected(wa.status === 'connected')
       setWaDisplayPhone(wa.display_phone_number ?? '')
       setWaTokenType((wa.token_type as 'user_token' | 'system_user_token') ?? 'user_token')
+      setWaConnectionMode((wa.connection_mode as 'cloud_api' | 'coexistence') ?? 'cloud_api')
     }
 
     setLoading(false)
@@ -209,6 +218,34 @@ function SettingsInner() {
       ;(s as HTMLScriptElement & { crossOrigin: string }).crossOrigin = 'anonymous'
       document.head.appendChild(s)
     }
+  }, [])
+
+  // ── Embedded Signup session logging ───────────────────────────────────────
+  // Meta requires this for Coexistence: the popup posts WA_EMBEDDED_SIGNUP
+  // messages independently of the FB.login() callback, and they can arrive
+  // out of order. Logging every FINISH/CANCEL/ERROR gives us something to
+  // debug against when a merchant reports a failed connection.
+  useEffect(() => {
+    function handleSignupMessage(event: MessageEvent) {
+      if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return
+      let parsed: unknown
+      try { parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data } catch { return }
+      const d = parsed as { type?: string; event?: string; data?: { session_id?: string; waba_id?: string } } | null
+      if (!d || d.type !== 'WA_EMBEDDED_SIGNUP') return
+
+      const eventType = d.event ?? 'UNKNOWN'
+      const sessionId = d.data?.session_id
+      lastSignupEventRef.current = { eventType, sessionId }
+      console.log('[Wapaci] WA_EMBEDDED_SIGNUP event:', eventType, d)
+
+      fetch('/api/meta/session-event', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ eventType, sessionId, data: d }),
+      }).catch(() => {})
+    }
+    window.addEventListener('message', handleSignupMessage)
+    return () => window.removeEventListener('message', handleSignupMessage)
   }, [])
 
   const urlTab = searchParams.get('tab')
@@ -400,12 +437,25 @@ function SettingsInner() {
       return
     }
 
+    // Session logging is independent of the FB.login() callback below — Meta's
+    // own docs warn the code and the postMessage session event can arrive
+    // separately. lastSignupEventRef is populated by the window listener and
+    // read once the callback fires, to confirm which onboarding path Meta
+    // actually routed this signup through.
+    lastSignupEventRef.current = null
+
+    // featureType is what actually triggers Coexistence (Meta docs:
+    // "Leave blank to enable the default onboarding flow" — set it only when
+    // the merchant told us they already use this number in WhatsApp Business).
+    const extras: { sessionInfoVersion: number; featureType?: string } = { sessionInfoVersion: 2 }
+    if (signupMode === 'existing') extras.featureType = 'whatsapp_business_app_onboarding'
+
     // ── Debug: print full SDK config before launching ──────────────────────────
     const fbLoginOpts = {
       config_id:                      configId,
       response_type:                  'code',
       override_default_response_type: true,
-      extras:                         { sessionInfoVersion: 2 },
+      extras,
     }
     console.group('[Wapaci] Meta Embedded Signup — debug info')
     console.log('APP_ID (NEXT_PUBLIC_META_APP_ID):', appId)
@@ -483,13 +533,24 @@ function SettingsInner() {
         return
       }
 
-      console.log('[Wapaci] received code, sessionInfo present:', !!sessionInfo, '— posting to /api/meta/callback')
+      // Prefer what Meta's own postMessage event confirmed over what we merely
+      // requested — if featureType was set but Meta routed it to the default
+      // flow anyway (e.g. the number wasn't eligible), we shouldn't record it
+      // as coexistence. Fall back to intent only if no event arrived in time.
+      const signupEvent = lastSignupEventRef.current?.eventType
+      const connectionMode: 'cloud_api' | 'coexistence' =
+        signupEvent === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING' ? 'coexistence' :
+        signupEvent === 'FINISH'                                  ? 'cloud_api'   :
+        signupMode === 'existing'                                 ? 'coexistence' : 'cloud_api'
+
+      console.log('[Wapaci] received code, sessionInfo present:', !!sessionInfo, 'connectionMode:', connectionMode, '— posting to /api/meta/callback')
       fetch('/api/meta/callback', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           code,
           sessionInfo,
+          connectionMode,
           // send the full raw authResponse so the server can log it for debugging
           rawAuthResponseKeys: Object.keys(raw?.authResponse ?? {}),
           rawAuthResponse:     raw?.authResponse,
@@ -511,7 +572,14 @@ function SettingsInner() {
             showToast(`WhatsApp connected! ${data.phone ? `Number: ${data.phone}` : ''}`)
             loadData()
           } else {
-            const errMsg = data.error ?? 'Could not connect WhatsApp'
+            // Your account has not been changed by this failure — Meta's own popup
+            // may show a "disconnect from the existing account" screen for a number
+            // that isn't eligible for Coexistence yet, but we never forward that as
+            // an instruction to the merchant. Never tell them to delete/disconnect
+            // their existing WhatsApp account to "fix" this.
+            const errMsg = signupMode === 'existing'
+              ? `We couldn't connect this number using WhatsApp Business App Coexistence. Your WhatsApp account has not been changed. ${data.error ? `(${data.error})` : ''} Please retry, or connect as a new number instead.`
+              : (data.error ?? 'Could not connect WhatsApp')
             setScopeError(errMsg)
             setConnectDebug({
               rawAuthResponseKeys: data.rawAuthResponseKeys ?? [],
@@ -766,8 +834,15 @@ function SettingsInner() {
                 <div className="flex items-center gap-3 min-w-0">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-semibold text-green-800">Meta WhatsApp Cloud API</p>
+                    <p className="font-semibold text-green-800">
+                      {waConnectionMode === 'coexistence' ? 'WhatsApp Business App + Wapaci' : 'Meta WhatsApp Cloud API'}
+                    </p>
                     <p className="text-green-600 text-sm">{waDisplayPhone || 'Number connected'}</p>
+                    {waConnectionMode === 'coexistence' && (
+                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Still active on your phone
+                      </span>
+                    )}
                     {waTokenType === 'system_user_token' && (
                       <span className="inline-flex items-center gap-1 mt-1 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
                         <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Permanent system token
@@ -966,6 +1041,38 @@ function SettingsInner() {
                         </button>
                       </div>
                     )}
+
+                    <div className="space-y-2 mb-3">
+                      <p className="text-xs font-medium text-slate-600">Which describes you?</p>
+                      <label className={cn(
+                        'flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition',
+                        signupMode === 'existing' ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
+                      )}>
+                        <input
+                          type="radio" name="signupMode" className="mt-0.5"
+                          checked={signupMode === 'existing'}
+                          onChange={() => setSignupMode('existing')}
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-slate-800">I already use this number on WhatsApp Business</span>
+                          <span className="block text-xs text-slate-500 mt-0.5">Keep using the WhatsApp Business app on your phone while connecting it to Wapaci.</span>
+                        </span>
+                      </label>
+                      <label className={cn(
+                        'flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition',
+                        signupMode === 'new' ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
+                      )}>
+                        <input
+                          type="radio" name="signupMode" className="mt-0.5"
+                          checked={signupMode === 'new'}
+                          onChange={() => setSignupMode('new')}
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-slate-800">I want to connect a new number</span>
+                          <span className="block text-xs text-slate-500 mt-0.5">Set up a number that isn't currently active in WhatsApp Business.</span>
+                        </span>
+                      </label>
+                    </div>
 
                     <button
                       onClick={launchEmbeddedSignup}
