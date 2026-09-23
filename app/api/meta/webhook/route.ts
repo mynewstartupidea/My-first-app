@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { advanceQualifyingFlow } from '@/lib/qualifying-flow'
 
 function verifyMetaSignature(rawBody: string, signatureHeader: string): boolean {
   const appSecret = process.env.META_APP_SECRET
@@ -181,6 +182,16 @@ export async function POST(request: Request) {
         })
 
         if (insertErr) console.error('[Meta webhook] inbound_messages insert error:', insertErr.message)
+
+        // Qualifying flow: walk the lead through their form's configured
+        // follow-up questions. Wrapped so a flow bug never breaks the webhook ack.
+        if (waAccount?.store_id && msg.type === 'text' && msgBody) {
+          try {
+            await advanceQualifyingFlow(supabase, { storeId: waAccount.store_id as string, phone: fromPhone, text: msgBody })
+          } catch (e) {
+            console.error('[Meta webhook] qualifying flow error:', e)
+          }
+        }
       }
 
       // ── Delivery / read status updates ────────────────────────────────────

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // POST /api/facebook/leads/import
 // Body: { connectionId, formId, fromDate, toDate }
@@ -18,12 +19,13 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: conn } = await service
     .from('facebook_connections')
     .select('id, store_id, page_id, page_access_token, user_access_token')
     .eq('id', body.connectionId)
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .maybeSingle()
 
   if (!conn) return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
   const { data: auto } = await service
     .from('lead_form_automations')
     .select('form_name')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('form_id', body.formId)
     .maybeSingle()
 
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
     const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
     const fields = extractAllFields(fl.field_data ?? [])
     return {
-      user_id:          user.id,
+      user_id:          ownerId,
       store_id:         conn.store_id,
       facebook_lead_id: fl.id,
       page_id:          conn.page_id,

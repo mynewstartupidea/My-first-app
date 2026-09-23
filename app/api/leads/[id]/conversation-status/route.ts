@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // GET /api/leads/[id]/conversation-status
 // Returns: { missedCallFollowupEnabled, waSentRecently, waStatus }
@@ -11,10 +12,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
+  // missed_call_followup_enabled is an org-wide automation toggle the owner
+  // configures in Settings — look it up on the owner's profile, not the caller's,
+  // or a team member always saw it as off regardless of what was actually set.
   const [leadRes, profileRes] = await Promise.all([
-    service.from('leads').select('phone, wa_status').eq('id', id).maybeSingle(),
-    service.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),
+    service.from('leads').select('phone, wa_status')
+      .eq('id', id).or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`).maybeSingle(),
+    service.from('user_profiles').select('missed_call_followup_enabled').eq('id', ownerId).maybeSingle(),
   ])
 
   const lead    = leadRes.data

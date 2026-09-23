@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, getLeadForms, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate, extractTemplateParams } from '@/lib/utils'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export const maxDuration = 60
 
@@ -18,12 +19,13 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   // All connections for this user on this page (handles multiple reconnects)
   const { data: pageConns } = await service
     .from('facebook_connections')
     .select('id, page_id, page_access_token, user_access_token, store_id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('page_id', pageId)
 
   if (!pageConns?.length) return NextResponse.json({ synced: 0, newLeads: 0 })
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
   const { data: waConn } = await service
     .from('whatsapp_accounts')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('status', 'connected')
     .maybeSingle()
   const whatsappConnected = !!waConn
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
   const { data: allConns } = await service
     .from('facebook_connections')
     .select('id, page_id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
 
   const connPageMap: Record<string, string> = {}
   for (const c of allConns ?? []) connPageMap[c.id as string] = c.page_id as string
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
   const { data: allForms } = await service
     .from('lead_form_automations')
     .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id, wa_template_name, wa_template_language')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
 
   // Filter to forms on this page — works even with stale connection_ids
   let forms = (allForms ?? []).filter(f => connPageMap[f.connection_id as string] === pageId)
@@ -76,13 +78,13 @@ export async function POST(request: Request) {
       const { data: existingForms } = await service
         .from('lead_form_automations')
         .select('form_id')
-        .eq('user_id', user.id)
+        .eq('user_id', ownerId)
       const existingIds = new Set((existingForms ?? []).map(f => f.form_id as string))
 
       const newRows = fbForms
         .filter(f => !existingIds.has(f.id))
         .map(f => ({
-          user_id:          user.id,
+          user_id:          ownerId,
           store_id:         liveConn.store_id ?? null,
           connection_id:    liveConnId,
           form_id:          f.id,
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
       const { data: allAfterInsert } = await service
         .from('lead_form_automations')
         .select('id, form_id, form_name, connection_id, message_template, is_enabled, last_lead_fetch, store_id, wa_template_name, wa_template_language')
-        .eq('user_id', user.id)
+        .eq('user_id', ownerId)
 
       forms = (allAfterInsert ?? []).filter(f => connPageMap[f.connection_id as string] === pageId)
     }
@@ -116,7 +118,7 @@ export async function POST(request: Request) {
   const { data: orgRow } = await service
     .from('organizations')
     .select('id, lead_distribution_mode, rr_current_pos, distribution_members')
-    .eq('owner_id', user.id)
+    .eq('owner_id', ownerId)
     .maybeSingle()
 
   if (orgRow?.lead_distribution_mode === 'round_robin') {
@@ -164,7 +166,7 @@ export async function POST(request: Request) {
     })
 
     const rows = parsed.map(({ fl, name, email, phone, fields }) => ({
-      user_id:          user.id,
+      user_id:          ownerId,
       store_id:         form.store_id,
       facebook_lead_id: fl.id,
       page_id:          pageId,

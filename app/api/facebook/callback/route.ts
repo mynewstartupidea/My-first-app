@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { exchangeFBCode, getLongLivedToken, getUserPages, subscribePageToLeadgen, getLeadForms } from '@/lib/facebook'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -37,8 +38,12 @@ export async function GET(request: Request) {
     }
 
     const service = createServiceClient()
+    // If an admin teammate connects Facebook on the org's behalf, the connection
+    // (and the store it links to) must belong to the actual owner — otherwise it's
+    // invisible to every route that reads facebook_connections by the owner's id.
+    const ownerId = await resolveOwnerUserId(service, user.id)
     const { data: store } = await service
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+      .from('stores').select('id').eq('user_id', ownerId).eq('is_active', true).maybeSingle()
 
     for (const page of pages) {
       const subscribed = await subscribePageToLeadgen(page.id, page.access_token)
@@ -47,7 +52,7 @@ export async function GET(request: Request) {
       const { data: connRow } = await service
         .from('facebook_connections')
         .upsert({
-          user_id:               user.id,
+          user_id:               ownerId,
           store_id:              store?.id ?? null,
           page_id:               page.id,
           page_name:             page.name,
@@ -68,7 +73,7 @@ export async function GET(request: Request) {
       if (!forms.length) continue
 
       const automationRows = forms.map(f => ({
-        user_id:          user.id,
+        user_id:          ownerId,
         store_id:         store?.id ?? null,
         connection_id:    connRow.id,
         form_id:          f.id,

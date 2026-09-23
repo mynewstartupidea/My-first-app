@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export async function GET() {
   const supabase = await createClient()
@@ -7,10 +8,11 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: campaigns } = await service
     .from('lead_campaigns')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -39,10 +41,11 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: campaign, error } = await service
     .from('lead_campaigns')
     .insert({
-      user_id:           user.id,
+      user_id:           ownerId,
       name:              body.name.trim(),
       form_id:           body.form_id ?? null,
       form_name:         body.form_name ?? null,

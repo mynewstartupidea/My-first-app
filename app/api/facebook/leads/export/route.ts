@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // GET /api/facebook/leads/export?connection_id=xxx&form_id=xxx&from_date=xxx&to_date=xxx
 // Fetches leads from Facebook for the given range and returns them as JSON for CSV export.
@@ -21,12 +22,13 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: conn } = await service
     .from('facebook_connections')
     .select('page_access_token, user_access_token')
     .eq('id', connectionId)
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .maybeSingle()
 
   if (!conn) return NextResponse.json({ error: 'Connection not found' }, { status: 404 })

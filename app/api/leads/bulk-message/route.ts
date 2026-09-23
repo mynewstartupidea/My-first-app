@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate, extractTemplateParams } from '@/lib/utils'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export const maxDuration = 60
 
@@ -16,11 +17,12 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   let q = service
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .not('phone', 'is', null)
     .in('wa_status', ['imported', 'failed'])
 
@@ -54,11 +56,12 @@ export async function POST(request: Request) {
   if (!template_name?.trim()) return NextResponse.json({ error: 'template_name required' }, { status: 400 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: wa } = await service
     .from('whatsapp_accounts')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('status', 'connected')
     .maybeSingle()
 
@@ -67,14 +70,14 @@ export async function POST(request: Request) {
   const { data: store } = await service
     .from('stores')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .maybeSingle()
 
   let leadsQ = service
     .from('leads')
     .select('id, name, phone, fields, form_id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .not('phone', 'is', null)
     .in('wa_status', ['imported', 'failed'])
 
@@ -133,7 +136,7 @@ export async function POST(request: Request) {
         sent_at:     new Date().toISOString(),
       })
       .eq('id', campaign_id)
-      .eq('user_id', user.id)
+      .eq('user_id', ownerId)
   }
 
   return NextResponse.json({ queued: leads.length })

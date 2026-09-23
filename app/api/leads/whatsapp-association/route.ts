@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // Returns which Facebook page(s) have already had WhatsApp messages sent to their leads.
 // Used by the campaign modal to lock the page selector once a page is committed.
@@ -9,12 +10,13 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   // Find all form_ids that have had a WhatsApp message sent or queued
   const { data: sentLeads } = await service
     .from('leads')
     .select('form_id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .in('wa_status', ['sent', 'pending'])
     .not('form_id', 'is', null)
 
@@ -25,7 +27,7 @@ export async function GET() {
   const { data: automations } = await service
     .from('lead_form_automations')
     .select('connection_id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .in('form_id', formIds)
 
   const connIds = [...new Set((automations ?? []).map(a => a.connection_id as string).filter(Boolean))]
@@ -35,7 +37,7 @@ export async function GET() {
   const { data: connections } = await service
     .from('facebook_connections')
     .select('page_id, page_name')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .in('id', connIds)
 
   return NextResponse.json({

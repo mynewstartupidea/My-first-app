@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 const VALID_STATUSES = new Set(['hot', 'warm', 'cold', 'lost', 'converted', 'junk', 'resolved'])
 
@@ -20,12 +21,13 @@ export async function PATCH(
   }
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: lead } = await service
     .from('leads')
     .select('id')
     .eq('id', id)
-    .eq('user_id', user.id)
+    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
     .maybeSingle()
 
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })

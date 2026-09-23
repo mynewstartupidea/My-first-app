@@ -363,3 +363,30 @@ ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS api_key TEXT UNIQUE;
 
 CREATE INDEX IF NOT EXISTS stores_api_key_idx ON stores(api_key) WHERE api_key IS NOT NULL;
+
+-- ─── Qualifying chatbot flow ──────────────────────────────────────────────────
+-- Ordered follow-up questions asked automatically once a lead first replies on
+-- WhatsApp (replying opens the 24h session window, so these send as freeform
+-- text — no approved template needed). Configured per lead-ad form.
+
+ALTER TABLE lead_form_automations
+  ADD COLUMN IF NOT EXISTS qualifying_questions JSONB DEFAULT '[]'::jsonb;
+
+-- One row per lead, tracking how far through the question list they've gotten.
+CREATE TABLE IF NOT EXISTS lead_qualifying_progress (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id        UUID REFERENCES leads(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  store_id       UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  phone          TEXT NOT NULL,
+  question_index INTEGER DEFAULT 0,
+  answers        JSONB DEFAULT '[]'::jsonb,
+  status         TEXT DEFAULT 'in_progress' CHECK (status IN ('in_progress','completed')),
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE lead_qualifying_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "qualifying_progress_own" ON lead_qualifying_progress FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+
+CREATE INDEX IF NOT EXISTS lead_qualifying_progress_store_phone_idx
+  ON lead_qualifying_progress(store_id, phone, status);

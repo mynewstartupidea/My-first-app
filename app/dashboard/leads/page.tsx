@@ -48,6 +48,7 @@ interface ActiveForm {
   last_lead_fetch: string | null
   wa_template_name: string | null
   wa_template_language: string | null
+  qualifying_questions: string[]
 }
 
 interface Lead {
@@ -431,11 +432,12 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
 function EditFormModal({ form, onClose, onSave }: {
   form: ActiveForm
   onClose: () => void
-  onSave: (template: string, waTemplateName: string, waTemplateLang: string) => Promise<void>
+  onSave: (template: string, waTemplateName: string, waTemplateLang: string, qualifyingQuestions: string[]) => Promise<void>
 }) {
   const [template,    setTemplate]    = useState(form.message_template || DEFAULT_TEMPLATE)
   const [waName,      setWaName]      = useState(form.wa_template_name ?? '')
   const [waLang,      setWaLang]      = useState(form.wa_template_language ?? 'en')
+  const [questions,   setQuestions]   = useState<string[]>(form.qualifying_questions?.length ? form.qualifying_questions : [])
   const [saving,      setSaving]      = useState(false)
   const [starterTmpl, setStarterTmpl] = useState<(StarterTemplate & { status: string })[]>([])
   const [loadingTmpl, setLoadingTmpl] = useState(true)
@@ -481,7 +483,8 @@ function EditFormModal({ form, onClose, onSave }: {
 
   const handleSave = async () => {
     setSaving(true)
-    try { await onSave(template, waName.trim(), waLang.trim() || 'en'); onClose() }
+    const cleanQuestions = questions.map(q => q.trim()).filter(Boolean)
+    try { await onSave(template, waName.trim(), waLang.trim() || 'en', cleanQuestions); onClose() }
     finally { setSaving(false) }
   }
 
@@ -609,6 +612,38 @@ function EditFormModal({ form, onClose, onSave }: {
                 title="Language code (e.g. en, en_US, hi)"
               />
             </div>
+          </div>
+
+          {/* Qualifying questions */}
+          <div className="border-t border-gray-100 pt-5">
+            <label className="block text-sm font-semibold text-gray-700 mb-0.5">
+              Qualifying questions <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <p className="text-xs text-gray-400 mb-2">
+              Asked one at a time, right after a lead first replies. Each answer is saved on the lead.
+            </p>
+            <div className="space-y-2">
+              {questions.map((q, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-400 w-4 flex-shrink-0">{i + 1}</span>
+                  <input
+                    type="text"
+                    value={q}
+                    onChange={e => setQuestions(qs => qs.map((v, idx) => idx === i ? e.target.value : v))}
+                    placeholder="e.g. What's your budget?"
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button type="button" onClick={() => setQuestions(qs => qs.filter((_, idx) => idx !== i))}
+                    className="p-2 text-gray-300 hover:text-red-500 transition flex-shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => setQuestions(qs => [...qs, ''])}
+              className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition">
+              <Plus className="w-3.5 h-3.5" /> Add question
+            </button>
           </div>
         </div>
 
@@ -2899,19 +2934,20 @@ function LeadsContent() {
     setTogglingId(null)
   }
 
-  const handleEditSave = async (template: string, waTemplateName: string, waTemplateLang: string) => {
+  const handleEditSave = async (template: string, waTemplateName: string, waTemplateLang: string, qualifyingQuestions: string[]) => {
     if (!editingForm) return
     await fetch('/api/facebook/form-automation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        connectionId:       editingForm.connection_id,
-        formId:             editingForm.form_id,
-        formName:           editingForm.form_name,
-        messageTemplate:    template,
-        isEnabled:          editingForm.is_enabled,
-        waTemplateName:     waTemplateName || undefined,
-        waTemplateLanguage: waTemplateLang || undefined,
+        connectionId:        editingForm.connection_id,
+        formId:              editingForm.form_id,
+        formName:            editingForm.form_name,
+        messageTemplate:     template,
+        isEnabled:           editingForm.is_enabled,
+        waTemplateName:      waTemplateName || undefined,
+        waTemplateLanguage:  waTemplateLang || undefined,
+        qualifyingQuestions,
       }),
     })
     if (selectedPageId) await fetchActiveForms(selectedPageId)

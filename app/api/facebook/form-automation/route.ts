@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export const maxDuration = 60
 
@@ -17,15 +18,17 @@ export async function POST(request: Request) {
     isEnabled: boolean
     waTemplateName?: string
     waTemplateLanguage?: string
+    qualifyingQuestions?: string[]
   }
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: conn } = await service
     .from('facebook_connections')
     .select('id, store_id, page_id, page_access_token, user_access_token')
     .eq('id', body.connectionId)
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .maybeSingle()
 
   if (!conn?.store_id) return NextResponse.json({ error: 'Connection not found or no store linked' }, { status: 404 })
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
   const { data: existing } = await service
     .from('lead_form_automations')
     .select('id, color_index')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('form_id', body.formId)
     .maybeSingle()
 
@@ -46,13 +49,13 @@ export async function POST(request: Request) {
     const { count } = await service
       .from('lead_form_automations')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', ownerId)
     colorIndex = (count ?? 0) % 8
   }
 
   // Try upsert with new columns; fall back without them if SQL migration hasn't run yet
   const baseRow = {
-    user_id:              user.id,
+    user_id:              ownerId,
     store_id:             conn.store_id,
     connection_id:        body.connectionId,
     form_id:              body.formId,
@@ -63,13 +66,26 @@ export async function POST(request: Request) {
     wa_template_language: body.waTemplateLanguage ?? 'en',
     updated_at:           new Date().toISOString(),
   }
+  // Only touch qualifying_questions when the caller actually sent them — handleToggle
+  // and the initial-activation call re-save the row without this field, and it must
+  // not wipe out questions configured earlier via the edit modal.
+  const qualifyingRow = body.qualifyingQuestions !== undefined
+    ? { qualifying_questions: body.qualifyingQuestions.map(q => q.trim()).filter(Boolean) }
+    : {}
+
   const { error: upsertErr } = await service.from('lead_form_automations').upsert(
-    { ...baseRow, color_index: colorIndex },
+    { ...baseRow, color_index: colorIndex, ...qualifyingRow },
     { onConflict: 'store_id,form_id' }
   )
   if (upsertErr) {
-    // color_index column probably doesn't exist yet — retry without it
-    await service.from('lead_form_automations').upsert(baseRow, { onConflict: 'store_id,form_id' })
+    // color_index / qualifying_questions columns probably don't exist yet — retry without them
+    const { error: retryErr } = await service.from('lead_form_automations').upsert(
+      { ...baseRow, color_index: colorIndex },
+      { onConflict: 'store_id,form_id' }
+    )
+    if (retryErr) {
+      await service.from('lead_form_automations').upsert(baseRow, { onConflict: 'store_id,form_id' })
+    }
   }
 
   // On first activation: import historical leads as 'imported' only — no WhatsApp jobs.
@@ -85,7 +101,7 @@ export async function POST(request: Request) {
         const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
         const fields = extractAllFields(fl.field_data ?? [])
         return {
-          user_id:          user.id,
+          user_id:          ownerId,
           store_id:         conn.store_id,
           facebook_lead_id: fl.id,
           page_id:          conn.page_id,
@@ -109,7 +125,7 @@ export async function POST(request: Request) {
     // Set last_lead_fetch = now so the cron/sync only picks up leads arriving after activation
     await service.from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
-      .eq('user_id', user.id)
+      .eq('user_id', ownerId)
       .eq('form_id', body.formId)
       .then(null, () => null)
   }

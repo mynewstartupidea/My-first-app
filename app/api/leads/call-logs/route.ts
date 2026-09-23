@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 const VALID_OUTCOMES = new Set(['connected', 'no_answer', 'voicemail', 'callback', 'busy'])
 const VALID_STATUSES = new Set(['hot', 'warm', 'cold', 'lost', 'converted', 'junk', 'resolved'])
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   // Batch mode: return most recent log per lead
   const leadIdsParam = searchParams.get('lead_ids')
@@ -27,9 +29,9 @@ export async function GET(request: Request) {
     const leadIds = leadIdsParam.split(',').map(s => s.trim()).filter(Boolean).slice(0, 500)
     if (leadIds.length === 0) return NextResponse.json({ notes: {} })
 
-    // Only return logs for leads owned by this user
+    // Only return logs for leads visible to this user — owned by the org, or assigned to them
     const { data: ownedLeads } = await service
-      .from('leads').select('id').in('id', leadIds).eq('user_id', user.id)
+      .from('leads').select('id').in('id', leadIds).or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
     const ownedIds = (ownedLeads ?? []).map(l => l.id)
     if (ownedIds.length === 0) return NextResponse.json({ notes: {} })
 
@@ -49,12 +51,12 @@ export async function GET(request: Request) {
   const leadId = searchParams.get('lead_id')
   if (!leadId) return NextResponse.json({ logs: [] })
 
-  // Verify the lead belongs to the requesting user before returning its call logs
+  // Verify the lead is visible to the requesting user before returning its call logs
   const { data: lead } = await service
     .from('leads')
     .select('id')
     .eq('id', leadId)
-    .eq('user_id', user.id)
+    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
     .maybeSingle()
 
   if (!lead) return NextResponse.json({ logs: [] })
@@ -92,13 +94,14 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
-  // Verify the lead belongs to the requesting user before writing any data
+  // Verify the lead is visible to the requesting user before writing any data
   const { data: ownedLead } = await service
     .from('leads')
     .select('id')
     .eq('id', body.leadId)
-    .eq('user_id', user.id)
+    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
     .maybeSingle()
 
   if (!ownedLead) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -10,12 +11,13 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   // Fetch all connections for this user up-front (used for page_id mapping)
   const { data: allConns } = await service
     .from('facebook_connections')
     .select('id, page_id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
 
   const connPageMap: Record<string, string> = {}
   for (const c of allConns ?? []) connPageMap[c.id as string] = c.page_id as string
@@ -32,14 +34,15 @@ export async function GET(request: Request) {
     message_template: string; is_enabled: boolean
     color_index?: number; last_lead_fetch?: string | null
     wa_template_name?: string | null; wa_template_language?: string | null
+    qualifying_questions?: string[] | null
   }
 
   const runQuery = async (includeMigrationCols: boolean) => {
     const q = service
       .from('lead_form_automations')
       .select('id, form_id, form_name, connection_id, message_template, is_enabled' +
-        (includeMigrationCols ? ', color_index, last_lead_fetch, wa_template_name, wa_template_language' : ''))
-      .eq('user_id', user.id)
+        (includeMigrationCols ? ', color_index, last_lead_fetch, wa_template_name, wa_template_language, qualifying_questions' : ''))
+      .eq('user_id', ownerId)
       .order('created_at', { ascending: true })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return q as unknown as Promise<{ data: AutoRow[] | null; error: any }>
@@ -87,7 +90,7 @@ export async function GET(request: Request) {
       const { count } = await service
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
+        .eq('user_id', ownerId)
         .eq('form_id', a.form_id)
       return { formId: a.form_id, count: count ?? 0 }
     })
@@ -108,6 +111,7 @@ export async function GET(request: Request) {
     lead_count:           countMap[a.form_id] ?? 0,
     wa_template_name:     a.wa_template_name ?? null,
     wa_template_language: a.wa_template_language ?? null,
+    qualifying_questions: a.qualifying_questions ?? [],
   }))
 
   return NextResponse.json({ forms })

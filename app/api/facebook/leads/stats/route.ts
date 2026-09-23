@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // GET /api/facebook/leads/stats?page_id=xxx
 // Returns aggregate counts for the selected page — always page-scoped,
@@ -14,9 +15,10 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   const base = () =>
-    service.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('page_id', pageId)
+    service.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', ownerId).eq('page_id', pageId)
 
   const [totalRes, withPhoneRes, sentRes, pendingRes] = await Promise.all([
     base(),
