@@ -35,6 +35,14 @@ button, a, [role="button"] {
   -webkit-touch-callout: none;
 }
 
+/* Top progress bar — instant tap feedback on nav links (see route-progress.tsx).
+   Animates via transform, not width, so it's compositor-only/GPU-cheap. */
+@keyframes route-progress {
+  0%   { transform: scaleX(0); }
+  100% { transform: scaleX(0.9); }
+}
+.animate-route-progress { animation: route-progress 1s cubic-bezier(0.1, 0.7, 0.3, 1) forwards; }
+
 /* Bottom-sheet modals on mobile — slide up from the bottom like a native sheet */
 @keyframes sheet-up {
   from { transform: translateY(100%); }

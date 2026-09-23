@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/sidebar'
 import MobileBottomNav from '@/components/mobile-bottom-nav'
 import MobileHeader from '@/components/mobile-header'
+import PageTransition from '@/components/page-transition'
+import RouteProgress from '@/components/route-progress'
 import { getUserRole } from '@/lib/get-user-role'
 import { pickPreferredStore } from '@/lib/store-selection'
 
@@ -27,6 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen bg-[#f1f5f9]">
+      <RouteProgress />
       {/* Desktop sidebar — hidden on mobile */}
       <Sidebar storeName={displayName} plan={store?.plan} role={role} />
 
@@ -44,7 +47,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           it instead of sliding underneath. */}
       <main className="flex-1 min-w-0 ml-0 md:ml-[220px] min-h-screen pt-[calc(52px+env(safe-area-inset-top))] md:pt-0 pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0">
         <MobileHeader />
-        {children}
+        <PageTransition>{children}</PageTransition>
       </main>
 
       {/* Mobile bottom tab bar — hidden on desktop */}
