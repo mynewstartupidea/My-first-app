@@ -10,6 +10,7 @@ import {
   Phone, Calendar, UserCheck,
 } from 'lucide-react'
 import type { StarterTemplate } from '@/lib/whatsapp-templates'
+import type { UserRole } from '@/lib/user-role'
 import { timeAgo } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2734,6 +2735,13 @@ function LeadsContent() {
   const [teamMembers,    setTeamMembers]    = useState<TeamMember[]>([])
   const [syncToast,      setSyncToast]      = useState(false)
   const [waConnected,    setWaConnected]    = useState<boolean | null>(null)
+  const [role,           setRole]           = useState<UserRole | null>(null)
+  // A sales rep's job here is "work my leads," not manage Facebook connections or
+  // send campaigns — those controls (page picker, refresh, bulk message, stats
+  // grid) are owner/admin furniture that just pushes the actual lead list off
+  // the first screen on mobile. See conversation: rep opens Leads, should land on
+  // what needs action, not a connections dashboard.
+  const isRep = role === 'member'
 
   const showSyncToast = useCallback(() => {
     setSyncToast(true)
@@ -2821,6 +2829,13 @@ function LeadsContent() {
         fetchPages(),
         fetch('/api/leads/whatsapp-association').then(r => r.json()),
         fetch('/api/team/members').then(r => r.json() as Promise<{ members?: TeamMember[] }>).then(d => setTeamMembers(d.members ?? [])).catch(() => {}),
+        fetch('/api/me/role').then(r => r.json() as Promise<{ role?: UserRole }>).then(d => {
+          if (d.role) {
+            setRole(d.role)
+            // Default a rep straight to what needs action, not the full lead list.
+            if (d.role === 'member' && sortParam !== 'followup_due') setActiveView('followups')
+          }
+        }).catch(() => {}),
         ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId, 1, 50, '', sortParam === 'followup_due' ? 'followup_due' : 'default'), fetchStats(cachedPageId)] : []),
       ]) as [Page[], { locked_pages?: { page_id: string; page_name: string }[] }, ...unknown[]]
       const locked = (assocData?.locked_pages ?? [])[0] ?? null
@@ -3127,16 +3142,21 @@ function LeadsContent() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Header — reps get just the title: no page/connection management, no
+          bulk-send. Those are owner/admin tools and were the reason a rep had
+          to scroll past a stack of buttons before reaching their first lead. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Lead Ads</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            {pages.length} page{pages.length !== 1 ? 's' : ''} connected
-            {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} tracked`}
-            {enabledForms.length > 0 && ` · ${enabledForms.length} with WhatsApp`}
-          </p>
+          {!isRep && (
+            <p className="text-sm text-gray-400 mt-0.5">
+              {pages.length} page{pages.length !== 1 ? 's' : ''} connected
+              {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} tracked`}
+              {enabledForms.length > 0 && ` · ${enabledForms.length} with WhatsApp`}
+            </p>
+          )}
         </div>
+        {!isRep && (
         <div className="flex items-center gap-2 flex-wrap">
           <PageDropdown
             pages={pages}
@@ -3184,9 +3204,19 @@ function LeadsContent() {
             <Plus className="w-4 h-4" /> Add page
           </a>
         </div>
+        )}
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — a rep doesn't need four KPI tiles between them and their
+          list; those belong to whoever's running the pipeline. One line instead. */}
+      {isRep ? (
+        <p className="text-sm text-gray-500">
+          <span className="font-semibold text-gray-900 tabular-nums">{pageTotal}</span> lead{pageTotal !== 1 ? 's' : ''}
+          {followupUrgentCount > 0 && (
+            <> · <span className="font-semibold text-amber-600 tabular-nums">{followupUrgentCount}</span> follow-up{followupUrgentCount !== 1 ? 's' : ''} due</>
+          )}
+        </p>
+      ) : (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Total leads',   value: pageTotal, color: '#6b7280', warn: false },
@@ -3213,6 +3243,7 @@ function LeadsContent() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Automation setup callout — shown when no forms have WhatsApp enabled */}
       {enabledForms.length === 0 && !loadingForms && activeView !== 'followups' && (
