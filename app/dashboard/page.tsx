@@ -119,17 +119,25 @@ export default async function DashboardPage() {
     lead_status: string | null; followup_at: string; wa_status: string
   }>
 
-  const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes] = await Promise.all([
+  const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes] = await Promise.all([
     store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? supabase.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? supabase.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
     defaultPageId
-      ? supabase.from('leads').select('lead_status, wa_status').eq('user_id', user.id).eq('page_id', defaultPageId)
-      : supabase.from('leads').select('lead_status, wa_status').eq('user_id', user.id),
+      ? supabase.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', user.id).eq('page_id', defaultPageId)
+      : supabase.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', user.id),
     defaultConnectionId
       ? supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id).eq('connection_id', defaultConnectionId)
       : supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id),
     supabase.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),
+    // Speed-to-lead: first automated "lead_ad" WhatsApp send per phone number, used
+    // below to measure time from lead creation to first contact. Scoped to the last
+    // 30 days so a handful of old bulk-resends to stale leads can't skew the median.
+    store
+      ? supabase.from('automation_jobs').select('customer_phone, sent_at')
+          .eq('store_id', store.id).eq('type', 'lead_ad').eq('status', 'sent')
+          .gte('sent_at', thirtyDaysAgo).order('sent_at', { ascending: true })
+      : Promise.resolve({ data: [] }),
   ])
 
   const analytics = analyticsRes.data ?? []
@@ -152,6 +160,38 @@ export default async function DashboardPage() {
   const leadForms = leadFormsRes.data ?? []
   const activeLeadForms = leadForms.filter(f => f.is_enabled).length
   const missedCallFollowupOn = profileRes.data?.missed_call_followup_enabled ?? false
+
+  // Speed-to-lead: median minutes from lead creation to the first automated WhatsApp
+  // send to that phone number. Earliest sent_at per phone (leadJobsRes is already
+  // ordered ascending), matched against each lead's own created_at. Median rather
+  // than mean — a few delayed/bulk-resent leads shouldn't drag the "typical" number.
+  const firstSentByPhone = new Map<string, string>()
+  for (const job of leadJobsRes.data ?? []) {
+    const phone = job.customer_phone as string
+    if (phone && !firstSentByPhone.has(phone)) firstSentByPhone.set(phone, job.sent_at as string)
+  }
+  const responseMinutes = leadStats
+    .map(l => {
+      if (!l.phone || !l.created_at) return null
+      const sentAt = firstSentByPhone.get(l.phone)
+      if (!sentAt) return null
+      const mins = (new Date(sentAt).getTime() - new Date(l.created_at).getTime()) / 60000
+      return mins >= 0 ? mins : null
+    })
+    .filter((m): m is number => m !== null)
+    .sort((a, b) => a - b)
+
+  const medianResponseMinutes = responseMinutes.length > 0
+    ? responseMinutes[Math.floor(responseMinutes.length / 2)]
+    : null
+
+  const formatMinutes = (mins: number) => {
+    if (mins < 1) return '<1 min'
+    if (mins < 60) return `${Math.round(mins)} min`
+    const hours = Math.floor(mins / 60)
+    const rem = Math.round(mins % 60)
+    return rem > 0 ? `${hours}h ${rem}m` : `${hours}h`
+  }
 
   const totals = analytics.reduce(
     (acc, row) => ({
@@ -535,11 +575,27 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {/* CTA card */}
+          {/* CTA card — shows the account's own measured speed-to-lead once there's
+              data, instead of just asserting the value of speed in the abstract. */}
           <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 text-white">
             <MousePointerClick size={18} className="mb-2 opacity-80" />
-            <p className="font-semibold text-sm">Speed to lead wins deals</p>
-            <p className="text-green-100 text-xs mt-1 leading-relaxed">Leads messaged within 5 minutes convert up to 9x more often than those contacted an hour later.</p>
+            {medianResponseMinutes !== null ? (
+              <>
+                <p className="font-semibold text-sm">
+                  Your leads hear back in {formatMinutes(medianResponseMinutes)}
+                </p>
+                <p className="text-green-100 text-xs mt-1 leading-relaxed">
+                  {medianResponseMinutes <= 5
+                    ? "That's fast — leads messaged within 5 minutes convert up to 9x more than those contacted an hour later."
+                    : 'Leads messaged within 5 minutes convert up to 9x more than those contacted an hour later. Faster Lead Ad Response setup can close that gap.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-sm">Speed to lead wins deals</p>
+                <p className="text-green-100 text-xs mt-1 leading-relaxed">Leads messaged within 5 minutes convert up to 9x more often than those contacted an hour later.</p>
+              </>
+            )}
             <Link href="/dashboard/leads" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
               View leads <ArrowRight size={12} />
             </Link>
