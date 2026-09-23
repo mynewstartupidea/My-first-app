@@ -2092,14 +2092,84 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
     : null
   const isOverdue = lead.followup_at ? new Date(lead.followup_at) < new Date() : false
 
+  // Swipe reveals "Take this lead" — deliberately the only swipe action, and
+  // only when the lead has no owner yet. Call and "open the feedback sheet"
+  // already have their own always-visible one-tap targets on this same row;
+  // a swipe gesture that duplicated either would just be a second way to do
+  // something already one tap away. Claiming, though, currently requires
+  // opening the sheet and finding the button in there — this is the one
+  // action actually worth surfacing as a gesture.
+  const REVEAL = 84
+  const swipeable = !lead.assigned_name
+  const [dragX, setDragX] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const [claiming, setClaiming] = useState(false)
+  const touchRef = useRef<{ x: number; y: number; startDragX: number; horizontal: boolean | null } | null>(null)
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!swipeable) return
+    const t = e.touches[0]
+    touchRef.current = { x: t.clientX, y: t.clientY, startDragX: dragX, horizontal: null }
+  }
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!swipeable || !touchRef.current) return
+    const t = e.touches[0]
+    const dx = t.clientX - touchRef.current.x
+    const dy = t.clientY - touchRef.current.y
+    if (touchRef.current.horizontal === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+      touchRef.current.horizontal = Math.abs(dx) > Math.abs(dy)
+    }
+    if (!touchRef.current.horizontal) return // vertical drag — leave it to page scroll
+    setDragging(true)
+    setDragX(Math.min(0, Math.max(-REVEAL, touchRef.current.startDragX + dx)))
+  }
+  const handleTouchEnd = () => {
+    const wasHorizontal = touchRef.current?.horizontal
+    touchRef.current = null
+    setDragging(false)
+    if (!wasHorizontal) return
+    setDragX(prev => (prev < -REVEAL / 2 ? -REVEAL : 0))
+  }
+
+  const handleClaim = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setClaiming(true)
+    try {
+      const r = await fetch(`/api/leads/${lead.id}/assign`, { method: 'PATCH' })
+      const d = await r.json() as { assigned_name?: string }
+      if (d.assigned_name) onUpdate(lead.id, { assigned_name: d.assigned_name })
+    } finally {
+      setClaiming(false)
+      setDragX(0)
+    }
+  }
+
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onCallLog}
-      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onCallLog()}
-      className="flex items-start gap-3 px-4 py-3.5 border-b border-gray-50 last:border-0 transition active:bg-slate-50 cursor-pointer"
-    >
+    <div className="relative overflow-hidden border-b border-gray-50 last:border-0">
+      {swipeable && (
+        <div className="absolute inset-y-0 right-0 flex" style={{ width: REVEAL }}>
+          <button
+            onClick={handleClaim}
+            disabled={claiming}
+            className="w-full h-full flex flex-col items-center justify-center gap-1 bg-blue-600 text-white active:bg-blue-700 transition disabled:opacity-60"
+          >
+            {claiming ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+            <span className="text-[10px] font-semibold leading-none">Take it</span>
+          </button>
+        </div>
+      )}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => (dragX < 0 ? setDragX(0) : onCallLog())}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onCallLog()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ transform: `translateX(${dragX}px)`, transition: dragging ? 'none' : 'transform 0.2s ease-out' }}
+        className="relative z-10 flex items-start gap-3 px-4 py-3.5 bg-white transition-colors active:bg-slate-50 cursor-pointer"
+      >
       <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-gray-500 uppercase">
         {initials}
       </div>
@@ -2173,6 +2243,7 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
             <Phone className="w-3.5 h-3.5 text-gray-300" />
           </div>
         )}
+      </div>
       </div>
     </div>
   )
