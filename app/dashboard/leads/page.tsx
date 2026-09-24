@@ -2600,20 +2600,6 @@ function LeadsContent() {
     return p
   }, [])
 
-  const confirmPageSelection = useCallback(async (ids?: string[]) => {
-    setConfirmingPick(true)
-    const res = await fetch('/api/facebook/pages/select', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ selectedPageIds: ids ?? Array.from(pickedPageIds) }),
-    })
-    const d = await res.json().catch(() => ({})) as { activated?: number }
-    setConfirmingPick(false)
-    setPendingPages([])
-    setBanner({ type: 'success', msg: `${d.activated ?? 0} Facebook page${d.activated !== 1 ? 's' : ''} connected` })
-    await fetchPages()
-  }, [pickedPageIds, fetchPages])
-
   const fetchActiveForms = useCallback(async (pageId: string) => {
     const [formsRes, waRes] = await Promise.all([
       fetch(`/api/facebook/active-forms?page_id=${pageId}`),
@@ -2649,6 +2635,31 @@ function LeadsContent() {
     setLeads(d.leads ?? [])
     setTotal(d.total ?? 0)
   }, [])
+
+  const confirmPageSelection = useCallback(async (ids?: string[]) => {
+    setConfirmingPick(true)
+    const res = await fetch('/api/facebook/pages/select', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ selectedPageIds: ids ?? Array.from(pickedPageIds) }),
+    })
+    const d = await res.json().catch(() => ({})) as { activated?: number }
+    setConfirmingPick(false)
+    setPendingPages([])
+    setBanner({ type: 'success', msg: `${d.activated ?? 0} Facebook page${d.activated !== 1 ? 's' : ''} connected` })
+    const freshPages = await fetchPages()
+
+    // Nothing selects a page after activation otherwise — the picker can fire
+    // on the very first connection ever made, when selectedPageId is still
+    // null and there's no cached page to fall back to, leaving the page
+    // dropdown (and every fetch gated on selectedPageId) stuck empty.
+    if (freshPages.length > 0 && !freshPages.some(p => p.page_id === selectedPageId)) {
+      const pid = freshPages[0].page_id
+      setSelectedPageId(pid)
+      try { sessionStorage.setItem('_wpl_pid', pid) } catch {}
+      await Promise.all([fetchActiveForms(pid), fetchLeads('all', pid, 1, perPage, ''), fetchStats(pid)])
+    }
+  }, [pickedPageIds, fetchPages, selectedPageId, fetchActiveForms, fetchLeads, fetchStats, perPage])
 
   // Restore the same-session cache into state right after mount — after
   // hydration, not during it (see the state declarations above). Runs before
