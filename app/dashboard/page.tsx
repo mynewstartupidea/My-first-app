@@ -119,7 +119,7 @@ export default async function DashboardPage() {
     lead_status: string | null; followup_at: string; wa_status: string
   }>
 
-  const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes] = await Promise.all([
+  const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes, leadSourcesRes] = await Promise.all([
     store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? supabase.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? supabase.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
@@ -138,6 +138,11 @@ export default async function DashboardPage() {
           .eq('store_id', store.id).eq('type', 'lead_ad').eq('status', 'sent')
           .gte('sent_at', thirtyDaysAgo).order('sent_at', { ascending: true })
       : Promise.resolve({ data: [] }),
+    // Lead Sources breakdown is deliberately NOT page-scoped like leadStats
+    // above — non-Facebook sources (walk-in, referral, channel partner,
+    // landing page) have no page_id at all, so filtering by defaultPageId
+    // would silently exclude every one of them and always show 100% Facebook.
+    supabase.from('leads').select('source').eq('user_id', user.id),
   ])
 
   const analytics = analyticsRes.data ?? []
@@ -183,6 +188,34 @@ export default async function DashboardPage() {
       pct: totalLeads > 0 ? Math.round(((outcomeCounts[key] ?? 0) / totalLeads) * 100) : 0,
     }))
     .filter(o => o.count > 0)
+
+  // Lead Sources — which channel actually brings leads in, across every
+  // source (Facebook, landing page, walk-in, referral, channel partner), not
+  // just the Facebook-page-scoped totals above.
+  const SOURCE_META: Record<string, { label: string; color: string; dot: string }> = {
+    facebook_lead_ad: { label: 'Facebook',        color: 'bg-blue-500',   dot: 'bg-blue-500' },
+    landing_page:      { label: 'Landing Page',    color: 'bg-purple-500', dot: 'bg-purple-500' },
+    walk_in:           { label: 'Walk-in',         color: 'bg-emerald-500', dot: 'bg-emerald-500' },
+    referral:          { label: 'Referral',        color: 'bg-teal-500',   dot: 'bg-teal-500' },
+    channel_partner:   { label: 'Channel Partner', color: 'bg-orange-400', dot: 'bg-orange-400' },
+    manual:            { label: 'Manual',          color: 'bg-slate-400', dot: 'bg-slate-400' },
+    other:             { label: 'Other',           color: 'bg-slate-300', dot: 'bg-slate-300' },
+  }
+  const allLeadsForSources = leadSourcesRes.data ?? []
+  const totalLeadsAllSources = allLeadsForSources.length
+  const sourceCounts: Record<string, number> = {}
+  for (const l of allLeadsForSources) {
+    const key = (l.source && SOURCE_META[l.source]) ? l.source : 'facebook_lead_ad'
+    sourceCounts[key] = (sourceCounts[key] ?? 0) + 1
+  }
+  const leadSources = Object.keys(SOURCE_META)
+    .map(key => ({
+      key,
+      ...SOURCE_META[key],
+      count: sourceCounts[key] ?? 0,
+      pct: totalLeadsAllSources > 0 ? Math.round(((sourceCounts[key] ?? 0) / totalLeadsAllSources) * 100) : 0,
+    }))
+    .filter(s => s.count > 0)
 
   const leadForms = leadFormsRes.data ?? []
   const activeLeadForms = leadForms.filter(f => f.is_enabled).length
@@ -428,40 +461,82 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Lead Outcomes — breakdown of every tag the sales team has applied */}
-      {totalLeads > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-5 md:mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="font-semibold text-slate-800">Lead Outcomes</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Based on tags your team applies to leads</p>
-            </div>
-            <span className="text-xs font-medium text-slate-400">{formatNumber(totalLeads)} total</span>
-          </div>
+      {/* Lead Outcomes + Lead Sources — side by side on wider screens, stacked on mobile */}
+      {(totalLeads > 0 || totalLeadsAllSources > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5 md:mb-6">
+          {totalLeads > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Lead Outcomes</h2>
+                  <p className="text-slate-400 text-xs mt-0.5">Based on tags your team applies to leads</p>
+                </div>
+                <span className="text-xs font-medium text-slate-400">{formatNumber(totalLeads)} total</span>
+              </div>
 
-          {leadOutcomes.length > 0 && (
-            <div className="h-2.5 w-full rounded-full overflow-hidden flex bg-slate-100 mb-4">
-              {leadOutcomes.map(o => (
-                <div
-                  key={o.key}
-                  className={`${o.color} h-full first:rounded-l-full last:rounded-r-full`}
-                  style={{ width: `${o.pct}%` }}
-                  title={`${o.label}: ${o.count} (${o.pct}%)`}
-                />
-              ))}
+              {leadOutcomes.length > 0 && (
+                <div className="h-2.5 w-full rounded-full overflow-hidden flex bg-slate-100 mb-4">
+                  {leadOutcomes.map(o => (
+                    <div
+                      key={o.key}
+                      className={`${o.color} h-full first:rounded-l-full last:rounded-r-full`}
+                      style={{ width: `${o.pct}%` }}
+                      title={`${o.label}: ${o.count} (${o.pct}%)`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                {leadOutcomes.map(o => (
+                  <div key={o.key} className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${o.dot}`} />
+                    <span className="text-xs text-slate-500 truncate">{o.label}</span>
+                    <span className="text-xs font-semibold text-slate-800 ml-auto flex-shrink-0">{o.count}</span>
+                    <span className="text-[10px] text-slate-400 flex-shrink-0 w-9 text-right">{o.pct}%</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
-            {leadOutcomes.map(o => (
-              <div key={o.key} className="flex items-center gap-2 min-w-0">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${o.dot}`} />
-                <span className="text-xs text-slate-500 truncate">{o.label}</span>
-                <span className="text-xs font-semibold text-slate-800 ml-auto flex-shrink-0">{o.count}</span>
-                <span className="text-[10px] text-slate-400 flex-shrink-0 w-9 text-right">{o.pct}%</span>
+          {/* Lead Sources — which channel actually brings leads in, across
+              Facebook, landing page, walk-ins, referrals, and channel partners */}
+          {totalLeadsAllSources > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Lead Sources</h2>
+                  <p className="text-slate-400 text-xs mt-0.5">Where your leads are actually coming from</p>
+                </div>
+                <span className="text-xs font-medium text-slate-400">{formatNumber(totalLeadsAllSources)} total</span>
               </div>
-            ))}
-          </div>
+
+              {leadSources.length > 0 && (
+                <div className="h-2.5 w-full rounded-full overflow-hidden flex bg-slate-100 mb-4">
+                  {leadSources.map(s => (
+                    <div
+                      key={s.key}
+                      className={`${s.color} h-full first:rounded-l-full last:rounded-r-full`}
+                      style={{ width: `${s.pct}%` }}
+                      title={`${s.label}: ${s.count} (${s.pct}%)`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                {leadSources.map(s => (
+                  <div key={s.key} className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`} />
+                    <span className="text-xs text-slate-500 truncate">{s.label}</span>
+                    <span className="text-xs font-semibold text-slate-800 ml-auto flex-shrink-0">{s.count}</span>
+                    <span className="text-[10px] text-slate-400 flex-shrink-0 w-9 text-right">{s.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

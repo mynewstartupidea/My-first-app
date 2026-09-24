@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Facebook, RefreshCw, MessageCircle, Users, ChevronDown, ChevronUp,
   CheckCircle, CheckCircle2, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
-  Loader2, Pause, Play, Search, Edit2, Download, Clock,
+  Loader2, Pause, Play, Search, Edit2, Download, Upload, Clock,
   AlertCircle, FileText, Sparkles, Send,
   Phone, Calendar, UserCheck,
 } from 'lucide-react'
@@ -70,6 +70,7 @@ interface Lead {
   ad_name?: string | null
   adset_name?: string | null
   campaign_name?: string | null
+  source?: string | null
 }
 
 interface CallLog {
@@ -207,6 +208,41 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
   )
 }
 
+// ── AddLeadDropdown ────────────────────────────────────────────────────────────
+
+function AddLeadDropdown({ onAddManual, onImportCsv }: { onAddManual: () => void; onImportCsv: () => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition active:scale-[0.97]"
+      >
+        <Plus className="w-4 h-4" /> Add lead
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden py-1">
+          <button onClick={() => { onAddManual(); setOpen(false) }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 transition">
+            <UserCheck className="w-3.5 h-3.5 text-gray-400" /> Add lead manually
+          </button>
+          <button onClick={() => { onImportCsv(); setOpen(false) }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 transition">
+            <Upload className="w-3.5 h-3.5 text-gray-400" /> Import from CSV
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── PagePickerModal ───────────────────────────────────────────────────────────
 // Shown whenever there are 'pending' Facebook pages awaiting selection — both
 // from the normal dashboard and from the "no pages connected yet" empty state,
@@ -314,6 +350,227 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
           >
             {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Fetching leads…</> : `Connect ${pickedPageIds.size || ''} page${pickedPageIds.size !== 1 ? 's' : ''}`}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── AddLeadModal ──────────────────────────────────────────────────────────────
+
+function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (source: string) => void }) {
+  const [name, setName]     = useState('')
+  const [phone, setPhone]   = useState('')
+  const [email, setEmail]   = useState('')
+  const [source, setSource] = useState<'walk_in' | 'referral' | 'other'>('walk_in')
+  const [notes, setNotes]   = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState<string | null>(null)
+
+  const save = async () => {
+    if (!name.trim() && !phone.trim() && !email.trim()) {
+      setError('Enter at least a name, phone, or email')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    const res = await fetch('/api/leads/manual', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name: name.trim(), phone: phone.trim(), email: email.trim(), source, notes: notes.trim() }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setError(d.error ?? 'Failed to save lead')
+      return
+    }
+    onSaved(source)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Add a lead</h2>
+          <button onClick={onClose}><X className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
+            <div className="flex gap-2">
+              {(['walk_in', 'referral', 'other'] as const).map(s => (
+                <button key={s} onClick={() => setSource(s)}
+                  className={`flex-1 text-xs font-medium px-2 py-2 rounded-lg border transition ${
+                    source === s ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}>
+                  {s === 'walk_in' ? 'Walk-in' : s === 'referral' ? 'Referral' : 'Other'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Name"
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number"
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email (optional)"
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition">
+            Cancel
+          </button>
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save lead'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── CsvImportModal ────────────────────────────────────────────────────────────
+// Minimal hand-rolled CSV parser — handles quoted fields and commas inside
+// quotes, which covers typical lead-export CSVs. Doesn't handle embedded
+// newlines inside a quoted field (rare for name/phone/email exports).
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let inQuotes = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++ }
+      else if (c === '"') inQuotes = false
+      else field += c
+    } else {
+      if (c === '"') inQuotes = true
+      else if (c === ',') { row.push(field); field = '' }
+      else if (c === '\n' || c === '\r') {
+        if (field !== '' || row.length > 0) { row.push(field); rows.push(row); row = []; field = '' }
+        if (c === '\r' && text[i + 1] === '\n') i++
+      } else field += c
+    }
+  }
+  if (field !== '' || row.length > 0) { row.push(field); rows.push(row) }
+  return rows.filter(r => r.some(c => c.trim() !== ''))
+}
+
+function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImported: (count: number) => void }) {
+  const [rows, setRows]           = useState<string[][]>([])
+  const [headers, setHeaders]     = useState<string[]>([])
+  const [nameCol, setNameCol]     = useState(-1)
+  const [phoneCol, setPhoneCol]   = useState(-1)
+  const [emailCol, setEmailCol]   = useState(-1)
+  const [sourceLabel, setSourceLabel] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+
+  const handleFile = async (file: File) => {
+    const text = await file.text()
+    const parsed = parseCsv(text)
+    if (parsed.length < 1) { setError('Could not read any rows from that file'); return }
+    const [head, ...body] = parsed
+    setHeaders(head)
+    setRows(body)
+    // Auto-detect common column names
+    const find = (needles: string[]) => head.findIndex(h => needles.some(n => h.toLowerCase().includes(n)))
+    setNameCol(find(['name']))
+    setPhoneCol(find(['phone', 'mobile', 'contact']))
+    setEmailCol(find(['email']))
+    setError(null)
+  }
+
+  const doImport = async () => {
+    if (nameCol === -1 && phoneCol === -1 && emailCol === -1) {
+      setError('Pick at least one column (name, phone, or email)')
+      return
+    }
+    setImporting(true)
+    setError(null)
+    const importRows = rows.map(r => ({
+      name:  nameCol  >= 0 ? r[nameCol]  ?? '' : '',
+      phone: phoneCol >= 0 ? r[phoneCol] ?? '' : '',
+      email: emailCol >= 0 ? r[emailCol] ?? '' : '',
+    }))
+    const res = await fetch('/api/leads/bulk-import', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ rows: importRows, sourceLabel: sourceLabel.trim() || 'Channel Partner' }),
+    })
+    setImporting(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setError(d.error ?? 'Import failed')
+      return
+    }
+    const d = await res.json() as { imported: number }
+    onImported(d.imported)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Import leads from CSV</h2>
+          <button onClick={onClose}><X className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" /></button>
+        </div>
+
+        {rows.length === 0 ? (
+          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-10 cursor-pointer hover:border-gray-300 transition">
+            <Upload className="w-6 h-6 text-gray-300" />
+            <span className="text-sm text-gray-500">Click to choose a CSV file</span>
+            <span className="text-[11px] text-gray-400">First row should be column headers</span>
+            <input type="file" accept=".csv,text/csv" className="hidden"
+              onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+          </label>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-gray-500">{rows.length} row{rows.length !== 1 ? 's' : ''} found — match columns:</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([['Name', nameCol, setNameCol], ['Phone', phoneCol, setPhoneCol], ['Email', emailCol, setEmailCol]] as const).map(([label, val, setter]) => (
+                <div key={label}>
+                  <label className="block text-[11px] font-medium text-gray-400 mb-1">{label}</label>
+                  <select value={val} onChange={e => setter(Number(e.target.value))}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
+                    <option value={-1}>— none —</option>
+                    {headers.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Source label</label>
+              <input value={sourceLabel} onChange={e => setSourceLabel(e.target.value)} placeholder="e.g. Nakoda Interiors Partner"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+            </div>
+            <div className="max-h-32 overflow-y-auto border border-gray-100 rounded-lg text-[11px] text-gray-500 divide-y divide-gray-50">
+              {rows.slice(0, 5).map((r, i) => (
+                <div key={i} className="px-2.5 py-1.5 truncate">
+                  {nameCol >= 0 ? r[nameCol] : '—'} · {phoneCol >= 0 ? r[phoneCol] : '—'} · {emailCol >= 0 ? r[emailCol] : '—'}
+                </div>
+              ))}
+              {rows.length > 5 && <div className="px-2.5 py-1.5 text-gray-400">+{rows.length - 5} more…</div>}
+            </div>
+          </div>
+        )}
+        {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button onClick={onClose} disabled={importing} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition">
+            Cancel
+          </button>
+          {rows.length > 0 && (
+            <button onClick={doImport} disabled={importing}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+              {importing ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</> : `Import ${rows.length} lead${rows.length !== 1 ? 's' : ''}`}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1112,6 +1369,16 @@ const LEAD_STATUS_META: Record<string, { label: string; dot: string; bg: string;
   resolved:  { label: 'Resolved',  dot: '#3b82f6', bg: '#eff6ff', text: '#1e40af' },
 }
 
+const SOURCE_META: Record<string, { label: string; dot: string; bg: string; text: string }> = {
+  facebook_lead_ad: { label: 'Facebook',        dot: '#1877F2', bg: '#eff6ff', text: '#1d4ed8' },
+  landing_page:      { label: 'Landing Page',    dot: '#a855f7', bg: '#faf5ff', text: '#7e22ce' },
+  walk_in:           { label: 'Walk-in',         dot: '#10b981', bg: '#ecfdf5', text: '#065f46' },
+  referral:          { label: 'Referral',        dot: '#14b8a6', bg: '#f0fdfa', text: '#0f766e' },
+  channel_partner:   { label: 'Channel Partner', dot: '#f97316', bg: '#fff7ed', text: '#9a3412' },
+  manual:            { label: 'Manual',          dot: '#6b7280', bg: '#f9fafb', text: '#374151' },
+  other:             { label: 'Other',           dot: '#9ca3af', bg: '#f3f4f6', text: '#6b7280' },
+}
+
 // ── CallLogModal ──────────────────────────────────────────────────────────────
 
 interface ConvStatus {
@@ -1440,6 +1707,41 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
+
+          {/* Source & attribution — was captured (ad_name/campaign_name from
+              Facebook, custom fields from landing-page UTM/gclid) but never
+              actually shown anywhere in the app before this. */}
+          {(() => {
+            const sourceMeta = lead.source ? SOURCE_META[lead.source] : null
+            const hasAttribution = lead.ad_name || lead.campaign_name
+            const extraFields = Object.entries(lead.fields ?? {}).filter(([k]) => !STANDARD_KEYS.has(k))
+            if (!sourceMeta && !hasAttribution && extraFields.length === 0) return null
+            return (
+              <div className="px-5 py-4 border-b border-gray-50 space-y-2">
+                {sourceMeta && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+                    style={{ background: sourceMeta.bg, color: sourceMeta.text }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: sourceMeta.dot }} />
+                    {sourceMeta.label}{lead.form_name ? ` · ${lead.form_name}` : ''}
+                  </span>
+                )}
+                {hasAttribution && (
+                  <p className="text-xs text-gray-500">
+                    {lead.campaign_name && <>Campaign: <span className="text-gray-700">{lead.campaign_name}</span><br /></>}
+                    {lead.adset_name && <>Ad set: <span className="text-gray-700">{lead.adset_name}</span><br /></>}
+                    {lead.ad_name && <>Ad: <span className="text-gray-700">{lead.ad_name}</span></>}
+                  </p>
+                )}
+                {extraFields.length > 0 && (
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    {extraFields.map(([k, v]) => (
+                      <p key={k}><span className="capitalize">{k.replace(/_/g, ' ')}</span>: <span className="text-gray-700">{v}</span></p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Lead status tag */}
           <div className="px-5 py-4 border-b border-gray-50">
@@ -2069,9 +2371,18 @@ function LeadRow({ lead, activeForms, showFormBadge, onWhatsApp, onCallLog, onUp
           <div className="flex items-center gap-2.5">
             {color && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color.dot }} />}
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-sm font-medium text-gray-900 truncate">{lead.name ?? '—'}</p>
                 <StatusPicker lead={lead} onUpdate={onUpdate} />
+                {/* Only shown for non-Facebook sources — Facebook is the common
+                    case and is already distinguished by the form-color dot. */}
+                {lead.source && lead.source !== 'facebook_lead_ad' && SOURCE_META[lead.source] && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: SOURCE_META[lead.source].bg, color: SOURCE_META[lead.source].text }}>
+                    <span className="w-1 h-1 rounded-full" style={{ background: SOURCE_META[lead.source].dot }} />
+                    {SOURCE_META[lead.source].label}
+                  </span>
+                )}
               </div>
               {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
               {lead.assigned_name && (
@@ -2291,6 +2602,13 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-sm font-semibold text-gray-900 truncate">{lead.name ?? '—'}</p>
           <StatusPicker lead={lead} onUpdate={onUpdate} />
+          {lead.source && lead.source !== 'facebook_lead_ad' && SOURCE_META[lead.source] && (
+            <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+              style={{ background: SOURCE_META[lead.source].bg, color: SOURCE_META[lead.source].text }}>
+              <span className="w-1 h-1 rounded-full" style={{ background: SOURCE_META[lead.source].dot }} />
+              {SOURCE_META[lead.source].label}
+            </span>
+          )}
         </div>
         {lead.phone && <p className="text-xs text-gray-500 font-mono mt-0.5">{lead.phone}</p>}
         {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
@@ -2592,6 +2910,12 @@ function LeadsContent() {
   // was for, just one tick after mount instead of during the render itself.
   const [pages,          setPages]          = useState<Page[]>([])
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
+  // null = "Facebook" (the default page-scoped view); any other value filters
+  // by that source across all of the user's leads instead, bypassing page/form
+  // scoping entirely (those non-Facebook leads have no page_id/form_id).
+  const [sourceFilter,  setSourceFilter]  = useState<string | null>(null)
+  const [showAddLead,   setShowAddLead]   = useState(false)
+  const [showCsvImport, setShowCsvImport] = useState(false)
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [total,          setTotal]          = useState(0)
@@ -2634,6 +2958,11 @@ function LeadsContent() {
   const selectedPageIdRef = useRef<string | null>(null)
   useEffect(() => { selectedPageIdRef.current = selectedPageId }, [selectedPageId])
 
+  // Ref so fetchLeads' default parameter (see above) always reads the current
+  // filter without every one of its many call sites needing to pass it explicitly.
+  const sourceFilterRef = useRef<string | null>(null)
+  useEffect(() => { sourceFilterRef.current = sourceFilter }, [sourceFilter])
+
   // ── Fetchers ────────────────────────────────────────────────────────────
 
   const fetchPages = useCallback(async () => {
@@ -2659,8 +2988,9 @@ function LeadsContent() {
     setWaConnected(waData.whatsapp_connected ?? false)
   }, [])
 
-  const fetchStats = useCallback(async (pageId: string) => {
-    const r = await fetch(`/api/facebook/leads/stats?page_id=${pageId}`)
+  const fetchStats = useCallback(async (pageId: string, pSource: string | null = sourceFilterRef.current) => {
+    const p = pSource ? `source=${pSource}` : `page_id=${pageId}`
+    const r = await fetch(`/api/facebook/leads/stats?${p}`)
     const d = await r.json() as { total?: number; withPhone?: number; sent?: number; pending?: number }
     setPageStats({ total: d.total ?? 0, withPhone: d.withPhone ?? 0, sent: d.sent ?? 0, pending: d.pending ?? 0 })
   }, [])
@@ -2672,10 +3002,20 @@ function LeadsContent() {
     pPerPage = 50,
     search = '',
     sort = 'default',
+    // Defaults to whatever the source-filter pills are currently set to, so
+    // every existing call site picks this up automatically without having to
+    // thread a new argument through each one — see sourceFilterRef below.
+    pSource: string | null = sourceFilterRef.current,
   ) => {
     const p = new URLSearchParams({ limit: String(pPerPage), offset: String((page - 1) * pPerPage) })
-    if (formId !== 'all' && formId !== '__forms') p.set('form_id', formId)
-    else p.set('page_id', pageId)
+    if (pSource) {
+      // Orthogonal to page/form — non-Facebook sources have no page_id/form_id.
+      p.set('source', pSource)
+    } else if (formId !== 'all' && formId !== '__forms') {
+      p.set('form_id', formId)
+    } else {
+      p.set('page_id', pageId)
+    }
     if (search.trim()) p.set('q', search.trim())
     if (sort === 'followup_due') p.set('sort', 'followup_due')
     const r = await fetch(`/api/facebook/leads?${p}`)
@@ -2840,6 +3180,24 @@ function LeadsContent() {
       await fetchLeads(formId, selectedPageId, 1, perPage, '')
       setLoadingLeads(false)
     }
+  }
+
+  const handleSourceFilterChange = async (source: string | null) => {
+    setSourceFilter(source)
+    setSelectedFormId('all')
+    setActiveView('leads')
+    setCurrentPage(1)
+    setLeadSearch('')
+    setLeads([])
+    if (!selectedPageId && !source) return
+    setLoadingLeads(true)
+    // Pass explicitly — sourceFilterRef hasn't synced from the state update
+    // above yet at this point in the same tick.
+    await Promise.all([
+      fetchLeads('all', selectedPageId ?? '', 1, perPage, '', 'default', source),
+      fetchStats(selectedPageId ?? '', source),
+    ])
+    setLoadingLeads(false)
   }
 
   const handleActivate = async (connectionId: string, form: FBForm, template: string) => {
@@ -3180,9 +3538,29 @@ function LeadsContent() {
               pages" already in the dropdown's own menu — same actions, same
               destinations, just two extra buttons competing for space in this
               row for no added reach. Cut in favor of the dropdown alone. */}
+          <AddLeadDropdown onAddManual={() => setShowAddLead(true)} onImportCsv={() => setShowCsvImport(true)} />
         </div>
         )}
       </div>
+
+      {/* Source filter — orthogonal to the Page dropdown above: Facebook stays
+          page/form-scoped as it always has, any other source bypasses that
+          entirely and filters by source across every one of the user's leads. */}
+      {!isRep && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[{ value: null, label: 'Facebook' }, ...Object.entries(SOURCE_META).filter(([k]) => k !== 'facebook_lead_ad').map(([k, m]) => ({ value: k, label: m.label }))].map(opt => (
+            <button
+              key={opt.value ?? 'facebook'}
+              onClick={() => handleSourceFilterChange(opt.value)}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition ${
+                sourceFilter === opt.value ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-500 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Stat cards — a rep doesn't need four KPI tiles between them and their
           list; those belong to whoever's running the pipeline. One line instead. */}
@@ -3512,6 +3890,26 @@ function LeadsContent() {
           setPickedPageIds={setPickedPageIds}
           confirmingPick={confirmingPick}
           confirmPageSelection={confirmPageSelection}
+        />
+      )}
+    {showAddLead && (
+        <AddLeadModal
+          onClose={() => setShowAddLead(false)}
+          onSaved={(source) => {
+            setShowAddLead(false)
+            setBanner({ type: 'success', msg: 'Lead added' })
+            handleSourceFilterChange(source)
+          }}
+        />
+      )}
+    {showCsvImport && (
+        <CsvImportModal
+          onClose={() => setShowCsvImport(false)}
+          onImported={(count) => {
+            setShowCsvImport(false)
+            setBanner({ type: 'success', msg: `${count} lead${count !== 1 ? 's' : ''} imported` })
+            handleSourceFilterChange('channel_partner')
+          }}
         />
       )}
     {showActivate && (

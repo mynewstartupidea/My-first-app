@@ -15,6 +15,11 @@ export async function GET(request: Request) {
   const q           = searchParams.get('q')?.trim() ?? ''
   const leadStatus  = searchParams.get('lead_status')
   const sort        = searchParams.get('sort') // 'followup_due' sorts overdue+today first
+  // Non-Facebook sources (walk_in, referral, channel_partner, landing_page,
+  // manual) have no page_id/form_id — filtering by source instead of page
+  // scoping is how they surface at all, since selectedPageId is otherwise
+  // always set once any Facebook page is connected.
+  const source      = searchParams.get('source')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -51,7 +56,7 @@ export async function GET(request: Request) {
 
     let query = service
       .from('leads')
-      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields,ad_name,adset_name,campaign_name', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
+      .select('id,name,email,phone,form_id,form_name,page_id,wa_status,lead_status,assigned_to,assigned_name,followup_at,created_at,fields,ad_name,adset_name,campaign_name,source', countOnly ? { count: 'exact', head: true } : { count: 'exact' })
       .or(visibilityFilter)
 
     if (sort === 'followup_due') {
@@ -70,8 +75,15 @@ export async function GET(request: Request) {
       query = query.order('created_at', { ascending: false })
     }
 
-    if (formId) query = query.eq('form_id', formId)
-    else if (pageId) query = query.eq('page_id', pageId)
+    if (source) {
+      // Orthogonal to page/form scoping — bypasses it entirely, since these
+      // leads never have a page_id/form_id to filter by.
+      query = query.eq('source', source)
+    } else if (formId) {
+      query = query.eq('form_id', formId)
+    } else if (pageId) {
+      query = query.eq('page_id', pageId)
+    }
     if (fromDate) query = query.gte('created_at', `${fromDate}T00:00:00.000Z`)
     if (toDate)   query = query.lte('created_at', `${toDate}T23:59:59.999Z`)
     if (q) {

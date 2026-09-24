@@ -463,3 +463,17 @@ BEGIN
 END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS leads_user_facebook_lead_id_idx ON leads (user_id, facebook_lead_id);
+
+-- ─── Leads: multi-source ──────────────────────────────────────────────────────
+-- Every lead was implicitly Facebook-shaped (facebook_lead_id, page_id, form_id
+-- as its identity). Adds a generic source so walk-ins, referrals, channel
+-- partners, and landing-page submissions (already possible via
+-- /api/leads/ingest but never tagged) can coexist with Facebook Lead Ads leads.
+
+ALTER TABLE leads
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'facebook_lead_ad'
+    CHECK (source IN ('facebook_lead_ad', 'landing_page', 'walk_in', 'referral', 'channel_partner', 'manual', 'other'));
+
+-- Backfill: anything without a facebook_lead_id was already only reachable via
+-- the generic ingest endpoint, which today only ever produces landing-page leads.
+UPDATE leads SET source = 'landing_page' WHERE facebook_lead_id IS NULL AND source = 'facebook_lead_ad';

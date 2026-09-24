@@ -25,10 +25,12 @@ export async function POST(req: Request) {
   try { body = await req.json() }
   catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
 
-  const { name, email, phone, source, ...rest } = body
+  const { name, email, phone, source, source_type, ...rest } = body
   if (!name && !phone && !email) {
     return NextResponse.json({ error: 'Provide at least one of: name, phone, email' }, { status: 400 })
   }
+  const ALLOWED_SOURCE_TYPES = new Set(['landing_page', 'referral', 'other'])
+  const sourceType = source_type && ALLOWED_SOURCE_TYPES.has(source_type) ? source_type : 'landing_page'
 
   // Normalize phone to E.164-ish Indian format when possible
   const normalizedPhone = phone ? (normalizeIndianPhone(phone) ?? phone) : null
@@ -46,6 +48,7 @@ export async function POST(req: Request) {
       email:     email || null,
       phone:     normalizedPhone,
       form_name: source || 'Landing Page',
+      source:    sourceType,
       fields:    Object.keys(fields).length > 0 ? fields : null,
       wa_status: normalizedPhone ? 'imported' : 'no_phone',
     })
