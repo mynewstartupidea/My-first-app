@@ -14,11 +14,14 @@ export async function GET(request: Request) {
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
-  const { data: connections } = await service
+  const { data: allConnections } = await service
     .from('facebook_connections')
-    .select('id, page_id, page_name, store_id, subscribed_to_leadgen, page_access_token, user_access_token')
+    .select('id, page_id, page_name, store_id, subscribed_to_leadgen, page_access_token, user_access_token, selection_status')
     .eq('user_id', ownerId)
     .order('created_at', { ascending: true })
+
+  const connections = (allConnections ?? []).filter(c => c.selection_status !== 'pending')
+  const pendingConnections = (allConnections ?? []).filter(c => c.selection_status === 'pending')
 
   // With page_id: return forms for that page (called from "Activate a form" modal)
   if (pageId) {
@@ -86,7 +89,13 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ pages })
+  const pending = pendingConnections.map(conn => ({
+    id:        conn.id,
+    page_id:   conn.page_id,
+    page_name: conn.page_name,
+  }))
+
+  return NextResponse.json({ pages, pending })
 }
 
 export async function DELETE(request: Request) {

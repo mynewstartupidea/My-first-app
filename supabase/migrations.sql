@@ -415,3 +415,16 @@ CREATE TABLE IF NOT EXISTS meta_signup_events (
 );
 ALTER TABLE meta_signup_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "meta_signup_events_own" ON meta_signup_events FOR ALL USING (user_id = auth.uid());
+
+-- ─── Facebook Lead Ads: page selection ───────────────────────────────────────
+-- The classic OAuth dialog used for Facebook Page connect has no native page
+-- picker (unlike the config_id-based flow used for WhatsApp) — it just grants
+-- access to every Page the user administers. Previously every returned page
+-- was auto-connected and auto-subscribed to lead sync with no way to choose.
+-- Newly discovered pages now land as 'pending' until the merchant picks which
+-- ones to actually activate; existing connections default to 'active' so
+-- nothing already working is disrupted by this migration.
+
+ALTER TABLE facebook_connections
+  ADD COLUMN IF NOT EXISTS selection_status TEXT DEFAULT 'active'
+    CHECK (selection_status IN ('pending', 'active'));

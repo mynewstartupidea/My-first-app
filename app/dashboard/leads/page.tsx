@@ -2492,6 +2492,9 @@ function LeadsContent() {
   const [activeView,     setActiveView]     = useState<'leads' | 'followups'>('leads')
   const [followupUrgentCount, setFollowupUrgentCount] = useState(0)
   const [banner,         setBanner]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [pendingPages,   setPendingPages]   = useState<Page[]>([])
+  const [pickedPageIds,  setPickedPageIds]  = useState<Set<string>>(new Set())
+  const [confirmingPick, setConfirmingPick] = useState(false)
   const [showActivate,   setShowActivate]   = useState(false)
   const [preActivateForm,setPreActivateForm]= useState<FBForm | null>(null)
   const [editingForm,    setEditingForm]    = useState<ActiveForm | null>(null)
@@ -2524,12 +2527,29 @@ function LeadsContent() {
 
   const fetchPages = useCallback(async () => {
     const r = await fetch('/api/facebook/pages')
-    const d = await r.json() as { pages?: Page[] }
+    const d = await r.json() as { pages?: Page[]; pending?: { id: string; page_id: string; page_name: string }[] }
     const p = d.pages ?? []
     setPages(p)
     try { sessionStorage.setItem('_wpl_pages', JSON.stringify(p)) } catch {}
+    const pend = (d.pending ?? []).map(x => ({ ...x, store_id: null }))
+    setPendingPages(pend)
+    setPickedPageIds(new Set(pend.map(x => x.page_id)))
     return p
   }, [])
+
+  const confirmPageSelection = useCallback(async (ids?: string[]) => {
+    setConfirmingPick(true)
+    const res = await fetch('/api/facebook/pages/select', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ selectedPageIds: ids ?? Array.from(pickedPageIds) }),
+    })
+    const d = await res.json().catch(() => ({})) as { activated?: number }
+    setConfirmingPick(false)
+    setPendingPages([])
+    setBanner({ type: 'success', msg: `${d.activated ?? 0} Facebook page${d.activated !== 1 ? 's' : ''} connected` })
+    await fetchPages()
+  }, [pickedPageIds, fetchPages])
 
   const fetchActiveForms = useCallback(async (pageId: string) => {
     const [formsRes, waRes] = await Promise.all([
@@ -2594,6 +2614,8 @@ function LeadsContent() {
       if (fb === 'connected') {
         const n = searchParams.get('pages') ?? '0'
         setBanner({ type: 'success', msg: `${n} Facebook page${+n !== 1 ? 's' : ''} connected` })
+        router.replace('/dashboard/leads')
+      } else if (fb === 'choose_pages') {
         router.replace('/dashboard/leads')
       } else if (fb === 'denied') {
         setBanner({ type: 'error', msg: 'Facebook connection was cancelled.' })
@@ -3356,6 +3378,55 @@ function LeadsContent() {
         from the true viewport top — on a long scrolled page, opening the call-log
         sheet would show its middle/bottom instead of its header until you scrolled
         the page itself back up to reveal it. */}
+    {pendingPages.length > 0 && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-2.5 mb-1">
+              <Facebook className="w-5 h-5 text-[#1877F2]" />
+              <h2 className="text-lg font-bold text-gray-900">Choose Facebook Pages</h2>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              We found {pendingPages.length} page{pendingPages.length !== 1 ? 's' : ''} you manage. Pick which ones should sync leads into Wapaci.
+            </p>
+            <div className="max-h-72 overflow-y-auto space-y-1.5 mb-5">
+              {pendingPages.map(pg => {
+                const checked = pickedPageIds.has(pg.page_id)
+                return (
+                  <label key={pg.page_id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setPickedPageIds(prev => {
+                        const next = new Set(prev)
+                        if (checked) next.delete(pg.page_id); else next.add(pg.page_id)
+                        return next
+                      })}
+                      className="w-4 h-4 rounded border-gray-300 text-[#25D366] focus:ring-[#25D366]"
+                    />
+                    <span className="text-sm font-medium text-gray-800 truncate">{pg.page_name}</span>
+                  </label>
+                )
+              })}
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => confirmPageSelection([])}
+                disabled={confirmingPick}
+                className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition"
+              >
+                Skip all
+              </button>
+              <button
+                onClick={() => confirmPageSelection()}
+                disabled={confirmingPick}
+                className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
+              >
+                {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</> : `Connect ${pickedPageIds.size || ''} page${pickedPageIds.size !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     {showActivate && (
         <ActivateFormModal
           selectedPageId={selectedPageId}
