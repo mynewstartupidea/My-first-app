@@ -207,6 +207,69 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
   )
 }
 
+// ── PagePickerModal ───────────────────────────────────────────────────────────
+// Shown whenever there are 'pending' Facebook pages awaiting selection — both
+// from the normal dashboard and from the "no pages connected yet" empty state,
+// since a fresh connect always lands here first (pages start pending, not active).
+
+function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confirmingPick, confirmPageSelection }: {
+  pendingPages: Page[]
+  pickedPageIds: Set<string>
+  setPickedPageIds: (fn: (prev: Set<string>) => Set<string>) => void
+  confirmingPick: boolean
+  confirmPageSelection: (ids?: string[]) => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center gap-2.5 mb-1">
+          <Facebook className="w-5 h-5 text-[#1877F2]" />
+          <h2 className="text-lg font-bold text-gray-900">Choose Facebook Pages</h2>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          We found {pendingPages.length} page{pendingPages.length !== 1 ? 's' : ''} you manage. Pick which ones should sync leads into Wapaci.
+        </p>
+        <div className="max-h-72 overflow-y-auto space-y-1.5 mb-5">
+          {pendingPages.map(pg => {
+            const checked = pickedPageIds.has(pg.page_id)
+            return (
+              <label key={pg.page_id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => setPickedPageIds(prev => {
+                    const next = new Set(prev)
+                    if (checked) next.delete(pg.page_id); else next.add(pg.page_id)
+                    return next
+                  })}
+                  className="w-4 h-4 rounded border-gray-300 text-[#25D366] focus:ring-[#25D366]"
+                />
+                <span className="text-sm font-medium text-gray-800 truncate">{pg.page_name}</span>
+              </label>
+            )
+          })}
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => confirmPageSelection([])}
+            disabled={confirmingPick}
+            className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition"
+          >
+            Skip all
+          </button>
+          <button
+            onClick={() => confirmPageSelection()}
+            disabled={confirmingPick}
+            className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
+          >
+            {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</> : `Connect ${pickedPageIds.size || ''} page${pickedPageIds.size !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── ActivateFormModal ─────────────────────────────────────────────────────────
 
 function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClose, onActivate }: {
@@ -2941,6 +3004,7 @@ function LeadsContent() {
   // "Connect Facebook" empty state — only shown after we've confirmed pages is empty
   if (pagesLoaded && pages.length === 0) {
     return (
+      <>
       <div className="p-6 lg:p-8 flex flex-col items-center justify-center min-h-[60vh] gap-5 text-center">
         {banner && (
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm w-full max-w-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
@@ -2961,6 +3025,16 @@ function LeadsContent() {
           <Facebook className="w-4 h-4" /> Connect Facebook
         </a>
       </div>
+      {pendingPages.length > 0 && (
+        <PagePickerModal
+          pendingPages={pendingPages}
+          pickedPageIds={pickedPageIds}
+          setPickedPageIds={setPickedPageIds}
+          confirmingPick={confirmingPick}
+          confirmPageSelection={confirmPageSelection}
+        />
+      )}
+      </>
     )
   }
 
@@ -3379,53 +3453,13 @@ function LeadsContent() {
         sheet would show its middle/bottom instead of its header until you scrolled
         the page itself back up to reveal it. */}
     {pendingPages.length > 0 && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center gap-2.5 mb-1">
-              <Facebook className="w-5 h-5 text-[#1877F2]" />
-              <h2 className="text-lg font-bold text-gray-900">Choose Facebook Pages</h2>
-            </div>
-            <p className="text-sm text-gray-500 mb-4">
-              We found {pendingPages.length} page{pendingPages.length !== 1 ? 's' : ''} you manage. Pick which ones should sync leads into Wapaci.
-            </p>
-            <div className="max-h-72 overflow-y-auto space-y-1.5 mb-5">
-              {pendingPages.map(pg => {
-                const checked = pickedPageIds.has(pg.page_id)
-                return (
-                  <label key={pg.page_id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => setPickedPageIds(prev => {
-                        const next = new Set(prev)
-                        if (checked) next.delete(pg.page_id); else next.add(pg.page_id)
-                        return next
-                      })}
-                      className="w-4 h-4 rounded border-gray-300 text-[#25D366] focus:ring-[#25D366]"
-                    />
-                    <span className="text-sm font-medium text-gray-800 truncate">{pg.page_name}</span>
-                  </label>
-                )
-              })}
-            </div>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => confirmPageSelection([])}
-                disabled={confirmingPick}
-                className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition"
-              >
-                Skip all
-              </button>
-              <button
-                onClick={() => confirmPageSelection()}
-                disabled={confirmingPick}
-                className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
-              >
-                {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</> : `Connect ${pickedPageIds.size || ''} page${pickedPageIds.size !== 1 ? 's' : ''}`}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PagePickerModal
+          pendingPages={pendingPages}
+          pickedPageIds={pickedPageIds}
+          setPickedPageIds={setPickedPageIds}
+          confirmingPick={confirmingPick}
+          confirmPageSelection={confirmPageSelection}
+        />
       )}
     {showActivate && (
         <ActivateFormModal
