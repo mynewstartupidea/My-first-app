@@ -7,7 +7,15 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { normalizeIndianPhone } from '@/lib/utils'
 
-const ALLOWED_SOURCES = new Set(['walk_in', 'referral', 'other'])
+const SOURCE_LABELS: Record<string, string> = {
+  facebook_lead_ad: 'Facebook',
+  landing_page:      'Landing Page',
+  walk_in:           'Walk-in',
+  referral:          'Referral',
+  channel_partner:   'Channel Partner',
+  manual:            'Manual',
+  other:             'Other',
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -20,7 +28,7 @@ export async function POST(request: Request) {
   if (!body.name?.trim() && !body.phone?.trim() && !body.email?.trim()) {
     return NextResponse.json({ error: 'Provide at least one of: name, phone, email' }, { status: 400 })
   }
-  const source = body.source && ALLOWED_SOURCES.has(body.source) ? body.source : 'other'
+  const source = body.source && SOURCE_LABELS[body.source] ? body.source : 'other'
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
@@ -39,7 +47,7 @@ export async function POST(request: Request) {
       email:     body.email?.trim() || null,
       phone:     normalizedPhone,
       source,
-      form_name: source === 'other' ? 'Manual' : (source === 'walk_in' ? 'Walk-in' : 'Referral'),
+      form_name: SOURCE_LABELS[source],
       fields:    body.notes?.trim() ? { notes: body.notes.trim() } : null,
       wa_status: normalizedPhone ? 'imported' : 'no_phone',
     })

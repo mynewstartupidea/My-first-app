@@ -362,7 +362,7 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
   const [name, setName]     = useState('')
   const [phone, setPhone]   = useState('')
   const [email, setEmail]   = useState('')
-  const [source, setSource] = useState<'walk_in' | 'referral' | 'other'>('walk_in')
+  const [source, setSource] = useState('walk_in')
   const [notes, setNotes]   = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
@@ -398,16 +398,12 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
-            <div className="flex gap-2">
-              {(['walk_in', 'referral', 'other'] as const).map(s => (
-                <button key={s} onClick={() => setSource(s)}
-                  className={`flex-1 text-xs font-medium px-2 py-2 rounded-lg border transition ${
-                    source === s ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-500 border-gray-200 hover:border-gray-300'
-                  }`}>
-                  {s === 'walk_in' ? 'Walk-in' : s === 'referral' ? 'Referral' : 'Other'}
-                </button>
+            <select value={source} onChange={e => setSource(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+              {Object.entries(SOURCE_META).map(([key, meta]) => (
+                <option key={key} value={key}>{meta.label}</option>
               ))}
-            </div>
+            </select>
           </div>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Name"
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
