@@ -2940,6 +2940,11 @@ function LeadsContent() {
     setActiveForms([])
     setLeads([])
     setPageStats({ total: 0, withPhone: 0, sent: 0, pending: 0 })
+    setBanner(null)
+    try {
+      sessionStorage.removeItem('_wpl_pages')
+      sessionStorage.removeItem('_wpl_pid')
+    } catch {}
   }
 
   const handleRefresh = async () => {
