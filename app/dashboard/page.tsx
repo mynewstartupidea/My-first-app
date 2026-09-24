@@ -157,6 +157,33 @@ export default async function DashboardPage() {
   const responseRate = totalLeads > 0 ? Math.round((respondedLeads / totalLeads) * 100) : 0
   const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0
 
+  // Lead Outcomes — full breakdown by the tag the sales team applies (Call Log
+  // modal / lead status dropdown), not just the single converted% figure above.
+  // Shows the whole funnel: how much of what's coming in is actually good.
+  const LEAD_OUTCOME_META: Record<string, { label: string; color: string; dot: string }> = {
+    converted: { label: 'Converted', color: 'bg-emerald-500', dot: 'bg-emerald-500' },
+    hot:       { label: 'Hot',       color: 'bg-red-500',     dot: 'bg-red-500' },
+    warm:      { label: 'Warm',      color: 'bg-orange-400',  dot: 'bg-orange-400' },
+    cold:      { label: 'Cold',      color: 'bg-indigo-400',  dot: 'bg-indigo-400' },
+    resolved:  { label: 'Resolved',  color: 'bg-blue-400',    dot: 'bg-blue-400' },
+    lost:      { label: 'Lost',      color: 'bg-slate-400',   dot: 'bg-slate-400' },
+    junk:      { label: 'Junk',      color: 'bg-slate-300',   dot: 'bg-slate-300' },
+    untagged:  { label: 'Untagged',  color: 'bg-slate-200',   dot: 'bg-slate-200' },
+  }
+  const outcomeCounts: Record<string, number> = {}
+  for (const l of leadStats) {
+    const key = (l.lead_status && LEAD_OUTCOME_META[l.lead_status]) ? l.lead_status : 'untagged'
+    outcomeCounts[key] = (outcomeCounts[key] ?? 0) + 1
+  }
+  const leadOutcomes = Object.keys(LEAD_OUTCOME_META)
+    .map(key => ({
+      key,
+      ...LEAD_OUTCOME_META[key],
+      count: outcomeCounts[key] ?? 0,
+      pct: totalLeads > 0 ? Math.round(((outcomeCounts[key] ?? 0) / totalLeads) * 100) : 0,
+    }))
+    .filter(o => o.count > 0)
+
   const leadForms = leadFormsRes.data ?? []
   const activeLeadForms = leadForms.filter(f => f.is_enabled).length
   const missedCallFollowupOn = profileRes.data?.missed_call_followup_enabled ?? false
@@ -400,6 +427,43 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Lead Outcomes — breakdown of every tag the sales team has applied */}
+      {totalLeads > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-5 md:mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-semibold text-slate-800">Lead Outcomes</h2>
+              <p className="text-slate-400 text-xs mt-0.5">Based on tags your team applies to leads</p>
+            </div>
+            <span className="text-xs font-medium text-slate-400">{formatNumber(totalLeads)} total</span>
+          </div>
+
+          {leadOutcomes.length > 0 && (
+            <div className="h-2.5 w-full rounded-full overflow-hidden flex bg-slate-100 mb-4">
+              {leadOutcomes.map(o => (
+                <div
+                  key={o.key}
+                  className={`${o.color} h-full first:rounded-l-full last:rounded-r-full`}
+                  style={{ width: `${o.pct}%` }}
+                  title={`${o.label}: ${o.count} (${o.pct}%)`}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+            {leadOutcomes.map(o => (
+              <div key={o.key} className="flex items-center gap-2 min-w-0">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${o.dot}`} />
+                <span className="text-xs text-slate-500 truncate">{o.label}</span>
+                <span className="text-xs font-semibold text-slate-800 ml-auto flex-shrink-0">{o.count}</span>
+                <span className="text-[10px] text-slate-400 flex-shrink-0 w-9 text-right">{o.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Follow-ups due widget — only shown when there are due leads */}
       {followupDue.length > 0 && (
