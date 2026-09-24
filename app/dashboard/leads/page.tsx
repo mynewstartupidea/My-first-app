@@ -2685,11 +2685,12 @@ function LeadsContent() {
   }, [])
 
   const confirmPageSelection = useCallback(async (ids?: string[]) => {
+    const chosenIds = ids ?? Array.from(pickedPageIds)
     setConfirmingPick(true)
     const res = await fetch('/api/facebook/pages/select', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ selectedPageIds: ids ?? Array.from(pickedPageIds) }),
+      body:    JSON.stringify({ selectedPageIds: chosenIds }),
     })
     const d = await res.json().catch(() => ({})) as { activated?: number; synced?: number }
     setConfirmingPick(false)
@@ -2699,15 +2700,18 @@ function LeadsContent() {
     setBanner({ type: 'success', msg: pageMsg + leadMsg })
     const freshPages = await fetchPages()
 
-    // Nothing selects a page after activation otherwise — the picker can fire
-    // on the very first connection ever made, when selectedPageId is still
-    // null and there's no cached page to fall back to, leaving the page
-    // dropdown (and every fetch gated on selectedPageId) stuck empty.
-    if (freshPages.length > 0 && !freshPages.some(p => p.page_id === selectedPageId)) {
-      const pid = freshPages[0].page_id
-      setSelectedPageId(pid)
-      try { sessionStorage.setItem('_wpl_pid', pid) } catch {}
-      await Promise.all([fetchActiveForms(pid), fetchLeads('all', pid, 1, perPage, ''), fetchStats(pid)])
+    // Switch to whatever the user just picked — previously this only ran when
+    // the *current* selection had gone invalid (e.g. the very first
+    // connection ever made, when selectedPageId starts null). Adding a
+    // second page while one was already selected left selectedPageId
+    // untouched, so "Add page" silently kept showing the old page instead of
+    // the one the user just connected.
+    const newlyActivatedId = chosenIds.find(id => freshPages.some(p => p.page_id === id))
+    const targetId = newlyActivatedId ?? (freshPages.length > 0 && !freshPages.some(p => p.page_id === selectedPageId) ? freshPages[0].page_id : null)
+    if (targetId && targetId !== selectedPageId) {
+      setSelectedPageId(targetId)
+      try { sessionStorage.setItem('_wpl_pid', targetId) } catch {}
+      await Promise.all([fetchActiveForms(targetId), fetchLeads('all', targetId, 1, perPage, ''), fetchStats(targetId)])
     }
   }, [pickedPageIds, fetchPages, selectedPageId, fetchActiveForms, fetchLeads, fetchStats, perPage])
 
