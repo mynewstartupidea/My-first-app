@@ -219,6 +219,11 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
   confirmingPick: boolean
   confirmPageSelection: (ids?: string[]) => void
 }) {
+  const [search, setSearch] = useState('')
+  const filtered = search.trim()
+    ? pendingPages.filter(pg => pg.page_name.toLowerCase().includes(search.trim().toLowerCase()))
+    : pendingPages
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
@@ -229,8 +234,47 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
         <p className="text-sm text-gray-500 mb-4">
           We found {pendingPages.length} page{pendingPages.length !== 1 ? 's' : ''} you manage. Pick which ones should sync leads into Wapaci.
         </p>
+
+        <div className="relative mb-3">
+          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search pages…"
+            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
+          />
+        </div>
+
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-gray-400">{pickedPageIds.size} of {pendingPages.length} selected</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setPickedPageIds(prev => {
+                const next = new Set(prev)
+                filtered.forEach(pg => next.add(pg.page_id))
+                return next
+              })}
+              className="text-xs font-medium text-[#25D366] hover:underline"
+            >
+              Select all
+            </button>
+            <button
+              onClick={() => setPickedPageIds(prev => {
+                const next = new Set(prev)
+                filtered.forEach(pg => next.delete(pg.page_id))
+                return next
+              })}
+              className="text-xs font-medium text-gray-400 hover:text-gray-600 hover:underline"
+            >
+              Deselect all
+            </button>
+          </div>
+        </div>
+
         <div className="max-h-72 overflow-y-auto space-y-1.5 mb-5">
-          {pendingPages.map(pg => {
+          {filtered.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No pages match &ldquo;{search}&rdquo;</p>
+          ) : filtered.map(pg => {
             const checked = pickedPageIds.has(pg.page_id)
             return (
               <label key={pg.page_id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 cursor-pointer">
