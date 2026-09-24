@@ -2580,11 +2580,9 @@ function LeadsContent() {
     setTimeout(() => setSyncToast(false), 2500)
   }, [])
 
-  // Refs so the visibilitychange closure always reads the latest selected IDs
+  // Ref so the visibilitychange closure always reads the latest selected page
   const selectedPageIdRef = useRef<string | null>(null)
-  const selectedFormIdRef = useRef<string | 'all' | '__forms'>('all')
   useEffect(() => { selectedPageIdRef.current = selectedPageId }, [selectedPageId])
-  useEffect(() => { selectedFormIdRef.current = selectedFormId }, [selectedFormId])
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -2911,20 +2909,19 @@ function LeadsContent() {
     }
   }
 
-  // ── Auto-refresh on page focus / navigation return ───────────────────────
+  // ── Silent refresh on page focus / navigation return ──────────────────────
+  // Keeps stats/forms current without disrupting the user — no spinner, no
+  // snapping back to page 1. Previously this blocked the view with a full
+  // reload feeling every time the tab regained focus (including alt-tabbing
+  // between apps, not just switching browser tabs), which read as "the page
+  // keeps refreshing and I have to wait" rather than a background update.
   useEffect(() => {
     const refresh = () => {
       if (document.visibilityState !== 'visible') return
       const pid = selectedPageIdRef.current
       if (!pid) return
-      // Show spinner immediately so user sees activity, not stale data
-      setLoadingLeads(true)
-      setCurrentPage(1)
-      Promise.all([
-        fetchActiveForms(pid),
-        fetchStats(pid),
-        fetchLeads(selectedFormIdRef.current, pid, 1, perPage, leadSearch, sortBy),
-      ]).finally(() => setLoadingLeads(false))
+      fetchActiveForms(pid)
+      fetchStats(pid)
     }
     document.addEventListener('visibilitychange', refresh)
     window.addEventListener('focus', refresh)
@@ -2932,7 +2929,7 @@ function LeadsContent() {
       document.removeEventListener('visibilitychange', refresh)
       window.removeEventListener('focus', refresh)
     }
-  }, [fetchActiveForms, fetchStats, fetchLeads, perPage, leadSearch, sortBy])
+  }, [fetchActiveForms, fetchStats])
 
   // ── Search debounce ──────────────────────────────────────────────────────
   useEffect(() => {
