@@ -66,7 +66,7 @@ export async function GET(request: Request) {
     }))
 
     const { data: savedRows } = await supabase.from('leads')
-      .upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+      .upsert(rows, { onConflict: 'user_id,facebook_lead_id', ignoreDuplicates: true })
       .select('id, phone, name, fields')
 
     synced += fbLeads.length

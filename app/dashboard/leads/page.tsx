@@ -293,6 +293,12 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
             )
           })}
         </div>
+        {confirmingPick && (
+          <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5">
+            <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+            Fetching your existing leads from Facebook — this can take a moment for pages with a lot of history…
+          </p>
+        )}
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={() => confirmPageSelection([])}
@@ -306,7 +312,7 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
             disabled={confirmingPick}
             className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
           >
-            {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</> : `Connect ${pickedPageIds.size || ''} page${pickedPageIds.size !== 1 ? 's' : ''}`}
+            {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Fetching leads…</> : `Connect ${pickedPageIds.size || ''} page${pickedPageIds.size !== 1 ? 's' : ''}`}
           </button>
         </div>
       </div>
@@ -2685,10 +2691,12 @@ function LeadsContent() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ selectedPageIds: ids ?? Array.from(pickedPageIds) }),
     })
-    const d = await res.json().catch(() => ({})) as { activated?: number }
+    const d = await res.json().catch(() => ({})) as { activated?: number; synced?: number }
     setConfirmingPick(false)
     setPendingPages([])
-    setBanner({ type: 'success', msg: `${d.activated ?? 0} Facebook page${d.activated !== 1 ? 's' : ''} connected` })
+    const pageMsg = `${d.activated ?? 0} Facebook page${d.activated !== 1 ? 's' : ''} connected`
+    const leadMsg = d.synced ? ` — ${d.synced} lead${d.synced !== 1 ? 's' : ''} imported` : ''
+    setBanner({ type: 'success', msg: pageMsg + leadMsg })
     const freshPages = await fetchPages()
 
     // Nothing selects a page after activation otherwise — the picker can fire

@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   })
 
   const { data: saved } = await service.from('leads')
-    .upsert(rows, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+    .upsert(rows, { onConflict: 'user_id,facebook_lead_id', ignoreDuplicates: true })
     .select('id')
 
   return NextResponse.json({ imported: saved?.length ?? 0, total: fbLeads.length })

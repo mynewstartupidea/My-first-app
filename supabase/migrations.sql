@@ -428,3 +428,38 @@ CREATE POLICY "meta_signup_events_own" ON meta_signup_events FOR ALL USING (user
 ALTER TABLE facebook_connections
   ADD COLUMN IF NOT EXISTS selection_status TEXT DEFAULT 'active'
     CHECK (selection_status IN ('pending', 'active'));
+
+-- ─── Leads: scope facebook_lead_id uniqueness per account ────────────────────
+-- facebook_lead_id was unique GLOBALLY across the whole table, not scoped to
+-- user_id. When two different Wapaci accounts both had access to the same
+-- real Facebook Page (e.g. shared ad-agency access, or — as found here — two
+-- of the same person's own test accounts), the second account's Lead Ads
+-- sync silently wrote zero rows: ON CONFLICT DO NOTHING treated every lead as
+-- already existing, because Postgres saw a row with that facebook_lead_id
+-- under the OTHER account. The UI still reported "N leads synced" the whole
+-- time, since that count came from Facebook's API response, not from what
+-- actually got written to this account's rows. Affects every ingestion path:
+-- manual sync, the real-time webhook, CSV import, form-automation activation,
+-- and the sync cron — all shared the same single-column constraint.
+
+DO $$
+DECLARE
+  c_name TEXT;
+BEGIN
+  SELECT tc.constraint_name INTO c_name
+  FROM information_schema.table_constraints tc
+  JOIN information_schema.constraint_column_usage ccu
+    ON tc.constraint_name = ccu.constraint_name AND tc.table_name = ccu.table_name
+  WHERE tc.table_name = 'leads'
+    AND tc.constraint_type = 'UNIQUE'
+    AND ccu.column_name = 'facebook_lead_id'
+  GROUP BY tc.constraint_name
+  HAVING COUNT(*) = 1
+  LIMIT 1;
+
+  IF c_name IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE leads DROP CONSTRAINT %I', c_name);
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS leads_user_facebook_lead_id_idx ON leads (user_id, facebook_lead_id);

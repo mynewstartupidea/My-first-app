@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         ad_name:       fbLead.ad_name       ?? null,
         adset_name:    fbLead.adset_name    ?? null,
         campaign_name: fbLead.campaign_name ?? null,
-      }, { onConflict: 'facebook_lead_id' }).select('id').single()
+      }, { onConflict: 'user_id,facebook_lead_id' }).select('id').single()
 
       if (saveErr) { console.error('[FB webhook] save lead error:', saveErr); continue }
       if (!phone || !conn.store_id || !saved) continue

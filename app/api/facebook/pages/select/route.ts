@@ -4,10 +4,12 @@
 // (subscribed to leadgen webhooks, forms registered) or gets dropped.
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { subscribePageToLeadgen, getLeadForms } from '@/lib/facebook'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { syncFacebookPageLeads } from '@/lib/facebook-sync'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -27,6 +29,7 @@ export async function POST(request: Request) {
     .eq('selection_status', 'pending')
 
   let activated = 0
+  let synced    = 0
 
   for (const conn of pending ?? []) {
     if (!selectedPageIds.has(conn.page_id as string)) {
@@ -62,7 +65,18 @@ export async function POST(request: Request) {
     }
 
     activated++
+
+    // Pull existing (historical) leads immediately, so the merchant doesn't
+    // land on an empty "No leads yet" screen until the next manual refresh
+    // or cron run — awaited so the response only comes back once real data
+    // is actually there.
+    try {
+      const result = await syncFacebookPageLeads(service, ownerId, conn.page_id as string)
+      synced += result.synced
+    } catch (e) {
+      console.error(`[Facebook select] initial sync failed for page ${conn.page_id}:`, e)
+    }
   }
 
-  return NextResponse.json({ ok: true, activated })
+  return NextResponse.json({ ok: true, activated, synced })
 }
