@@ -2959,6 +2959,18 @@ function LeadsContent() {
   const sourceFilterRef = useRef<string | null>(null)
   useEffect(() => { sourceFilterRef.current = sourceFilter }, [sourceFilter])
 
+  // Request-sequencing tokens — rapidly switching filters (e.g. Facebook →
+  // Manual → Facebook) fires overlapping requests with no guaranteed order of
+  // arrival. Without this, a slower response for an earlier click can land
+  // after a faster one for a later click and silently overwrite correct data
+  // with stale numbers — what read as "shows 0, takes a moment to catch up."
+  const fetchLeadsTokenRef = useRef(0)
+  const fetchStatsTokenRef = useRef(0)
+  // Separate token for the loading indicator itself — an earlier, superseded
+  // view-change (tab or source filter) finishing its own await shouldn't be
+  // able to clear the spinner/dim state while a newer one is still in flight.
+  const viewChangeTokenRef = useRef(0)
+
   // ── Fetchers ────────────────────────────────────────────────────────────
 
   const fetchPages = useCallback(async () => {
@@ -2985,9 +2997,11 @@ function LeadsContent() {
   }, [])
 
   const fetchStats = useCallback(async (pageId: string, pSource: string | null = sourceFilterRef.current) => {
+    const token = ++fetchStatsTokenRef.current
     const p = pSource ? `source=${pSource}` : `page_id=${pageId}`
     const r = await fetch(`/api/facebook/leads/stats?${p}`)
     const d = await r.json() as { total?: number; withPhone?: number; sent?: number; pending?: number }
+    if (fetchStatsTokenRef.current !== token) return // superseded by a newer call
     setPageStats({ total: d.total ?? 0, withPhone: d.withPhone ?? 0, sent: d.sent ?? 0, pending: d.pending ?? 0 })
   }, [])
 
@@ -3014,8 +3028,10 @@ function LeadsContent() {
     }
     if (search.trim()) p.set('q', search.trim())
     if (sort === 'followup_due') p.set('sort', 'followup_due')
+    const token = ++fetchLeadsTokenRef.current
     const r = await fetch(`/api/facebook/leads?${p}`)
     const d = await r.json() as { leads?: Lead[]; total?: number }
+    if (fetchLeadsTokenRef.current !== token) return // superseded by a newer call
     setLeads(d.leads ?? [])
     setTotal(d.total ?? 0)
   }, [])
@@ -3172,13 +3188,15 @@ function LeadsContent() {
     setLeads([])
     if (formId === '__forms') return
     if (selectedPageId) {
+      const token = ++viewChangeTokenRef.current
       setLoadingLeads(true)
       await fetchLeads(formId, selectedPageId, 1, perPage, '')
-      setLoadingLeads(false)
+      if (viewChangeTokenRef.current === token) setLoadingLeads(false)
     }
   }
 
   const handleSourceFilterChange = async (source: string | null) => {
+    const token = ++viewChangeTokenRef.current
     setSourceFilter(source)
     setSelectedFormId('all')
     setActiveView('leads')
@@ -3193,7 +3211,7 @@ function LeadsContent() {
       fetchLeads('all', selectedPageId ?? '', 1, perPage, '', 'default', source),
       fetchStats(selectedPageId ?? '', source),
     ])
-    setLoadingLeads(false)
+    if (viewChangeTokenRef.current === token) setLoadingLeads(false)
   }
 
   const handleActivate = async (connectionId: string, form: FBForm, template: string) => {
@@ -3568,7 +3586,7 @@ function LeadsContent() {
           )}
         </p>
       ) : (
-      <div className="grid grid-cols-2 sm:grid-cols-4 bg-white rounded-xl border border-gray-100 shadow-sm divide-x divide-y sm:divide-y-0 divide-gray-100 overflow-hidden">
+      <div className={`grid grid-cols-2 sm:grid-cols-4 bg-white rounded-xl border border-gray-100 shadow-sm divide-x divide-y sm:divide-y-0 divide-gray-100 overflow-hidden transition-opacity ${loadingLeads ? 'opacity-40' : ''}`}>
         {[
           { label: 'Total leads',   value: pageTotal, color: '#6b7280', warn: false },
           { label: 'Have phone',    value: withPhone, color: '#3b82f6', warn: false },
