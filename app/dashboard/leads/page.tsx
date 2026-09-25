@@ -277,7 +277,7 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search pages…"
-            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
+            className="w-full pl-8 pr-3 py-2 text-base border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
           />
         </div>
 
@@ -399,20 +399,20 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
             <select value={source} onChange={e => setSource(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
               {Object.entries(SOURCE_META).map(([key, meta]) => (
                 <option key={key} value={key}>{meta.label}</option>
               ))}
             </select>
           </div>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Name"
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number"
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email (optional)"
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
         <div className="flex items-center justify-end gap-2 mt-5">
@@ -533,7 +533,7 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
                 <div key={label}>
                   <label className="block text-[11px] font-medium text-gray-400 mb-1">{label}</label>
                   <select value={val} onChange={e => setter(Number(e.target.value))}
-                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
+                    className="w-full text-base border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
                     <option value={-1}>— none —</option>
                     {headers.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
                   </select>
@@ -543,7 +543,7 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Source label</label>
               <input value={sourceLabel} onChange={e => setSourceLabel(e.target.value)} placeholder="e.g. Nakoda Interiors Partner"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
             </div>
             <div className="max-h-32 overflow-y-auto border border-gray-100 rounded-lg text-[11px] text-gray-500 divide-y divide-gray-50">
               {rows.slice(0, 5).map((r, i) => (
@@ -669,7 +669,7 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
                   placeholder="Search forms…"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -763,7 +763,7 @@ function ActivateFormModal({ selectedPageId, activeForms, preSelectedForm, onClo
                 value={template}
                 onChange={e => setTemplate(e.target.value)}
                 rows={7}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
               <div className="mt-3 flex items-start gap-2 p-3 bg-green-50 rounded-xl">
                 <MessageCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
@@ -945,7 +945,7 @@ function EditFormModal({ form, onClose, onSave }: {
               value={template}
               onChange={e => { setTemplate(e.target.value); setWaName(''); setWaLang('en') }}
               rows={6}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
             <p className="text-[11px] text-gray-400 mt-1.5">
               Purple chips are fields from this specific form. Editing text clears the selected template.
@@ -968,14 +968,14 @@ function EditFormModal({ form, onClose, onSave }: {
                 value={waName}
                 onChange={e => setWaName(e.target.value)}
                 placeholder="e.g. my_custom_template"
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <input
                 type="text"
                 value={waLang}
                 onChange={e => setWaLang(e.target.value)}
                 placeholder="en"
-                className="w-20 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-20 px-3 py-2 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                 title="Language code (e.g. en, en_US, hi)"
               />
             </div>
@@ -998,7 +998,7 @@ function EditFormModal({ form, onClose, onSave }: {
                     value={q}
                     onChange={e => setQuestions(qs => qs.map((v, idx) => idx === i ? e.target.value : v))}
                     placeholder="e.g. What's your budget?"
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button type="button" onClick={() => setQuestions(qs => qs.filter((_, idx) => idx !== i))}
                     className="p-2 text-gray-300 hover:text-red-500 transition flex-shrink-0">
@@ -1683,7 +1683,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
                   }
                   e.target.value = ''
                 }}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 flex-shrink-0"
+                className="text-base border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 flex-shrink-0"
               >
                 <option value="">Assign to…</option>
                 <option value="__self">Me</option>
@@ -1821,7 +1821,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
               onChange={e => setNotes(e.target.value)}
               placeholder="Add notes about this call…"
               rows={3}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none mb-3"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none mb-3"
             />
 
             <div className="mb-3">
@@ -2165,7 +2165,7 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search name or phone…"
-            className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
+            className="w-full pl-9 pr-8 py-1.5 text-base border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -2770,7 +2770,7 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
             placeholder="Search forms…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <p className="text-xs text-gray-400 ml-auto">
@@ -3740,7 +3740,7 @@ function LeadsContent() {
                   value={leadSearch}
                   onChange={e => setLeadSearch(e.target.value)}
                   placeholder="Search name, phone, email…"
-                  className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
+                  className="w-full pl-9 pr-8 py-1.5 text-base border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
                 />
                 {leadSearch && (
                   <button onClick={() => setLeadSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
