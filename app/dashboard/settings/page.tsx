@@ -640,7 +640,11 @@ function SettingsInner() {
 
   // ── Team actions ──────────────────────────────────────────────────────────────
   async function handleInvite() {
-    if (!inviteEmail.trim()) return
+    const email = inviteEmail.trim()
+    if (!email) return
+    // Same check the backend enforces — catches it before a network round
+    // trip instead of only after the bogus row is already in the DB.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Invalid email address', false); return }
     setSendingInvite(true)
     const res = await fetch('/api/team/invite', {
       method: 'POST',

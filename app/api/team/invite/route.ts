@@ -6,6 +6,13 @@ import { resolveManagedOrg } from '@/lib/resolve-managed-org'
 const VALID_ROLES = ['admin', 'manager', 'support', 'member'] as const
 type Role = typeof VALID_ROLES[number]
 
+// Pragmatic format check, not full RFC 5322 — same shape browsers use for
+// type="email" inputs. Previously the only check was "is it non-empty," so
+// a random sentence would pass straight through, get inserted into
+// team_members, and only fail (if at all) later at Supabase's own API call —
+// by which point the bogus row already existed and showed up in the team list.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,6 +23,7 @@ export async function POST(request: Request) {
   const role: Role    = (body.role  ?? 'member').toLowerCase() as Role
 
   if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+  if (!EMAIL_RE.test(email)) return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
   if (!VALID_ROLES.includes(role)) {
     return NextResponse.json({ error: 'Invalid role. Must be admin, manager, support, or member.' }, { status: 400 })
   }
