@@ -7,7 +7,7 @@ import {
   CheckCircle, CheckCircle2, X, Zap, Save, Plus, ChevronRight, ChevronLeft,
   Loader2, Pause, Play, Search, Edit2, Download, Upload, Clock,
   AlertCircle, FileText, Sparkles, Send,
-  Phone, Calendar, UserCheck,
+  Phone, Calendar, UserCheck, Mail,
 } from 'lucide-react'
 import type { StarterTemplate } from '@/lib/whatsapp-templates'
 import type { UserRole } from '@/lib/user-role'
@@ -208,9 +208,143 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
   )
 }
 
+// ── SourceDropdown (mobile) ─────────────────────────────────────────────────
+// Compact stand-in for the desktop source pill row — same handler, one
+// trigger instead of six pills competing for space on a 390px screen.
+
+function SourceDropdown({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const options = [
+    { value: null as string | null, label: 'Facebook' },
+    ...Object.entries(SOURCE_META).filter(([k]) => k !== 'facebook_lead_ad').map(([k, m]) => ({ value: k as string | null, label: m.label })),
+  ]
+  const selected = options.find(o => o.value === value) ?? options[0]
+
+  useEffect(() => {
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  return (
+    <div className="relative flex-1 min-w-0" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-1.5 px-2.5 h-9 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700"
+      >
+        <span className="flex-1 min-w-0 truncate text-left">{selected.label}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden py-1">
+          {options.map(o => (
+            <button key={o.value ?? 'facebook'} onClick={() => { onChange(o.value); setOpen(false) }}
+              className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left hover:bg-gray-50 transition ${value === o.value ? 'bg-gray-50 font-medium text-gray-900' : 'text-gray-600'}`}>
+              {o.label}
+              {value === o.value && <CheckCircle className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ViewDropdown (mobile) ───────────────────────────────────────────────────
+// Replaces the horizontal tab bar on small screens — same destinations
+// (handleTabChange / the Follow-ups toggle) behind one compact trigger
+// instead of a row that scrolls off-screen with forms cut off at the edge.
+
+function ViewDropdown({ activeView, selectedFormId, total, followupUrgentCount, enabledForms, onSelectAll, onToggleFollowups, onSelectForm, onSelectAllForms }: {
+  activeView: 'leads' | 'followups'
+  selectedFormId: string
+  total: number
+  followupUrgentCount: number
+  enabledForms: ActiveForm[]
+  onSelectAll: () => void
+  onToggleFollowups: () => void
+  onSelectForm: (formId: string) => void
+  onSelectAllForms: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  const currentLabel =
+    activeView === 'followups' ? 'Follow-ups'
+    : selectedFormId === '__forms' ? 'All forms'
+    : selectedFormId === 'all' ? 'All leads'
+    : enabledForms.find(f => f.form_id === selectedFormId)?.form_name ?? 'All leads'
+  const currentCount =
+    activeView === 'followups' ? followupUrgentCount
+    : selectedFormId === 'all' ? total
+    : selectedFormId === '__forms' ? null
+    : enabledForms.find(f => f.form_id === selectedFormId)?.lead_count ?? null
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3.5 h-10 bg-white border border-gray-200 rounded-lg"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-semibold text-gray-900 truncate">{currentLabel}</span>
+          {currentCount !== null && (
+            <span className="text-xs font-medium text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-full flex-shrink-0">{currentCount}</span>
+          )}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden py-1 max-h-72 overflow-y-auto">
+          <button onClick={() => { onSelectAll(); setOpen(false) }}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition ${activeView !== 'followups' && selectedFormId === 'all' ? 'bg-gray-50 font-semibold text-gray-900' : 'text-gray-600'}`}>
+            All leads
+            <span className="text-xs text-gray-400">{total}</span>
+          </button>
+          <button onClick={() => { onToggleFollowups(); setOpen(false) }}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm text-left hover:bg-amber-50 transition ${activeView === 'followups' ? 'bg-amber-50 font-semibold text-amber-700' : 'text-gray-600'}`}>
+            <span className="flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5" /> Follow-ups
+            </span>
+            {followupUrgentCount > 0 && <span className="text-xs font-semibold text-amber-600">{followupUrgentCount}</span>}
+          </button>
+          {enabledForms.map(form => {
+            const c = getColor(form.color_index)
+            const sel = activeView !== 'followups' && selectedFormId === form.form_id
+            return (
+              <button key={form.form_id} onClick={() => { onSelectForm(form.form_id); setOpen(false) }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition ${sel ? 'font-semibold' : 'text-gray-600'}`}
+                style={sel ? { color: c.text, background: c.bg } : {}}>
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+                  <span className="truncate">{form.form_name}</span>
+                </span>
+                <span className="text-xs text-gray-400 flex-shrink-0">{form.lead_count}</span>
+              </button>
+            )
+          })}
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            <button onClick={() => { onSelectAllForms(); setOpen(false) }}
+              className={`w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition ${selectedFormId === '__forms' ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
+              <FileText className="w-3.5 h-3.5" /> All forms
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── AddLeadDropdown ────────────────────────────────────────────────────────────
 
-function AddLeadDropdown({ onAddManual, onImportCsv }: { onAddManual: () => void; onImportCsv: () => void }) {
+function AddLeadDropdown({ onAddManual, onImportCsv, compact }: { onAddManual: () => void; onImportCsv: () => void; compact?: boolean }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -223,9 +357,13 @@ function AddLeadDropdown({ onAddManual, onImportCsv }: { onAddManual: () => void
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition active:scale-[0.97]"
+        aria-label="Add lead"
+        className={compact
+          ? 'flex items-center justify-center w-10 h-10 bg-[#25D366] hover:bg-[#1aad54] text-white rounded-full transition active:scale-[0.97] shadow-sm flex-shrink-0'
+          : 'flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition active:scale-[0.97]'}
       >
-        <Plus className="w-4 h-4" /> Add lead
+        <Plus className={compact ? 'w-5 h-5' : 'w-4 h-4'} />
+        {!compact && 'Add lead'}
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden py-1">
@@ -1651,6 +1789,14 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
               ) : (
                 <p className="text-sm text-gray-400 mt-1">No phone number</p>
               )}
+              {/* The mobile card list keeps email out of the row to stay
+                  scannable — this header is where it surfaces instead. */}
+              {lead.email && (
+                <p className="flex items-center gap-1.5 mt-1 text-xs text-gray-400 truncate">
+                  <Mail className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{lead.email}</span>
+                </p>
+              )}
             </div>
             <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition ml-3 flex-shrink-0">
               <X className="w-5 h-5 text-gray-400" />
@@ -2598,28 +2744,25 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-sm font-semibold text-gray-900 truncate">{lead.name ?? '—'}</p>
           <StatusPicker lead={lead} onUpdate={onUpdate} />
-          {lead.source && lead.source !== 'facebook_lead_ad' && SOURCE_META[lead.source] && (
-            <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
-              style={{ background: SOURCE_META[lead.source].bg, color: SOURCE_META[lead.source].text }}>
-              <span className="w-1 h-1 rounded-full" style={{ background: SOURCE_META[lead.source].dot }} />
-              {SOURCE_META[lead.source].label}
-            </span>
-          )}
         </div>
-        {lead.phone && <p className="text-xs text-gray-500 font-mono mt-0.5">{lead.phone}</p>}
-        {lead.email && <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>}
-        {lead.assigned_name && (
-          <p className="text-[11px] text-blue-500 mt-0.5 flex items-center gap-1">
-            <UserCheck className="w-2.5 h-2.5" />
-            {lead.assigned_name}
-          </p>
-        )}
-        {followupDate && (
-          <p className={`text-[11px] flex items-center gap-1 mt-0.5 ${isOverdue ? 'text-red-500 font-medium' : 'text-orange-400'}`}>
-            <Calendar className="w-2.5 h-2.5" />
-            {isOverdue ? 'Overdue: ' : 'Follow up '}{followupDate}
-          </p>
-        )}
+        {/* Email, assigned-to and the full follow-up date used to each get
+            their own line here — scannable for one lead, a wall of text for
+            seven. They're one tap away in the detail sheet instead; this row
+            keeps only what distinguishes a lead at a glance. */}
+        <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500">
+          {lead.phone && <span className="font-mono">{lead.phone}</span>}
+          {(() => {
+            const meta = SOURCE_META[lead.source ?? 'facebook_lead_ad']
+            if (!meta) return null
+            return (
+              <>
+                {lead.phone && <span className="text-gray-300">·</span>}
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: meta.dot }} />
+                <span className="text-gray-400">{meta.label}</span>
+              </>
+            )
+          })()}
+        </div>
         {extra.length > 0 && (
           <button
             onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
@@ -2645,6 +2788,14 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
           </div>
         )}
       </div>
+
+      {/* Follow-up moved from an inline text line to a trailing chip — same
+          info (due date, or "Overdue" in red), a fraction of the width. */}
+      {followupDate && (
+        <span className={`flex-shrink-0 mt-0.5 text-[10px] font-semibold px-2 py-1 rounded-full ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-orange-50 text-orange-600'}`}>
+          {isOverdue ? 'Overdue' : followupDate}
+        </span>
+      )}
 
       <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5" onClick={e => e.stopPropagation()}>
         {lead.phone && lead.wa_status !== 'sent' && (
@@ -3504,20 +3655,38 @@ function LeadsContent() {
 
       {/* Header — reps get just the title: no page/connection management, no
           bulk-send. Those are owner/admin tools and were the reason a rep had
-          to scroll past a stack of buttons before reaching their first lead. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+          to scroll past a stack of buttons before reaching their first lead.
+          On mobile, everyone also gets a condensed header — page/source as
+          compact dropdowns, stats folded into the subtitle line, and the tab
+          bar below replaced by a single "View" picker — since the full
+          desktop controls (page picker, refresh, message, add-lead, source
+          pills, a 4-tile stat grid, a scrolling tab row) only ever fit
+          comfortably at md width and up. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Lead Ads</h1>
           {!isRep && (
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="hidden md:block text-sm text-gray-400 mt-0.5">
               {pages.length} page{pages.length !== 1 ? 's' : ''} connected
               {activeForms.length > 0 && ` · ${activeForms.length} form${activeForms.length !== 1 ? 's' : ''} tracked`}
               {enabledForms.length > 0 && ` · ${enabledForms.length} with WhatsApp`}
             </p>
           )}
+          {!isRep && (
+            <p className="md:hidden text-sm text-gray-400 mt-0.5">
+              <span className="font-semibold text-gray-900 tabular-nums">{pageTotal}</span> lead{pageTotal !== 1 ? 's' : ''}
+              {followupUrgentCount > 0 && (
+                <> · <span className="font-semibold text-amber-600 tabular-nums">{followupUrgentCount}</span> follow-up{followupUrgentCount !== 1 ? 's' : ''} due</>
+              )}
+            </p>
+          )}
         </div>
         {!isRep && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <>
+        <div className="md:hidden flex-shrink-0">
+          <AddLeadDropdown compact onAddManual={() => setShowAddLead(true)} onImportCsv={() => setShowCsvImport(true)} />
+        </div>
+        <div className="hidden md:flex items-center gap-2 flex-wrap">
           <PageDropdown
             pages={pages}
             selectedId={selectedPageId}
@@ -3532,8 +3701,7 @@ function LeadsContent() {
             title="Sync new leads from Facebook"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{refreshing ? 'Syncing…' : 'Refresh'}</span>
-            <span className="sm:hidden">{refreshing ? '…' : 'Refresh'}</span>
+            <span>{refreshing ? 'Syncing…' : 'Refresh'}</span>
           </button>
           {/* Bulk-sending used to open its own one-off modal here — it's now one
               feature, not two: this sends to Campaigns, which has the fuller
@@ -3554,14 +3722,42 @@ function LeadsContent() {
               row for no added reach. Cut in favor of the dropdown alone. */}
           <AddLeadDropdown onAddManual={() => setShowAddLead(true)} onImportCsv={() => setShowCsvImport(true)} />
         </div>
+        </>
         )}
       </div>
+
+      {/* Mobile-only condensed Page + Source row — same handlers as the
+          desktop PageDropdown/source pills below, just compact stand-ins so
+          a phone screen doesn't spend three rows on filters before a single
+          lead is visible. */}
+      {!isRep && (
+        <div className="md:hidden flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <PageDropdown
+              pages={pages}
+              selectedId={selectedPageId}
+              onSelect={handlePageChange}
+              onDisconnectAll={handleDisconnectAll}
+              onReconnect={() => { window.location.href = '/api/facebook/auth' }}
+            />
+          </div>
+          <SourceDropdown value={sourceFilter} onChange={handleSourceFilterChange} />
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label="Sync new leads from Facebook"
+            className="flex items-center justify-center w-9 h-9 text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50 flex-shrink-0"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      )}
 
       {/* Source filter — orthogonal to the Page dropdown above: Facebook stays
           page/form-scoped as it always has, any other source bypasses that
           entirely and filters by source across every one of the user's leads. */}
       {!isRep && (
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="hidden md:flex items-center gap-1.5 flex-wrap">
           {[{ value: null, label: 'Facebook' }, ...Object.entries(SOURCE_META).filter(([k]) => k !== 'facebook_lead_ad').map(([k, m]) => ({ value: k, label: m.label }))].map(opt => (
             <button
               key={opt.value ?? 'facebook'}
@@ -3576,8 +3772,29 @@ function LeadsContent() {
         </div>
       )}
 
+      {/* View picker — mobile stand-in for the tab bar inside the content card
+          below (All leads / Follow-ups / per-form / All forms), so a phone
+          doesn't need a horizontally-scrolling row just to switch views. */}
+      <div className="md:hidden">
+        <ViewDropdown
+          activeView={activeView}
+          selectedFormId={selectedFormId}
+          total={total}
+          followupUrgentCount={followupUrgentCount}
+          enabledForms={enabledForms}
+          onSelectAll={() => handleTabChange('all')}
+          onToggleFollowups={() => {
+            setActiveView(v => v === 'followups' ? 'leads' : 'followups')
+            setSelectedFormId(prev => prev === '__forms' ? 'all' : prev)
+          }}
+          onSelectForm={formId => handleTabChange(formId)}
+          onSelectAllForms={() => handleTabChange('__forms')}
+        />
+      </div>
+
       {/* Stat cards — a rep doesn't need four KPI tiles between them and their
-          list; those belong to whoever's running the pipeline. One line instead. */}
+          list; those belong to whoever's running the pipeline. One line instead
+          (shown in the title on mobile, see above, covers it there too). */}
       {isRep ? (
         <p className="text-sm text-gray-500">
           <span className="font-semibold text-gray-900 tabular-nums">{pageTotal}</span> lead{pageTotal !== 1 ? 's' : ''}
@@ -3586,7 +3803,7 @@ function LeadsContent() {
           )}
         </p>
       ) : (
-      <div className={`grid grid-cols-2 sm:grid-cols-4 bg-white rounded-xl border border-gray-100 shadow-sm divide-x divide-y sm:divide-y-0 divide-gray-100 overflow-hidden transition-opacity ${loadingLeads ? 'opacity-40' : ''}`}>
+      <div className={`hidden md:grid md:grid-cols-4 bg-white rounded-xl border border-gray-100 shadow-sm divide-x divide-gray-100 overflow-hidden transition-opacity ${loadingLeads ? 'opacity-40' : ''}`}>
         {[
           { label: 'Total leads',   value: pageTotal, color: '#6b7280', warn: false },
           { label: 'Have phone',    value: withPhone, color: '#3b82f6', warn: false },
@@ -3633,10 +3850,10 @@ function LeadsContent() {
       {/* Main content card with tab bar */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-        {/* Tab bar — the fade hints there's more to scroll to on mobile, where
-            "All forms" and per-form tabs routinely get cut off at the edge
-            with nothing signaling the row keeps going. */}
-        <div className="relative">
+        {/* Tab bar — desktop only now; the ViewDropdown above the card covers
+            the same ground on mobile, where this row used to need a fade
+            hint just to show "All forms" and per-form tabs weren't cut off. */}
+        <div className="relative hidden md:block">
         <div className="flex items-center border-b border-gray-100 overflow-x-auto">
           {/* All leads */}
           <button
