@@ -149,12 +149,13 @@ function SyncingScreen() {
 
 // ── PageDropdown ──────────────────────────────────────────────────────────────
 
-function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnect }: {
+function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnect, compact }: {
   pages: Page[]
   selectedId: string | null
   onSelect: (p: Page) => void
   onDisconnectAll: () => void
   onReconnect: () => void
+  compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -170,12 +171,19 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition max-w-[220px]"
+        className={compact
+          ? 'w-full flex items-center gap-2 px-3 h-10 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition'
+          : 'flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition max-w-[220px]'}
       >
-        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
-          <Facebook className="w-3 h-3 text-blue-600" />
-        </div>
-        <span className="truncate">{selected?.page_name ?? 'Select page'}</span>
+        {/* The icon square reads fine next to a short label on desktop, but
+            on a narrow mobile pill it just ate width and pushed the text
+            closer to whatever sat beside it — skip it there. */}
+        {!compact && (
+          <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+            <Facebook className="w-3 h-3 text-blue-600" />
+          </div>
+        )}
+        <span className="truncate flex-1 min-w-0 text-left">{selected?.page_name ?? 'Select page'}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
@@ -3726,30 +3734,32 @@ function LeadsContent() {
         )}
       </div>
 
-      {/* Mobile-only condensed Page + Source row — same handlers as the
-          desktop PageDropdown/source pills below, just compact stand-ins so
-          a phone screen doesn't spend three rows on filters before a single
-          lead is visible. */}
+      {/* Mobile-only condensed Page + Source controls — same handlers as the
+          desktop PageDropdown/source pills below, just compact stand-ins.
+          Page gets its own full-width row (a real business name plus a
+          second dropdown right next to it read as one merged, confusing
+          control on a narrow screen); Source + Refresh share the row below. */}
       {!isRep && (
-        <div className="md:hidden flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <PageDropdown
-              pages={pages}
-              selectedId={selectedPageId}
-              onSelect={handlePageChange}
-              onDisconnectAll={handleDisconnectAll}
-              onReconnect={() => { window.location.href = '/api/facebook/auth' }}
-            />
+        <div className="md:hidden flex flex-col gap-2">
+          <PageDropdown
+            pages={pages}
+            selectedId={selectedPageId}
+            onSelect={handlePageChange}
+            onDisconnectAll={handleDisconnectAll}
+            onReconnect={() => { window.location.href = '/api/facebook/auth' }}
+            compact
+          />
+          <div className="flex items-center gap-2">
+            <SourceDropdown value={sourceFilter} onChange={handleSourceFilterChange} />
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-label="Sync new leads from Facebook"
+              className="flex items-center justify-center w-10 h-10 text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50 flex-shrink-0"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-          <SourceDropdown value={sourceFilter} onChange={handleSourceFilterChange} />
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-label="Sync new leads from Facebook"
-            className="flex items-center justify-center w-9 h-9 text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50 flex-shrink-0"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       )}
 
