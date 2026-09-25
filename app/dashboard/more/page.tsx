@@ -8,6 +8,7 @@ import {
   Settings, Megaphone, Zap, BarChart2,
   Users, FileText, Plug, Code2, LifeBuoy, ChevronRight,
 } from 'lucide-react'
+import InstallAppCard from '@/components/install-app-card'
 
 // Everything that doesn't earn a permanent bottom-tab slot (Home/Leads/Chat
 // are the only things opened constantly) lives here instead — grouped by how
@@ -53,6 +54,8 @@ export default async function MorePage() {
   return (
     <div className="p-4 space-y-5 md:hidden">
       <h1 className="text-xl font-bold text-gray-900">More</h1>
+
+      <InstallAppCard />
 
       <Link
         href="/dashboard/settings"

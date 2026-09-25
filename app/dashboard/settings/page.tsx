@@ -21,6 +21,7 @@ const LEAD_PLANS = [
 import Link from 'next/link'
 import { cn, timeAgo } from '@/lib/utils'
 import type { Store as StoreType } from '@/types'
+import InstallAppCard from '@/components/install-app-card'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -761,7 +762,7 @@ function SettingsInner() {
           </div>
           Account
         </h2>
-        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl mb-4">
           <div className="w-10 h-10 bg-[#25D366] rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
             {userEmail[0]?.toUpperCase() ?? 'U'}
           </div>
@@ -770,6 +771,8 @@ function SettingsInner() {
             <p className="text-slate-400 text-xs">Account email · {planLabel} plan</p>
           </div>
         </div>
+
+        <InstallAppCard />
       </section>
 
       {/* ── Ecommerce Store ──────────────────────────────────────────────────── */}
