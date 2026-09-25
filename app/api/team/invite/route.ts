@@ -85,6 +85,32 @@ export async function POST(request: Request) {
   })
 
   if (emailErr) {
+    // inviteUserByEmail fails outright — not a soft warning, a hard error —
+    // for any email that already has a confirmed account. This is exactly
+    // what happens re-inviting someone after removing them: their first
+    // acceptance already created a real, confirmed account with a password,
+    // so Supabase's invite flow (meant only for brand-new accounts) will
+    // never succeed for them again, and the pending row would sit there
+    // forever with the merchant having no idea why the email never arrived.
+    // Since they already have working credentials, skip the broken email
+    // path and activate them immediately instead.
+    const alreadyRegistered = /already.*registered/i.test(emailErr.message)
+    if (alreadyRegistered) {
+      const { data: userList } = await service.auth.admin.listUsers({ perPage: 1000 })
+      const existingUser = userList?.users.find(u => u.email?.toLowerCase() === email)
+      if (existingUser) {
+        await service
+          .from('team_members')
+          .update({ status: 'active', user_id: existingUser.id })
+          .eq('id', invite.id)
+        return NextResponse.json({
+          invite: { ...invite, status: 'active', user_id: existingUser.id },
+          alreadyActive: true,
+          message: `${email} already has a Wapaci account and has been added back to the team immediately — they can log in right away with their existing password.`,
+        })
+      }
+    }
+
     // Don't fail the whole request — record is saved, but flag email issue
     console.error('[Invite] email send failed:', emailErr.message)
     return NextResponse.json({

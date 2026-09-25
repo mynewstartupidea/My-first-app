@@ -651,7 +651,11 @@ function SettingsInner() {
     setSendingInvite(false)
     if (!res.ok) { showToast(data.error ?? 'Failed to send invite', false); return }
     setInviteEmail('')
-    if (data.warning) {
+    if (data.alreadyActive) {
+      // Re-inviting someone who already has a confirmed account (e.g. after
+      // removing and re-adding them) — no email needed, they're already in.
+      showToast(data.message)
+    } else if (data.warning) {
       showToast(data.warning, false)
     } else {
       showToast(`Invite email sent to ${data.invite.email}`)
