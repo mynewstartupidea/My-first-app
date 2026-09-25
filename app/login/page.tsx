@@ -22,6 +22,13 @@ function LoginForm() {
   // for a password they were never given, and reasonably conclude nothing
   // happened.
   const [completingInvite, setCompletingInvite] = useState(false)
+  // Invite/recovery links authenticate once via a one-time token but never
+  // set a password — without this step, an invited teammate would have no
+  // way to log back in later (new device, expired session, cleared cookies).
+  const [needsPassword, setNeedsPassword]   = useState(false)
+  const [newPassword, setNewPassword]       = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [settingPassword, setSettingPassword] = useState(false)
   const router      = useRouter()
   const searchParams = useSearchParams()
   const supabase    = useMemo(() => createClient(), [])
@@ -48,6 +55,7 @@ function LoginForm() {
       const params = new URLSearchParams(window.location.hash.slice(1))
       const access_token  = params.get('access_token')
       const refresh_token = params.get('refresh_token')
+      const type          = params.get('type') // 'invite' | 'recovery' | 'magiclink' | 'signup' | ...
 
       // Strip the tokens out of the URL immediately regardless of outcome —
       // they're sensitive and shouldn't linger in browser history either way.
@@ -62,6 +70,17 @@ function LoginForm() {
       // session (and its cookies) exists — best-effort, a failure here
       // shouldn't strand someone who successfully authenticated.
       await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
+
+      // Invite and password-recovery links only ever authenticate via the
+      // one-time token — neither sets a real password. Stop here and make
+      // them set one instead of letting them straight into the app with no
+      // way to sign back in later.
+      if (type === 'invite' || type === 'recovery') {
+        setCompletingInvite(false)
+        setNeedsPassword(true)
+        return
+      }
+
       router.replace(safeReturnTo())
     }
 
@@ -126,6 +145,19 @@ function LoginForm() {
     window.location.href = safeReturnTo()
   }
 
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (newPassword.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (newPassword !== confirmPassword) { setError('Passwords don\'t match.'); return }
+
+    setSettingPassword(true)
+    const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
+    setSettingPassword(false)
+    if (updateErr) { setError(updateErr.message); return }
+    router.replace(safeReturnTo())
+  }
+
   const titles: Record<Mode, { h: string; sub: string; btn: string }> = {
     signin: { h: 'Welcome back',       sub: 'Sign in to your dashboard',     btn: 'Sign In'            },
     signup: { h: 'Create your account', sub: 'Start recovering revenue today', btn: 'Create Account'     },
@@ -138,6 +170,70 @@ function LoginForm() {
       <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex flex-col items-center justify-center p-4 gap-4">
         <Loader2 className="w-8 h-8 animate-spin text-white" />
         <p className="text-white text-sm font-medium">Setting up your account…</p>
+      </div>
+    )
+  }
+
+  if (needsPassword) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-xl mb-4">
+              <MessageCircle className="w-9 h-9 text-[#25D366]" />
+            </div>
+            <h1 className="text-3xl font-bold text-white">Wapaci</h1>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-2xl p-8">
+            <h2 className="text-xl font-semibold text-slate-800 mb-1">Set your password</h2>
+            <p className="text-slate-500 text-sm mb-6">You're signed in — choose a password so you can log back in next time.</p>
+
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSetPassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">New password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                  placeholder="••••••••"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                  placeholder="••••••••"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={settingPassword}
+                className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {settingPassword
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+                  : 'Set password & continue'}
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     )
   }
