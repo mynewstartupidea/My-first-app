@@ -23,28 +23,22 @@
 // - Anything else (Firefox, or a browser that hasn't fired the event yet):
 //   render nothing rather than show instructions that might not apply.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Download, Share, MousePointerClick, CheckCircle2 } from 'lucide-react'
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
+import { getSnapshot, subscribe, clearCapturedPrompt, markInstalled } from '@/lib/install-prompt-store'
 
 type Platform = 'ios' | 'android' | 'mac-safari' | 'desktop'
 
+const emptySnapshot = { prompt: null, installed: false }
+// Server snapshot for SSR/hydration — the real value is only known client-side.
+function getServerSnapshot() { return emptySnapshot }
+
 export default function InstallAppCard() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const { prompt: deferredPrompt, installed } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const [platform, setPlatform] = useState<Platform | null>(null)
-  const [installed, setInstalled] = useState(false)
   const [installing, setInstalling] = useState(false)
 
   useEffect(() => {
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true
-    setInstalled(standalone)
-
     const ua = navigator.userAgent
     const isIPad = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 // iPadOS 13+ reports as Mac
     const isIOS = /iPad|iPhone|iPod/.test(ua) || isIPad
@@ -55,19 +49,6 @@ export default function InstallAppCard() {
 
     const detectedPlatform: Platform = isIOS ? 'ios' : isAndroid ? 'android' : isMacSafari ? 'mac-safari' : 'desktop'
     setPlatform(detectedPlatform)
-
-    const onPrompt = (e: Event) => {
-      e.preventDefault()
-      setDeferredPrompt(e as BeforeInstallPromptEvent)
-    }
-    const onInstalled = () => { setInstalled(true); setDeferredPrompt(null) }
-
-    window.addEventListener('beforeinstallprompt', onPrompt)
-    window.addEventListener('appinstalled', onInstalled)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
   }, [])
 
   const handleInstall = async () => {
@@ -76,9 +57,9 @@ export default function InstallAppCard() {
     try {
       await deferredPrompt.prompt()
       const { outcome } = await deferredPrompt.userChoice
-      if (outcome === 'accepted') setInstalled(true)
+      if (outcome === 'accepted') markInstalled()
     } finally {
-      setDeferredPrompt(null)
+      clearCapturedPrompt()
       setInstalling(false)
     }
   }
@@ -111,7 +92,7 @@ export default function InstallAppCard() {
           disabled={installing}
           className="flex-shrink-0 text-xs font-semibold text-white bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-60 px-3.5 py-2 rounded-lg transition"
         >
-          {installing ? 'Installing…' : 'Install'}
+          {installing ? 'Installing…' : 'Get App'}
         </button>
       </div>
     )

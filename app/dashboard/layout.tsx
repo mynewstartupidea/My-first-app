@@ -5,6 +5,7 @@ import Sidebar from '@/components/sidebar'
 import MobileBottomNav from '@/components/mobile-bottom-nav'
 import PageTransition from '@/components/page-transition'
 import RouteProgress from '@/components/route-progress'
+import InstallPromptInitializer from '@/components/install-prompt-initializer'
 import { getUserRole } from '@/lib/get-user-role'
 import { pickPreferredStore } from '@/lib/store-selection'
 
@@ -28,6 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen bg-[#f1f5f9]">
+      <InstallPromptInitializer />
       <RouteProgress />
       {/* Desktop sidebar — hidden on mobile */}
       <Sidebar storeName={displayName} plan={store?.plan} role={role} />
