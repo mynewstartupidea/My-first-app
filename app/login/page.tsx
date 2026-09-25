@@ -16,6 +16,12 @@ function LoginForm() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState('')
+  // True the moment a hash-based token is spotted in the URL, so the plain
+  // sign-in form never flashes first — without this, someone clicking
+  // "Accept Invitation" would land here, see an ordinary login form asking
+  // for a password they were never given, and reasonably conclude nothing
+  // happened.
+  const [completingInvite, setCompletingInvite] = useState(false)
   const router      = useRouter()
   const searchParams = useSearchParams()
   const supabase    = useMemo(() => createClient(), [])
@@ -27,6 +33,41 @@ function LoginForm() {
   }
 
   function reset() { setError(''); setSuccess(''); setPassword('') }
+
+  // Supabase's invite/magic-link/password-reset emails redirect here with the
+  // session tokens embedded in the URL *hash* (#access_token=...), not a
+  // ?code= query param — browsers never send the hash to a server, so
+  // /auth/callback (which only handles ?code=) never even sees it. Only
+  // client-side JS can read window.location.hash, which is why this has to
+  // happen here rather than in a server route.
+  useEffect(() => {
+    if (!window.location.hash.includes('access_token')) return
+    setCompletingInvite(true)
+
+    async function completeHashSession() {
+      const params = new URLSearchParams(window.location.hash.slice(1))
+      const access_token  = params.get('access_token')
+      const refresh_token = params.get('refresh_token')
+
+      // Strip the tokens out of the URL immediately regardless of outcome —
+      // they're sensitive and shouldn't linger in browser history either way.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+      if (!access_token || !refresh_token) { setCompletingInvite(false); setError('Invalid or expired link.'); return }
+
+      const { error: sessionErr } = await supabase.auth.setSession({ access_token, refresh_token })
+      if (sessionErr) { setCompletingInvite(false); setError('This link has expired or was already used.'); return }
+
+      // Runs team-invite activation / store provisioning now that a real
+      // session (and its cookies) exists — best-effort, a failure here
+      // shouldn't strand someone who successfully authenticated.
+      await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
+      router.replace(safeReturnTo())
+    }
+
+    completeHashSession()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!returnTo) return
@@ -91,6 +132,15 @@ function LoginForm() {
     forgot: { h: 'Reset your password', sub: 'We\'ll email you a reset link', btn: 'Send reset link'    },
   }
   const { h, sub, btn } = titles[mode]
+
+  if (completingInvite) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex flex-col items-center justify-center p-4 gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-white" />
+        <p className="text-white text-sm font-medium">Setting up your account…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4">
