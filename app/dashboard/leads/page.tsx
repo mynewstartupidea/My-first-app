@@ -2905,26 +2905,30 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-      {/* WhatsApp not connected warning */}
+      {/* WhatsApp not connected warning — stacks on mobile; the button used to
+          sit in the same row as the heading and force "WhatsApp not connected"
+          to wrap across three lines fighting it for width. */}
       {waConnected === false && (
-        <div className="flex items-start gap-3 px-5 py-4 bg-amber-50 border-b border-amber-100">
-          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-800">WhatsApp not connected</p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              Automations won&apos;t send messages until you connect a WhatsApp number.
-              Play/pause is disabled until then.
-            </p>
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3 px-4 sm:px-5 py-4 bg-amber-50 border-b border-amber-100">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800">WhatsApp not connected</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Automations won&apos;t send messages until you connect a WhatsApp number.
+                Play/pause is disabled until then.
+              </p>
+            </div>
           </div>
           <a href="/dashboard/settings?tab=whatsapp"
-            className="flex-shrink-0 text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition">
+            className="flex-shrink-0 text-center text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-2 sm:py-1.5 rounded-lg transition">
             Connect WhatsApp →
           </a>
         </div>
       )}
 
       {/* Search + count */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+      <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
           <input
@@ -2958,7 +2962,7 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
             const canToggle  = waConnected === true && !togglingId
 
             return (
-              <div key={f.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50/40 transition-colors">
+              <div key={f.id} className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 px-4 sm:px-6 py-4 hover:bg-gray-50/40 transition-colors">
 
                 {/* Left: dot + name + meta */}
                 <div className="flex items-start gap-3 flex-1 min-w-0 pt-0.5">
@@ -2992,9 +2996,12 @@ function AllFormsView({ pageId, activeForms, togglingId, onActivate, onEdit, onI
                   </div>
                 </div>
 
-                {/* Right: actions */}
+                {/* Right: actions — full width and wrapping on mobile (the
+                    parent row is a column there), a fixed-width row on
+                    desktop. Used to force onto the name row and get crushed
+                    into a jumble of wrapped buttons and badges. */}
                 {af ? (
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                     {/* Play / Pause */}
                     <button
                       onClick={() => canToggle && onToggle(af, !af.is_enabled)}
