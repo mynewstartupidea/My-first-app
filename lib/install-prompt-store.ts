@@ -47,8 +47,17 @@ export function initInstallPromptCapture() {
   })
 }
 
+// useSyncExternalStore requires getSnapshot to return a STABLE reference when
+// nothing has actually changed — a fresh object literal on every call (as
+// this used to do) makes React see a "new" snapshot on every render, which
+// throws an infinite-loop error and crashes any page rendering InstallAppCard.
+let cachedSnapshot: { prompt: BeforeInstallPromptEvent | null; installed: boolean } = { prompt: null, installed: false }
+
 export function getSnapshot() {
-  return { prompt: capturedPrompt, installed }
+  if (cachedSnapshot.prompt !== capturedPrompt || cachedSnapshot.installed !== installed) {
+    cachedSnapshot = { prompt: capturedPrompt, installed }
+  }
+  return cachedSnapshot
 }
 
 export function subscribe(onChange: () => void) {
