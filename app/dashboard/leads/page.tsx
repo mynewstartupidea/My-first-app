@@ -3376,6 +3376,14 @@ function LeadsContent() {
     if (viewChangeTokenRef.current === token) setLoadingLeads(false)
   }
 
+  // Shared by the desktop Follow-ups tab, the mobile ViewDropdown entry, and
+  // the tappable "N follow-ups due" count in the subtitle — one definition
+  // so all three stay in sync instead of three copies of the same toggle.
+  const goToFollowups = () => {
+    setActiveView(v => v === 'followups' ? 'leads' : 'followups')
+    setSelectedFormId(prev => prev === '__forms' ? 'all' : prev)
+  }
+
   const handleActivate = async (connectionId: string, form: FBForm, template: string) => {
     const r = await fetch('/api/facebook/form-automation', {
       method: 'POST',
@@ -3687,7 +3695,12 @@ function LeadsContent() {
             <p className="md:hidden text-sm text-gray-400 mt-0.5">
               <span className="font-semibold text-gray-900 tabular-nums">{pageTotal}</span> lead{pageTotal !== 1 ? 's' : ''}
               {followupUrgentCount > 0 && (
-                <> · <span className="font-semibold text-amber-600 tabular-nums">{followupUrgentCount}</span> follow-up{followupUrgentCount !== 1 ? 's' : ''} due</>
+                <>
+                  {' · '}
+                  <button onClick={goToFollowups} className="font-semibold text-amber-600 underline underline-offset-2 decoration-amber-200">
+                    <span className="tabular-nums">{followupUrgentCount}</span> follow-up{followupUrgentCount !== 1 ? 's' : ''} due
+                  </button>
+                </>
               )}
             </p>
           )}
@@ -3788,10 +3801,7 @@ function LeadsContent() {
             followupUrgentCount={followupUrgentCount}
             enabledForms={enabledForms}
             onSelectAll={() => handleTabChange('all')}
-            onToggleFollowups={() => {
-              setActiveView(v => v === 'followups' ? 'leads' : 'followups')
-              setSelectedFormId(prev => prev === '__forms' ? 'all' : prev)
-            }}
+            onToggleFollowups={goToFollowups}
             onSelectForm={formId => handleTabChange(formId)}
             onSelectAllForms={() => handleTabChange('__forms')}
           />
@@ -3805,7 +3815,14 @@ function LeadsContent() {
         <p className="text-sm text-gray-500">
           <span className="font-semibold text-gray-900 tabular-nums">{pageTotal}</span> lead{pageTotal !== 1 ? 's' : ''}
           {followupUrgentCount > 0 && (
-            <> · <span className="font-semibold text-amber-600 tabular-nums">{followupUrgentCount}</span> follow-up{followupUrgentCount !== 1 ? 's' : ''} due</>
+            <>
+              {' · '}
+              {/* A rep's main job here is working the follow-up queue — this
+                  count was just text before; now it's their fastest way in. */}
+              <button onClick={goToFollowups} className="font-semibold text-amber-600 underline underline-offset-2 decoration-amber-200">
+                <span className="tabular-nums">{followupUrgentCount}</span> follow-up{followupUrgentCount !== 1 ? 's' : ''} due
+              </button>
+            </>
           )}
         </p>
       ) : (
@@ -3874,10 +3891,7 @@ function LeadsContent() {
 
           {/* Follow-ups tab — sits right next to All leads */}
           <button
-            onClick={() => {
-              setActiveView(v => v === 'followups' ? 'leads' : 'followups')
-              setSelectedFormId(prev => prev === '__forms' ? 'all' : prev)
-            }}
+            onClick={goToFollowups}
             className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeView === 'followups'
                 ? 'border-amber-500 text-amber-700'
