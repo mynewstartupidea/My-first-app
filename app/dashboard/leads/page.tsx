@@ -149,13 +149,12 @@ function SyncingScreen() {
 
 // ── PageDropdown ──────────────────────────────────────────────────────────────
 
-function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnect, compact }: {
+function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnect }: {
   pages: Page[]
   selectedId: string | null
   onSelect: (p: Page) => void
   onDisconnectAll: () => void
   onReconnect: () => void
-  compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -171,19 +170,12 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className={compact
-          ? 'w-full flex items-center gap-2 px-3 h-10 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition'
-          : 'flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition max-w-[220px]'}
+        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition max-w-[220px]"
       >
-        {/* The icon square reads fine next to a short label on desktop, but
-            on a narrow mobile pill it just ate width and pushed the text
-            closer to whatever sat beside it — skip it there. */}
-        {!compact && (
-          <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
-            <Facebook className="w-3 h-3 text-blue-600" />
-          </div>
-        )}
-        <span className="truncate flex-1 min-w-0 text-left">{selected?.page_name ?? 'Select page'}</span>
+        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+          <Facebook className="w-3 h-3 text-blue-600" />
+        </div>
+        <span className="truncate">{selected?.page_name ?? 'Select page'}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
@@ -216,18 +208,30 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
   )
 }
 
-// ── SourceDropdown (mobile) ─────────────────────────────────────────────────
-// Compact stand-in for the desktop source pill row — same handler, one
-// trigger instead of six pills competing for space on a 390px screen.
+// ── PageSourceDropdown (mobile) ─────────────────────────────────────────────
+// Combined stand-in for the desktop PageDropdown + source pill row. They
+// started as two separate mobile pills (one full-width row each), which
+// fixed the "merged into one control" look but cost two whole rows just for
+// filters that are rarely touched — one pill, one popover with both
+// sections, sharing its row with the View picker instead of owning two rows.
 
-function SourceDropdown({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+function PageSourceDropdown({ pages, selectedPageId, onSelectPage, onDisconnectAll, onReconnect, sourceValue, onSourceChange }: {
+  pages: Page[]
+  selectedPageId: string | null
+  onSelectPage: (p: Page) => void
+  onDisconnectAll: () => void
+  onReconnect: () => void
+  sourceValue: string | null
+  onSourceChange: (v: string | null) => void
+}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const options = [
+  const selectedPage = pages.find(p => p.page_id === selectedPageId)
+  const sourceOptions = [
     { value: null as string | null, label: 'Facebook' },
     ...Object.entries(SOURCE_META).filter(([k]) => k !== 'facebook_lead_ad').map(([k, m]) => ({ value: k as string | null, label: m.label })),
   ]
-  const selected = options.find(o => o.value === value) ?? options[0]
+  const selectedSource = sourceOptions.find(o => o.value === sourceValue) ?? sourceOptions[0]
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
@@ -239,20 +243,41 @@ function SourceDropdown({ value, onChange }: { value: string | null; onChange: (
     <div className="relative flex-1 min-w-0" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-1.5 px-2.5 h-9 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700"
+        className="w-full flex items-center gap-1.5 px-3 h-10 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700"
       >
-        <span className="flex-1 min-w-0 truncate text-left">{selected.label}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="flex-1 min-w-0 truncate text-left">{selectedPage?.page_name ?? 'Select page'} · {selectedSource.label}</span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden py-1">
-          {options.map(o => (
-            <button key={o.value ?? 'facebook'} onClick={() => { onChange(o.value); setOpen(false) }}
-              className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left hover:bg-gray-50 transition ${value === o.value ? 'bg-gray-50 font-medium text-gray-900' : 'text-gray-600'}`}>
-              {o.label}
-              {value === o.value && <CheckCircle className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden max-h-80 overflow-y-auto">
+          <div className="px-3.5 pt-3 pb-1.5 text-[11px] font-semibold text-gray-400 tracking-wide">PAGE</div>
+          {pages.map(p => (
+            <button key={p.page_id} onClick={() => { onSelectPage(p); setOpen(false) }}
+              className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left hover:bg-gray-50 transition ${selectedPageId === p.page_id ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}>
+              <span className="truncate">{p.page_name}</span>
+              {selectedPageId === p.page_id && <CheckCircle className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
             </button>
           ))}
+          <button onClick={() => { onReconnect(); setOpen(false) }}
+            className="w-full flex items-center gap-2 px-3.5 py-2 text-sm text-blue-600 hover:bg-blue-50 transition">
+            <RefreshCw className="w-3.5 h-3.5" /> Reconnect Facebook
+          </button>
+
+          <div className="border-t border-gray-100 mt-1 px-3.5 pt-3 pb-1.5 text-[11px] font-semibold text-gray-400 tracking-wide">SOURCE</div>
+          {sourceOptions.map(o => (
+            <button key={o.value ?? 'facebook'} onClick={() => { onSourceChange(o.value); setOpen(false) }}
+              className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left hover:bg-gray-50 transition ${sourceValue === o.value ? 'bg-gray-50 font-medium text-gray-900' : 'text-gray-600'}`}>
+              {o.label}
+              {sourceValue === o.value && <CheckCircle className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
+            </button>
+          ))}
+
+          <div className="border-t border-gray-100 mt-1">
+            <button onClick={() => { onDisconnectAll(); setOpen(false) }}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-red-600 hover:bg-red-50 transition">
+              <X className="w-3.5 h-3.5" /> Disconnect all pages
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -3644,7 +3669,7 @@ function LeadsContent() {
 
   return (
     <>
-    <div className="p-4 md:p-6 lg:p-8 space-y-5">
+    <div className="p-4 pt-2 md:p-6 lg:p-8 space-y-5">
 
       {/* Sync toast — fixed bottom-right, no layout impact */}
       <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl shadow-lg pointer-events-none transition-all duration-300 ${syncToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
@@ -3691,7 +3716,15 @@ function LeadsContent() {
         </div>
         {!isRep && (
         <>
-        <div className="md:hidden flex-shrink-0">
+        <div className="md:hidden flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label="Sync new leads from Facebook"
+            className="flex items-center justify-center w-10 h-10 text-gray-600 border border-gray-200 bg-white rounded-full hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
           <AddLeadDropdown compact onAddManual={() => setShowAddLead(true)} onImportCsv={() => setShowCsvImport(true)} />
         </div>
         <div className="hidden md:flex items-center gap-2 flex-wrap">
@@ -3734,35 +3767,6 @@ function LeadsContent() {
         )}
       </div>
 
-      {/* Mobile-only condensed Page + Source controls — same handlers as the
-          desktop PageDropdown/source pills below, just compact stand-ins.
-          Page gets its own full-width row (a real business name plus a
-          second dropdown right next to it read as one merged, confusing
-          control on a narrow screen); Source + Refresh share the row below. */}
-      {!isRep && (
-        <div className="md:hidden flex flex-col gap-2">
-          <PageDropdown
-            pages={pages}
-            selectedId={selectedPageId}
-            onSelect={handlePageChange}
-            onDisconnectAll={handleDisconnectAll}
-            onReconnect={() => { window.location.href = '/api/facebook/auth' }}
-            compact
-          />
-          <div className="flex items-center gap-2">
-            <SourceDropdown value={sourceFilter} onChange={handleSourceFilterChange} />
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              aria-label="Sync new leads from Facebook"
-              className="flex items-center justify-center w-10 h-10 text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50 flex-shrink-0"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Source filter — orthogonal to the Page dropdown above: Facebook stays
           page/form-scoped as it always has, any other source bypasses that
           entirely and filters by source across every one of the user's leads. */}
@@ -3782,24 +3786,38 @@ function LeadsContent() {
         </div>
       )}
 
-      {/* View picker — mobile stand-in for the tab bar inside the content card
-          below (All leads / Follow-ups / per-form / All forms), so a phone
-          doesn't need a horizontally-scrolling row just to switch views. */}
-      <div className="md:hidden">
-        <ViewDropdown
-          activeView={activeView}
-          selectedFormId={selectedFormId}
-          total={total}
-          followupUrgentCount={followupUrgentCount}
-          enabledForms={enabledForms}
-          onSelectAll={() => handleTabChange('all')}
-          onToggleFollowups={() => {
-            setActiveView(v => v === 'followups' ? 'leads' : 'followups')
-            setSelectedFormId(prev => prev === '__forms' ? 'all' : prev)
-          }}
-          onSelectForm={formId => handleTabChange(formId)}
-          onSelectAllForms={() => handleTabChange('__forms')}
-        />
+      {/* Mobile filter + view row — the Page/Source picker (skipped entirely
+          for reps, who don't get page selection) and the View picker (tab
+          bar stand-in, shown to everyone) share one row instead of each
+          claiming a full-width row of their own. */}
+      <div className="md:hidden flex items-center gap-2">
+        {!isRep && (
+          <PageSourceDropdown
+            pages={pages}
+            selectedPageId={selectedPageId}
+            onSelectPage={handlePageChange}
+            onDisconnectAll={handleDisconnectAll}
+            onReconnect={() => { window.location.href = '/api/facebook/auth' }}
+            sourceValue={sourceFilter}
+            onSourceChange={handleSourceFilterChange}
+          />
+        )}
+        <div className="flex-1 min-w-0">
+          <ViewDropdown
+            activeView={activeView}
+            selectedFormId={selectedFormId}
+            total={total}
+            followupUrgentCount={followupUrgentCount}
+            enabledForms={enabledForms}
+            onSelectAll={() => handleTabChange('all')}
+            onToggleFollowups={() => {
+              setActiveView(v => v === 'followups' ? 'leads' : 'followups')
+              setSelectedFormId(prev => prev === '__forms' ? 'all' : prev)
+            }}
+            onSelectForm={formId => handleTabChange(formId)}
+            onSelectAllForms={() => handleTabChange('__forms')}
+          />
+        </div>
       </div>
 
       {/* Stat cards — a rep doesn't need four KPI tiles between them and their
