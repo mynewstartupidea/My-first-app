@@ -2683,8 +2683,6 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
   onCallLog: () => void
   onUpdate: (leadId: string, updates: Partial<Lead>) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const extra = Object.entries(lead.fields ?? {}).filter(([k]) => !STANDARD_KEYS.has(k))
   const initials = (lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()
   const followupDate = lead.followup_at
     ? new Date(lead.followup_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -2796,30 +2794,10 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
             )
           })()}
         </div>
-        {extra.length > 0 && (
-          <button
-            onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
-            className="mt-1 flex items-center gap-1 text-left"
-          >
-            <span className="text-[11px] text-gray-400 truncate max-w-[220px]">
-              <span className="text-gray-500 font-medium capitalize">{extra[0][0].replace(/_/g, ' ')}: </span>
-              {extra[0][1]}
-            </span>
-            {extra.length > 1 && (
-              <span className="text-[10px] text-blue-400 font-medium flex-shrink-0">+{extra.length - 1} more</span>
-            )}
-          </button>
-        )}
-        {expanded && extra.length > 0 && (
-          <div onClick={e => e.stopPropagation()} className="mt-2 bg-gray-50 rounded-xl p-3 grid grid-cols-2 gap-2.5">
-            {extra.map(([k, v]) => (
-              <div key={k}>
-                <p className="text-[10px] text-gray-400 capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
-                <p className="text-xs font-medium text-gray-800">{v}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* The custom-field preview (e.g. "Phone Number Verified: true") used
+            to always render here — useful once, noise on every row in a
+            list of seven. It's already shown in full in the detail sheet
+            on tap, so the list just drops it instead of previewing it. */}
       </div>
 
       {/* Follow-up moved from an inline text line to a trailing chip — same
