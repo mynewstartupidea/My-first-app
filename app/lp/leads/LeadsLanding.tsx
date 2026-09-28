@@ -66,7 +66,7 @@ function Hero() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.45 }}
             className="flex flex-col sm:flex-row gap-3 mb-8">
             <a href="#get-started" className="group inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-7 py-4 rounded-2xl text-base transition-all duration-200 shadow-2xl shadow-green-500/40 hover:scale-[1.03] active:scale-[0.98]">
-              Reach leads first <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              Get started — ₹1,999/mo <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </a>
           </motion.div>
 
