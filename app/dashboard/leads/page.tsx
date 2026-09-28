@@ -543,6 +543,10 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
       setError('Enter at least a name, phone, or email')
       return
     }
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('That email address doesn\'t look right')
+      return
+    }
     setSaving(true)
     setError(null)
     const res = await fetch('/api/leads/manual', {

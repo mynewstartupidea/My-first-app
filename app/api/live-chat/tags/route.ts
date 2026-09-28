@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 const VALID_STATUSES = new Set(['hot', 'warm', 'cold', 'lost', 'converted', 'junk', 'resolved'])
 
@@ -15,10 +16,11 @@ export async function GET(request: Request) {
   if (!phones.length) return NextResponse.json({ tags: {} })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { data } = await service
     .from('leads')
     .select('phone, lead_status')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .in('phone', phones)
     .not('lead_status', 'is', null)
 
@@ -42,10 +44,11 @@ export async function PATCH(request: Request) {
   }
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { error } = await service
     .from('leads')
     .update({ lead_status: status })
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('phone', phone)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

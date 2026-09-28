@@ -17,6 +17,13 @@ const SOURCE_LABELS: Record<string, string> = {
   other:             'Other',
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// India-shaped phone normalization can reasonably fail for real international
+// numbers, so this doesn't require normalizeIndianPhone() to succeed — it
+// just rejects things that clearly aren't a phone number at all (e.g. a name
+// typed into the phone field) instead of silently saving the raw text.
+const PHONE_SHAPE_RE = /^[\d\s+()-]{6,20}$/
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,6 +34,12 @@ export async function POST(request: Request) {
   }
   if (!body.name?.trim() && !body.phone?.trim() && !body.email?.trim()) {
     return NextResponse.json({ error: 'Provide at least one of: name, phone, email' }, { status: 400 })
+  }
+  if (body.email?.trim() && !EMAIL_RE.test(body.email.trim())) {
+    return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+  }
+  if (body.phone?.trim() && !PHONE_SHAPE_RE.test(body.phone.trim())) {
+    return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
   }
   const source = body.source && SOURCE_LABELS[body.source] ? body.source : 'other'
 

@@ -533,7 +533,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
 
       // Send immediately if requested
       if (sendNow && d.campaign?.id) {
-        await fetch('/api/leads/bulk-message', {
+        const sendRes = await fetch('/api/leads/bulk-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -546,6 +546,15 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
             campaign_id:       d.campaign.id,
           }),
         })
+        if (!sendRes.ok) {
+          // The campaign row was created — don't lose that — but say clearly
+          // that sending failed instead of closing as if it succeeded. It's
+          // saved as a draft; the user can retry from the campaigns list.
+          const sendErr = await sendRes.json().catch(() => ({})) as { error?: string }
+          setError(`Campaign saved, but sending failed: ${sendErr.error ?? 'unknown error'}`)
+          onCreated()
+          return
+        }
       }
 
       onCreated(); onClose()
@@ -986,23 +995,25 @@ function CampaignsContent() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: store } = await supabase.from('stores').select('id').eq('user_id', user.id)
-      .eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
-    if (!store) { setHasStore(false); setLoading(false); return }
+    // Via a server route (resolves to the org owner) rather than querying
+    // stores/campaigns/templates/customers directly — those tables' RLS is
+    // USING (auth.uid() = user_id) with no team-member carve-out, so a
+    // teammate got "no store" here regardless of the org's real setup.
+    const res = await fetch('/api/campaigns/dashboard')
+    const data = res.ok ? await res.json() as {
+      hasStore: boolean
+      campaigns: Campaign[]
+      templates: { id: string; name: string; body: string; category: string }[]
+      customers: { phone: string; whatsapp_opt_in: boolean; total_orders: number; total_spent: number; last_order_at: string | null }[]
+    } : { hasStore: false, campaigns: [], templates: [], customers: [] }
+
+    if (!data.hasStore) { setHasStore(false); setLoading(false); return }
     setHasStore(true)
 
-    const [campsRes, tmplRes, custsRes] = await Promise.all([
-      supabase.from('campaigns').select('*').eq('store_id', store.id).order('created_at', { ascending: false }),
-      supabase.from('templates').select('id,name,body,category').eq('user_id', user.id).eq('is_archived', false).limit(50),
-      supabase.from('customers').select('phone,whatsapp_opt_in,total_orders,total_spent,last_order_at').eq('store_id', store.id),
-    ])
+    setCampaigns(data.campaigns)
+    setTemplates(data.templates)
 
-    setCampaigns(campsRes.data ?? [])
-    setTemplates(tmplRes.data ?? [])
-
-    const custs = custsRes.data ?? []
+    const custs = data.customers
     const now = Date.now()
     setCounts({
       all:           custs.length,
@@ -1016,7 +1027,7 @@ function CampaignsContent() {
     })
 
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { load() }, [load])
 

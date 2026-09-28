@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import {
   Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
@@ -148,7 +147,6 @@ export default function LiveChatPage() {
   const [aiToggling, setAiToggling]     = useState(false)
   const [isAdmin, setIsAdmin]           = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const supabase = useMemo(() => createClient(), [])
 
   // AI on/off is owner/admin only (same tier as billing) — a rep or manager
   // never sees the button, and the API would 403 them anyway if they tried.
@@ -184,113 +182,32 @@ export default function LiveChatPage() {
     setAiToggling(false)
   }
 
+  // Both of these go through server routes (resolved to the org owner)
+  // rather than querying stores/messages/inbound_messages/customers directly
+  // — those tables' RLS is USING (auth.uid() = user_id) with no team-member
+  // carve-out, so a teammate always saw "No conversations" here regardless
+  // of the org's real chat history.
   const loadThreads = useCallback(async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true)
-      .order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle()
-    if (!store) { setLoading(false); return }
-    setStoreId(store.id)
-
-    const [{ data: msgs }, { data: inbound }] = await Promise.all([
-      supabase
-        .from('messages')
-        .select('id,customer_phone,customer_name,message,type,status,created_at,revenue_attributed')
-        .eq('store_id', store.id)
-        .order('created_at', { ascending: false })
-        .limit(1000),
-      supabase
-        .from('inbound_messages')
-        .select('id,from_phone,body,message_type,status,received_at')
-        .eq('store_id', store.id)
-        .order('received_at', { ascending: false })
-        .limit(1000),
-    ])
-
-    const map = new Map<string, Thread>()
-    for (const m of msgs ?? []) {
-      const ex = map.get(m.customer_phone)
-      if (!ex) {
-        map.set(m.customer_phone, {
-          phone: m.customer_phone, name: m.customer_name,
-          lastMsg: m.message, lastTime: m.created_at,
-          count: 1, status: m.status, unread: m.status === 'sent',
-          type: m.type, tag: null,
-        })
-      } else {
-        ex.count++
-        if (m.created_at > ex.lastTime) {
-          ex.lastMsg = m.message; ex.lastTime = m.created_at
-          ex.status = m.status; ex.type = m.type
-        }
-      }
-    }
-    // Inbound replies — a reply is the strongest "needs attention" signal, so it
-    // always marks the thread unread regardless of the last outbound status.
-    for (const m of inbound ?? []) {
-      const ex = map.get(m.from_phone)
-      const body = m.body ?? `[${m.message_type ?? 'message'}]`
-      if (!ex) {
-        map.set(m.from_phone, {
-          phone: m.from_phone, name: null,
-          lastMsg: body, lastTime: m.received_at,
-          count: 1, status: 'received', unread: true,
-          type: m.message_type ?? 'text', tag: null,
-        })
-      } else {
-        ex.count++
-        if (m.received_at > ex.lastTime) {
-          ex.lastMsg = body; ex.lastTime = m.received_at
-          ex.status = 'received'; ex.type = m.message_type ?? 'text'
-          ex.unread = true
-        }
-      }
-    }
-    const sorted = Array.from(map.values()).sort((a, b) => b.lastTime.localeCompare(a.lastTime))
-
-    // Batch-fetch lead tags for all phones
-    if (sorted.length > 0) {
-      const phones = sorted.map(t => t.phone).join(',')
-      try {
-        const tagRes = await fetch(`/api/live-chat/tags?phones=${encodeURIComponent(phones)}`)
-        const tagData = await tagRes.json() as { tags: Record<string, string> }
-        for (const t of sorted) {
-          t.tag = (tagData.tags[t.phone] as LeadStatus) ?? null
-        }
-      } catch { /* non-fatal */ }
-    }
-
-    setThreads(sorted)
+    const res = await fetch('/api/live-chat/threads')
+    if (!res.ok) { setLoading(false); return }
+    const data = await res.json() as { storeId: string | null; threads: Thread[] }
+    if (!data.storeId) { setLoading(false); return }
+    setStoreId(data.storeId)
+    setThreads(data.threads)
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   const loadThread = useCallback(async (phone: string) => {
     if (!storeId) return
     setLoadingThread(true)
-    const [msgsRes, inboundRes, custRes] = await Promise.all([
-      supabase.from('messages').select('*').eq('store_id', storeId)
-        .eq('customer_phone', phone).order('created_at', { ascending: true }),
-      supabase.from('inbound_messages').select('*').eq('store_id', storeId)
-        .eq('from_phone', phone).order('received_at', { ascending: true }),
-      supabase.from('customers').select('*').eq('store_id', storeId)
-        .eq('phone', phone).maybeSingle(),
-    ])
-    const out: ChatMsg[] = (msgsRes.data ?? []).map(m => ({
-      id: m.id, text: m.message, type: m.type, status: m.status,
-      direction: 'out', created_at: m.created_at,
-    }))
-    const inb: ChatMsg[] = (inboundRes.data ?? []).map(m => ({
-      id: m.id, text: m.body ?? `[${m.message_type ?? 'message'}]`, type: m.message_type ?? 'text',
-      status: 'received', direction: 'in', created_at: m.received_at,
-    }))
-    setMessages([...out, ...inb].sort((a, b) => a.created_at.localeCompare(b.created_at)))
-    setCustomer(custRes.data ?? null)
+    const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(phone)}`)
+    const data = res.ok ? await res.json() as { messages: ChatMsg[]; customer: Customer | null } : { messages: [], customer: null }
+    setMessages(data.messages)
+    setCustomer(data.customer)
     setLoadingThread(false)
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-  }, [storeId, supabase])
+  }, [storeId])
 
   useEffect(() => { loadThreads() }, [loadThreads])
   useEffect(() => { if (selected) loadThread(selected) }, [selected, loadThread])

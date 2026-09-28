@@ -1,22 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
-// GET /api/campaigns — list campaigns for authenticated user's store
+// GET /api/campaigns — list campaigns for the org's store. Resolved to the
+// owner and read via the service client — stores/campaigns RLS is USING
+// (auth.uid() = user_id) with no team-member carve-out, so a teammate
+// always got an empty campaigns list here regardless of the org's real data.
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: stores } = await supabase
-    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at').eq('user_id', user.id).eq('is_active', true)
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: stores } = await service
+    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at').eq('user_id', ownerId).eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
     .limit(10)
   const store = pickPreferredStore(stores)
   if (!store) return NextResponse.json({ campaigns: [] })
 
-  const { data, error } = await supabase
+  const { data, error } = await service
     .from('campaigns')
     .select('*')
     .eq('store_id', store.id)
@@ -32,8 +39,11 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: stores } = await supabase
-    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at').eq('user_id', user.id).eq('is_active', true)
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: stores } = await service
+    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at').eq('user_id', ownerId).eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
     .limit(10)
@@ -47,7 +57,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name, message, and audience are required' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await service
     .from('campaigns')
     .insert({
       store_id:    store.id,

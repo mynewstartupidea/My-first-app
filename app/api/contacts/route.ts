@@ -1,30 +1,36 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get the user's active store — same preferred-store logic as upload/campaign APIs
-  const { data: stores } = await supabase
+  // Resolved to the org owner, via the service client — stores/customers RLS
+  // is USING (auth.uid() = user_id) with no team-member carve-out, so a
+  // teammate querying with the regular client got zero rows either way.
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: stores } = await service
     .from('stores')
     .select('id, shop_name, shopify_domain, connected_at, updated_at, created_at')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
     .limit(10)
 
   const store = pickPreferredStore(stores)
-  console.log(`[contacts/list] user=${user.id} stores_found=${stores?.length ?? 0} using_store=${store?.id ?? 'none'}`)
+  console.log(`[contacts/list] user=${user.id} owner=${ownerId} stores_found=${stores?.length ?? 0} using_store=${store?.id ?? 'none'}`)
 
   if (!store) {
     return NextResponse.json({ contacts: [], store: null, debug: 'no_active_store' })
   }
 
-  const { data: contacts, error } = await supabase
+  const { data: contacts, error } = await service
     .from('customers')
     .select('*')
     .eq('store_id', store.id)

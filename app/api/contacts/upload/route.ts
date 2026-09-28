@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // Normalize a raw phone string to 10-digit Indian mobile, or null
 function normalizePhone(raw: string): string | null {
@@ -153,11 +154,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'content and filename are required' }, { status: 400 })
   }
 
-  // Get or create store — use the same preferred-store logic as contacts/campaigns
-  const { data: stores } = await supabase
+  // Get or create store — resolved to the org owner first: this table is
+  // keyed by the owner's user_id, and a teammate querying by their own id
+  // used to find nothing and silently create a brand-new, empty store under
+  // their own id instead — forking their contact uploads away from the
+  // org's real store/data.
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: stores } = await service
     .from('stores')
     .select('id, shopify_domain, connected_at, updated_at, created_at')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
@@ -165,9 +173,9 @@ export async function POST(request: Request) {
   let store = pickPreferredStore(stores)
 
   if (!store) {
-    const { data: newStore, error: storeErr } = await supabase
+    const { data: newStore, error: storeErr } = await service
       .from('stores')
-      .insert({ user_id: user.id, shop_name: 'My Business', is_active: true })
+      .insert({ user_id: ownerId, shop_name: 'My Business', is_active: true })
       .select('id, shopify_domain, connected_at, updated_at, created_at').single()
     if (storeErr || !newStore) {
       return NextResponse.json({ error: 'Could not find or create a store for this account' }, { status: 500 })
@@ -180,11 +188,10 @@ export async function POST(request: Request) {
   const uniquePhones = [...new Set(contacts.map(c => c.phone))]
 
   // Get WhatsApp credentials
-  const service = createServiceClient()
   const { data: wa } = await service
     .from('whatsapp_accounts')
     .select('phone_number_id, access_token')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .maybeSingle()
 
   const token   = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? wa?.access_token ?? process.env.META_ACCESS_TOKEN
