@@ -203,7 +203,7 @@ function AutomationCard({
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Send Delay</label>
               <div className="flex items-center gap-2">
                 <input type="number" value={delay} min={0} onChange={e => setDelay(Number(e.target.value))}
-                  className="w-24 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
+                  className="w-24 px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
                 <span className="text-sm text-slate-500">minutes</span>
                 <span className="text-xs text-slate-400">({delay >= 60 ? `${Math.round(delay / 60)}h` : `${delay}m`} after trigger)</span>
               </div>
@@ -221,7 +221,7 @@ function AutomationCard({
               {discountEnabled && (
                 <div className="flex items-center gap-2 mt-1">
                   <input type="number" value={discountValue} min={1} max={100} onChange={e => setDiscountValue(Number(e.target.value))}
-                    className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
+                    className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
                   <span className="text-sm text-slate-500">% off</span>
                 </div>
               )}
@@ -236,7 +236,7 @@ function AutomationCard({
                 className="text-[11px] text-[#25D366] hover:underline">Reset to default</button>
             </div>
             <textarea rows={5} value={template} onChange={e => setTemplate(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 resize-none font-mono leading-relaxed" />
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 resize-none font-mono leading-relaxed" />
             <p className="text-[10px] text-slate-400 mt-1">
               Variables: {'{{name}}'} {'{{shop_name}}'} {'{{order_number}}'} {'{{cart_url}}'} {'{{tracking_url}}'}
             </p>

@@ -857,7 +857,7 @@ function SettingsInner() {
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Workspace display name</label>
               <div className="flex gap-2">
                 <input value={storeNameEdit} onChange={e => setStoreNameEdit(e.target.value)} placeholder="My Business"
-                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
                 <button onClick={saveStoreName} disabled={savingStore || !storeNameEdit.trim()}
                   className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition">
                   {savingStore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
@@ -1074,20 +1074,20 @@ function SettingsInner() {
                           <label className="block text-xs font-medium text-slate-700 mb-1">WABA ID <span className="text-slate-400">(WhatsApp Business Account ID)</span></label>
                           <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)}
                             placeholder="e.g. 123456789012345"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-base font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">Phone Number ID</label>
                           <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)}
                             placeholder="e.g. 987654321098765"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-base font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">Permanent Access Token <span className="text-slate-400">(from Meta System User)</span></label>
                           <input value={manualToken} onChange={e => setManualToken(e.target.value)}
                             type="password"
                             placeholder="EAAxxxxxxx…"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-base font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
                           <p className="text-[10px] text-slate-400 mt-1">Get a permanent token: Meta Business Manager → System Users → Generate Token → select your WABA</p>
                         </div>
                         <button
@@ -1361,7 +1361,7 @@ function SettingsInner() {
               <div className="w-full sm:w-40 sm:flex-shrink-0">
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Role</label>
                 <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
                   <option value="admin">Admin</option>
                   <option value="manager">Manager</option>
                   <option value="member">Sales</option>

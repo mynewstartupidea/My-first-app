@@ -177,7 +177,7 @@ function CreateCampaignModal({
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Campaign Name</label>
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Diwali Flash Sale 2025"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50" />
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50" />
               </div>
 
               <div>
@@ -216,7 +216,7 @@ function CreateCampaignModal({
 
                 <textarea rows={6} value={message} onChange={e => setMessage(e.target.value)}
                   placeholder="Hi {{name}}! ..."
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 resize-none" />
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 resize-none" />
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs text-slate-400">{'{{name}}'} = customer name</p>
                   <p className="text-xs text-slate-400">{message.length} chars</p>

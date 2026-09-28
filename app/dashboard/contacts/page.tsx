@@ -282,12 +282,12 @@ function BroadcastModal({ contactCount, onClose, onSent }: {
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">Campaign name</label>
             <input value={name} onChange={e => setName(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">Message</label>
             <textarea value={message} onChange={e => setMessage(e.target.value)} rows={6}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
             <p className="text-xs text-gray-400 mt-1">Use {'{{name}}'} to personalise saved contact names.</p>
           </div>
           {error && (
