@@ -134,6 +134,10 @@ function SettingsInner() {
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null)
   const [billingError, setBillingError]       = useState('')
   const [razorpayReady, setRazorpayReady]     = useState(false)
+  // The API now 403s anyone but owner/admin who tries to change the plan —
+  // this hides the buttons for those roles instead of letting them click
+  // "Upgrade," complete real Razorpay payment, and hit a 403 after the fact.
+  const [canManageBilling, setCanManageBilling] = useState(false)
   // Team
   const [members, setMembers]                 = useState<TeamMember[]>([])
   const [loadingMembers, setLoadingMembers]   = useState(false)
@@ -165,17 +169,24 @@ function SettingsInner() {
   }, [])
 
   // ── Load store + WhatsApp ─────────────────────────────────────────────────────
+  // Via a server route (resolves to the org owner) rather than querying
+  // stores/whatsapp_accounts directly from the browser client — those tables
+  // are keyed by the owner's auth id, and stores' RLS is USING (auth.uid() =
+  // user_id), so a teammate querying directly got zero rows back regardless
+  // of the org's real setup.
   const loadData = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
     setUserEmail(user.email ?? '')
-    const { data: sRows } = await supabase
-      .from('stores').select('*').eq('user_id', user.id).eq('is_active', true)
-      .order('connected_at', { ascending: false, nullsFirst: false })
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .limit(10)
-    const s = pickPreferredStore(sRows)
+
+    const res = await fetch('/api/settings/store-status')
+    const data = res.ok ? await res.json() as {
+      store: StoreType | null
+      whatsapp: { status: string; display_phone_number: string | null; token_type: string | null; connection_mode: string | null } | null
+    } : { store: null, whatsapp: null }
+
+    const s = data.store
     if (s) {
       setStore(s)
       setStoreNameEdit(s.shop_name ?? '')
@@ -189,12 +200,7 @@ function SettingsInner() {
       setWaApiKey('')
     }
 
-    // Load WhatsApp account (for Meta status + token type)
-    const { data: wa } = await supabase
-      .from('whatsapp_accounts')
-      .select('status, display_phone_number, token_type, connection_mode')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    const wa = data.whatsapp
     if (wa) {
       setWaConnected(wa.status === 'connected')
       setWaDisplayPhone(wa.display_phone_number ?? '')
@@ -329,7 +335,12 @@ function SettingsInner() {
   }
 
   useEffect(() => {
-    if (activeTab === 'billing') loadBilling()
+    if (activeTab !== 'billing') return
+    loadBilling()
+    fetch('/api/me/role')
+      .then(r => r.json())
+      .then((d: { role?: string }) => setCanManageBilling(d.role === 'owner' || d.role === 'admin'))
+      .catch(() => {})
   }, [activeTab, loadBilling])
 
   // Keep the active tab pill visible in the scrollable tab bar — matters when landing
@@ -1166,7 +1177,7 @@ function SettingsInner() {
                   value={testPhone}
                   onChange={e => setTestPhone(e.target.value)}
                   placeholder="+91 98765 43210"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
                 />
               </div>
               <div>
@@ -1175,7 +1186,7 @@ function SettingsInner() {
                   value={testMsg}
                   onChange={e => setTestMsg(e.target.value)}
                   placeholder="Hello from Wapaci! 👋 Your integration is working."
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
                 />
               </div>
               <button
@@ -1310,6 +1321,8 @@ function SettingsInner() {
                           <div className="text-center text-xs font-semibold text-[#25D366] py-2">Active</div>
                         ) : isPending ? (
                           <div className="text-center text-xs font-semibold text-amber-600 py-2">Payment pending…</div>
+                        ) : !canManageBilling ? (
+                          <div className="text-center text-xs text-slate-400 py-2">Ask an admin to change plans</div>
                         ) : (
                           <button
                             onClick={() => handleSubscribe(plan.id)}
@@ -1356,7 +1369,7 @@ function SettingsInner() {
                 <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleInvite()}
                   placeholder="colleague@yourstore.com"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
               </div>
               <div className="w-full sm:w-40 sm:flex-shrink-0">
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Role</label>

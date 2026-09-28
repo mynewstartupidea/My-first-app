@@ -3,6 +3,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -15,21 +16,23 @@ export async function POST(request: Request) {
 
   const phone = normalizePhone(rawPhone)
 
-  const { data: store } = await supabase
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: store } = await service
     .from('stores')
     .select('id, whatsapp_bsp, whatsapp_api_key, shop_name')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .maybeSingle()
 
   // Try merchant's own connected WhatsApp account first
   let merchantToken: string | undefined
   let merchantPhoneNumberId: string | undefined
-  const service = createServiceClient()
   const { data: wa } = await service
     .from('whatsapp_accounts')
     .select('phone_number_id, access_token')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .maybeSingle()
   if (wa?.phone_number_id) {
     merchantPhoneNumberId = wa.phone_number_id
@@ -75,7 +78,7 @@ export async function POST(request: Request) {
     metaData.error?.error_data?.details ?? metaData.error?.message ?? `Meta error (HTTP ${metaRes.status})`
 
   if (success && store) {
-    await supabase.from('messages').insert({
+    await service.from('messages').insert({
       store_id:       store.id,
       customer_phone: phone,
       customer_name:  'Test',

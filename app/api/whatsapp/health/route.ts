@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 interface MetaPhoneNumberFields {
   quality_rating?: string       // GREEN | YELLOW | RED
@@ -18,10 +19,11 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: wa } = await service
     .from('whatsapp_accounts')
     .select('phone_number_id, access_token, display_phone_number, quality_rating, messaging_limit_tier, account_mode, status')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .maybeSingle()
 
   if (!wa || wa.status !== 'connected') {
@@ -40,7 +42,7 @@ export async function GET() {
         messaging_limit_tier: data.messaging_limit_tier ?? wa.messaging_limit_tier ?? 'TIER_1K',
         account_mode:         data.account_mode         ?? wa.account_mode         ?? 'LIVE',
       }
-      await service.from('whatsapp_accounts').update(updates).eq('user_id', user.id)
+      await service.from('whatsapp_accounts').update(updates).eq('user_id', ownerId)
       return NextResponse.json({
         connected: true,
         display_phone_number: wa.display_phone_number,

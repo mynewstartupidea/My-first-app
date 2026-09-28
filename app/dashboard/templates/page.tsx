@@ -383,7 +383,7 @@ function TemplateModal({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Summer Sale Offer"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
             />
           </div>
 
@@ -392,7 +392,7 @@ function TemplateModal({
             <select
               value={category}
               onChange={e => setCategory(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white"
             >
               {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -413,7 +413,7 @@ function TemplateModal({
               value={body}
               onChange={e => setBody(e.target.value)}
               placeholder="Hi {{name}}! ..."
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none font-mono"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none font-mono"
             />
           </div>
         </div>
@@ -757,7 +757,7 @@ export default function TemplatesPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search templates…"
-            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white shadow-sm"
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white shadow-sm"
           />
         </div>
         <button

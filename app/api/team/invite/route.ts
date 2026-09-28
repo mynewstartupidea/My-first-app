@@ -60,7 +60,27 @@ export async function POST(request: Request) {
   }
   if (!org) return NextResponse.json({ error: 'Could not resolve organization' }, { status: 500 })
 
-  // Prevent duplicate invites
+  // An email already active on a DIFFERENT org must be rejected here — every
+  // owner-resolution helper (resolveOwnerUserId, resolveManagedOrg) assumes
+  // at most one active team_members row per user_id, matching them with
+  // .maybeSingle(). Two active rows makes that call error, and since only
+  // `data` is read (not `error`), it silently falls back to "no org," which
+  // then breaks that person's access to BOTH organizations everywhere
+  // resolution is used (WhatsApp status, leads, billing, team lists, ...).
+  const { data: activeElsewhere } = await service
+    .from('team_members')
+    .select('id, organization_id')
+    .eq('email', email)
+    .eq('status', 'active')
+    .neq('organization_id', org.id)
+    .maybeSingle()
+  if (activeElsewhere) {
+    return NextResponse.json({
+      error: `${email} is already an active team member of another Wapaci account. They can only belong to one organization at a time.`,
+    }, { status: 409 })
+  }
+
+  // Prevent duplicate invites within this org
   const { data: existing } = await service
     .from('team_members')
     .select('id, status')

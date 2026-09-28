@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD&sort=followup_due
 export async function GET(request: Request) {
@@ -48,11 +49,21 @@ export async function GET(request: Request) {
     }
   }
 
+  // leads.user_id always holds the ORG OWNER's auth id (same convention as
+  // whatsapp_accounts, facebook_connections, lead_form_automations) — a team
+  // member's own user.id never matches it. Using user.id directly here made
+  // every non-open_pool team member's filter collapse to "assigned_to.eq"
+  // only, so admins/managers saw just their own explicitly-assigned leads
+  // instead of the whole org's, with no "All leads" tab actually showing all.
+  const ownerId = orgOwnerId ?? user.id
+
   const buildQuery = (countOnly = false) => {
-    // In open_pool mode, team members also see unassigned leads from the org owner
+    // In open_pool mode, a team member sees only their own assigned leads
+    // plus unclaimed pool leads — NOT a blanket "all org leads" match, since
+    // that's the whole point of that distribution mode.
     const visibilityFilter = (orgOwnerId && distMode === 'open_pool')
-      ? `user_id.eq.${user.id},assigned_to.eq.${user.id},and(user_id.eq.${orgOwnerId},assigned_to.is.null)`
-      : `user_id.eq.${user.id},assigned_to.eq.${user.id}`
+      ? `assigned_to.eq.${user.id},and(user_id.eq.${ownerId},assigned_to.is.null)`
+      : `user_id.eq.${ownerId},assigned_to.eq.${user.id}`
 
     let query = service
       .from('leads')
@@ -112,10 +123,11 @@ export async function POST(request: Request) {
 
   const { leadId, message } = await request.json() as { leadId: string; message: string }
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: lead } = await service
     .from('leads').select('*').eq('id', leadId)
-    .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`).maybeSingle()
+    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`).maybeSingle()
 
   if (!lead?.phone) return NextResponse.json({ error: 'Lead not found or has no phone' }, { status: 400 })
   if (!lead.store_id) return NextResponse.json({ error: 'No store connected' }, { status: 400 })

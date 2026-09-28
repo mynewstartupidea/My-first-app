@@ -124,7 +124,7 @@ export default function SupportPage() {
               value={subject}
               onChange={e => setSubject(e.target.value)}
               placeholder="Brief description of your issue"
-              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent placeholder:text-slate-400"
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent placeholder:text-slate-400"
               required
             />
           </div>
@@ -135,7 +135,7 @@ export default function SupportPage() {
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
                 {CATEGORIES.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
@@ -146,7 +146,7 @@ export default function SupportPage() {
               <select
                 value={priority}
                 onChange={e => setPriority(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
                 <option value="low">Low</option>
                 <option value="normal">Normal</option>
                 <option value="high">High</option>
@@ -162,7 +162,7 @@ export default function SupportPage() {
               onChange={e => setMessage(e.target.value)}
               placeholder="Describe your issue in detail. Include any error messages, steps to reproduce, or screenshots if relevant."
               rows={5}
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent placeholder:text-slate-400 resize-none"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent placeholder:text-slate-400 resize-none"
               required
             />
           </div>
