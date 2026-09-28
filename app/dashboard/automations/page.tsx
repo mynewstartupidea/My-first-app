@@ -132,6 +132,20 @@ function AutomationCard({
   const [saving, setSaving]               = useState(false)
   const [saved, setSaved]                 = useState(false)
 
+  // This card is keyed by `type`, so React never remounts it when the parent
+  // refetches — the useState initializers above only ran once. Without this,
+  // a second tab (or teammate) saving a change and this one hitting Refresh
+  // still showed the stale local values, and clicking Save here would
+  // silently overwrite the other change right back.
+  useEffect(() => {
+    setEnabled(automation?.is_enabled ?? false)
+    setDelay(automation?.delay_minutes ?? meta.defaultDelay)
+    setTemplate(automation?.template ?? meta.defaultTemplate)
+    setDiscountEnabled(automation?.discount_enabled ?? false)
+    setDiscountValue(automation?.discount_value ?? 10)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [automation?.is_enabled, automation?.delay_minutes, automation?.template, automation?.discount_enabled, automation?.discount_value])
+
   async function handleToggle() {
     if (!displayEnabled && !whatsappConnected) { onNeedsWhatsapp(); return }
     const newEnabled = !enabled

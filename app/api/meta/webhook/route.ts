@@ -271,6 +271,21 @@ export async function POST(request: Request) {
 
         console.log(`[Meta webhook] inbound msg from=${fromPhone} wabaId=${wabaId} type=${msg.type}`)
 
+        // Meta retries webhook delivery if this handler doesn't ack quickly —
+        // and a real Anthropic call + WhatsApp send per message can easily
+        // take long enough to trigger that. Without this check, a retried
+        // delivery reprocesses the same inbound message from scratch: a
+        // second run through the qualifying flow, and a second, possibly
+        // different, AI reply sent to the same customer for one message.
+        if (msg.id) {
+          const { data: dup } = await supabase
+            .from('inbound_messages').select('id').eq('message_id', msg.id).maybeSingle()
+          if (dup) {
+            console.log(`[Meta webhook] duplicate delivery, already processed message_id=${msg.id} — skipping`)
+            continue
+          }
+        }
+
         const { data: waAccount } = await supabase
           .from('whatsapp_accounts')
           .select('store_id, user_id')

@@ -133,11 +133,18 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
   const firstName   = String((checkout.shipping_address as Record<string, unknown>)?.first_name ?? 'there')
   const checkoutUrl = String(checkout.abandoned_checkout_url ?? '')
 
+  // 'SAVE10' used to be sent here unconditionally whenever discount_enabled
+  // was on, completely disconnected from the merchant's configured
+  // discount_value and from any code that actually exists in their Shopify
+  // store — a customer offered "25% off with SAVE10" for a code that either
+  // doesn't exist or is a different percentage. No Shopify discount/price-
+  // rule API integration exists in this codebase yet to create a real one,
+  // so until that's built, don't promise a code that isn't real.
   const vars: Record<string, string> = {
     name:           firstName,
     shop_name:      store.shop_name ?? 'our store',
     cart_url:       checkoutUrl,
-    discount_code:  auto.discount_enabled ? 'SAVE10' : '',
+    discount_code:  '',
     discount_value: String(auto.discount_value ?? 10),
   }
 
