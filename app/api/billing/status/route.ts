@@ -16,7 +16,7 @@ export async function GET() {
     return NextResponse.json({
       plan_name:        'free',
       status:           'active',
-      billing_provider: 'shopify',
+      billing_provider: 'razorpay',
       messages_limit:   500,
       messages_used:    0,
       messages_remaining: 500,
@@ -27,7 +27,7 @@ export async function GET() {
   return NextResponse.json({
     plan_name:           billing.plan_name ?? 'free',
     status:              billing.status ?? 'active',
-    billing_provider:    billing.billing_provider ?? 'shopify',
+    billing_provider:    billing.billing_provider ?? 'razorpay',
     messages_limit:      billing.messages_limit ?? 500,
     messages_used:       billing.messages_used ?? 0,
     messages_remaining:  Math.max(0, (billing.messages_limit ?? 500) - (billing.messages_used ?? 0)),

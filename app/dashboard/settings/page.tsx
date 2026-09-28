@@ -19,9 +19,16 @@ const LEAD_PLANS = [
   { id: 'enterprise', name: 'Enterprise', price: '₹24,999',messages: 999999999, description: 'Unlimited for large teams',        recommended: false },
 ] as const
 import Link from 'next/link'
+import Script from 'next/script'
 import { cn, timeAgo } from '@/lib/utils'
 import type { Store as StoreType } from '@/types'
 import InstallAppCard from '@/components/install-app-card'
+
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void }
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +131,9 @@ function SettingsInner() {
   // Billing
   const [billing, setBilling]                 = useState<BillingStatus | null>(null)
   const [loadingBilling, setLoadingBilling]   = useState(false)
+  const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null)
+  const [billingError, setBillingError]       = useState('')
+  const [razorpayReady, setRazorpayReady]     = useState(false)
   // Team
   const [members, setMembers]                 = useState<TeamMember[]>([])
   const [loadingMembers, setLoadingMembers]   = useState(false)
@@ -281,6 +291,42 @@ function SettingsInner() {
     if (res.ok) setBilling(await res.json())
     setLoadingBilling(false)
   }, [])
+
+  // Real checkout — previously "Upgrade"/"Downgrade" were just a wa.me link
+  // asking the user to message in and get changed manually.
+  async function handleSubscribe(planId: string) {
+    setBillingError('')
+    setSubscribingPlan(planId)
+    const res = await fetch('/api/billing/razorpay/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planId }),
+    })
+    const data = await res.json() as {
+      subscriptionId?: string; keyId?: string; prefill?: { name: string; email: string }; error?: string
+    }
+    if (!res.ok || !data.subscriptionId || !data.keyId) {
+      setBillingError(data.error ?? 'Could not start checkout — please try again.')
+      setSubscribingPlan(null)
+      return
+    }
+    if (!razorpayReady || !window.Razorpay) {
+      setBillingError('Payment widget is still loading — try again in a moment.')
+      setSubscribingPlan(null)
+      return
+    }
+    const rzp = new window.Razorpay({
+      key: data.keyId,
+      subscription_id: data.subscriptionId,
+      name: 'Wapaci',
+      description: `${LEAD_PLANS.find(p => p.id === planId)?.name ?? planId} plan`,
+      prefill: data.prefill,
+      theme: { color: '#25D366' },
+      handler: () => { loadBilling(); setSubscribingPlan(null) },
+      modal: { ondismiss: () => setSubscribingPlan(null) },
+    })
+    rzp.open()
+  }
 
   useEffect(() => {
     if (activeTab === 'billing') loadBilling()
@@ -721,6 +767,7 @@ function SettingsInner() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 animate-fade-in max-w-3xl">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" onLoad={() => setRazorpayReady(true)} />
 
       {/* Toast */}
       {toast && (
@@ -1203,10 +1250,17 @@ function SettingsInner() {
               {/* All plans comparison */}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
                 <h3 className="font-semibold text-slate-800 mb-1">All Plans</h3>
-                <p className="text-slate-400 text-xs mb-5">Billed monthly. To upgrade, contact us on WhatsApp.</p>
+                <p className="text-slate-400 text-xs mb-5">Billed monthly via Razorpay. Cancel anytime.</p>
+                {billingError && (
+                  <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    <p className="text-xs text-red-600">{billingError}</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                   {LEAD_PLANS.map(plan => {
-                    const isCurrent     = billing?.plan_name === plan.id
+                    const isCurrent     = billing?.plan_name === plan.id && billing?.status === 'active'
+                    const isPending     = billing?.plan_name === plan.id && (billing?.status === 'pending' || billing?.status === 'trialing')
                     const isRecommended = plan.recommended
                     const isUnlimited   = plan.messages >= 999999999
                     const currentIdx    = LEAD_PLANS.findIndex(p => p.id === billing?.plan_name)
@@ -1254,20 +1308,23 @@ function SettingsInner() {
                         </div>
                         {isCurrent ? (
                           <div className="text-center text-xs font-semibold text-[#25D366] py-2">Active</div>
+                        ) : isPending ? (
+                          <div className="text-center text-xs font-semibold text-amber-600 py-2">Payment pending…</div>
                         ) : (
-                          <a
-                            href={`https://wa.me/917049571282?text=Hi%2C+I+want+to+${isDowngrade ? 'downgrade' : 'upgrade'}+my+Wapaci+plan+to+${plan.name}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => handleSubscribe(plan.id)}
+                            disabled={subscribingPlan !== null}
                             className={cn(
-                              'text-center text-xs font-semibold py-2 px-3 rounded-lg transition block',
+                              'text-center text-xs font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center gap-1.5 disabled:opacity-60',
                               isRecommended
                                 ? 'bg-blue-500 hover:bg-blue-600 text-white'
                                 : 'bg-[#25D366] hover:bg-[#128C7E] text-white'
                             )}
                           >
-                            {isDowngrade ? 'Downgrade' : 'Upgrade'} →
-                          </a>
+                            {subscribingPlan === plan.id
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <>{isDowngrade ? 'Downgrade' : 'Upgrade'} →</>}
+                          </button>
                         )}
                       </div>
                     )

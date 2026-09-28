@@ -81,6 +81,10 @@ export async function createRazorpaySubscription(params: {
   return { subscriptionId: sub.id }
 }
 
+export async function cancelRazorpaySubscription(subscriptionId: string): Promise<void> {
+  await rzFetch(`/subscriptions/${subscriptionId}/cancel`, { cancel_at_cycle_end: 0 })
+}
+
 // Verifies the X-Razorpay-Signature header on an incoming webhook against
 // RAZORPAY_WEBHOOK_SECRET (set when the webhook is registered in the
 // Razorpay dashboard — see app/api/landing/razorpay-webhook/route.ts).
