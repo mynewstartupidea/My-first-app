@@ -36,9 +36,9 @@ function Header() {
 }
 
 const chat = [
-  { type: 'bot' as const,  text: "Hi Riya! Thanks for your interest in 2BHK homes near Whitefield 🏠 I'm Aditi from RegalHomes — when's a good time for a quick call?", time: '2:14 PM', auto: true },
-  { type: 'lead' as const, text: 'Hi! Tomorrow morning works for me.', time: '2:16 PM' },
-  { type: 'bot' as const,  text: 'Perfect — booked you in for 10 AM tomorrow. Talk soon, Riya!', time: '2:16 PM' },
+  { type: 'bot' as const,  text: "Hi! We've received your enquiry 🙌 Our team will call you shortly. Feel free to message us here if you have any questions in the meantime.", time: '2:14 PM', auto: true },
+  { type: 'lead' as const, text: 'Great, thank you! Quick question — do you have any offers running right now?', time: '2:16 PM' },
+  { type: 'bot' as const,  text: 'Yes! I\'ll share the details right now — one sec.', time: '2:16 PM' },
 ]
 
 function Hero() {
@@ -55,7 +55,7 @@ function Hero() {
 
           <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
             className="font-extrabold leading-[1.1] tracking-tight text-4xl md:text-5xl lg:text-[3.2rem] text-white mb-6">
-            You message first. <span className="text-[#25D366]">Every time.</span>
+            The moment a lead comes in, <span className="text-[#25D366]">a WhatsApp message goes out.</span>
           </motion.h1>
 
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
@@ -83,9 +83,11 @@ function Hero() {
           className="relative flex justify-center lg:justify-end">
           <div className="w-full max-w-sm bg-[#0d1117] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
             <div className="bg-[#128C7E] px-4 py-3 flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">RH</div>
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">
+                <MessageCircle className="w-4 h-4" />
+              </div>
               <div>
-                <p className="text-white text-sm font-semibold leading-none">RegalHomes</p>
+                <p className="text-white text-sm font-semibold leading-none">Your Business</p>
                 <p className="text-white/70 text-[10px] mt-0.5">online</p>
               </div>
             </div>
