@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Script from 'next/script'
 import {
   MessageCircle, ArrowRight, CheckCircle2, Zap, Users, Calendar,
-  Phone, Clock, Star, Check, Loader2, ShieldCheck, Inbox,
+  Clock, Star, Check, Loader2, Inbox,
 } from 'lucide-react'
 import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
@@ -36,10 +36,9 @@ function Header() {
 }
 
 const chat = [
-  { type: 'lead' as const, text: 'Hi, I saw your ad — is this still available?', time: '2:14 PM' },
-  { type: 'bot' as const,  text: "Yes it is! I'm Aditi from RegalHomes. Can I get your name and what you're looking for? 🙂", time: '2:14 PM' },
-  { type: 'lead' as const, text: 'Riya. Looking for a 2BHK near Whitefield.', time: '2:15 PM' },
-  { type: 'bot' as const,  text: 'Perfect, I have 3 options in that range — booking you a call with our agent for tomorrow 10 AM. See you then, Riya!', time: '2:15 PM' },
+  { type: 'bot' as const,  text: "Hi Riya! Thanks for your interest in 2BHK homes near Whitefield 🏠 I'm Aditi from RegalHomes — when's a good time for a quick call?", time: '2:14 PM', auto: true },
+  { type: 'lead' as const, text: 'Hi! Tomorrow morning works for me.', time: '2:16 PM' },
+  { type: 'bot' as const,  text: 'Perfect — booked you in for 10 AM tomorrow. Talk soon, Riya!', time: '2:16 PM' },
 ]
 
 function Hero() {
@@ -56,25 +55,23 @@ function Hero() {
 
           <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
             className="font-extrabold leading-[1.1] tracking-tight text-4xl md:text-5xl lg:text-[3.2rem] text-white mb-6">
-            Reply to every lead <span className="text-[#25D366]">in seconds</span> — not tomorrow
+            You message first. <span className="text-[#25D366]">Every time.</span>
           </motion.h1>
 
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
             className="text-slate-400 text-lg leading-relaxed max-w-lg mb-8">
-            A lead who doesn&apos;t hear back in minutes goes to whoever answers first — usually a competitor.
-            Wapaci messages new leads on WhatsApp the instant they come in, and gives you one place to see
-            every lead, log every call, and never let a follow-up slip through.
+            The moment a lead comes in, Wapaci messages them on WhatsApp automatically — before your competitor even sees it.
           </motion.p>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.45 }}
             className="flex flex-col sm:flex-row gap-3 mb-8">
             <a href="#get-started" className="group inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-7 py-4 rounded-2xl text-base transition-all duration-200 shadow-2xl shadow-green-500/40 hover:scale-[1.03] active:scale-[0.98]">
-              Start responding instantly <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              Reach leads first <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </a>
           </motion.div>
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.6 }} className="flex flex-wrap gap-5">
-            {['₹1,999/month, cancel anytime', 'Official WhatsApp Business API', 'Setup in 10 minutes'].map(t => (
+            {['₹1,999/month', 'Official WhatsApp API', '10-minute setup'].map(t => (
               <span key={t} className="flex items-center gap-1.5 text-slate-500 text-sm">
                 <Check className="w-3.5 h-3.5 text-[#25D366]" />{t}
               </span>
@@ -93,21 +90,27 @@ function Hero() {
               </div>
             </div>
             <div className="p-4 space-y-3 bg-[#0b141a] min-h-[280px]">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#25D366]" /> New lead from Facebook Ads
+              </motion.div>
               {chat.map((m, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 + i * 0.35 }}
                   className={`flex ${m.type === 'lead' ? 'justify-start' : 'justify-end'}`}>
                   <div className={`max-w-[80%] rounded-xl px-3 py-2 ${m.type === 'lead' ? 'bg-[#1f2c33] text-slate-100' : 'bg-[#005c4b] text-white'}`}>
                     <p className="text-[13px] leading-snug">{m.text}</p>
-                    <p className="text-[10px] text-white/50 mt-1 text-right">{m.time}</p>
+                    <p className="text-[10px] text-white/50 mt-1 text-right">
+                      {m.type === 'bot' && 'auto' in m && m.auto ? 'Sent automatically · ' : ''}{m.time}
+                    </p>
                   </div>
                 </motion.div>
               ))}
             </div>
           </div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 2.3, duration: 0.5 }}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 2.1, duration: 0.5 }}
             className="absolute -left-4 -bottom-4 bg-[#0d1117] border border-white/10 rounded-2xl px-4 py-3 shadow-2xl z-20 backdrop-blur-sm">
-            <p className="text-[11px] text-slate-400">First reply sent</p>
-            <p className="text-[#25D366] font-bold text-sm">in under 10 seconds ⚡</p>
+            <p className="text-[11px] text-slate-400">First message sent</p>
+            <p className="text-[#25D366] font-bold text-sm">automatically, in seconds ⚡</p>
           </motion.div>
         </motion.div>
       </div>
@@ -116,32 +119,27 @@ function Hero() {
 }
 
 const FEATURES = [
-  { icon: Zap,     title: 'Instant WhatsApp reply',  desc: 'The moment a lead comes in — from Facebook ads, your website, or anywhere else — Wapaci messages them back automatically, before they even think of calling someone else.' },
-  { icon: Inbox,    title: 'One inbox for every lead', desc: 'Facebook Lead Ads, walk-ins, referrals, channel partners — every lead lands in one place, tagged by where it came from, instead of scattered across notebooks and phone screenshots.' },
-  { icon: Calendar, title: 'Follow-ups that don\'t slip', desc: 'Set a follow-up date on any lead and it surfaces automatically when it\'s due. No more "I meant to call them back" three weeks later.' },
-  { icon: Users,    title: 'Built for a team',        desc: 'Assign leads to reps, log every call with an outcome, and see who\'s working what — without a single spreadsheet.' },
-  { icon: Phone,    title: 'Call, log, tag — in one screen', desc: 'Tap to call, log the outcome, tag the lead hot/warm/cold, and move on. The whole follow-up loop takes seconds, not a separate CRM tab.' },
-  { icon: ShieldCheck, title: 'Official WhatsApp Business API', desc: 'Not a workaround, not a QR-code hack that gets your number banned — the real, Meta-approved WhatsApp Business Platform.' },
+  { icon: Zap,      title: 'Messages first',   desc: 'Sent the instant a lead comes in.' },
+  { icon: Inbox,    title: 'One inbox',        desc: 'Every lead, every source, one place.' },
+  { icon: Calendar, title: 'Never forget',     desc: 'Follow-ups surface exactly when due.' },
+  { icon: Users,    title: 'Built for teams',  desc: 'Assign, call, log — no spreadsheets.' },
 ]
 
 function Features() {
   return (
-    <section className="relative py-24 px-5">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">Everything you need to stop losing leads</h2>
-          <p className="text-slate-400 text-lg">Not just messaging — a real place to manage the leads you&apos;re already paying to get.</p>
-        </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+    <section className="relative py-20 px-5">
+      <div className="max-w-5xl mx-auto">
+        <h2 className="text-3xl md:text-4xl font-extrabold text-white text-center mb-12">Everything you need to stop losing leads</h2>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {FEATURES.map((f, i) => (
             <motion.div key={f.title} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-60px' }}
-              transition={{ duration: 0.5, delay: (i % 3) * 0.1 }}
+              transition={{ duration: 0.5, delay: i * 0.08 }}
               className="bg-white/[0.03] border border-white/8 rounded-2xl p-6 hover:border-[#25D366]/30 hover:bg-white/[0.05] transition-colors">
               <div className="w-11 h-11 bg-[#25D366]/10 rounded-xl flex items-center justify-center mb-4">
                 <f.icon className="w-5 h-5 text-[#25D366]" />
               </div>
-              <h3 className="text-white font-bold mb-2">{f.title}</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
+              <h3 className="text-white font-bold mb-1.5">{f.title}</h3>
+              <p className="text-slate-400 text-sm">{f.desc}</p>
             </motion.div>
           ))}
         </div>
@@ -151,23 +149,18 @@ function Features() {
 }
 
 const TESTIMONIALS = [
-  { name: 'Aman Kapoor',  role: 'Founder', company: 'Kapoor Interiors', quote: 'We used to lose half our leads just from not replying fast enough. Now the first message goes out before the customer even switches apps.' },
-  { name: 'Sana Iqbal',   role: 'Real Estate Agent', company: 'Iqbal Properties', quote: 'Every lead is tagged, every follow-up shows up when it\'s due. I stopped needing a separate notebook for who I need to call back.' },
-  { name: 'Rohan Verma',  role: 'Owner', company: 'Verma Fitness Studio', quote: 'The speed is the whole point. A lead messages, they get an instant reply, and my team just takes it from there.' },
-  { name: 'Priya Nair',   role: 'Entrepreneur', company: 'Nair & Co.', quote: 'Cheap enough that it paid for itself with the first lead it saved us from losing.' },
+  { name: 'Aman Kapoor', role: 'Founder', company: 'Kapoor Interiors', quote: 'We message first now, not the other way round.' },
+  { name: 'Sana Iqbal',  role: 'Real Estate Agent', company: 'Iqbal Properties', quote: 'No more "I meant to call them back."' },
+  { name: 'Rohan Verma', role: 'Owner', company: 'Verma Fitness Studio', quote: 'Paid for itself with the first lead it saved.' },
 ]
 
 function Testimonials() {
   return (
-    <section className="relative py-24 px-5">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-4">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-3">Built for businesses like yours</h2>
-        </div>
-        <p className="text-center text-slate-500 text-xs mb-12 uppercase tracking-widest font-semibold">
-          Illustrative examples — representative of the businesses Wapaci is built for
-        </p>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+    <section className="relative py-20 px-5">
+      <div className="max-w-4xl mx-auto">
+        <h2 className="text-3xl md:text-4xl font-extrabold text-white text-center mb-2">Built for businesses like yours</h2>
+        <p className="text-center text-slate-600 text-[11px] mb-10 uppercase tracking-widest font-semibold">Illustrative examples</p>
+        <div className="grid sm:grid-cols-3 gap-5">
           {TESTIMONIALS.map((t, i) => (
             <motion.div key={t.name} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-60px' }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
