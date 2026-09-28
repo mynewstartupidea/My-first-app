@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { advanceQualifyingFlow } from '@/lib/qualifying-flow'
+import { maybeSendAIReply } from '@/lib/ai-reply'
 
 function verifyMetaSignature(rawBody: string, signatureHeader: string): boolean {
   const appSecret = process.env.META_APP_SECRET
@@ -301,6 +302,14 @@ export async function POST(request: Request) {
             await advanceQualifyingFlow(supabase, { storeId: waAccount.store_id as string, phone: fromPhone, text: msgBody })
           } catch (e) {
             console.error('[Meta webhook] qualifying flow error:', e)
+          }
+
+          // AI auto-reply: no-ops unless the merchant has it turned on (and
+          // skips a lead that's mid-qualifying-flow — see maybeSendAIReply).
+          try {
+            await maybeSendAIReply(supabase, { storeId: waAccount.store_id as string, userId: waAccount.user_id as string, phone: fromPhone, text: msgBody })
+          } catch (e) {
+            console.error('[Meta webhook] AI reply error:', e)
           }
         }
       }

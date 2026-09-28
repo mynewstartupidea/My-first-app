@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
   Tag, ChevronDown, MoreVertical, Inbox, Circle, AlertTriangle, ChevronLeft,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
@@ -129,6 +131,7 @@ function TagDropdown({ currentTag, onSelect, onClose }: {
 }
 
 export default function LiveChatPage() {
+  const router = useRouter()
   const [threads, setThreads]           = useState<Thread[]>([])
   const [messages, setMessages]         = useState<ChatMsg[]>([])
   const [customer, setCustomer]         = useState<Customer | null>(null)
@@ -141,8 +144,45 @@ export default function LiveChatPage() {
   const [storeId, setStoreId]           = useState<string | null>(null)
   const [tagFilter, setTagFilter]       = useState<LeadStatus | null>(null)
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+  const [aiEnabled, setAiEnabled]       = useState(false)
+  const [aiToggling, setAiToggling]     = useState(false)
+  const [isAdmin, setIsAdmin]           = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = useMemo(() => createClient(), [])
+
+  // AI on/off is owner/admin only (same tier as billing) — a rep or manager
+  // never sees the button, and the API would 403 them anyway if they tried.
+  useEffect(() => {
+    fetch('/api/me/role')
+      .then(r => r.json())
+      .then((d: { role?: string }) => {
+        const admin = d.role === 'owner' || d.role === 'admin'
+        setIsAdmin(admin)
+        if (!admin) return
+        return fetch('/api/ai/knowledge-base')
+          .then(r => r.json())
+          .then((kb: { enabled?: boolean }) => setAiEnabled(!!kb.enabled))
+      })
+      .catch(() => {})
+  }, [])
+
+  async function toggleAI() {
+    if (aiToggling) return
+    setAiToggling(true)
+    const next = !aiEnabled
+    const res = await fetch('/api/ai/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: next }),
+    })
+    const data = await res.json().catch(() => ({})) as { enabled?: boolean; error?: string }
+    if (res.ok) {
+      setAiEnabled(data.enabled ?? next)
+    } else if (data.error === 'needs_knowledge_base') {
+      router.push('/dashboard/ai-assistant?needsInfo=1')
+    }
+    setAiToggling(false)
+  }
 
   const loadThreads = useCallback(async () => {
     setLoading(true)
@@ -258,7 +298,10 @@ export default function LiveChatPage() {
   async function sendReply() {
     if (!reply.trim() || !selected || sending) return
     setSending(true)
-    const res = await fetch('/api/whatsapp/test', {
+    // /api/live-chat/send — a dedicated route (was /api/whatsapp/test, which
+    // always sends a fixed hello_world template and silently ignored the
+    // typed message; fine for Settings' "send yourself a test", wrong here).
+    const res = await fetch('/api/live-chat/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: selected, message: reply.trim() }),
@@ -303,9 +346,27 @@ export default function LiveChatPage() {
             <h1 className="font-bold text-slate-900 text-base flex items-center gap-2">
               <Inbox size={16} className="text-[#25D366]" /> Live Chat
             </h1>
-            <button onClick={loadThreads} className="text-slate-400 hover:text-slate-600 transition">
-              <RefreshCw size={14} />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* AI auto-reply toggle — global to the WhatsApp number, not
+                  per-conversation. Owner/admin only. Off without a knowledge
+                  base: toggleAI() sends the merchant to /dashboard/ai-assistant. */}
+              {isAdmin && (
+                <button
+                  onClick={toggleAI}
+                  disabled={aiToggling}
+                  title={aiEnabled ? 'AI auto-reply is on — click to turn off' : 'Turn on AI auto-reply'}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition disabled:opacity-60 ${
+                    aiEnabled ? 'bg-[#25D366]/10 text-[#25D366]' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                  }`}
+                >
+                  <Sparkles size={12} className="flex-shrink-0" />
+                  AI {aiEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              <button onClick={loadThreads} className="text-slate-400 hover:text-slate-600 transition">
+                <RefreshCw size={14} />
+              </button>
+            </div>
           </div>
           <div className="relative mb-3">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

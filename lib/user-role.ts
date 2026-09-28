@@ -6,6 +6,9 @@ export type UserRole = 'owner' | 'admin' | 'manager' | 'support' | 'member'
 export const ROLE_NAV_ACCESS: Record<UserRole, string[]> = {
   owner:   ['*'],
   admin:   ['*'],
+  // ai-assistant is deliberately absent here and from support/member below —
+  // it controls whether AI messages customers unsupervised, so only owner/admin
+  // (both '*' above) get it, same tier as billing or removing teammates.
   manager: [
     '/dashboard',
     '/dashboard/live-chat',

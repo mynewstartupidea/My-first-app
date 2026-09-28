@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserRole } from '@/lib/get-user-role'
 import { canAccess } from '@/lib/user-role'
 import {
-  Settings, Megaphone, Zap, BarChart2,
+  Settings, Megaphone, Zap, BarChart2, Sparkles,
   Users, FileText, Plug, Code2, LifeBuoy, ChevronRight,
 } from 'lucide-react'
 import InstallAppCard from '@/components/install-app-card'
@@ -20,6 +20,7 @@ const GROUPS: { title: string; items: { href: string; icon: typeof Settings; lab
     title: 'Run the business',
     items: [
       { href: '/dashboard/automations', icon: Zap,        label: 'Automations', blurb: 'Auto-replies and follow-up rules' },
+      { href: '/dashboard/ai-assistant', icon: Sparkles,  label: 'AI Assistant', blurb: 'AI auto-reply on WhatsApp' },
       { href: '/dashboard/campaigns',   icon: Megaphone,   label: 'Campaigns',   blurb: 'Bulk WhatsApp sends' },
       { href: '/dashboard/analytics',   icon: BarChart2,   label: 'Analytics',   blurb: 'Lead quality and close rate' },
     ],

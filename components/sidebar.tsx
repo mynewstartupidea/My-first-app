@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
-  FileText, BarChart2, Code2,
+  FileText, BarChart2, Code2, Sparkles,
   Settings, LogOut, MessageCircle, Store,
   ChevronRight, LifeBuoy, Plug, UserPlus, ShieldAlert,
 } from 'lucide-react'
@@ -69,6 +69,7 @@ const NAV = [
   { href: '/dashboard/leads',       icon: UserPlus,        label: 'Leads'       },
   { href: '/dashboard/campaigns',   icon: Megaphone,       label: 'Campaigns'   },
   { href: '/dashboard/automations', icon: Zap,             label: 'Automations' },
+  { href: '/dashboard/ai-assistant', icon: Sparkles,       label: 'AI Assistant' },
   { href: '/dashboard/templates',   icon: FileText,        label: 'Templates'   },
   { href: '/dashboard/integrations', icon: Plug,           label: 'Integrations' },
   { href: '/dashboard/analytics',   icon: BarChart2,       label: 'Analytics'   },

@@ -477,3 +477,25 @@ ALTER TABLE leads
 -- Backfill: anything without a facebook_lead_id was already only reachable via
 -- the generic ingest endpoint, which today only ever produces landing-page leads.
 UPDATE leads SET source = 'landing_page' WHERE facebook_lead_id IS NULL AND source = 'facebook_lead_ad';
+
+-- ─── AI Knowledge Base + WhatsApp auto-reply ─────────────────────────────────
+-- Free-text business context (services, pricing, policies, FAQs) fed to the AI
+-- as its only source of truth when auto-replying to inbound WhatsApp messages.
+-- ai_reply_enabled is the on/off switch surfaced on the Live Chat page; the API
+-- route refuses to turn it on until this knowledge base actually has content,
+-- so the AI is never replying with nothing to ground itself on.
+
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS ai_reply_enabled BOOLEAN DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS ai_knowledge_base (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id   UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  content    TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE ai_knowledge_base ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "ai_kb_own" ON ai_knowledge_base FOR ALL USING (
+  store_id IN (SELECT id FROM stores WHERE user_id = auth.uid())
+);
