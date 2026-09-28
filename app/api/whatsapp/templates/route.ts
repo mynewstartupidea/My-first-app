@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { STARTER_TEMPLATES, getTemplateStatuses, updateStarterTemplates } from '@/lib/whatsapp-templates'
 
 // GET /api/whatsapp/templates
@@ -10,10 +11,11 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: wa } = await service
     .from('whatsapp_accounts')
     .select('waba_id, access_token')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('status', 'connected')
     .maybeSingle()
 
@@ -42,10 +44,11 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: wa } = await service
     .from('whatsapp_accounts')
     .select('waba_id, access_token')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('status', 'connected')
     .maybeSingle()
 

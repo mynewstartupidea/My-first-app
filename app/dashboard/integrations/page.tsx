@@ -2,16 +2,14 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import {
   Plug, CheckCircle2, MessageCircle, Zap, AlertCircle,
   Loader2, ExternalLink, RefreshCw, Unplug, Package, Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { pickPreferredStore } from '@/lib/store-selection'
 import type { Store } from '@/types'
 
 const OTHER_INTEGRATIONS = [
@@ -69,28 +67,24 @@ function IntegrationsInner() {
   const [connecting, setConnecting]     = useState(false)
 
   const router  = useRouter()
-  const supabase = useMemo(() => createClient(), [])
 
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok })
     setTimeout(() => setToast(null), 4500)
   }, [])
 
+  // Via api/settings/store-status (resolves to the org owner, same route
+  // Settings uses) rather than querying `stores` directly — RLS is USING
+  // (auth.uid() = user_id) with no team-member carve-out, so a teammate
+  // (e.g. an admin, who has full access everywhere else) saw "Connect your
+  // Shopify store" here regardless of the org's real connection.
   const loadStore = useCallback(async () => {
     setLoadingStore(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoadingStore(false); return }
-    const { data } = await supabase
-      .from('stores')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .order('connected_at', { ascending: false, nullsFirst: false })
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .limit(10)
-    setStore(pickPreferredStore(data))
+    const res = await fetch('/api/settings/store-status')
+    const data = res.ok ? await res.json() as { store: Store | null } : { store: null }
+    setStore(data.store)
     setLoadingStore(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { loadStore() }, [loadStore])
 

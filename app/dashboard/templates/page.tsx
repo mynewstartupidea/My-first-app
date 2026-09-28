@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback } from 'react'
 import {
   FileText, Plus, Star, Copy, Archive, Trash2, X, Save,
   Loader2, CheckCircle2, AlertCircle, Search, Wand2,
@@ -543,25 +542,22 @@ export default function TemplatesPage() {
   const [loadingStarter, setLoadingStarter] = useState(true)
   const [updatingMeta, setUpdatingMeta]         = useState(false)
   const [submittingId, setSubmittingId]         = useState<string | null>(null)
-  const supabase = useMemo(() => createClient(), [])
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok })
     setTimeout(() => setToast(null), 4000)
   }
 
+  // Via api/templates (resolves to the org owner) rather than querying
+  // `templates` directly — its RLS is USING (user_id = auth.uid()) with no
+  // team-member carve-out, so a teammate saw a permanently empty list here.
   const loadSaved = useCallback(async () => {
     setLoadingSaved(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoadingSaved(false); return }
-    const { data } = await supabase
-      .from('templates')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-    setSaved(data ?? [])
+    const res = await fetch('/api/templates')
+    const data = res.ok ? await res.json() as { templates: SavedTemplate[] } : { templates: [] }
+    setSaved(data.templates)
     setLoadingSaved(false)
-  }, [supabase])
+  }, [])
 
   const loadStarter = useCallback(async () => {
     setLoadingStarter(true)
@@ -581,48 +577,55 @@ export default function TemplatesPage() {
 
   async function cloneBuiltin(tmpl: BuiltinTemplate) {
     setCloning(tmpl.key)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setCloning(null); return }
-    const { error } = await supabase.from('templates').insert({
-      user_id: user.id, name: `${tmpl.name} (copy)`, body: tmpl.body,
-      category: tmpl.category, variables: tmpl.variables, is_builtin: false,
+    const res = await fetch('/api/templates', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: `${tmpl.name} (copy)`, body: tmpl.body,
+        category: tmpl.category, variables: tmpl.variables, is_builtin: false,
+      }),
     })
     setCloning(null)
-    if (error) { showToast('Failed to clone template', false); return }
+    if (!res.ok) { showToast('Failed to clone template', false); return }
     showToast('Cloned! Now in My Templates.')
     setChip('my_templates')
     loadSaved()
   }
 
   async function saveTemplate(name: string, body: string, category: string) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
     const vars = [...new Set((body.match(/\{\{(\w+)\}\}/g) ?? []))]
-    if (editTarget?.id) {
-      const { error } = await supabase.from('templates').update({ name, body, category, variables: vars, updated_at: new Date().toISOString() }).eq('id', editTarget.id)
-      if (error) { showToast('Failed to save', false); return }
-      showToast('Template updated!')
-    } else {
-      const { error } = await supabase.from('templates').insert({ user_id: user.id, name, body, category, variables: vars })
-      if (error) { showToast('Failed to save', false); return }
-      showToast('Template saved!')
-    }
+    const res = editTarget?.id
+      ? await fetch('/api/templates', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editTarget.id, name, body, category, variables: vars, updated_at: new Date().toISOString() }),
+        })
+      : await fetch('/api/templates', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, body, category, variables: vars }),
+        })
+    if (!res.ok) { showToast('Failed to save', false); return }
+    showToast(editTarget?.id ? 'Template updated!' : 'Template saved!')
     setShowModal(false); setEditTarget(undefined); loadSaved()
   }
 
   async function toggleFavorite(id: string, val: boolean) {
-    await supabase.from('templates').update({ is_favorite: val }).eq('id', id)
+    await fetch('/api/templates', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_favorite: val }),
+    })
     setSaved(prev => prev.map(t => t.id === id ? { ...t, is_favorite: val } : t))
   }
 
   async function toggleArchive(id: string, val: boolean) {
-    await supabase.from('templates').update({ is_archived: val }).eq('id', id)
+    await fetch('/api/templates', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_archived: val }),
+    })
     setSaved(prev => prev.map(t => t.id === id ? { ...t, is_archived: val } : t))
   }
 
   async function deleteTemplate(id: string) {
     if (!confirm('Delete this template? This cannot be undone.')) return
-    await supabase.from('templates').delete().eq('id', id)
+    await fetch(`/api/templates?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
     setSaved(prev => prev.filter(t => t.id !== id))
     showToast('Template deleted')
   }

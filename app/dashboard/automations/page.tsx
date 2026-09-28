@@ -526,46 +526,39 @@ export default function AutomationsPage() {
   const [whatsappConnected, setWaConnected] = useState(false)
   const [showWaPopup, setShowWaPopup]       = useState(false)
   const [toast, setToast]                   = useState<{ msg: string; ok: boolean } | null>(null)
-  const supabase = useMemo(() => createClient(), [])
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3000)
   }
 
+  // Via a server route (resolves to the org owner) rather than querying
+  // stores/whatsapp_accounts/automations directly — those tables' RLS is
+  // USING (auth.uid() = user_id) with no team-member carve-out, even though
+  // manager/admin roles are explicitly meant to manage automations.
   const load = useCallback(async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    const res = await fetch('/api/automations')
+    const data = res.ok ? await res.json() as {
+      hasStore: boolean; whatsappConnected: boolean; storeId: string | null; automations: Automation[]
+    } : { hasStore: false, whatsappConnected: false, storeId: null, automations: [] }
 
-    const [storeRes, waRes] = await Promise.all([
-      supabase.from('stores').select('id').eq('user_id', user.id)
-        .eq('is_active', true).order('shopify_domain', { ascending: true, nullsFirst: false }).limit(1).maybeSingle(),
-      supabase.from('whatsapp_accounts').select('id').eq('user_id', user.id).eq('status', 'connected').maybeSingle(),
-    ])
-
-    setWaConnected(!!waRes.data)
-
-    if (!storeRes.data) { setHasStore(false); setLoading(false); return }
-    setStoreId(storeRes.data.id); setHasStore(true)
-    const { data } = await supabase.from('automations').select('*').eq('store_id', storeRes.data.id)
-    setAutomations(data ?? [])
+    setWaConnected(data.whatsappConnected)
+    if (!data.hasStore) { setHasStore(false); setLoading(false); return }
+    setStoreId(data.storeId); setHasStore(true)
+    setAutomations(data.automations)
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
   async function handleSave(data: Partial<Automation> & { type: LiveType }) {
     if (!storeId) return
-    const existing = automations.find(a => a.type === data.type)
-    let error: unknown = null
-    if (existing) {
-      const res = await supabase.from('automations').update(data).eq('id', existing.id)
-      error = res.error
-    } else {
-      const res = await supabase.from('automations').insert({ ...data, store_id: storeId, template: data.template ?? '' })
-      error = res.error
-    }
-    if (error) { showToast('Failed to save', false); return }
+    const res = await fetch('/api/automations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) { showToast('Failed to save', false); return }
     showToast('Saved successfully!')
     await load()
   }

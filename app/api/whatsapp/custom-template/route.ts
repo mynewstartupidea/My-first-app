@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 const EXAMPLE_VALUES: Record<string, string> = {
   name:          'John',
@@ -51,16 +52,19 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as { templateId?: string }
   if (!body.templateId) return NextResponse.json({ error: 'Missing templateId' }, { status: 400 })
 
-  const { data: tmpl } = await supabase
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: tmpl } = await service
     .from('templates')
     .select('*')
     .eq('id', body.templateId)
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .single()
 
   if (!tmpl) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
 
-  const wa = await getWABA(user.id)
+  const wa = await getWABA(ownerId)
   if (!wa?.waba_id) return NextResponse.json({ error: 'WhatsApp not connected. Go to Settings → WhatsApp to connect first.' }, { status: 400 })
 
   // Generate unique lowercase Meta template name
@@ -90,7 +94,7 @@ export async function POST(request: Request) {
   const data = await res.json() as { id?: string; error?: { code: number; message: string } }
 
   if (res.ok && data.id) {
-    await supabase.from('templates').update({
+    await service.from('templates').update({
       meta_status:        'PENDING',
       meta_template_name: metaName,
       updated_at:         new Date().toISOString(),
@@ -108,15 +112,18 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: submitted } = await supabase
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: submitted } = await service
     .from('templates')
     .select('id, meta_template_name, meta_status')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .not('meta_template_name', 'is', null)
 
   if (!submitted?.length) return NextResponse.json({ updated: 0 })
 
-  const wa = await getWABA(user.id)
+  const wa = await getWABA(ownerId)
   if (!wa?.waba_id) return NextResponse.json({ error: 'WhatsApp not connected' }, { status: 400 })
 
   const token = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? (wa.access_token as string)
@@ -135,7 +142,7 @@ export async function GET() {
   for (const tmpl of submitted) {
     const newStatus = statusMap[tmpl.meta_template_name as string]
     if (newStatus && newStatus !== tmpl.meta_status) {
-      await supabase.from('templates')
+      await service.from('templates')
         .update({ meta_status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', tmpl.id)
       updated++
