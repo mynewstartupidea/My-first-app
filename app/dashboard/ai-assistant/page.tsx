@@ -158,9 +158,11 @@ function AIAssistantInner() {
             role="switch"
             aria-checked={enabled}
             aria-label="Toggle AI auto-reply"
-            className={`relative flex-shrink-0 w-12 h-7 rounded-full transition-colors disabled:opacity-60 ${enabled ? 'bg-[#25D366]' : 'bg-gray-200'}`}
+            className={`relative flex-shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-60 ring-1 ring-inset ${
+              enabled ? 'bg-[#25D366] ring-[#1aad54]' : 'bg-gray-200 ring-gray-300'
+            }`}
           >
-            <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            <span className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
           </button>
         </div>
 
