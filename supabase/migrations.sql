@@ -499,3 +499,34 @@ ALTER TABLE ai_knowledge_base ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "ai_kb_own" ON ai_knowledge_base FOR ALL USING (
   store_id IN (SELECT id FROM stores WHERE user_id = auth.uid())
 );
+
+-- ─── Landing page lead capture + Razorpay subscription ───────────────────────
+-- Public marketing pages (app/lp/*) submit here before any payment happens —
+-- so the row exists to call/follow up on even if the customer never completes
+-- checkout. No RLS policies on purpose: the public submit route and the admin
+-- read route both use the service-role client (bypasses RLS), and there is no
+-- "owning user" yet since these are pre-signup prospects — RLS enabled with
+-- zero policies default-denies the anon/authenticated roles outright.
+
+CREATE TABLE IF NOT EXISTS landing_leads (
+  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                      TEXT NOT NULL,
+  company_name              TEXT,
+  phone                     TEXT NOT NULL,
+  email                     TEXT NOT NULL,
+  source                    TEXT DEFAULT 'lp_leads',
+  razorpay_customer_id      TEXT,
+  razorpay_subscription_id  TEXT,
+  payment_status            TEXT NOT NULL DEFAULT 'pending'
+                              CHECK (payment_status IN ('pending', 'authenticated', 'active', 'failed', 'cancelled')),
+  created_at                TIMESTAMPTZ DEFAULT NOW(),
+  updated_at                TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE landing_leads ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS landing_leads_created_idx ON landing_leads(created_at DESC);
+CREATE INDEX IF NOT EXISTS landing_leads_subscription_idx ON landing_leads(razorpay_subscription_id) WHERE razorpay_subscription_id IS NOT NULL;
+
+-- Caches Plan IDs created via Razorpay's API (table already existed, unused
+-- until now) so a redeploy or cold start doesn't create a duplicate Plan in
+-- the Razorpay dashboard every time — lib/razorpay.ts looks here first.

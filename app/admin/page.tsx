@@ -256,7 +256,11 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 hidden sm:block">{stats?.total_signups ?? 0} total users</span>
-          <a href="/ads"
+          <a href="/admin/landing-leads"
+            className="flex items-center gap-1.5 text-xs text-[#25D366] hover:text-[#3ee184] transition px-3 py-1.5 rounded-lg hover:bg-[#25D366]/10 border border-[#25D366]/20 font-medium">
+            <Phone className="w-3.5 h-3.5" /> Landing Leads
+          </a>
+          <a href="/admin/ads"
             className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition px-3 py-1.5 rounded-lg hover:bg-purple-500/10 border border-purple-500/20 font-medium">
             <Sparkles className="w-3.5 h-3.5" /> Ad Engine
           </a>
