@@ -14,6 +14,7 @@ import { pickPreferredStore } from '@/lib/store-selection'
 import { resolveManagedOrg } from '@/lib/resolve-managed-org'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { getUserRole } from '@/lib/get-user-role'
+import { canAccess } from '@/lib/user-role'
 
 const ROLE_COLORS: Record<string, string> = {
   owner:   'bg-[#25D366]/10 text-[#25D366]',
@@ -42,6 +43,8 @@ export default async function DashboardPage() {
   const ownerId = await resolveOwnerUserId(service, user.id)
   const role = await getUserRole(user.id, user.email ?? '')
   const canManageWhatsApp = role === 'owner' || role === 'admin'
+  const canSeeAutomations = canAccess(role, '/dashboard/automations')
+  const canSeeCampaigns   = canAccess(role, '/dashboard/campaigns')
 
   const { data: storeRows } = await service
     .from('stores')
@@ -372,16 +375,22 @@ export default async function DashboardPage() {
             {store?.shop_name ?? 'Your Store'}<span className="hidden md:inline"> Dashboard</span>
           </h1>
         </div>
-        <div className="hidden md:flex items-center gap-2">
-          <Link href="/dashboard/automations"
-            className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition shadow-sm">
-            <Zap size={14} className="text-[#25D366]" /> Automations
-          </Link>
-          <Link href="/dashboard/campaigns"
-            className="flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-3 py-2 rounded-xl hover:bg-[#1aad54] transition active:scale-[0.97] shadow-sm">
-            <Send size={14} /> New Campaign
-          </Link>
-        </div>
+        {(canSeeAutomations || canSeeCampaigns) && (
+          <div className="hidden md:flex items-center gap-2">
+            {canSeeAutomations && (
+              <Link href="/dashboard/automations"
+                className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 bg-white px-3 py-2 rounded-xl hover:bg-slate-50 transition shadow-sm">
+                <Zap size={14} className="text-[#25D366]" /> Automations
+              </Link>
+            )}
+            {canSeeCampaigns && (
+              <Link href="/dashboard/campaigns"
+                className="flex items-center gap-1.5 text-sm font-medium bg-[#25D366] text-white px-3 py-2 rounded-xl hover:bg-[#1aad54] transition active:scale-[0.97] shadow-sm">
+                <Send size={14} /> New Campaign
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
 
@@ -571,9 +580,11 @@ export default async function DashboardPage() {
             <div className="h-24 flex items-center justify-center border-2 border-dashed border-slate-100 rounded-xl">
               <div className="text-center">
                 <p className="text-slate-400 text-sm">No messages yet</p>
-                <Link href="/dashboard/automations" className="text-[#25D366] text-xs font-medium hover:underline mt-1 inline-block">
-                  Enable automations →
-                </Link>
+                {canSeeAutomations && (
+                  <Link href="/dashboard/automations" className="text-[#25D366] text-xs font-medium hover:underline mt-1 inline-block">
+                    Enable automations →
+                  </Link>
+                )}
               </div>
             </div>
           )}
@@ -793,47 +804,56 @@ export default async function DashboardPage() {
                 <MessageSquare size={22} className="text-slate-300" />
               </div>
               <p className="font-medium text-slate-600 text-sm">No messages yet</p>
-              <p className="text-slate-400 text-xs mt-1">Enable automations to start sending WhatsApp messages</p>
-              <Link href="/dashboard/automations" className="mt-3 inline-flex items-center gap-1 text-sm text-[#25D366] font-medium hover:underline">
-                Set up automations <ArrowRight size={13} />
-              </Link>
+              {canSeeAutomations ? (
+                <>
+                  <p className="text-slate-400 text-xs mt-1">Enable automations to start sending WhatsApp messages</p>
+                  <Link href="/dashboard/automations" className="mt-3 inline-flex items-center gap-1 text-sm text-[#25D366] font-medium hover:underline">
+                    Set up automations <ArrowRight size={13} />
+                  </Link>
+                </>
+              ) : (
+                <p className="text-slate-400 text-xs mt-1">Messages will appear here once automations are set up</p>
+              )}
             </div>
           )}
         </div>
 
         {/* Right column */}
         <div className="space-y-4 sm:space-y-5 min-w-0">
-          {/* Automation status */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800">Automations</h3>
-              <Link href="/dashboard/automations" className="text-[#25D366] text-xs font-medium hover:underline">Manage</Link>
-            </div>
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 text-xs">Lead Ad Response</span>
-                {leadForms.length > 0 ? (
-                  <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${activeLeadForms > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {activeLeadForms > 0 && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
-                    {activeLeadForms} of {leadForms.length} forms
+          {/* Automation status — owner/admin/manager only (matches nav access);
+              a Sales/Support rep can't act on any of this, so it's just noise. */}
+          {canSeeAutomations && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-slate-800">Automations</h3>
+                <Link href="/dashboard/automations" className="text-[#25D366] text-xs font-medium hover:underline">Manage</Link>
+              </div>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 text-xs">Lead Ad Response</span>
+                  {leadForms.length > 0 ? (
+                    <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${activeLeadForms > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                      {activeLeadForms > 0 && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                      {activeLeadForms} of {leadForms.length} forms
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Not set up</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 text-xs">Missed Call Follow-up</span>
+                  <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${missedCallFollowupOn ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {missedCallFollowupOn
+                      ? <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> On</>
+                      : 'Off'}
                   </span>
-                ) : (
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Not set up</span>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 text-xs">Missed Call Follow-up</span>
-                <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${missedCallFollowupOn ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                  {missedCallFollowupOn
-                    ? <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> On</>
-                    : 'Off'}
-                </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Top campaigns */}
-          {recentCampaigns.length > 0 && (
+          {canSeeCampaigns && recentCampaigns.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-slate-800">Recent Campaigns</h3>

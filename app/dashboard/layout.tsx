@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/sidebar'
 import MobileBottomNav from '@/components/mobile-bottom-nav'
 import PageTransition from '@/components/page-transition'
@@ -8,16 +8,24 @@ import RouteProgress from '@/components/route-progress'
 import InstallPromptInitializer from '@/components/install-prompt-initializer'
 import { getUserRole } from '@/lib/get-user-role'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: storeRows } = await supabase
+  // Scoped to the org owner, not the logged-in viewer — stores' RLS is USING
+  // (auth.uid() = user_id) with no team-member carve-out, so this used to find
+  // nothing for any invited teammate and the sidebar fell back to showing
+  // "Set up WhatsApp" (as if nothing were connected) instead of the org's
+  // actual store name and plan.
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+  const { data: storeRows } = await service
     .from('stores')
     .select('shop_name, plan, shopify_domain')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
