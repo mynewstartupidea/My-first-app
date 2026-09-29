@@ -28,15 +28,42 @@ async function activateTeamInvite(supabase: ServerSupabaseClient): Promise<boole
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.email) return false
 
-    const organizationId = user.user_metadata?.organization_id as string | undefined
-    if (!organizationId) return false
-
     const service = createServiceClient()
+    const email = user.email.toLowerCase()
+
+    // Normal case: inviteUserByEmail's `data` payload lands in user_metadata when it
+    // creates a brand-new auth user. But when the invited email already has an
+    // EXISTING auth user — even a long-abandoned, never-confirmed signup attempt —
+    // Supabase does not attach that `data` to the existing user at all, so
+    // organization_id is silently absent here. Without a fallback, that person's
+    // pending invite never activates: they land in the app, fall through to
+    // provisionStore, and get their own stray empty store instead of joining the
+    // org they were actually invited into.
+    const metaOrgId = user.user_metadata?.organization_id as string | undefined
+
+    let pendingId: string | null = null
+    if (metaOrgId) {
+      const { data: row } = await service
+        .from('team_members').select('id')
+        .eq('organization_id', metaOrgId).eq('email', email).eq('status', 'pending')
+        .maybeSingle()
+      pendingId = row?.id ?? null
+    }
+    if (!pendingId) {
+      const { data: row } = await service
+        .from('team_members').select('id')
+        .eq('email', email).eq('status', 'pending')
+        .order('invited_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      pendingId = row?.id ?? null
+    }
+    if (!pendingId) return false
+
     const { data: updated } = await service
       .from('team_members')
       .update({ status: 'active', user_id: user.id })
-      .eq('organization_id', organizationId)
-      .eq('email', user.email.toLowerCase())
+      .eq('id', pendingId)
       .eq('status', 'pending')
       .select('id')
       .maybeSingle()

@@ -12,6 +12,7 @@ import Link from 'next/link'
 import WhatsAppStatusBanner from '@/components/whatsapp-status-banner'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { resolveManagedOrg } from '@/lib/resolve-managed-org'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 const ROLE_COLORS: Record<string, string> = {
   owner:   'bg-[#25D366]/10 text-[#25D366]',
@@ -26,48 +27,54 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: storeRows } = await supabase
+  const service = createServiceClient()
+
+  // Every query below that used to be scoped to `user.id` needs the org OWNER's id
+  // instead — stores, whatsapp_accounts, billing, facebook_connections and leads all
+  // predate the team model and are keyed by the owner's own auth id, not the logged-in
+  // caller's. This page previously queried all of them by `user.id` directly, so an
+  // invited teammate (Sales/Support/Manager) saw an empty dashboard — or worse, if
+  // that email had its own separate pre-existing Wapaci store from before being
+  // invited, they'd see THAT unrelated store's dashboard instead of the org they were
+  // actually invited into. resolveOwnerUserId returns userId itself when there's no
+  // active team membership, so this is a no-op for a genuine owner/solo account.
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: storeRows } = await service
     .from('stores')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
     .limit(10)
   let store = pickPreferredStore(storeRows)
 
-  if (!store) {
+  // Auto-provision only for a genuine self-serve signup (no active team membership
+  // resolved above) — an invited teammate must never get their own stray store here,
+  // since that would make getUserRole() classify them as 'owner' of an empty account
+  // instead of the role they were actually invited with.
+  if (!store && ownerId === user.id) {
     try {
-      // Don't auto-provision a store for an invited teammate — this used to run for
-      // anyone with zero stores, so any Sales/Admin rep's very first dashboard visit
-      // silently created them their own empty "My Store" and made getUserRole() see
-      // stores.user_id = them and classify them as 'owner', overriding the role they
-      // were actually invited with. Only self-serve signups (no active team_members
-      // row) should get auto-provisioned.
-      const { data: membership } = await supabase
-        .from('team_members').select('id').eq('email', user.email ?? '').eq('status', 'active').maybeSingle()
-
-      if (!membership) {
-        const { data: profile } = await supabase
-          .from('user_profiles').select('company_name').eq('id', user.id).maybeSingle()
-        const shopName = profile?.company_name || (user.user_metadata?.company_name as string | undefined) || 'My Store'
-        const { data: newStore } = await supabase
-          .from('stores')
-          .insert({ user_id: user.id, shop_name: shopName, is_active: true, whatsapp_bsp: 'mock', plan: 'starter' })
-          .select('*').single()
-        if (newStore) {
-          store = newStore
-          await supabase.rpc('create_default_automations', { p_store_id: newStore.id })
-        }
+      const { data: profile } = await supabase
+        .from('user_profiles').select('company_name').eq('id', user.id).maybeSingle()
+      const shopName = profile?.company_name || (user.user_metadata?.company_name as string | undefined) || 'My Store'
+      const { data: newStore } = await supabase
+        .from('stores')
+        .insert({ user_id: user.id, shop_name: shopName, is_active: true, whatsapp_bsp: 'mock', plan: 'starter' })
+        .select('*').single()
+      if (newStore) {
+        store = newStore
+        await supabase.rpc('create_default_automations', { p_store_id: newStore.id })
       }
     } catch { /* non-fatal */ }
   }
 
   // WhatsApp connection status
-  const { data: waAccount } = await supabase
+  const { data: waAccount } = await service
     .from('whatsapp_accounts')
     .select('display_phone_number, token_type, status')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('status', 'connected')
     .maybeSingle()
 
@@ -79,18 +86,16 @@ export default async function DashboardPage() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   // Billing usage for low-credit banner
-  const { data: billing } = await supabase
+  const { data: billing } = await service
     .from('billing')
     .select('messages_limit, messages_used')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .maybeSingle()
 
   const msgLimit = billing?.messages_limit ?? 500
   const msgUsed  = billing?.messages_used  ?? 0
   const msgPct   = msgLimit >= 999_999_999 ? 0 : Math.min(100, Math.round((msgUsed / msgLimit) * 100))
   const msgLeft  = Math.max(0, msgLimit - msgUsed)
-
-  const service = createServiceClient()
 
   // Lead-based dashboard metrics need to match what the Leads page shows by default:
   // it defaults to the earliest-connected Facebook Page (facebook_connections ordered
@@ -101,20 +106,20 @@ export default async function DashboardPage() {
   const { data: defaultConnection } = await service
     .from('facebook_connections')
     .select('id, page_id, page_name')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
   const defaultPageId = defaultConnection?.page_id ?? null
   const defaultConnectionId = defaultConnection?.id ?? null
 
-  // Follow-ups due today or overdue — for the sales team widget.
-  // Uses service client + explicit filter so team members see their assigned leads
-  // even if RLS only permits rows where user_id = auth.uid().
+  // Follow-ups due today or overdue — for the sales team widget. Org-owned leads OR
+  // ones specifically assigned to this viewer, same visibility rule used elsewhere
+  // (e.g. /api/facebook/leads) — a rep sees the org's pool plus their own assignments.
   let followupQuery = service
     .from('leads')
     .select('id, name, phone, lead_status, followup_at, wa_status')
-    .or(`user_id.eq.${user.id},assigned_to.eq.${user.id}`)
+    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
     .not('followup_at', 'is', null)
     .lte('followup_at', new Date().toISOString())
     .not('lead_status', 'in', '("converted","lost","junk")')
@@ -138,7 +143,6 @@ export default async function DashboardPage() {
   let teamActivity: TeamActivityRow[] = []
   const managedOrg = await resolveManagedOrg(service, user.id, user.email ?? '')
   if (managedOrg) {
-    const ownerId = managedOrg.owner_id as string
     let ownerEmail = user.email ?? ''
     if (ownerId !== user.id) {
       const { data: ownerUser } = await service.auth.admin.getUserById(ownerId)
@@ -181,21 +185,23 @@ export default async function DashboardPage() {
   }
 
   const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes, leadSourcesRes] = await Promise.all([
-    store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
-    store ? supabase.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
-    store ? supabase.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
+    store ? service.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
+    store ? service.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
+    store ? service.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
     defaultPageId
-      ? supabase.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', user.id).eq('page_id', defaultPageId)
-      : supabase.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', user.id),
+      ? service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).eq('page_id', defaultPageId)
+      : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId),
     defaultConnectionId
-      ? supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id).eq('connection_id', defaultConnectionId)
-      : supabase.from('lead_form_automations').select('is_enabled').eq('user_id', user.id),
+      ? service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).eq('connection_id', defaultConnectionId)
+      : service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId),
+    // Deliberately per-viewer (not owner-scoped) — each teammate has their own
+    // user_profiles row and their own missed-call-followup preference.
     supabase.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),
     // Speed-to-lead: first automated "lead_ad" WhatsApp send per phone number, used
     // below to measure time from lead creation to first contact. Scoped to the last
     // 30 days so a handful of old bulk-resends to stale leads can't skew the median.
     store
-      ? supabase.from('automation_jobs').select('customer_phone, sent_at')
+      ? service.from('automation_jobs').select('customer_phone, sent_at')
           .eq('store_id', store.id).eq('type', 'lead_ad').eq('status', 'sent')
           .gte('sent_at', thirtyDaysAgo).order('sent_at', { ascending: true })
       : Promise.resolve({ data: [] }),
@@ -203,7 +209,7 @@ export default async function DashboardPage() {
     // above — non-Facebook sources (walk-in, referral, channel partner,
     // landing page) have no page_id at all, so filtering by defaultPageId
     // would silently exclude every one of them and always show 100% Facebook.
-    supabase.from('leads').select('source').eq('user_id', user.id),
+    service.from('leads').select('source').eq('user_id', ownerId),
   ])
 
   const analytics = analyticsRes.data ?? []
