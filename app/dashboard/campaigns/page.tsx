@@ -1103,16 +1103,23 @@ function CampaignsContent() {
             {activeTab === 'ecommerce' ? 'WhatsApp broadcast campaigns for revenue generation' : 'Message your lead ad contacts at scale'}
           </p>
         </div>
+        {/* Hidden when the active tab's list is empty — the empty state below
+            already has its own centered "Create campaign" button, so showing
+            both read as two buttons for the same action. */}
         {activeTab === 'ecommerce' ? (
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97] shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
-            <Plus size={15} /> New Campaign
-          </button>
+          campaigns.length > 0 && (
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97] shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
+              <Plus size={15} /> New Campaign
+            </button>
+          )
         ) : (
-          <button onClick={() => setShowLeadCreate(true)}
-            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97] shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
-            <Plus size={15} /> New Lead Campaign
-          </button>
+          leadCampaigns.length > 0 && (
+            <button onClick={() => setShowLeadCreate(true)}
+              className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1aad54] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97] shadow-md shadow-green-500/20 w-full sm:w-auto flex-shrink-0">
+              <Plus size={15} /> New Lead Campaign
+            </button>
+          )
         )}
       </div>
 
@@ -1200,7 +1207,7 @@ function CampaignsContent() {
             <p className="text-slate-400 text-sm mt-1 max-w-xs mx-auto">Create a WhatsApp broadcast to re-engage customers and generate revenue.</p>
             <button onClick={() => setShowCreate(true)}
               className="mt-5 inline-flex items-center gap-2 bg-[#25D366] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1aad54] transition active:scale-[0.97]">
-              <Plus size={14} /> Create first campaign
+              <Plus size={14} /> Create campaign
             </button>
           </div>
         ) : (
@@ -1308,7 +1315,7 @@ function CampaignsContent() {
             </p>
             <button onClick={() => setShowLeadCreate(true)}
               className="mt-5 inline-flex items-center gap-2 bg-[#25D366] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1aad54] transition active:scale-[0.97]">
-              <Plus size={14} /> Create first lead campaign
+              <Plus size={14} /> Create campaign
             </button>
           </div>
         ) : (
