@@ -48,7 +48,16 @@ function LoginForm() {
   // client-side JS can read window.location.hash, which is why this has to
   // happen here rather than in a server route.
   useEffect(() => {
-    if (!window.location.hash.includes('access_token')) return
+    // A recovery/invite link that's expired or already been used (e.g. an
+    // email security scanner pre-visiting the link before the person clicks
+    // it themselves, or an old email from a previous request) redirects back
+    // here with `#error=access_denied&error_code=otp_expired...` instead of
+    // `#access_token=...` — this used to only check for access_token, so that
+    // case fell straight through to the plain sign-in form with zero
+    // explanation, which just looked like the link did nothing at all.
+    const hasToken = window.location.hash.includes('access_token')
+    const hasError = window.location.hash.includes('error=')
+    if (!hasToken && !hasError) return
     setCompletingInvite(true)
 
     async function completeHashSession() {
@@ -56,10 +65,18 @@ function LoginForm() {
       const access_token  = params.get('access_token')
       const refresh_token = params.get('refresh_token')
       const type          = params.get('type') // 'invite' | 'recovery' | 'magiclink' | 'signup' | ...
+      const hashError      = params.get('error_description') ?? params.get('error')
 
       // Strip the tokens out of the URL immediately regardless of outcome —
       // they're sensitive and shouldn't linger in browser history either way.
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+      if (hashError) {
+        setCompletingInvite(false)
+        setMode('forgot')
+        setError(`This link has expired or was already used (it may have been opened once already by an email security scanner). Request a new one below.`)
+        return
+      }
 
       if (!access_token || !refresh_token) { setCompletingInvite(false); setError('Invalid or expired link.'); return }
 
