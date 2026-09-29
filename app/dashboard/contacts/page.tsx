@@ -420,8 +420,12 @@ export default function ContactsPage() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Contacts</h1>
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-              {stats.total.toLocaleString()} contacts saved
-              {stats.completed > 0 && ` · ${stats.completed} campaign${stats.completed !== 1 ? 's' : ''} completed`}
+              {loading ? 'Loading…' : (
+                <>
+                  {stats.total.toLocaleString()} contacts saved
+                  {stats.completed > 0 && ` · ${stats.completed} campaign${stats.completed !== 1 ? 's' : ''} completed`}
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -450,7 +454,11 @@ export default function ContactsPage() {
             { label: 'Campaigns done',  value: stats.completed, color: '#f59e0b' },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 sm:p-4 min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
+              {loading ? (
+                <div className="h-7 sm:h-8 w-10 bg-gray-100 rounded animate-pulse" />
+              ) : (
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
+              )}
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
                 <p className="text-xs text-gray-400">{s.label}</p>
@@ -479,11 +487,13 @@ export default function ContactsPage() {
                 }`}
               >
                 {tab.label}
-                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                  activeTab === tab.id ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'
-                }`}>
-                  {tabCounts[tab.id]}
-                </span>
+                {!loading && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                    activeTab === tab.id ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'
+                  }`}>
+                    {tabCounts[tab.id]}
+                  </span>
+                )}
               </button>
             ))}
           </div>

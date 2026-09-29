@@ -9,6 +9,7 @@ import {
   Users, FileText, Plug, Code2, LifeBuoy, ChevronRight,
 } from 'lucide-react'
 import InstallAppCard from '@/components/install-app-card'
+import SignOutButton from '@/components/sign-out-button'
 
 // Everything that doesn't earn a permanent bottom-tab slot (Home/Leads/Chat
 // are the only things opened constantly) lives here instead — grouped by how
@@ -95,6 +96,8 @@ export default async function MorePage() {
           </div>
         </div>
       ))}
+
+      <SignOutButton />
     </div>
   )
 }
