@@ -48,3 +48,38 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ messages, customer: custRes.data ?? null })
 }
+
+// DELETE /api/live-chat/thread?phone=+91xxx — permanently erases the message
+// history with this contact (both outbound `messages` and inbound
+// `inbound_messages` rows for the org's store). Irreversible — the client
+// confirms before calling this.
+export async function DELETE(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(request.url)
+  const phone = searchParams.get('phone')
+  if (!phone) return NextResponse.json({ error: 'phone is required' }, { status: 400 })
+
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  const { data: stores } = await service
+    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at')
+    .eq('user_id', ownerId).eq('is_active', true)
+    .order('connected_at', { ascending: false, nullsFirst: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .limit(10)
+  const store = pickPreferredStore(stores)
+  if (!store) return NextResponse.json({ error: 'No store found' }, { status: 404 })
+
+  const [outRes, inRes] = await Promise.all([
+    service.from('messages').delete().eq('store_id', store.id).eq('customer_phone', phone),
+    service.from('inbound_messages').delete().eq('store_id', store.id).eq('from_phone', phone),
+  ])
+  if (outRes.error) return NextResponse.json({ error: outRes.error.message }, { status: 500 })
+  if (inRes.error) return NextResponse.json({ error: inRes.error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
+}

@@ -6,7 +6,7 @@ import {
   Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
   Tag, ChevronDown, MoreVertical, Inbox, Circle, AlertTriangle, ChevronLeft,
-  Sparkles,
+  Sparkles, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
@@ -129,6 +129,53 @@ function TagDropdown({ currentTag, onSelect, onClose }: {
   )
 }
 
+function MoreMenu({ onDelete, onClose }: { onDelete: () => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className="absolute right-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-48">
+      <button onClick={onDelete}
+        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 transition text-left">
+        <Trash2 size={13} className="text-red-500" />
+        <span className="text-xs font-medium text-red-600">Delete conversation</span>
+      </button>
+    </div>
+  )
+}
+
+function DeleteChatModal({ name, onCancel, onConfirm, deleting }: {
+  name: string; onCancel: () => void; onConfirm: () => void; deleting: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
+        <h3 className="font-semibold text-slate-900 text-base">Delete this conversation?</h3>
+        <p className="text-slate-500 text-sm mt-2 leading-relaxed">
+          This permanently deletes the entire message history with <span className="font-medium text-slate-700">{name}</span>. This can&apos;t be undone.
+        </p>
+        <div className="flex items-center gap-2 mt-5">
+          <button onClick={onCancel} disabled={deleting}
+            className="flex-1 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={deleting}
+            className="flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
+            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function LiveChatPage() {
   const router = useRouter()
   const [threads, setThreads]           = useState<Thread[]>([])
@@ -146,6 +193,9 @@ export default function LiveChatPage() {
   const [aiEnabled, setAiEnabled]       = useState(false)
   const [aiToggling, setAiToggling]     = useState(false)
   const [isAdmin, setIsAdmin]           = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleting, setDeleting]         = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // AI on/off is owner/admin only (same tier as billing) — a rep or manager
@@ -238,6 +288,19 @@ export default function LiveChatPage() {
     })
   }
 
+  async function handleDeleteThread() {
+    if (!selected || deleting) return
+    setDeleting(true)
+    const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(selected)}`, { method: 'DELETE' })
+    setDeleting(false)
+    if (!res.ok) return
+    setThreads(prev => prev.filter(t => t.phone !== selected))
+    setDeleteConfirmOpen(false)
+    setSelected(null)
+    setMessages([])
+    setCustomer(null)
+  }
+
   const selectedThread = threads.find(t => t.phone === selected)
 
   const filtered = threads.filter(t => {
@@ -250,6 +313,15 @@ export default function LiveChatPage() {
   })
 
   return (
+    <>
+    {deleteConfirmOpen && selectedThread && (
+      <DeleteChatModal
+        name={selectedThread.name ?? selectedThread.phone}
+        deleting={deleting}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteThread}
+      />
+    )}
     <div className="flex h-[calc(100vh-52px-76px)] md:h-[calc(100vh-0px)] overflow-hidden bg-slate-50">
 
       {/* Thread list — full width on mobile when no thread selected, hidden when thread open */}
@@ -432,9 +504,17 @@ export default function LiveChatPage() {
                 )}>
                 <Check size={11} /> {selectedThread?.tag === 'resolved' ? 'Resolved' : 'Resolve'}
               </button>
-              <button className="text-slate-400 hover:text-slate-600 transition">
-                <MoreVertical size={16} />
-              </button>
+              <div className="relative">
+                <button onClick={() => setMoreMenuOpen(o => !o)} className="text-slate-400 hover:text-slate-600 transition">
+                  <MoreVertical size={16} />
+                </button>
+                {moreMenuOpen && (
+                  <MoreMenu
+                    onDelete={() => { setMoreMenuOpen(false); setDeleteConfirmOpen(true) }}
+                    onClose={() => setMoreMenuOpen(false)}
+                  />
+                )}
+              </div>
             </div>
           </div>
 
@@ -560,5 +640,6 @@ export default function LiveChatPage() {
         </div>
       )}
     </div>
+    </>
   )
 }
