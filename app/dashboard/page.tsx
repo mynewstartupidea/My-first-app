@@ -5,12 +5,21 @@ import {
   IndianRupee, MessageSquare, TrendingUp,
   ArrowRight, Zap, AlertCircle, CheckCircle2,
   Send, Eye, MousePointerClick, Users, Target,
-  Phone, Calendar,
+  Phone, Calendar, BarChart2,
 } from 'lucide-react'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import Link from 'next/link'
 import WhatsAppStatusBanner from '@/components/whatsapp-status-banner'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { resolveManagedOrg } from '@/lib/resolve-managed-org'
+
+const ROLE_COLORS: Record<string, string> = {
+  owner:   'bg-[#25D366]/10 text-[#25D366]',
+  admin:   'bg-blue-100 text-blue-700',
+  manager: 'bg-purple-100 text-purple-700',
+  member:  'bg-slate-100 text-slate-600',
+  support: 'bg-amber-100 text-amber-700',
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -118,6 +127,58 @@ export default async function DashboardPage() {
     id: string; name: string | null; phone: string | null
     lead_status: string | null; followup_at: string; wa_status: string
   }>
+
+  // Team Activity — owner/admin only, mirrors /api/settings/team-activity's gate
+  // (resolveManagedOrg returns null for a Sales/Support/Manager rep, so this stays
+  // empty and the section below just doesn't render for them).
+  type TeamActivityRow = {
+    user_id: string; email: string; role: string
+    leads_assigned: number; converted: number; calls_logged: number; last_activity_at: string | null
+  }
+  let teamActivity: TeamActivityRow[] = []
+  const managedOrg = await resolveManagedOrg(service, user.id, user.email ?? '')
+  if (managedOrg) {
+    const ownerId = managedOrg.owner_id as string
+    let ownerEmail = user.email ?? ''
+    if (ownerId !== user.id) {
+      const { data: ownerUser } = await service.auth.admin.getUserById(ownerId)
+      ownerEmail = ownerUser?.user?.email ?? ownerEmail
+    }
+    const { data: orgMembers } = await service
+      .from('team_members')
+      .select('id, user_id, email, role')
+      .eq('organization_id', managedOrg.id)
+      .eq('status', 'active')
+      .not('user_id', 'is', null)
+
+    const people = [
+      { user_id: ownerId, email: ownerEmail, role: 'owner' },
+      ...(orgMembers ?? []).map(m => ({ user_id: m.user_id as string, email: m.email as string, role: m.role as string })),
+    ]
+    const peopleIds = people.map(p => p.user_id)
+
+    const [{ data: activityLeads }, { data: callLogs }] = await Promise.all([
+      service.from('leads').select('assigned_to, lead_status').eq('user_id', ownerId),
+      service.from('call_logs').select('called_by, created_at').in('called_by', peopleIds),
+    ])
+
+    teamActivity = people
+      .map(person => {
+        const assigned = (activityLeads ?? []).filter(l => l.assigned_to === person.user_id)
+        const converted = assigned.filter(l => l.lead_status === 'converted').length
+        const calls = (callLogs ?? []).filter(c => c.called_by === person.user_id)
+        const lastActivityAt = calls.reduce<string | null>((latest, c) => {
+          const t = c.created_at as string
+          return !latest || t > latest ? t : latest
+        }, null)
+        return {
+          user_id: person.user_id, email: person.email, role: person.role,
+          leads_assigned: assigned.length, converted, calls_logged: calls.length,
+          last_activity_at: lastActivityAt,
+        }
+      })
+      .sort((a, b) => b.calls_logged - a.calls_logged)
+  }
 
   const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes, leadSourcesRes] = await Promise.all([
     store ? supabase.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
@@ -399,6 +460,73 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Team Activity — owner/admin only. Same data as Settings → Team, surfaced
+          here too so it doesn't require a trip to Settings to check on the team. */}
+      {teamActivity.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-5 md:mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+                <BarChart2 className="w-3.5 h-3.5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-800">Team Activity</h2>
+                <p className="text-slate-400 text-xs mt-0.5">Who&apos;s working which leads, and how much</p>
+              </div>
+            </div>
+            <Link href="/dashboard/settings?tab=team" className="text-[#25D366] text-xs font-medium hover:underline flex-shrink-0">
+              Manage
+            </Link>
+          </div>
+
+          <div className="space-y-2">
+            {teamActivity.map(person => {
+              const rate = person.leads_assigned > 0
+                ? Math.round((person.converted / person.leads_assigned) * 100)
+                : 0
+              return (
+                <div key={person.user_id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                      {person.email[0]?.toUpperCase() ?? '?'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-medium text-slate-800 truncate">{person.email}</p>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize flex-shrink-0 ${ROLE_COLORS[person.role] ?? ROLE_COLORS.member}`}>
+                          {person.role === 'member' ? 'Sales' : person.role}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {person.last_activity_at ? `Last call ${timeAgo(person.last_activity_at)}` : 'No calls logged yet'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 sm:gap-4 flex-shrink-0 text-right pl-12 sm:pl-0 sm:ml-auto">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 tabular-nums flex items-center gap-1 justify-end">
+                        <Phone size={11} className="text-slate-400" /> {person.calls_logged}
+                      </p>
+                      <p className="text-[10px] text-slate-400">calls</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 tabular-nums">{person.leads_assigned}</p>
+                      <p className="text-[10px] text-slate-400">leads</p>
+                    </div>
+                    <div>
+                      <p className={`text-sm font-semibold tabular-nums flex items-center gap-1 justify-end ${rate > 0 ? 'text-emerald-600' : 'text-slate-800'}`}>
+                        <Target size={11} className="text-slate-400" /> {rate}%
+                      </p>
+                      <p className="text-[10px] text-slate-400">converted</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 mb-5 md:mb-6">
