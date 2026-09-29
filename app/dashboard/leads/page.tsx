@@ -3283,11 +3283,7 @@ function LeadsContent() {
         fetchPages(),
         fetch('/api/team/members').then(r => r.json() as Promise<{ members?: TeamMember[] }>).then(d => setTeamMembers(d.members ?? [])).catch(() => {}),
         fetch('/api/me/role').then(r => r.json() as Promise<{ role?: UserRole }>).then(d => {
-          if (d.role) {
-            setRole(d.role)
-            // Default a rep straight to what needs action, not the full lead list.
-            if (d.role === 'member' && sortParam !== 'followup_due') setActiveView('followups')
-          }
+          if (d.role) setRole(d.role)
         }).catch(() => {}),
         ...(cachedPageId ? [fetchActiveForms(cachedPageId), fetchLeads('all', cachedPageId, 1, 50, '', sortParam === 'followup_due' ? 'followup_due' : 'default'), fetchStats(cachedPageId)] : []),
       ]) as [Page[], ...unknown[]]

@@ -13,6 +13,7 @@ import WhatsAppStatusBanner from '@/components/whatsapp-status-banner'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { resolveManagedOrg } from '@/lib/resolve-managed-org'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { getUserRole } from '@/lib/get-user-role'
 
 const ROLE_COLORS: Record<string, string> = {
   owner:   'bg-[#25D366]/10 text-[#25D366]',
@@ -39,6 +40,8 @@ export default async function DashboardPage() {
   // actually invited into. resolveOwnerUserId returns userId itself when there's no
   // active team membership, so this is a no-op for a genuine owner/solo account.
   const ownerId = await resolveOwnerUserId(service, user.id)
+  const role = await getUserRole(user.id, user.email ?? '')
+  const canManageWhatsApp = role === 'owner' || role === 'admin'
 
   const { data: storeRows } = await service
     .from('stores')
@@ -416,12 +419,17 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* WhatsApp connection banner */}
-      <WhatsAppStatusBanner
-        connected={waConnected || waFallback}
-        phone={waPhone}
-        tokenType={waAccount?.token_type ?? null}
-      />
+      {/* WhatsApp connection banner — the "not connected, connect now" CTA is an
+          owner/admin setup action (adding a phone number), so it's hidden for
+          Sales/Support/Manager. The connected-state badge is still shown to
+          everyone since it's just informational, not something to act on. */}
+      {(canManageWhatsApp || waConnected || waFallback) && (
+        <WhatsAppStatusBanner
+          connected={waConnected || waFallback}
+          phone={waPhone}
+          tokenType={waAccount?.token_type ?? null}
+        />
+      )}
 
       {/* Lead KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
