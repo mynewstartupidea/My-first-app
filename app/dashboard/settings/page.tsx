@@ -146,6 +146,7 @@ function SettingsInner() {
   const [sendingInvite, setSendingInvite]     = useState(false)
   const [removingId, setRemovingId]           = useState<string | null>(null)
   const [changingRoleId, setChangingRoleId]   = useState<string | null>(null)
+  const [sendingReset, setSendingReset]       = useState(false)
   // Lead distribution
   const [distMode,    setDistMode]            = useState<'manual'|'open_pool'|'round_robin'>('manual')
   const [distMembers, setDistMembers]         = useState<{user_id:string;email:string;weight:number}[]>([])
@@ -1681,15 +1682,21 @@ function SettingsInner() {
             <p className="text-slate-500 text-sm mb-4">Send a password reset link to your email address.</p>
             <button
               onClick={async () => {
+                if (sendingReset) return
+                setSendingReset(true)
                 const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
                   redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/dashboard/settings`,
                 })
+                setSendingReset(false)
                 if (error) showToast(error.message, false)
                 else showToast('Password reset link sent! Check your inbox.')
               }}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
+              disabled={sendingReset}
+              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Lock className="w-4 h-4" /> Send reset link
+              {sendingReset
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+                : <><Lock className="w-4 h-4" /> Send reset link</>}
             </button>
           </section>
 
