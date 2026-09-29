@@ -8,6 +8,7 @@ export const maxDuration = 60
 // GET — count leads matching filters (for preview)
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
+  const pageId   = searchParams.get('page_id')
   const formId   = searchParams.get('form_id')
   const dateFrom = searchParams.get('date_from')
   const dateTo   = searchParams.get('date_to')
@@ -26,6 +27,12 @@ export async function GET(request: Request) {
     .not('phone', 'is', null)
     .in('wa_status', ['imported', 'failed'])
 
+  // Scoped to the currently connected Facebook page by default — without this,
+  // an account that has ever connected more than one page (e.g. reconnected to
+  // a different page later) counted leads left over from every page it has
+  // EVER seen, not just the one currently connected and shown on the Leads
+  // page, so this preview count didn't match "Total Leads" there at all.
+  if (pageId)   q = q.eq('page_id', pageId)
   if (formId)   q = q.eq('form_id', formId)
   if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00Z`)
   if (dateTo)   q = q.lte('created_at', `${dateTo}T23:59:59Z`)
@@ -41,6 +48,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json() as {
+    page_id?: string | null
     form_id?: string | null
     date_from?: string | null
     date_to?: string | null
@@ -50,7 +58,7 @@ export async function POST(request: Request) {
     campaign_id?: string | null
   }
 
-  const { form_id, date_from, date_to, template_name, template_language = 'en', message, campaign_id } = body
+  const { page_id, form_id, date_from, date_to, template_name, template_language = 'en', message, campaign_id } = body
 
   if (!message?.trim())       return NextResponse.json({ error: 'message required' }, { status: 400 })
   if (!template_name?.trim()) return NextResponse.json({ error: 'template_name required' }, { status: 400 })
@@ -81,6 +89,9 @@ export async function POST(request: Request) {
     .not('phone', 'is', null)
     .in('wa_status', ['imported', 'failed'])
 
+  // Same page scoping as the GET count above — must match, or a merchant could
+  // preview N leads and then actually send to a larger, unexpected audience.
+  if (page_id)   leadsQ = leadsQ.eq('page_id', page_id)
   if (form_id)   leadsQ = leadsQ.eq('form_id', form_id)
   if (date_from) leadsQ = leadsQ.gte('created_at', `${date_from}T00:00:00Z`)
   if (date_to)   leadsQ = leadsQ.lte('created_at', `${date_to}T23:59:59Z`)

@@ -478,6 +478,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
     const t = setTimeout(async () => {
       setLoadingCount(true)
       const p = new URLSearchParams()
+      if (selectedPageId) p.set('page_id', selectedPageId)
       if (selectedFormId) p.set('form_id', selectedFormId)
       if (dateFrom) p.set('date_from', dateFrom)
       if (dateTo)   p.set('date_to', dateTo)
@@ -489,7 +490,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
       setLoadingCount(false)
     }, 500)
     return () => clearTimeout(t)
-  }, [selectedFormId, dateFrom, dateTo])
+  }, [selectedPageId, selectedFormId, dateFrom, dateTo])
 
   // Fetch approved templates when moving to template step
   useEffect(() => {
@@ -537,6 +538,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            page_id:           selectedPageId,
             form_id:           selectedFormId,
             date_from:         dateFrom,
             date_to:           dateTo,
