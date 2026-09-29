@@ -319,6 +319,11 @@ export default function ContactsPage() {
   const [contacts, setContacts]         = useState<Contact[]>([])
   const [campaigns, setCampaigns]       = useState<Campaign[]>([])
   const [loading, setLoading]           = useState(true)
+  // Only the very first load should blank the page out to a skeleton/spinner.
+  // Every later refetch (manual refresh, after an upload) keeps the current
+  // numbers/list on screen and just swaps them in once the new data arrives —
+  // re-showing a skeleton on every refresh made the whole page flicker.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [search, setSearch]             = useState('')
   const [activeTab, setActiveTab]       = useState<'all' | 'opted-in' | 'opted-out'>('all')
   const [showUpload, setShowUpload]     = useState(false)
@@ -342,7 +347,10 @@ export default function ContactsPage() {
       }
     } catch { /* keep current UI */ }
     setLoading(false)
+    setHasLoadedOnce(true)
   }, [])
+
+  const showSkeleton = loading && !hasLoadedOnce
 
   useEffect(() => { load() }, [load])
 
@@ -420,7 +428,7 @@ export default function ContactsPage() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Contacts</h1>
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-              {loading ? 'Loading…' : (
+              {showSkeleton ? 'Loading…' : (
                 <>
                   {stats.total.toLocaleString()} contacts saved
                   {stats.completed > 0 && ` · ${stats.completed} campaign${stats.completed !== 1 ? 's' : ''} completed`}
@@ -432,7 +440,7 @@ export default function ContactsPage() {
             <button onClick={load}
               className="p-2 text-gray-400 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition"
               title="Refresh">
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button onClick={() => setShowUpload(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition">
@@ -454,7 +462,7 @@ export default function ContactsPage() {
             { label: 'Campaigns done',  value: stats.completed, color: '#f59e0b' },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 sm:p-4 min-w-0">
-              {loading ? (
+              {showSkeleton ? (
                 <div className="h-7 sm:h-8 w-10 bg-gray-100 rounded animate-pulse" />
               ) : (
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 tabular-nums">{s.value.toLocaleString()}</p>
@@ -487,7 +495,7 @@ export default function ContactsPage() {
                 }`}
               >
                 {tab.label}
-                {!loading && (
+                {!showSkeleton && (
                   <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
                     activeTab === tab.id ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'
                   }`}>
@@ -521,7 +529,7 @@ export default function ContactsPage() {
           </div>
 
           {/* Table */}
-          {loading ? (
+          {showSkeleton ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
             </div>
