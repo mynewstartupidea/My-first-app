@@ -15,7 +15,12 @@ export async function GET(request: Request) {
   const days    = range === '7d' ? 7 : range === '90d' ? 90 : 30
   const fromDate = new Date(Date.now() - days * 86400000).toISOString()
 
-  // Resolve org visibility (same pattern as leads API)
+  // Resolve org visibility — was matching `user_id.eq.${user.id}` (the viewer's
+  // own id) instead of the org owner's, same class of bug already fixed in
+  // /api/facebook/leads: since leads.user_id always holds the ORG OWNER's id,
+  // that clause never matched anything for a team member, so anyone not in
+  // open_pool mode saw only leads explicitly assigned to them — for most
+  // orgs (manual/round_robin distribution) that's close to nothing.
   let orgOwnerId: string | null = null
   let distMode = 'manual'
   const { data: memberRow } = await service
@@ -35,16 +40,34 @@ export async function GET(request: Request) {
       distMode   = org.lead_distribution_mode ?? 'manual'
     }
   }
+  const ownerId = orgOwnerId ?? user.id
 
   const visibilityFilter = (orgOwnerId && distMode === 'open_pool')
-    ? `user_id.eq.${user.id},assigned_to.eq.${user.id},and(user_id.eq.${orgOwnerId},assigned_to.is.null)`
-    : `user_id.eq.${user.id},assigned_to.eq.${user.id}`
+    ? `assigned_to.eq.${user.id},and(user_id.eq.${ownerId},assigned_to.is.null)`
+    : `user_id.eq.${ownerId},assigned_to.eq.${user.id}`
 
-  const { data: leads } = await service
+  // Scoped to the currently connected Facebook page, same as the Leads page's
+  // own default and the campaign audience count — without this, an account
+  // that has ever connected more than one page over time pulled in leads from
+  // every page it has EVER seen, not just the one currently connected, so
+  // "Total Leads" here didn't match the Leads page at all.
+  const { data: defaultConnection } = await service
+    .from('facebook_connections')
+    .select('page_id')
+    .eq('user_id', ownerId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const defaultPageId = defaultConnection?.page_id ?? null
+
+  let leadsQuery = service
     .from('leads')
     .select('id,lead_status,wa_status,created_at,ad_name,adset_name,campaign_name,form_name,form_id')
     .or(visibilityFilter)
     .gte('created_at', fromDate)
+  if (defaultPageId) leadsQuery = leadsQuery.eq('page_id', defaultPageId)
+
+  const { data: leads } = await leadsQuery
 
   const all = leads ?? []
 
