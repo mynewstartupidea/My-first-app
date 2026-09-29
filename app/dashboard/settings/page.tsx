@@ -1685,7 +1685,7 @@ function SettingsInner() {
                 if (sendingReset) return
                 setSendingReset(true)
                 const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-                  redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/dashboard/settings`,
+                  redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/dashboard/settings&flow=recovery`,
                 })
                 setSendingReset(false)
                 if (error) showToast(error.message, false)

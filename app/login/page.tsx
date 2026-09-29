@@ -105,6 +105,19 @@ function LoginForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The PKCE (?code=) recovery path — resetPasswordForEmail() is called from
+  // the browser client, which defaults to PKCE flow, so it's completed
+  // server-side by /auth/callback (exchangeCodeForSession) rather than the
+  // hash-parsing above. That route redirects here with ?needsPassword=1 once
+  // the session is already established via cookies; this just needs to show
+  // the same "set a new password" form the hash-based flow uses.
+  useEffect(() => {
+    if (searchParams.get('needsPassword') !== '1') return
+    setNeedsPassword(true)
+    window.history.replaceState(null, '', window.location.pathname)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (!returnTo) return
     let cancelled = false
@@ -137,7 +150,7 @@ function LoginForm() {
 
     if (mode === 'forgot') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${getAppUrl()}/auth/callback?next=/dashboard`,
+        redirectTo: `${getAppUrl()}/auth/callback?next=/dashboard&flow=recovery`,
       })
       setLoading(false)
       if (error) { setError(error.message); return }
