@@ -145,6 +145,7 @@ function SettingsInner() {
   const [inviteRole, setInviteRole]           = useState('member')
   const [sendingInvite, setSendingInvite]     = useState(false)
   const [removingId, setRemovingId]           = useState<string | null>(null)
+  const [changingRoleId, setChangingRoleId]   = useState<string | null>(null)
   // Lead distribution
   const [distMode,    setDistMode]            = useState<'manual'|'open_pool'|'round_robin'>('manual')
   const [distMembers, setDistMembers]         = useState<{user_id:string;email:string;weight:number}[]>([])
@@ -737,6 +738,25 @@ function SettingsInner() {
     if (!res.ok) { showToast(data.error ?? 'Failed to remove member', false); return }
     showToast('Member removed')
     setMembers(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function handleChangeRole(id: string, role: string) {
+    const prev = members.find(m => m.id === id)?.role
+    setChangingRoleId(id)
+    setMembers(list => list.map(m => m.id === id ? { ...m, role } : m)) // optimistic
+    const res = await fetch('/api/team/members', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, role }),
+    })
+    setChangingRoleId(null)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      showToast(data.error ?? 'Failed to update role', false)
+      if (prev) setMembers(list => list.map(m => m.id === id ? { ...m, role: prev } : m)) // revert
+      return
+    }
+    showToast('Role updated')
   }
 
   async function saveDist() {
@@ -1444,9 +1464,24 @@ function SettingsInner() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-800 truncate">{m.email}</p>
                         <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                          <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize', ROLE_COLORS[m.role] ?? ROLE_COLORS.member)}>
-                            {m.role === 'member' ? 'Sales' : m.role}
-                          </span>
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={m.role}
+                              onChange={e => handleChangeRole(m.id, e.target.value)}
+                              disabled={changingRoleId === m.id}
+                              className={cn(
+                                'text-[10px] font-medium pl-1.5 pr-4 py-0.5 rounded-full capitalize appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-wait border-0 focus:outline-none focus:ring-1 focus:ring-offset-1',
+                                ROLE_COLORS[m.role] ?? ROLE_COLORS.member
+                              )}>
+                              <option value="admin">Admin</option>
+                              <option value="manager">Manager</option>
+                              <option value="member">Sales</option>
+                              <option value="support">Support</option>
+                            </select>
+                            {changingRoleId === m.id
+                              ? <Loader2 className="w-2.5 h-2.5 animate-spin absolute right-1 pointer-events-none" />
+                              : <ChevronDown className="w-2.5 h-2.5 absolute right-1 pointer-events-none" />}
+                          </div>
                           <span className={cn(
                             'text-[10px] px-1.5 py-0.5 rounded-full',
                             m.status === 'pending' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'
