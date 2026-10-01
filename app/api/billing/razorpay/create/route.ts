@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getUserRole } from '@/lib/get-user-role'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
-import { getOrCreateLandingPlan, createRazorpaySubscription, cancelRazorpaySubscription } from '@/lib/razorpay'
+import { getOrCreateLandingPlan, createRazorpaySubscription } from '@/lib/razorpay'
 
 // Turns the Settings → Billing "Upgrade" buttons (previously just a WhatsApp
 // chat link — no automated checkout existed) into a real subscription. The
@@ -62,24 +62,29 @@ export async function POST(request: Request) {
     notes: { user_id: ownerId, plan_id: body.planId },
   })
 
-  if (existing?.razorpay_subscription_id && existing.status === 'active') {
-    try { await cancelRazorpaySubscription(existing.razorpay_subscription_id) }
-    catch (e) { console.error('[billing/razorpay/create] cancel-old failed:', e) }
-  }
-
-  await service.from('billing').upsert(
+  // Record this as a PENDING change, not an immediate switch — the person
+  // hasn't actually paid yet at this point (the Razorpay checkout popup only
+  // opens client-side after this response returns). The old subscription
+  // stays fully active and untouched; the webhook promotes pending → active
+  // (and only then cancels the old subscription) once Razorpay confirms the
+  // new one was actually authenticated/charged. If they abandon checkout,
+  // the old subscription is simply still there, exactly as it was.
+  const { error: upsertErr } = await service.from('billing').upsert(
     {
       user_id: ownerId,
-      plan_name: body.planId,
-      status: 'pending',
       billing_provider: 'razorpay',
-      razorpay_subscription_id: subscriptionId,
-      razorpay_plan_id: planId,
-      messages_limit: plan.messagesLimit,
+      pending_razorpay_subscription_id: subscriptionId,
+      pending_plan_name: body.planId,
+      pending_messages_limit: plan.messagesLimit,
+      previous_razorpay_subscription_id: existing?.status === 'active' ? existing.razorpay_subscription_id : null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' },
   )
+  if (upsertErr) {
+    console.error('[billing/razorpay/create] billing upsert failed:', upsertErr.message)
+    return NextResponse.json({ error: 'Could not start checkout. Please try again.' }, { status: 500 })
+  }
 
   return NextResponse.json({
     subscriptionId,

@@ -530,3 +530,29 @@ CREATE INDEX IF NOT EXISTS landing_leads_subscription_idx ON landing_leads(razor
 -- Caches Plan IDs created via Razorpay's API (table already existed, unused
 -- until now) so a redeploy or cold start doesn't create a duplicate Plan in
 -- the Razorpay dashboard every time — lib/razorpay.ts looks here first.
+
+-- ─── Billing: fix a silently-failing upgrade/downgrade flow ───────────────────
+-- app/api/billing/razorpay/create/route.ts was upserting status='pending' on
+-- every plan change — 'pending' was never in this CHECK constraint, so that
+-- upsert has been failing on every single upgrade/downgrade attempt (confirmed
+-- live against production: a probe upsert with status='pending' threw
+-- "violates check constraint billing_status_check", and zero existing rows
+-- have ever had status='pending'). The Razorpay subscription itself got
+-- created either way, but the billing row never recorded it, so the webhook
+-- had nothing to match against when payment later completed.
+--
+-- Also adds separate "pending change" columns so a plan change can be
+-- recorded BEFORE the new Razorpay subscription is actually paid for,
+-- without touching the still-valid currently-active subscription — the old
+-- code cancelled the old subscription and overwrote plan_name/messages_limit
+-- immediately on creating the new (unpaid) one, so abandoning the Razorpay
+-- checkout popup left the account with no working subscription at all.
+ALTER TABLE billing DROP CONSTRAINT IF EXISTS billing_status_check;
+ALTER TABLE billing ADD CONSTRAINT billing_status_check
+  CHECK (status IN ('trialing','active','cancelled','past_due','expired','pending'));
+
+ALTER TABLE billing
+  ADD COLUMN IF NOT EXISTS pending_razorpay_subscription_id  TEXT,
+  ADD COLUMN IF NOT EXISTS pending_plan_name                 TEXT,
+  ADD COLUMN IF NOT EXISTS pending_messages_limit             INTEGER,
+  ADD COLUMN IF NOT EXISTS previous_razorpay_subscription_id TEXT;

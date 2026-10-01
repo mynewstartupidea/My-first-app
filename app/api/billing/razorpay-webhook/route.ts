@@ -8,7 +8,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { verifyRazorpayWebhookSignature } from '@/lib/razorpay'
+import { verifyRazorpayWebhookSignature, cancelRazorpaySubscription } from '@/lib/razorpay'
 
 interface RazorpayWebhookPayload {
   event: string
@@ -55,8 +55,57 @@ export async function POST(request: Request) {
     if (newStatus === 'active' && body.event === 'subscription.charged') updates.messages_used = 0 // new billing cycle
     if (newStatus === 'cancelled') updates.cancelled_at = new Date().toISOString()
 
-    const { error } = await service.from('billing').update(updates).eq('razorpay_subscription_id', subscriptionId)
+    const { data: updated, error } = await service
+      .from('billing').update(updates).eq('razorpay_subscription_id', subscriptionId).select('user_id')
     if (error) console.error('[billing/razorpay-webhook] update error:', error.message)
+
+    // No row has this as its ACTIVE subscription yet — check whether it's a
+    // PENDING plan change instead (see app/api/billing/razorpay/create/route.ts).
+    // Only a confirming event promotes it; an abandoned/failed checkout just
+    // clears the pending fields and leaves the still-active old subscription
+    // untouched.
+    if (!error && (!updated || updated.length === 0)) {
+      const { data: pendingRow } = await service
+        .from('billing')
+        .select('user_id, pending_plan_name, pending_messages_limit, previous_razorpay_subscription_id')
+        .eq('pending_razorpay_subscription_id', subscriptionId)
+        .maybeSingle()
+
+      if (pendingRow) {
+        const isConfirming = ['trialing', 'active'].includes(newStatus)
+        if (isConfirming) {
+          await service.from('billing').update({
+            razorpay_subscription_id: subscriptionId,
+            plan_name: pendingRow.pending_plan_name,
+            messages_limit: pendingRow.pending_messages_limit,
+            status: newStatus,
+            messages_used: 0,
+            pending_razorpay_subscription_id: null,
+            pending_plan_name: null,
+            pending_messages_limit: null,
+            previous_razorpay_subscription_id: null,
+            current_period_start: entity?.current_start ? new Date(entity.current_start * 1000).toISOString() : undefined,
+            current_period_end:   entity?.current_end   ? new Date(entity.current_end   * 1000).toISOString() : undefined,
+            updated_at: new Date().toISOString(),
+          }).eq('user_id', pendingRow.user_id)
+
+          if (pendingRow.previous_razorpay_subscription_id) {
+            try { await cancelRazorpaySubscription(pendingRow.previous_razorpay_subscription_id) }
+            catch (e) { console.error('[billing/razorpay-webhook] cancel-old failed:', e) }
+          }
+        } else {
+          // The new subscription failed/was cancelled before ever activating —
+          // drop the pending change, leave the real active subscription alone.
+          await service.from('billing').update({
+            pending_razorpay_subscription_id: null,
+            pending_plan_name: null,
+            pending_messages_limit: null,
+            previous_razorpay_subscription_id: null,
+            updated_at: new Date().toISOString(),
+          }).eq('user_id', pendingRow.user_id)
+        }
+      }
+    }
   } else {
     console.log('[billing/razorpay-webhook] unhandled event:', body.event)
   }
