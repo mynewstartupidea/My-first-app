@@ -556,3 +556,21 @@ ALTER TABLE billing
   ADD COLUMN IF NOT EXISTS pending_plan_name                 TEXT,
   ADD COLUMN IF NOT EXISTS pending_messages_limit             INTEGER,
   ADD COLUMN IF NOT EXISTS previous_razorpay_subscription_id TEXT;
+
+-- ─── Meta webhook: close the dedupe race, not just the sequential-retry case ──
+-- app/api/meta/webhook/route.ts already checked "does a row with this
+-- message_id exist?" before inserting, which handles Meta's sequential
+-- webhook retries fine, but not two deliveries landing concurrently — both
+-- can pass that SELECT before either INSERT commits, double-processing one
+-- customer message through the qualifying flow and the AI auto-reply. A real
+-- unique constraint + upsert(...ignoreDuplicates) makes the check atomic.
+-- A plain UNIQUE constraint (not a partial index) is deliberate here: Postgres
+-- treats every NULL as distinct under standard UNIQUE, so rows with no
+-- message_id (some coexistence/history inbound rows) still coexist freely —
+-- and PostgREST's upsert(onConflict: 'message_id') needs a plain constraint
+-- to infer as its arbiter; a partial index needs a matching WHERE clause it
+-- doesn't send.
+ALTER TABLE inbound_messages
+  DROP CONSTRAINT IF EXISTS inbound_messages_message_id_key;
+ALTER TABLE inbound_messages
+  ADD CONSTRAINT inbound_messages_message_id_key UNIQUE (message_id);

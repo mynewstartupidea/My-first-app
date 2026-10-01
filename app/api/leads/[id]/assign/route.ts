@@ -41,12 +41,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     assignedName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Unknown'
   }
 
-  const { error } = await service
-    .from('leads')
-    .update({ assigned_to: targetId, assigned_name: assignedName })
-    .eq('id', id)
+  // Self-claiming an unclaimed lead (the "Take this lead" button, open_pool
+  // mode) is a race two reps can genuinely hit at the same moment — the old
+  // unconditional update let both requests "succeed" with their own name
+  // while only whichever write landed last in Postgres was the real owner,
+  // silently lying to the loser that they own a lead they don't. Guard this
+  // case with `assigned_to IS NULL` and check the row actually changed;
+  // an explicit reassignment (targetId is someone else, e.g. a manager
+  // moving a lead) is a deliberate override and keeps the old behavior.
+  const isSelfClaim = targetId === user.id
+  let query = service.from('leads').update({ assigned_to: targetId, assigned_name: assignedName }).eq('id', id)
+  if (isSelfClaim) query = query.is('assigned_to', null)
+
+  const { data: updatedRows, error } = await query.select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (isSelfClaim && (!updatedRows || updatedRows.length === 0)) {
+    return NextResponse.json({ error: 'This lead was just claimed by someone else.' }, { status: 409 })
+  }
   return NextResponse.json({ ok: true, assigned_name: assignedName })
 }
 

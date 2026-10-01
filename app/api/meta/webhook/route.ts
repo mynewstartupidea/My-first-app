@@ -127,24 +127,34 @@ export async function POST(request: Request) {
         if (isBanned) {
           const { data: waAccount } = await supabase
             .from('whatsapp_accounts')
-            .select('user_id')
+            .select('user_id, quality_rating')
             .eq('waba_id', entry.id)
             .maybeSingle()
 
           if (waAccount) {
+            // Meta can redeliver account_update for an already-banned WABA
+            // (retries, or multiple related events while the ban persists).
+            // Only notify on the actual transition into RED, same guard the
+            // quality-degradation block above already uses — without it,
+            // every redelivery queued another identical "account restricted"
+            // notification.
+            const alreadyRed = waAccount.quality_rating === 'RED'
+
             await supabase.from('whatsapp_accounts')
               .update({ quality_rating: 'RED' })
               .eq('user_id', waAccount.user_id)
 
-            await supabase.from('notifications').insert({
-              user_id: waAccount.user_id,
-              type:    'wa_health_flagged',
-              title:   '🔴 WhatsApp account restricted by Meta',
-              body:    'Your WhatsApp Business account has been disabled. Stop all sending and contact Meta support immediately.',
-              link:    '/dashboard/settings?tab=whatsapp',
-              is_read: false,
-            })
-            console.log(`[Meta webhook] account banned notification sent to user=${waAccount.user_id}`)
+            if (!alreadyRed) {
+              await supabase.from('notifications').insert({
+                user_id: waAccount.user_id,
+                type:    'wa_health_flagged',
+                title:   '🔴 WhatsApp account restricted by Meta',
+                body:    'Your WhatsApp Business account has been disabled. Stop all sending and contact Meta support immediately.',
+                link:    '/dashboard/settings?tab=whatsapp',
+                is_read: false,
+              })
+              console.log(`[Meta webhook] account banned notification sent to user=${waAccount.user_id}`)
+            }
           }
         }
         continue
@@ -176,6 +186,14 @@ export async function POST(request: Request) {
           .maybeSingle()
 
         for (const echo of echoes) {
+          // Same redelivery risk as the inbound-message dedupe below — Meta
+          // retries webhook delivery on a slow ack, which would otherwise
+          // insert the same echo twice.
+          if (echo.id) {
+            const { data: dup } = await supabase
+              .from('messages').select('id').eq('bsp_message_id', echo.id).maybeSingle()
+            if (dup) { console.log(`[Meta webhook] duplicate echo delivery, skipping id=${echo.id}`); continue }
+          }
           const toPhone = echo.to ?? ''
           const body    = echo.type === 'text' ? echo.text?.body ?? '' : `[${echo.type}]`
           const { error: echoErr } = await supabase.from('messages').insert({
@@ -232,6 +250,14 @@ export async function POST(request: Request) {
               historyMsgCount++
               const body      = msg.type === 'text' ? msg.text?.body ?? '' : `[${msg.type}]`
               const isFromBiz = !!businessPhone && msg.from === businessPhone
+              // Same redelivery risk as the other message-insert paths in
+              // this handler — Meta can retry the whole webhook delivery.
+              if (msg.id) {
+                const table = isFromBiz ? 'messages' : 'inbound_messages'
+                const col   = isFromBiz ? 'bsp_message_id' : 'message_id'
+                const { data: dup } = await supabase.from(table).select('id').eq(col, msg.id).maybeSingle()
+                if (dup) { console.log(`[Meta webhook] duplicate history message, skipping id=${msg.id}`); continue }
+              }
               if (isFromBiz) {
                 await supabase.from('messages').insert({
                   store_id:       waAccount?.store_id ?? null,
@@ -271,21 +297,6 @@ export async function POST(request: Request) {
 
         console.log(`[Meta webhook] inbound msg from=${fromPhone} wabaId=${wabaId} type=${msg.type}`)
 
-        // Meta retries webhook delivery if this handler doesn't ack quickly —
-        // and a real Anthropic call + WhatsApp send per message can easily
-        // take long enough to trigger that. Without this check, a retried
-        // delivery reprocesses the same inbound message from scratch: a
-        // second run through the qualifying flow, and a second, possibly
-        // different, AI reply sent to the same customer for one message.
-        if (msg.id) {
-          const { data: dup } = await supabase
-            .from('inbound_messages').select('id').eq('message_id', msg.id).maybeSingle()
-          if (dup) {
-            console.log(`[Meta webhook] duplicate delivery, already processed message_id=${msg.id} — skipping`)
-            continue
-          }
-        }
-
         const { data: waAccount } = await supabase
           .from('whatsapp_accounts')
           .select('store_id, user_id')
@@ -296,19 +307,36 @@ export async function POST(request: Request) {
           console.warn(`[Meta webhook] no whatsapp_account for phone_number_id=${wabaId}`)
         }
 
-        const { error: insertErr } = await supabase.from('inbound_messages').insert({
-          store_id:     waAccount?.store_id ?? null,
-          waba_id:      wabaId,
-          from_phone:   fromPhone,
-          to_phone:     toPhone,
-          message_id:   msg.id,
-          message_type: msg.type,
-          body:         msgBody,
-          status:       'received',
-          raw_payload:  msg as unknown as Record<string, unknown>,
-        })
+        // Meta retries webhook delivery if this handler doesn't ack quickly —
+        // and a real Anthropic call + WhatsApp send per message can easily
+        // take long enough to trigger that. A plain "does this row already
+        // exist?" check only catches sequential retries — two deliveries
+        // landing concurrently can both pass that check before either insert
+        // commits. upsert + a real unique index on message_id
+        // (supabase/migrations.sql) makes this atomic: ignoreDuplicates means
+        // a losing request's row is silently skipped rather than erroring,
+        // and .select() only returns rows that were actually inserted, so an
+        // empty result here means someone else already won this message.
+        const { data: inserted, error: insertErr } = await supabase
+          .from('inbound_messages')
+          .upsert({
+            store_id:     waAccount?.store_id ?? null,
+            waba_id:      wabaId,
+            from_phone:   fromPhone,
+            to_phone:     toPhone,
+            message_id:   msg.id,
+            message_type: msg.type,
+            body:         msgBody,
+            status:       'received',
+            raw_payload:  msg as unknown as Record<string, unknown>,
+          }, { onConflict: 'message_id', ignoreDuplicates: true })
+          .select('id')
 
         if (insertErr) console.error('[Meta webhook] inbound_messages insert error:', insertErr.message)
+        if (msg.id && !insertErr && (!inserted || inserted.length === 0)) {
+          console.log(`[Meta webhook] duplicate delivery, already processed message_id=${msg.id} — skipping`)
+          continue
+        }
 
         // Qualifying flow: walk the lead through their form's configured
         // follow-up questions. Wrapped so a flow bug never breaks the webhook ack.

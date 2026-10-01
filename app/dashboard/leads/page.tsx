@@ -1738,6 +1738,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
   const [sendFollowup, setSendFollowup] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [assigning, setAssigning] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
   const [tagging, setTagging]     = useState(false)
   const [localAssignedName, setLocalAssignedName] = useState(lead.assigned_name)
 
@@ -1787,6 +1788,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
 
   const handleAssign = async (userId?: string, userName?: string) => {
     setAssigning(true)
+    setAssignError(null)
     const body: Record<string, string> = {}
     if (userId) { body.userId = userId; if (userName) body.userName = userName }
     const r = await fetch(`/api/leads/${lead.id}/assign`, {
@@ -1794,8 +1796,12 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    const d = await r.json() as { assigned_name?: string }
-    if (d.assigned_name) {
+    const d = await r.json() as { assigned_name?: string; error?: string }
+    if (!r.ok) {
+      // Most commonly a 409 — someone else claimed this lead in the race
+      // between opening this modal and tapping "Take this lead".
+      setAssignError(d.error ?? 'Could not assign this lead.')
+    } else if (d.assigned_name) {
       setLocalAssignedName(d.assigned_name)
       onUpdate(lead.id, { assigned_name: d.assigned_name })
     }
@@ -1891,6 +1897,9 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
                 <UserCheck className="w-3 h-3" />
                 Take this lead
               </button>
+            )}
+            {assignError && (
+              <p className="text-[11px] text-red-500 w-full mt-1">{assignError}</p>
             )}
           </div>
         </div>
