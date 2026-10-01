@@ -906,14 +906,20 @@ function LeadDateRangePicker({ from, to, onChange }: {
   from: string | null; to: string | null
   onChange: (from: string | null, to: string | null) => void
 }) {
-  const today = new Date().toISOString().split('T')[0]
+  // Local calendar date, not UTC — toISOString() converts through UTC, so
+  // for part of the day in any timezone east of UTC (incl. IST, which this
+  // is an India-focused product in) `today` lands on yesterday: the native
+  // date inputs' max={today} below would then block selecting the actual
+  // current day, and the preset buttons would exclude it too.
+  const toLocalYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const today = toLocalYMD(new Date())
   const preset = (days: number | 'all') => {
     const t = new Date()
-    const ts = t.toISOString().split('T')[0]
+    const ts = toLocalYMD(t)
     if (days === 'all') { onChange('2020-01-01', ts); return }
     const f = new Date(t)
     f.setDate(f.getDate() - (days as number))
-    onChange(f.toISOString().split('T')[0], ts)
+    onChange(toLocalYMD(f), ts)
   }
   const fmt = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   return (

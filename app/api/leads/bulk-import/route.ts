@@ -10,6 +10,11 @@ import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { normalizeIndianPhone } from '@/lib/utils'
 
 const MAX_ROWS = 2000
+// Same shape-check as manual entry (app/api/leads/manual/route.ts) — doesn't
+// require normalizeIndianPhone() to succeed (real international numbers can
+// reasonably fail that), just rejects things that clearly aren't a phone
+// number (e.g. a mis-mapped column landing text like a city name here).
+const PHONE_SHAPE_RE = /^[\d\s+()-]{6,20}$/
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -32,8 +37,17 @@ export async function POST(request: Request) {
   const { data: store } = await service
     .from('stores').select('id').eq('user_id', ownerId).eq('is_active', true).maybeSingle()
 
-  const insertRows = usableRows.map(r => {
-    const normalizedPhone = r.phone?.trim() ? (normalizeIndianPhone(r.phone.trim()) ?? r.phone.trim()) : null
+  let invalidPhones = 0
+  const candidateRows = usableRows.map(r => {
+    const rawPhone = r.phone?.trim() ?? ''
+    let normalizedPhone: string | null = null
+    if (rawPhone) {
+      if (PHONE_SHAPE_RE.test(rawPhone)) {
+        normalizedPhone = normalizeIndianPhone(rawPhone) ?? rawPhone
+      } else {
+        invalidPhones++ // clearly not a phone (e.g. a mis-mapped column) — drop it, don't save garbage as "imported"
+      }
+    }
     return {
       user_id:   ownerId,
       store_id:  store?.id ?? null,
@@ -46,12 +60,43 @@ export async function POST(request: Request) {
     }
   })
 
-  const { data: saved, error } = await service.from('leads').insert(insertRows).select('id')
+  // Duplicate detection — leads has no uniqueness constraint on (user_id,
+  // phone) for non-Facebook sources, so re-uploading the same partner CSV
+  // (e.g. after a refresh mid-import, or just not being sure it worked the
+  // first time — the modal gives no "already imported" feedback) silently
+  // created a second copy of every row, which then gets WhatsApp-messaged
+  // twice by a bulk send.
+  const phonesToCheck = [...new Set(candidateRows.map(r => r.phone).filter((p): p is string => !!p))]
+  let existingPhones = new Set<string>()
+  if (phonesToCheck.length) {
+    const { data: existing } = await service
+      .from('leads').select('phone').eq('user_id', ownerId).in('phone', phonesToCheck)
+    existingPhones = new Set((existing ?? []).map(r => r.phone as string))
+  }
+
+  const seenInBatch = new Set<string>()
+  let duplicateRows = 0
+  const insertRows = candidateRows.filter(r => {
+    if (!r.phone) return true // no phone to dedupe on — keep it (name/email-only lead)
+    if (existingPhones.has(r.phone) || seenInBatch.has(r.phone)) { duplicateRows++; return false }
+    seenInBatch.add(r.phone)
+    return true
+  })
+
+  const { data: saved, error } = insertRows.length
+    ? await service.from('leads').insert(insertRows).select('id')
+    : { data: [], error: null }
 
   if (error) {
     console.error('[leads/bulk-import] insert error:', error)
     return NextResponse.json({ error: 'Failed to import leads' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, imported: saved?.length ?? 0, skipped: rows.length - usableRows.length })
+  return NextResponse.json({
+    ok: true,
+    imported: saved?.length ?? 0,
+    skipped: rows.length - usableRows.length,
+    duplicates: duplicateRows,
+    invalidPhones,
+  })
 }

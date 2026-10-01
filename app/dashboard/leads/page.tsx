@@ -632,7 +632,7 @@ function parseCsv(text: string): string[][] {
   return rows.filter(r => r.some(c => c.trim() !== ''))
 }
 
-function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImported: (count: number) => void }) {
+function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImported: (result: { imported: number; duplicates: number; invalidPhones: number }) => void }) {
   const [rows, setRows]           = useState<string[][]>([])
   const [headers, setHeaders]     = useState<string[]>([])
   const [nameCol, setNameCol]     = useState(-1)
@@ -680,8 +680,8 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
       setError(d.error ?? 'Import failed')
       return
     }
-    const d = await res.json() as { imported: number }
-    onImported(d.imported)
+    const d = await res.json() as { imported: number; duplicates?: number; invalidPhones?: number }
+    onImported({ imported: d.imported, duplicates: d.duplicates ?? 0, invalidPhones: d.invalidPhones ?? 0 })
   }
 
   return (
@@ -1269,7 +1269,11 @@ function DateRangePicker({ from, to, onChange }: {
   from: string | null; to: string | null
   onChange: (from: string | null, to: string | null) => void
 }) {
-  const today = new Date().toISOString().split('T')[0]
+  // Local calendar date, not UTC — see FollowupDatePicker above for why
+  // toISOString() is wrong here (off by a day for part of the day in any
+  // timezone east of UTC, which includes IST).
+  const toLocalYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const today = toLocalYMD(new Date())
   const now   = new Date()
   const [ry, setRy] = useState(now.getFullYear())
   const [rm, setRm] = useState(now.getMonth())
@@ -1304,9 +1308,9 @@ function DateRangePicker({ from, to, onChange }: {
 
   const preset = (days: number | 'all') => {
     const t = new Date()
-    const ts = t.toISOString().split('T')[0]
+    const ts = toLocalYMD(t)
     if (days === 'all') { onChange('2020-01-01', ts) }
-    else { const f = new Date(t); f.setDate(f.getDate() - (days as number)); onChange(f.toISOString().split('T')[0], ts) }
+    else { const f = new Date(t); f.setDate(f.getDate() - (days as number)); onChange(toLocalYMD(f), ts) }
     setPhase('start')
   }
 
@@ -1565,7 +1569,14 @@ function FollowupDatePicker({ value, onChange }: {
   onChange: (v: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const today = new Date().toISOString().split('T')[0]
+  // Local calendar date, not UTC — toISOString() converts through UTC, so
+  // for anyone east of UTC (this is an India-focused product; IST is
+  // UTC+5:30) any local time before ~5:30am still reads as the PREVIOUS
+  // day here, marking yesterday's square as "today" and letting the
+  // "Tomorrow" preset actually pick today — the saved follow-up date lands
+  // in the past and the lead shows up as "Overdue" instead of "Today".
+  const toLocalYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const today = toLocalYMD(new Date())
   const now   = new Date()
   const [year,  setYear]  = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -1600,7 +1611,7 @@ function FollowupDatePicker({ value, onChange }: {
   // Quick presets
   const addDays = (n: number) => {
     const d = new Date(); d.setDate(d.getDate() + n)
-    return d.toISOString().split('T')[0]
+    return toLocalYMD(d)
   }
   const presets = [
     { label: 'Tomorrow', ds: addDays(1) },
@@ -4163,9 +4174,16 @@ function LeadsContent() {
     {showCsvImport && (
         <CsvImportModal
           onClose={() => setShowCsvImport(false)}
-          onImported={(count) => {
+          onImported={({ imported, duplicates, invalidPhones }) => {
             setShowCsvImport(false)
-            setBanner({ type: 'success', msg: `${count} lead${count !== 1 ? 's' : ''} imported` })
+            const extras = [
+              duplicates > 0 ? `${duplicates} duplicate${duplicates !== 1 ? 's' : ''} skipped` : null,
+              invalidPhones > 0 ? `${invalidPhones} invalid phone number${invalidPhones !== 1 ? 's' : ''} skipped` : null,
+            ].filter(Boolean).join(', ')
+            setBanner({
+              type: 'success',
+              msg: `${imported} lead${imported !== 1 ? 's' : ''} imported${extras ? ` (${extras})` : ''}`,
+            })
             handleSourceFilterChange('channel_partner')
           }}
         />
