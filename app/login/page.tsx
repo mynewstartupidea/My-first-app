@@ -29,6 +29,15 @@ function LoginForm() {
   const [newPassword, setNewPassword]       = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [settingPassword, setSettingPassword] = useState(false)
+  // Forgot-password uses a typed-in code instead of a clickable link —
+  // resetPasswordForEmail() goes through the browser's PKCE flow, which
+  // stores its verification secret on whichever device/browser makes the
+  // request, so a link opened anywhere else (a different browser, device,
+  // or even just a different email app) silently fails. A code read off
+  // the email and typed into this same page has no such dependency.
+  const [otpSent, setOtpSent]               = useState(false)
+  const [resetCode, setResetCode]           = useState('')
+  const [resendingCode, setResendingCode]   = useState(false)
   const router      = useRouter()
   const searchParams = useSearchParams()
   const supabase    = useMemo(() => createClient(), [])
@@ -154,7 +163,7 @@ function LoginForm() {
       })
       setLoading(false)
       if (error) { setError(error.message); return }
-      setSuccess('Password reset link sent! Check your email inbox.')
+      setOtpSent(true)
       return
     }
 
@@ -175,6 +184,44 @@ function LoginForm() {
     window.location.href = safeReturnTo()
   }
 
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (newPassword.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (newPassword !== confirmPassword) { setError("Passwords don't match."); return }
+
+    setSettingPassword(true)
+    const { error: otpErr } = await supabase.auth.verifyOtp({ email, token: resetCode.trim(), type: 'recovery' })
+    if (otpErr) {
+      setSettingPassword(false)
+      setError('Invalid or expired code. Double-check it, or resend below.')
+      return
+    }
+
+    const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
+    if (updateErr) {
+      setSettingPassword(false)
+      setError(updateErr.message)
+      return
+    }
+
+    await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
+    setSettingPassword(false)
+    router.replace(safeReturnTo())
+  }
+
+  async function handleResendCode() {
+    if (resendingCode) return
+    setError('')
+    setResendingCode(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${getAppUrl()}/auth/callback?next=/dashboard&flow=recovery`,
+    })
+    setResendingCode(false)
+    if (error) { setError(error.message); return }
+    setSuccess('New code sent — check your email.')
+  }
+
   async function handleSetPassword(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -191,7 +238,7 @@ function LoginForm() {
   const titles: Record<Mode, { h: string; sub: string; btn: string }> = {
     signin: { h: 'Welcome back',       sub: 'Sign in to your dashboard',     btn: 'Sign In'            },
     signup: { h: 'Create your account', sub: 'Start recovering revenue today', btn: 'Create Account'     },
-    forgot: { h: 'Reset your password', sub: 'We\'ll email you a reset link', btn: 'Send reset link'    },
+    forgot: { h: 'Reset your password', sub: 'We\'ll email you a 6-digit code', btn: 'Send code'         },
   }
   const { h, sub, btn } = titles[mode]
 
@@ -286,15 +333,19 @@ function LoginForm() {
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {mode !== 'signin' && (
             <button
-              onClick={() => { setMode('signin'); reset() }}
+              onClick={() => { setMode('signin'); setOtpSent(false); setResetCode(''); reset() }}
               className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 mb-5 transition"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Back to sign in
             </button>
           )}
 
-          <h2 className="text-xl font-semibold text-slate-800 mb-1">{h}</h2>
-          <p className="text-slate-500 text-sm mb-6">{sub}</p>
+          <h2 className="text-xl font-semibold text-slate-800 mb-1">
+            {mode === 'forgot' && otpSent ? 'Enter the code' : h}
+          </h2>
+          <p className="text-slate-500 text-sm mb-6">
+            {mode === 'forgot' && otpSent ? <>We emailed a 6-digit code to <span className="font-medium text-slate-700">{email}</span></> : sub}
+          </p>
 
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4">
@@ -309,56 +360,116 @@ function LoginForm() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
-                placeholder="you@yourstore.com"
-              />
-            </div>
-
-            {mode !== 'forgot' && (
+          {mode === 'forgot' && otpSent ? (
+            <form onSubmit={handleVerifyCode} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">6-digit code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  value={resetCode}
+                  onChange={e => setResetCode(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base tracking-[0.3em] text-center font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                  placeholder="000000"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">New password</label>
                 <input
                   type="password"
                   required
                   minLength={6}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
                   placeholder="••••••••"
                 />
               </div>
-            )}
-
-            {mode === 'signin' && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => { setMode('forgot'); reset() }}
-                  className="text-xs text-[#25D366] hover:underline"
-                >
-                  Forgot password?
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                  placeholder="••••••••"
+                />
               </div>
-            )}
+              <button
+                type="submit"
+                disabled={settingPassword}
+                className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {settingPassword
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</>
+                  : 'Verify & set password'}
+              </button>
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={resendingCode}
+                className="w-full text-xs text-slate-400 hover:text-slate-600 transition disabled:opacity-60"
+              >
+                {resendingCode ? 'Resending…' : "Didn't get a code? Resend"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                  placeholder="you@yourstore.com"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> {mode === 'forgot' ? 'Sending link…' : 'Please wait…'}</>
-                : btn}
-            </button>
-          </form>
+              {mode !== 'forgot' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                    placeholder="••••••••"
+                  />
+                </div>
+              )}
+
+              {mode === 'signin' && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setMode('forgot'); reset() }}
+                    className="text-xs text-[#25D366] hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> {mode === 'forgot' ? 'Sending code…' : 'Please wait…'}</>
+                  : btn}
+              </button>
+            </form>
+          )}
 
           {mode === 'signin' && (
             <p className="text-center text-sm text-slate-500 mt-6">
