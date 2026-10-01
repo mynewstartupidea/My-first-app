@@ -146,7 +146,10 @@ function SettingsInner() {
   const [sendingInvite, setSendingInvite]     = useState(false)
   const [removingId, setRemovingId]           = useState<string | null>(null)
   const [changingRoleId, setChangingRoleId]   = useState<string | null>(null)
-  const [sendingReset, setSendingReset]       = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword]         = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
   // Lead distribution
   const [distMode,    setDistMode]            = useState<'manual'|'open_pool'|'round_robin'>('manual')
   const [distMembers, setDistMembers]         = useState<{user_id:string;email:string;weight:number}[]>([])
@@ -758,6 +761,36 @@ function SettingsInner() {
       return
     }
     showToast('Role updated')
+  }
+
+  // Changes the password directly for an already-authenticated user — no
+  // email round-trip at all. The previous design sent a password-reset
+  // email even though the person was already logged in, which routed
+  // through Supabase's PKCE email-link flow — that flow stores a secret in
+  // whichever browser/device requests it, so it silently fails if the link
+  // is opened anywhere else (a different browser, a different device,
+  // even a different profile). None of that applies here: re-verifying the
+  // current password via signInWithPassword, then calling updateUser(),
+  // works instantly and entirely within the current session.
+  async function handleChangePassword() {
+    if (changingPassword) return
+    if (newPassword.length < 6) { showToast('New password must be at least 6 characters', false); return }
+    if (newPassword !== confirmNewPassword) { showToast("New passwords don't match", false); return }
+
+    setChangingPassword(true)
+    const { error: verifyErr } = await supabase.auth.signInWithPassword({ email: userEmail, password: currentPassword })
+    if (verifyErr) {
+      setChangingPassword(false)
+      showToast('Current password is incorrect', false)
+      return
+    }
+
+    const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
+    setChangingPassword(false)
+    if (updateErr) { showToast(updateErr.message, false); return }
+
+    setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword('')
+    showToast('Password changed')
   }
 
   async function saveDist() {
@@ -1679,25 +1712,51 @@ function SettingsInner() {
               </div>
               Change Password
             </h2>
-            <p className="text-slate-500 text-sm mb-4">Send a password reset link to your email address.</p>
-            <button
-              onClick={async () => {
-                if (sendingReset) return
-                setSendingReset(true)
-                const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-                  redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/dashboard/settings&flow=recovery`,
-                })
-                setSendingReset(false)
-                if (error) showToast(error.message, false)
-                else showToast('Password reset link sent! Check your inbox.')
-              }}
-              disabled={sendingReset}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {sendingReset
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
-                : <><Lock className="w-4 h-4" /> Send reset link</>}
-            </button>
+            <p className="text-slate-500 text-sm mb-4">Enter your current password and choose a new one.</p>
+            <div className="space-y-3 max-w-sm">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Current password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">New password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={6}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Confirm new password</label>
+                <input
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={e => setConfirmNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={6}
+                  onKeyDown={e => { if (e.key === 'Enter') handleChangePassword() }}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={changingPassword || !currentPassword || !newPassword || !confirmNewPassword}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {changingPassword
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Changing…</>
+                  : <><Lock className="w-4 h-4" /> Change password</>}
+              </button>
+            </div>
           </section>
 
           <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
