@@ -25,7 +25,7 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ variant = 'dark' }: { variant?: 'dark' | 'light' }) {
   const [open, setOpen]               = useState(false)
   const [items, setItems]             = useState<Notification[]>([])
   const [loading, setLoading]         = useState(false)
@@ -97,7 +97,9 @@ export default function NotificationBell() {
         onClick={() => setOpen(v => !v)}
         className={cn(
           'relative w-8 h-8 flex items-center justify-center rounded-lg transition',
-          open ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+          variant === 'dark'
+            ? (open ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]')
+            : (open ? 'bg-slate-100 text-slate-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100')
         )}
         title="Notifications"
       >
@@ -109,9 +111,11 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown panel */}
+      {/* Dropdown panel — anchored to the right on desktop (where the dark
+          sidebar always has room), but below+full-width on mobile, where
+          there's no room to either side of a full-width trigger. */}
       {open && (
-        <div className="absolute left-full top-0 ml-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden">
+        <div className="absolute left-0 right-0 md:left-full md:right-auto top-full md:top-0 mt-2 md:mt-0 ml-0 md:ml-2 w-auto md:w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <p className="text-sm font-semibold text-slate-800">Notifications</p>

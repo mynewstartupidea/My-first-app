@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import InstallAppCard from '@/components/install-app-card'
 import SignOutButton from '@/components/sign-out-button'
+import NotificationBell from '@/components/notification-bell'
 
 // Everything that doesn't earn a permanent bottom-tab slot (Home/Leads/Chat
 // are the only things opened constantly) lives here instead — grouped by how
@@ -55,7 +56,14 @@ export default async function MorePage() {
 
   return (
     <div className="p-4 space-y-5 md:hidden">
-      <h1 className="text-xl font-bold text-gray-900">More</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">More</h1>
+        {/* NotificationBell previously only existed in the desktop sidebar
+            (hidden md:flex) — a mobile-only user had no way to see or act
+            on in-app notifications at all, same class of gap as the
+            desktop-only sign-out button fixed earlier. */}
+        <NotificationBell variant="light" />
+      </div>
 
       <InstallAppCard />
 

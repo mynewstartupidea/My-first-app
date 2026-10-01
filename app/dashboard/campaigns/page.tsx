@@ -614,7 +614,7 @@ function CreateLeadCampaignModal({ onClose, onCreated }: {
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="e.g. Re-engage July leads"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50"
                 />
               </div>
 
@@ -937,14 +937,14 @@ function LeadDateRangePicker({ from, to, onChange }: {
           <p className="text-[10px] text-slate-400 mb-1">From</p>
           <input type="date" value={from ?? ''} max={today}
             onChange={e => onChange(e.target.value || null, to)}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
+            className="w-full px-3 py-2 text-base border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
         </div>
         <div className="text-slate-300 mt-4">→</div>
         <div className="flex-1">
           <p className="text-[10px] text-slate-400 mb-1">To</p>
           <input type="date" value={to ?? ''} max={today} min={from ?? undefined}
             onChange={e => onChange(from, e.target.value || null)}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
+            className="w-full px-3 py-2 text-base border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
         </div>
       </div>
       {from && to && (

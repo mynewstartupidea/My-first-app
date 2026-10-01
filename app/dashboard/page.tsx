@@ -10,6 +10,7 @@ import {
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import Link from 'next/link'
 import WhatsAppStatusBanner from '@/components/whatsapp-status-banner'
+import WaHealthBadge from '@/components/wa-health-badge'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { resolveManagedOrg } from '@/lib/resolve-managed-org'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
@@ -439,6 +440,16 @@ export default async function DashboardPage() {
           tokenType={waAccount?.token_type ?? null}
         />
       )}
+
+      {/* WhatsApp account health (restricted/quality dropping) — previously
+          only ever shown in the desktop sidebar, so a mobile-only user had
+          zero visibility into a business-critical alert that directly
+          threatens their ability to send messages. md:hidden since desktop
+          already shows this in the sidebar; renders nothing itself when
+          there's no issue, so no wrapper/margin is reserved for it. */}
+      <div className="md:hidden">
+        <WaHealthBadge variant="light" />
+      </div>
 
       {/* Lead KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">

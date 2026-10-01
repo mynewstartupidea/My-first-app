@@ -155,7 +155,7 @@ export default function SignupPage() {
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   placeholder="Rahul Mehta"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
                 />
               </div>
               <div>
@@ -167,7 +167,7 @@ export default function SignupPage() {
                   value={companyName}
                   onChange={e => setCompanyName(e.target.value)}
                   placeholder="KidsCraft India"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
                 />
               </div>
             </div>
@@ -184,7 +184,7 @@ export default function SignupPage() {
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
                   placeholder="+91 98765 43210"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
                 />
               </div>
               <div>
@@ -194,7 +194,7 @@ export default function SignupPage() {
                 <select
                   value={teamSize}
                   onChange={e => setTeamSize(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white"
                 >
                   <option value="">Select…</option>
                   {TEAM_SIZES.map(t => (
@@ -215,7 +215,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="rahul@kidscraftindia.com"
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
               />
             </div>
 
@@ -231,7 +231,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Min. 6 characters"
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
               />
               {password.length > 0 && (() => {
                 const s = passwordStrength(password)

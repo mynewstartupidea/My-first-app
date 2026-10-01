@@ -1514,7 +1514,11 @@ function SettingsInner() {
                               onChange={e => handleChangeRole(m.id, e.target.value)}
                               disabled={changingRoleId === m.id}
                               className={cn(
-                                'text-[10px] font-medium pl-1.5 pr-4 py-0.5 rounded-full capitalize appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-wait border-0 focus:outline-none focus:ring-1 focus:ring-offset-1',
+                                // text-base (not text-[10px]) to avoid iOS Safari's
+                                // auto-zoom-on-focus on sub-16px inputs; py-1.5 (not
+                                // py-0.5) to bring the tappable height closer to the
+                                // ~40px touch-target guideline on a dense mobile row.
+                                'text-base font-medium pl-2.5 pr-7 py-1.5 rounded-full capitalize appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-wait border-0 focus:outline-none focus:ring-1 focus:ring-offset-1',
                                 ROLE_COLORS[m.role] ?? ROLE_COLORS.member
                               )}>
                               <option value="admin">Admin</option>
@@ -1523,8 +1527,8 @@ function SettingsInner() {
                               <option value="support">Support</option>
                             </select>
                             {changingRoleId === m.id
-                              ? <Loader2 className="w-2.5 h-2.5 animate-spin absolute right-1 pointer-events-none" />
-                              : <ChevronDown className="w-2.5 h-2.5 absolute right-1 pointer-events-none" />}
+                              ? <Loader2 className="w-3 h-3 animate-spin absolute right-2 pointer-events-none" />
+                              : <ChevronDown className="w-3 h-3 absolute right-2 pointer-events-none" />}
                           </div>
                           <span className={cn(
                             'text-[10px] px-1.5 py-0.5 rounded-full',

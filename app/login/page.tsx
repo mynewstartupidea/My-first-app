@@ -434,7 +434,7 @@ function LoginForm() {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
                   placeholder="you@yourstore.com"
                 />
               </div>
@@ -448,7 +448,7 @@ function LoginForm() {
                     minLength={6}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
                     placeholder="••••••••"
                   />
                 </div>
