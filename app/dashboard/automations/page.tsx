@@ -201,7 +201,7 @@ function AutomationCard({
             }
           </button>
           <button onClick={() => setExpanded(v => !v)}
-            className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100">
+            className="text-slate-400 hover:text-slate-600 transition p-2.5 rounded-lg hover:bg-slate-100">
             {expanded ? <X size={15} /> : <Plus size={15} />}
           </button>
         </div>
@@ -361,7 +361,7 @@ function MissedCallCard({ whatsappConnected, onNeedsWhatsapp }: {
             </button>
           )}
           <button onClick={() => setExpanded(v => !v)}
-            className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100">
+            className="text-slate-400 hover:text-slate-600 transition p-2.5 rounded-lg hover:bg-slate-100">
             {expanded ? <X size={15} /> : <Plus size={15} />}
           </button>
         </div>
@@ -456,7 +456,7 @@ function LeadAdCard() {
             <ArrowRight size={10} />
           </a>
           <button onClick={() => setExpanded(v => !v)}
-            className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100">
+            className="text-slate-400 hover:text-slate-600 transition p-2.5 rounded-lg hover:bg-slate-100">
             {expanded ? <X size={15} /> : <Plus size={15} />}
           </button>
         </div>

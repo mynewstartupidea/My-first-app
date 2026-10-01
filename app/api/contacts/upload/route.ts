@@ -26,9 +26,18 @@ function splitCSVLine(line: string, delimiter: string): string[] {
   const result: string[] = []
   let current = ''
   let inQuotes = false
-  for (const ch of line) {
-    if (ch === '"' && !inQuotes) { inQuotes = true; continue }
-    if (ch === '"' && inQuotes) { inQuotes = false; continue }
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      // A doubled quote inside a quoted field ("") is the standard CSV
+      // escape for a literal quote — without this lookahead, a name like
+      // `"Say ""Hi"" there"` toggled inQuotes an extra two times and stayed
+      // "inside quotes" past the delimiter that should have ended the
+      // field, merging the next column (often the phone number) into it.
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; continue }
+      inQuotes = !inQuotes
+      continue
+    }
     if (ch === delimiter && !inQuotes) { result.push(current); current = ''; continue }
     current += ch
   }

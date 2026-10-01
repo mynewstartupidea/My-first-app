@@ -432,8 +432,8 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
     : pendingPages
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
         <div className="flex items-center gap-2.5 mb-1">
           <Facebook className="w-5 h-5 text-[#1877F2]" />
           <h2 className="text-lg font-bold text-gray-900">Choose Facebook Pages</h2>
@@ -564,11 +564,13 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">Add a lead</h2>
-          <button onClick={onClose}><X className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" /></button>
+          <button onClick={onClose} className="p-2 -mr-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" />
+          </button>
         </div>
         <div className="space-y-3">
           <div>
@@ -685,11 +687,13 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">Import leads from CSV</h2>
-          <button onClick={onClose}><X className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" /></button>
+          <button onClick={onClose} className="p-2 -mr-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" />
+          </button>
         </div>
 
         {rows.length === 0 ? (
@@ -2832,10 +2836,10 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
         </span>
       )}
 
-      <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-2.5 flex-shrink-0 mt-0.5" onClick={e => e.stopPropagation()}>
         {lead.phone && lead.wa_status !== 'sent' && (
           <button onClick={onWhatsApp}
-            className={`p-2 rounded-full transition ${
+            className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition ${
               lead.wa_status === 'pending'
                 ? 'text-amber-400 bg-amber-50 hover:bg-amber-100'
                 : 'text-gray-400 bg-gray-50 hover:bg-green-50 hover:text-green-600'
@@ -2847,12 +2851,12 @@ function LeadCard({ lead, activeForms, onWhatsApp, onCallLog, onUpdate }: {
         {/* Dials directly — tapping the card anywhere else opens the feedback sheet */}
         {lead.phone ? (
           <a href={`tel:${lead.phone}`}
-            className="w-9 h-9 rounded-full bg-[#25D366]/10 active:bg-[#25D366]/25 flex items-center justify-center flex-shrink-0 transition"
+            className="w-10 h-10 rounded-full bg-[#25D366]/10 active:bg-[#25D366]/25 flex items-center justify-center flex-shrink-0 transition"
             title={`Call ${lead.phone}`}>
             <Phone className="w-3.5 h-3.5 text-[#25D366]" />
           </a>
         ) : (
-          <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
             <Phone className="w-3.5 h-3.5 text-gray-300" />
           </div>
         )}
