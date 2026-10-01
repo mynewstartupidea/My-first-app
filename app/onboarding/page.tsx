@@ -169,7 +169,7 @@ function ConnectStoreStep({
             onChange={e => setDomain(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleConnect()}
             placeholder="yourstore.myshopify.com"
-            className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+            className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
           />
           <button
             onClick={handleConnect}
