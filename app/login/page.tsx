@@ -95,7 +95,14 @@ function LoginForm() {
       // Runs team-invite activation / store provisioning now that a real
       // session (and its cookies) exists — best-effort, a failure here
       // shouldn't strand someone who successfully authenticated.
-      await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
+      // isInviteAcceptance comes from Supabase's own hash type: a plain
+      // password-reset link (type=recovery) must never risk activating a
+      // stale pending invite for this same email from an unrelated org.
+      await fetch('/api/auth/post-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isInviteAcceptance: type === 'invite' }),
+      }).catch(() => {})
 
       // Invite and password-recovery links only ever authenticate via the
       // one-time token — neither sets a real password. Stop here and make

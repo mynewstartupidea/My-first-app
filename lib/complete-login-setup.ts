@@ -18,12 +18,15 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>
 
-export async function completeLoginSetup(supabase: ServerSupabaseClient): Promise<void> {
-  const joinedTeam = await activateTeamInvite(supabase)
+export async function completeLoginSetup(
+  supabase: ServerSupabaseClient,
+  opts: { isInviteAcceptance?: boolean } = {},
+): Promise<void> {
+  const joinedTeam = await activateTeamInvite(supabase, opts.isInviteAcceptance ?? false)
   if (!joinedTeam) await provisionStore(supabase)
 }
 
-async function activateTeamInvite(supabase: ServerSupabaseClient): Promise<boolean> {
+async function activateTeamInvite(supabase: ServerSupabaseClient, isInviteAcceptance: boolean): Promise<boolean> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.email) return false
@@ -49,7 +52,15 @@ async function activateTeamInvite(supabase: ServerSupabaseClient): Promise<boole
         .maybeSingle()
       pendingId = row?.id ?? null
     }
-    if (!pendingId) {
+    // The email-only fallback has no way to verify THIS auth event is actually
+    // someone accepting an invite — only the caller knows that (it checks
+    // Supabase's own `type=invite` on the hash-based flow). Without this gate,
+    // a completely unrelated person simply resetting their own forgotten
+    // password would silently activate — and get pulled into — a stale
+    // pending invite some other org had sent to the same email address,
+    // overriding their own account's role per getUserRole()'s
+    // team-membership-first precedence.
+    if (!pendingId && isInviteAcceptance) {
       const { data: row } = await service
         .from('team_members').select('id')
         .eq('email', email).eq('status', 'pending')
