@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback } from 'react'
 import {
   ShoppingCart, Package, CheckCircle2, Truck, Loader2, Save,
   AlertCircle, Zap, RefreshCw, Gift, X, Send, Star, Repeat,
@@ -283,38 +282,36 @@ function MissedCallCard({ whatsappConnected, onNeedsWhatsapp }: {
   whatsappConnected: boolean
   onNeedsWhatsapp: () => void
 }) {
-  const supabase = useMemo(() => createClient(), [])
   const [enabled, setEnabled]   = useState(false)
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [expanded, setExpanded] = useState(false)
   const displayEnabled = enabled && whatsappConnected
 
+  // This is an org-wide automation toggle the owner configures, not a
+  // per-person preference — goes through a server route resolved to the
+  // org owner (/api/leads/[id]/conversation-status, the only place that
+  // actually consumes this flag, reads the owner's row too) instead of the
+  // caller's own user_profiles row directly, so a non-owner's toggle here
+  // (Admin/Manager both reach this page) actually affects anything.
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return setLoading(false)
-      supabase.from('user_profiles')
-        .select('missed_call_followup_enabled')
-        .eq('id', user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          setEnabled(data?.missed_call_followup_enabled ?? false)
-          setLoading(false)
-        })
-    })
-  }, [supabase])
+    fetch('/api/settings/missed-call-followup')
+      .then(r => r.json() as Promise<{ enabled?: boolean }>)
+      .then(d => setEnabled(d.enabled ?? false))
+      .finally(() => setLoading(false))
+  }, [])
 
   const handleToggle = async () => {
     if (!enabled && !whatsappConnected) { onNeedsWhatsapp(); return }
     const newVal = !enabled
     setEnabled(newVal)
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase.from('user_profiles')
-        .update({ missed_call_followup_enabled: newVal })
-        .eq('id', user.id)
-    }
+    const res = await fetch('/api/settings/missed-call-followup', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newVal }),
+    })
+    if (!res.ok) setEnabled(!newVal) // revert on failure
     setSaving(false)
   }
 

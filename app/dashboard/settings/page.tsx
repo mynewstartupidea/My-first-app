@@ -411,24 +411,34 @@ function SettingsInner() {
   async function saveWhatsApp() {
     if (!store) return
     setSavingWA(true)
-    const { error } = await supabase
-      .from('stores')
-      .update({ whatsapp_number: waNumber || null, whatsapp_bsp: 'meta', whatsapp_api_key: waApiKey || null, updated_at: new Date().toISOString() })
-      .eq('id', store.id)
+    const res = await fetch('/api/settings/store', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ whatsapp_number: waNumber || null, whatsapp_api_key: waApiKey || null }),
+    })
     setSavingWA(false)
-    if (error) { showToast('Failed to save settings', false); return }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      showToast(data.error ?? 'Failed to save settings', false)
+      return
+    }
     showToast('WhatsApp settings saved!')
   }
 
   async function saveStoreName() {
     if (!store || !storeNameEdit.trim()) return
     setSavingStore(true)
-    const { error } = await supabase
-      .from('stores')
-      .update({ shop_name: storeNameEdit.trim(), updated_at: new Date().toISOString() })
-      .eq('id', store.id)
+    const res = await fetch('/api/settings/store', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop_name: storeNameEdit.trim() }),
+    })
     setSavingStore(false)
-    if (error) { showToast('Failed to save store name', false); return }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      showToast(data.error ?? 'Failed to save store name', false)
+      return
+    }
     setStore(prev => prev ? { ...prev, shop_name: storeNameEdit.trim() } : prev)
     showToast('Store name saved!')
   }

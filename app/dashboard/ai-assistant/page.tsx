@@ -27,6 +27,7 @@ function AIAssistantInner() {
 
   const [loading, setLoading]   = useState(true)
   const [forbidden, setForbidden] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [content, setContent]   = useState('')
   const [savedContent, setSavedContent] = useState('')
   const [enabled, setEnabled]   = useState(false)
@@ -40,6 +41,12 @@ function AIAssistantInner() {
     fetch('/api/ai/knowledge-base')
       .then(async r => {
         if (r.status === 403) { setForbidden(true); setLoading(false); return }
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({})) as { error?: string }
+          setLoadError(d.error ?? 'Could not load the AI Assistant settings.')
+          setLoading(false)
+          return
+        }
         const d = await r.json() as { content: string; enabled: boolean }
         setContent(d.content)
         setSavedContent(d.content)
@@ -47,7 +54,7 @@ function AIAssistantInner() {
         setLoading(false)
         if (needsInfo) setTimeout(() => textareaRef.current?.focus(), 100)
       })
-      .catch(() => setLoading(false))
+      .catch(() => { setLoadError('Could not load the AI Assistant settings.'); setLoading(false) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -106,6 +113,20 @@ function AIAssistantInner() {
           <p className="text-xs text-gray-400 max-w-sm">
             The AI Assistant controls what AI says to customers automatically, so only the account owner or an admin can view or change it.
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-4 md:p-6 lg:p-8 max-w-3xl">
+        <div className="flex flex-col items-center text-center gap-3 py-16 px-6 bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
+            <AlertCircle className="w-6 h-6 text-amber-500" />
+          </div>
+          <p className="text-sm font-semibold text-gray-900">Couldn&apos;t load AI Assistant</p>
+          <p className="text-xs text-gray-400 max-w-sm">{loadError}</p>
         </div>
       </div>
     )

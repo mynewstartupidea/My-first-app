@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // GET /api/facebook/leads/stats?page_id=xxx  or  ?source=walk_in
 // Returns aggregate counts for the selected page (or, for non-Facebook leads
@@ -17,10 +16,39 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const service = createServiceClient()
-  const ownerId = await resolveOwnerUserId(service, user.id)
+
+  // Mirrors /api/facebook/leads' own visibility resolution exactly — this
+  // used to just filter by `user_id.eq(ownerId)` with no open_pool
+  // restriction at all, so a team member in open_pool mode (who only sees
+  // their own assigned + unclaimed leads in the actual list) was shown the
+  // ENTIRE org's totals in the header stats — a visible mismatch between
+  // the summary count and the rows actually rendered below it.
+  let orgOwnerId: string | null = null
+  let distMode = 'manual'
+  const { data: memberRow } = await service
+    .from('team_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (memberRow?.organization_id) {
+    const { data: org } = await service
+      .from('organizations')
+      .select('owner_id, lead_distribution_mode')
+      .eq('id', memberRow.organization_id)
+      .maybeSingle()
+    if (org) {
+      orgOwnerId = org.owner_id
+      distMode   = org.lead_distribution_mode ?? 'manual'
+    }
+  }
+  const ownerId = orgOwnerId ?? user.id
+  const visibilityFilter = (orgOwnerId && distMode === 'open_pool')
+    ? `assigned_to.eq.${user.id},and(user_id.eq.${ownerId},assigned_to.is.null)`
+    : `user_id.eq.${ownerId},assigned_to.eq.${user.id}`
 
   const base = () => {
-    let q = service.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', ownerId)
+    let q = service.from('leads').select('id', { count: 'exact', head: true }).or(visibilityFilter)
     return source ? q.eq('source', source) : q.eq('page_id', pageId as string)
   }
 
