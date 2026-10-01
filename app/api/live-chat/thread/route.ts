@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { getUserRole } from '@/lib/get-user-role'
 
 // GET /api/live-chat/thread?phone=+91xxx — full message history + customer
 // record for one conversation. See app/api/live-chat/threads/route.ts for
@@ -57,6 +58,15 @@ export async function DELETE(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Owner/admin only — this is a permanent, irreversible delete of a
+  // customer's entire WhatsApp history, so it's the same tier as billing or
+  // removing a teammate, not something every role with Live Chat access
+  // (support, member) should be able to do with one misclick.
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { searchParams } = new URL(request.url)
   const phone = searchParams.get('phone')

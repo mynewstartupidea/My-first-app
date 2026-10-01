@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { renderTemplate } from '@/lib/utils'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export const maxDuration = 60
 
@@ -15,19 +16,27 @@ export async function POST(req: NextRequest) {
   const { campaign_id } = await req.json()
   if (!campaign_id) return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })
 
-  // Fetch campaign (RLS ensures ownership)
+  // campaigns/stores/whatsapp_accounts/customers RLS is USING (auth.uid() =
+  // user_id) with no team-member carve-out — this route used to query all of
+  // them with the plain RLS-bound client keyed on the caller's own id, so a
+  // campaign a teammate had just created (via POST /api/campaigns, which IS
+  // correctly owner-resolved) could never actually be found or sent by them:
+  // "Campaign not found" on every attempt but the owner's own.
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+
   // Check billing quota before doing anything else
-  const { data: remaining } = await supabase.rpc('get_messages_remaining', { p_user_id: user.id })
+  const { data: remaining } = await service.rpc('get_messages_remaining', { p_user_id: ownerId })
   if ((remaining ?? 0) <= 0) {
     return NextResponse.json({ error: 'Monthly message limit reached. Upgrade your plan for more messages.' }, { status: 403 })
   }
 
-  const { data: campaign, error: cErr } = await supabase
-    .from('campaigns').select('*').eq('id', campaign_id).single()
+  const { data: campaign, error: cErr } = await service
+    .from('campaigns').select('*').eq('id', campaign_id).eq('user_id', ownerId).single()
   if (cErr || !campaign) return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
 
   // Atomic claim: only update if still in draft/scheduled — prevents double-send
-  const { data: claimed } = await supabase
+  const { data: claimed } = await service
     .from('campaigns')
     .update({ status: 'running', updated_at: new Date().toISOString() })
     .eq('id', campaign_id)
@@ -39,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Fetch store for WhatsApp config
-  const { data: store } = await supabase
+  const { data: store } = await service
     .from('stores').select('*').eq('id', campaign.store_id).single()
   if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
 
@@ -47,10 +56,10 @@ export async function POST(req: NextRequest) {
   let phoneNumberIdOverride: string | undefined = undefined
 
   if (store.whatsapp_bsp === 'meta') {
-    const { data: wa } = await supabase
+    const { data: wa } = await service
       .from('whatsapp_accounts')
       .select('phone_number_id, access_token')
-      .eq('user_id', user.id)
+      .eq('user_id', ownerId)
       .eq('status', 'connected')
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)
@@ -61,7 +70,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Fetch audience
-  let query = supabase
+  let query = service
     .from('customers')
     .select('id, phone, name')
     .eq('store_id', store.id)
@@ -90,7 +99,7 @@ export async function POST(req: NextRequest) {
   const { data: customers } = await query.limit(1000)
   if (!customers || customers.length === 0) {
     // Revert claim so the campaign can be retried
-    await supabase.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
+    await service.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
     return NextResponse.json({ error: 'No eligible customers in this audience segment' }, { status: 400 })
   }
 
@@ -133,18 +142,18 @@ export async function POST(req: NextRequest) {
   // Batch the DB writes — one call instead of 2× per customer
   await Promise.all([
     messageLogs.length
-      ? supabase.from('messages').insert(messageLogs)
+      ? service.from('messages').insert(messageLogs)
       : Promise.resolve(),
     optInIds.length
-      ? supabase.from('customers').update({ whatsapp_opt_in: true  }).in('id', optInIds)
+      ? service.from('customers').update({ whatsapp_opt_in: true  }).in('id', optInIds)
       : Promise.resolve(),
     optOutIds.length
-      ? supabase.from('customers').update({ whatsapp_opt_in: false }).in('id', optOutIds)
+      ? service.from('customers').update({ whatsapp_opt_in: false }).in('id', optOutIds)
       : Promise.resolve(),
   ])
 
   // Update campaign status
-  await supabase.from('campaigns').update({
+  await service.from('campaigns').update({
     status:      'completed',
     sent_count:  sentCount,
     failed_count: failedCount,

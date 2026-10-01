@@ -236,7 +236,11 @@ function BroadcastModal({ contactCount, onClose, onSent }: {
     const createRes = await fetch('/api/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() || 'Contacts broadcast', message: message.trim(), audience: 'all' }),
+      // 'opted_in' — not 'all' — so a contact the merchant has explicitly
+      // marked "Opted out" (its own tab on this very page) doesn't still
+      // get messaged, which also risks Meta restricting the number for
+      // messaging non-consenting contacts.
+      body: JSON.stringify({ name: name.trim() || 'Contacts broadcast', message: message.trim(), audience: 'opted_in' }),
     })
     const created = await createRes.json().catch(() => ({})) as { campaign?: { id: string }; error?: string }
     if (!createRes.ok || !created.campaign?.id) {
@@ -515,7 +519,7 @@ export default function ContactsPage() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search name, phone, email…"
-                className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
+                className="w-full pl-9 pr-8 py-1.5 text-base border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
               />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">

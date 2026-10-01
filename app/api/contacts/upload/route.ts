@@ -237,15 +237,20 @@ export async function POST(request: Request) {
     // Count existing contacts before insert so we can compute saved/skipped accurately.
     // Supabase's upsert with ignoreDuplicates:true uses ON CONFLICT DO NOTHING,
     // which can return 0 rows even when rows were inserted in some PostgREST versions.
+    // customers' RLS is USING (store_id IN (SELECT id FROM stores WHERE
+    // user_id = auth.uid())) — the resolved store belongs to the org owner,
+    // not necessarily the caller, so the RLS-bound client silently rejected
+    // this for any teammate (store/WhatsApp lookups above were already
+    // fixed to use the service client; this upsert was missed).
     const phones = toInsert.map(r => r.phone)
-    const { data: existing } = await supabase
+    const { data: existing } = await service
       .from('customers')
       .select('phone')
       .eq('store_id', store!.id)
       .in('phone', phones)
     skipped = existing?.length ?? 0
 
-    const { error: upsertError } = await supabase
+    const { error: upsertError } = await service
       .from('customers')
       .upsert(toInsert, { onConflict: 'store_id,phone', ignoreDuplicates: true })
     if (upsertError) {

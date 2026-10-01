@@ -362,7 +362,7 @@ export default function LiveChatPage() {
             <input
               value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search conversations…"
-              className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 bg-slate-50"
+              className="w-full pl-8 pr-3 py-2 text-base border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/30 bg-slate-50"
             />
           </div>
 
@@ -504,17 +504,19 @@ export default function LiveChatPage() {
                 )}>
                 <Check size={11} /> {selectedThread?.tag === 'resolved' ? 'Resolved' : 'Resolve'}
               </button>
-              <div className="relative">
-                <button onClick={() => setMoreMenuOpen(o => !o)} className="text-slate-400 hover:text-slate-600 transition">
-                  <MoreVertical size={16} />
-                </button>
-                {moreMenuOpen && (
-                  <MoreMenu
-                    onDelete={() => { setMoreMenuOpen(false); setDeleteConfirmOpen(true) }}
-                    onClose={() => setMoreMenuOpen(false)}
-                  />
-                )}
-              </div>
+              {isAdmin && (
+                <div className="relative">
+                  <button onClick={() => setMoreMenuOpen(o => !o)} className="text-slate-400 hover:text-slate-600 transition">
+                    <MoreVertical size={16} />
+                  </button>
+                  {moreMenuOpen && (
+                    <MoreMenu
+                      onDelete={() => { setMoreMenuOpen(false); setDeleteConfirmOpen(true) }}
+                      onClose={() => setMoreMenuOpen(false)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -571,7 +573,7 @@ export default function LiveChatPage() {
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
                   placeholder="Type a message… (Enter to send)"
                   rows={2}
-                  className="w-full bg-transparent text-sm text-slate-800 placeholder:text-slate-400 resize-none focus:outline-none"
+                  className="w-full bg-transparent text-base text-slate-800 placeholder:text-slate-400 resize-none focus:outline-none"
                 />
               </div>
               <button onClick={sendReply} disabled={!reply.trim() || sending}
