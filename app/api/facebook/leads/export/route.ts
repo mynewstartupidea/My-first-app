@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
   const token = (conn.user_access_token as string | null) ?? conn.page_access_token as string
 
-  const fbLeads = await getFormLeads(
+  const { leads: fbLeads } = await getFormLeads(
     formId,
     token,
     fromDate ? `${fromDate}T00:00:00.000Z` : undefined,

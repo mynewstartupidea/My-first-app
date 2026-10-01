@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const token = (conn.user_access_token as string | null) ?? conn.page_access_token
 
   // Fetch leads in the date range (paginated, up to 500)
-  const fbLeads = await getFormLeads(
+  const { leads: fbLeads } = await getFormLeads(
     body.formId,
     token,
     `${body.fromDate}T00:00:00.000Z`,

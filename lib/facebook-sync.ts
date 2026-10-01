@@ -140,7 +140,15 @@ export async function syncFacebookPageLeads(
   for (const form of forms) {
     const since = form.last_lead_fetch as string | null
 
-    const fbLeads = await getFormLeads(form.form_id as string, liveToken, since)
+    const { leads: fbLeads, ok: fetchOk } = await getFormLeads(form.form_id as string, liveToken, since)
+    if (!fetchOk) {
+      // Fetch actually failed (expired token, rate limit, transient 5xx) —
+      // do NOT advance last_lead_fetch, or every lead submitted during this
+      // outage is lost forever once the next successful sync only looks
+      // for leads created after the watermark.
+      console.error(`[facebook-sync] getFormLeads failed for form ${form.form_id}, leaving last_lead_fetch untouched`)
+      continue
+    }
     if (!fbLeads.length) {
       await service
         .from('lead_form_automations')

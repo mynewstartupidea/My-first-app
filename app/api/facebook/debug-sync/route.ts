@@ -52,13 +52,14 @@ export async function GET(request: Request) {
   for (const form of formsForPage.slice(0, 3)) { // limit to 3 to avoid timeout
     const since = form.last_lead_fetch as string | null
     try {
-      const leads = await getFormLeads(form.form_id as string, liveToken, since)
+      const { leads, ok } = await getFormLeads(form.form_id as string, liveToken, since)
       fbResults.push({
         form_id: form.form_id,
         form_name: form.form_name,
         is_enabled: form.is_enabled,
         last_lead_fetch: form.last_lead_fetch,
         since_used: since,
+        fetch_ok: ok,
         fb_leads_returned: leads.length,
         newest_lead_date: leads[0]?.created_time ?? null,
         oldest_lead_date: leads[leads.length - 1]?.created_time ?? null,

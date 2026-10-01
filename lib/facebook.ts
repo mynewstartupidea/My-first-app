@@ -96,6 +96,12 @@ export async function getLeadForms(pageId: string, pageToken: string, userToken?
   return []
 }
 
+// Returns `ok: false` whenever a page request actually failed (expired
+// token, rate limit, transient 5xx) — distinct from `leads: []` meaning
+// "genuinely nothing new." Callers that advance a sync watermark on an empty
+// result MUST check `ok` first: advancing on a failure silently loses every
+// lead submitted during the outage window forever, since the next sync only
+// looks for leads created after the (wrongly-advanced) watermark.
 export async function getFormLeads(
   formId: string,
   pageToken: string,
@@ -103,7 +109,7 @@ export async function getFormLeads(
   limit = 100,
   until?: string | null,
   maxLeads = 2000,
-): Promise<FBLead[]> {
+): Promise<{ leads: FBLead[]; ok: boolean }> {
   const all: FBLead[] = []
   const filters: object[] = []
   if (since) filters.push({ field: 'time_created', operator: 'GREATER_THAN', value: Math.floor(new Date(since).getTime() / 1000) })
@@ -113,9 +119,10 @@ export async function getFormLeads(
   let url = `${FB_BASE}/${formId}/leads?access_token=${pageToken}&fields=${leadFields}&limit=${Math.min(limit, 100)}`
   if (filters.length) url += `&filtering=${encodeURIComponent(JSON.stringify(filters))}`
 
+  let ok = true
   while (url && all.length < maxLeads) {
     const res = await fetch(url)
-    if (!res.ok) break
+    if (!res.ok) { ok = false; break }
     const data = await res.json() as { data?: FBLead[]; paging?: { next?: string } }
     const page = data.data ?? []
     all.push(...page)
@@ -123,7 +130,7 @@ export async function getFormLeads(
     url = data.paging.next
   }
 
-  return all
+  return { leads: all, ok }
 }
 
 export async function getFBLead(leadId: string, pageToken: string): Promise<FBLead | null> {

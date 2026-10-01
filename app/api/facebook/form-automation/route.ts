@@ -94,7 +94,7 @@ export async function POST(request: Request) {
   let leadsFetched = 0
   if (isNew && body.isEnabled) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token
-    const fbLeads = await getFormLeads(body.formId, token, null, 100, null, 500)
+    const { leads: fbLeads } = await getFormLeads(body.formId, token, null, 100, null, 500)
 
     if (fbLeads.length > 0) {
       const rows = fbLeads.map(fl => {

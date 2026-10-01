@@ -36,7 +36,14 @@ export async function GET(request: Request) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token as string
     const since = form.last_lead_fetch as string | null
 
-    const fbLeads = await getFormLeads(form.form_id as string, token, since)
+    const { leads: fbLeads, ok: fetchOk } = await getFormLeads(form.form_id as string, token, since)
+    if (!fetchOk) {
+      // Fetch actually failed — do NOT advance last_lead_fetch, or any lead
+      // submitted during this outage is lost forever (the next run only
+      // looks for leads created after the watermark).
+      console.error(`[cron/facebook-leads] getFormLeads failed for form ${form.form_id}, leaving last_lead_fetch untouched`)
+      continue
+    }
     if (!fbLeads.length) {
       // Still update last_lead_fetch so next run uses a fresh window
       await supabase
