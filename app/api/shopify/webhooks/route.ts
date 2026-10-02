@@ -17,6 +17,28 @@ function toGid(resource: string, id: unknown): string {
   return `gid://shopify/${resource}/${id}`
 }
 
+// Shopify's webhook delivery is "at least once", not "exactly once" — a slow
+// response, a network blip, or our own transient DB error all make Shopify
+// retry the SAME event. Without this, every automation_jobs insert below
+// would fire a second (or third...) identical WhatsApp message on a retry —
+// invisible at low volume, a real and growing problem at 10k orders/day
+// where retries become routine rather than rare. Checked per (store, type,
+// order) rather than deduping on a webhook-delivery id, since that's the
+// actual thing that must not repeat: "order confirmation for order X."
+async function automationJobExists(
+  supabase: ReturnType<typeof createServiceClient>, storeId: string, type: string, orderId: unknown,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('automation_jobs')
+    .select('id')
+    .eq('store_id', storeId)
+    .eq('type', type)
+    .contains('context', { order_id: String(orderId) })
+    .limit(1)
+    .maybeSingle()
+  return !!data
+}
+
 function toE164(raw: string, countryCode = ''): string {
   if (!raw) return ''
   if (raw.startsWith('+')) return `+${raw.replace(/\D/g, '')}`
@@ -145,6 +167,37 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     (checkout.billing_address  as Record<string, unknown>)?.country_code ?? ''
   ).toUpperCase()
   const phone = toE164(rawPhone, countryCode)
+  const lineItems   = (checkout.line_items as Record<string, unknown>[]) ?? []
+  const firstName   = String((checkout.shipping_address as Record<string, unknown>)?.first_name ?? 'there')
+  const checkoutUrl = String(checkout.abandoned_checkout_url ?? '')
+
+  // Upsert customer + mirror into shopify_abandoned_checkouts unconditionally
+  // — this used to happen only when Abandoned Cart Recovery was enabled,
+  // because both lived after that automation's early return below. Data
+  // visibility (the Store page's Abandoned Checkouts list) shouldn't depend
+  // on whether the merchant has that automation turned on; only the
+  // WhatsApp-sending part should.
+  const { data: customerRow } = await supabase.from('customers').upsert({
+    store_id: store.id, phone, name: firstName,
+    email: String(checkout.email ?? ''),
+    whatsapp_opt_in: true,
+  }, { onConflict: 'store_id,phone', ignoreDuplicates: false }).select('id').maybeSingle()
+
+  if (checkout.id) {
+    await supabase.from('shopify_abandoned_checkouts').upsert({
+      store_id: store.id,
+      customer_id: customerRow?.id ?? null,
+      shopify_checkout_id: String(checkout.id),
+      email: String(checkout.email ?? '') || null,
+      phone,
+      total_price: checkout.total_price ? parseFloat(String(checkout.total_price)) : null,
+      currency: checkout.currency ? String(checkout.currency) : null,
+      recovery_url: checkoutUrl || null,
+      line_items: lineItems,
+      abandoned_at: checkout.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'store_id,shopify_checkout_id' })
+  }
 
   const { data: auto } = await supabase
     .from('automations')
@@ -155,10 +208,6 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     .maybeSingle()
 
   if (!auto) return
-
-  const lineItems   = (checkout.line_items as Record<string, unknown>[]) ?? []
-  const firstName   = String((checkout.shipping_address as Record<string, unknown>)?.first_name ?? 'there')
-  const checkoutUrl = String(checkout.abandoned_checkout_url ?? '')
 
   // 'SAVE10' used to be sent here unconditionally whenever discount_enabled
   // was on, completely disconnected from the merchant's configured
@@ -203,15 +252,6 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     status:         'pending',
     scheduled_at:   scheduledAt,
   })
-
-  // Upsert customer
-  await supabase.from('customers').upsert({
-    store_id:      store.id,
-    phone,
-    name:          firstName,
-    email:         String(checkout.email ?? ''),
-    whatsapp_opt_in: true,
-  }, { onConflict: 'store_id,phone', ignoreDuplicates: false })
 }
 
 async function attributeRevenue(
@@ -291,7 +331,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     .from('automations').select('*')
     .eq('store_id', store.id).eq('type', 'order_confirmation').eq('is_enabled', true).maybeSingle()
 
-  if (confirmAuto) {
+  if (confirmAuto && !(await automationJobExists(supabase, store.id, 'order_confirmation', order.id))) {
     const msg = renderTemplate(confirmAuto.template, {
       name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
       order_url: String(order.order_status_url ?? ''),
@@ -311,7 +351,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
       .from('automations').select('*')
       .eq('store_id', store.id).eq('type', 'cod_verification').eq('is_enabled', true).maybeSingle()
 
-    if (codAuto) {
+    if (codAuto && !(await automationJobExists(supabase, store.id, 'cod_verification', order.id))) {
       const msg = renderTemplate(codAuto.template, {
         name: firstName, order_number: orderNumber, amount: totalPrice, shop_name: store.shop_name ?? 'our store',
       })
@@ -331,25 +371,22 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     await attributeRevenue(supabase, store.id, phone, orderValue, order.id).catch(() => null)
   }
 
-  // Update customer stats — this used to hardcode total_orders: 1 on every
-  // order (so a repeat customer's second, third, ... order all overwrote it
-  // back down to 1) and never touched total_spent at all, leaving it stuck
-  // at 0 forever. Confirmed live: a real ₹878 COD order left total_spent=0.
-  // Campaigns' VIP/repeat-buyer segments read these columns directly, so a
-  // stale value here silently breaks targeting. Read-then-write instead of
-  // a blind upsert so repeat orders actually accumulate.
-  const { data: existingCustomer } = await supabase
-    .from('customers').select('total_orders, total_spent')
-    .eq('store_id', store.id).eq('phone', phone).maybeSingle()
-
-  const { data: customerRow } = await supabase.from('customers').upsert({
-    store_id: store.id, phone, name: firstName,
-    email: String((order.customer as Record<string, unknown>)?.email ?? order.email ?? ''),
-    whatsapp_opt_in: true,
-    total_orders: (existingCustomer?.total_orders ?? 0) + 1,
-    total_spent: (existingCustomer?.total_spent ?? 0) + orderValue,
-    last_order_at: new Date().toISOString(),
-  }, { onConflict: 'store_id,phone', ignoreDuplicates: false }).select('id').maybeSingle()
+  // Update customer stats atomically — this used to read total_orders/
+  // total_spent, increment in application code, then write the result back,
+  // which races under concurrent orders for the same customer (two orders
+  // landing close together can both read the same baseline and one write
+  // clobbers the other). increment_customer_order_stats does the whole
+  // read-modify-write as a single INSERT ... ON CONFLICT DO UPDATE, atomic
+  // at the row level — matters at 10k orders/day where that window of
+  // concurrency stops being a theoretical edge case.
+  const { data: customerId } = await supabase.rpc('increment_customer_order_stats', {
+    p_store_id: store.id,
+    p_phone: phone,
+    p_name: firstName,
+    p_email: String((order.customer as Record<string, unknown>)?.email ?? order.email ?? ''),
+    p_order_value: orderValue,
+  })
+  const customerRow = customerId ? { id: customerId as string } : null
 
   // Mirror into shopify_orders immediately instead of waiting for the next
   // periodic sync (app/api/cron/shopify-sync) — that's what the Store page's
@@ -414,7 +451,7 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     .from('automations').select('*')
     .eq('store_id', store.id).eq('type', 'shipping_update').eq('is_enabled', true).maybeSingle()
 
-  if (shipAuto) {
+  if (shipAuto && !(await automationJobExists(supabase, store.id, 'shipping_update', order.id))) {
     const msg = renderTemplate(shipAuto.template, {
       name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
       tracking_url: trackingUrl,
@@ -432,7 +469,7 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     .from('automations').select('*')
     .eq('store_id', store.id).eq('type', 'post_purchase_upsell').eq('is_enabled', true).maybeSingle()
 
-  if (upsellAuto) {
+  if (upsellAuto && !(await automationJobExists(supabase, store.id, 'post_purchase_upsell', order.id))) {
     const delay = (upsellAuto.delay_minutes ?? 1440) * 60 * 1000
     const msg = renderTemplate(upsellAuto.template ?? DEFAULT_UPSELL_TEMPLATE, {
       name: firstName, shop_name: store.shop_name ?? 'our store',
@@ -451,7 +488,7 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     .from('automations').select('*')
     .eq('store_id', store.id).eq('type', 'review_request').eq('is_enabled', true).maybeSingle()
 
-  if (reviewAuto) {
+  if (reviewAuto && !(await automationJobExists(supabase, store.id, 'review_request', order.id))) {
     const delay = (reviewAuto.delay_minutes ?? 7200) * 60 * 1000
     const msg = renderTemplate(reviewAuto.template ?? DEFAULT_REVIEW_TEMPLATE, {
       name: firstName, shop_name: store.shop_name ?? 'our store',

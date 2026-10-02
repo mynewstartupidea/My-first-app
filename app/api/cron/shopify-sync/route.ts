@@ -9,11 +9,16 @@ import {
 
 export const maxDuration = 60
 
-// Processes shopify_sync_jobs for custom_app stores. One PAGE per job per
-// tick — a job re-queues itself (new page_info, stays 'pending') until its
-// resource is exhausted, so a single invocation can never run past Vercel's
-// 60s ceiling no matter how large a store's history is. Same optimistic-lock
-// claim pattern as the automation_jobs cron (app/api/cron/route.ts).
+// Processes shopify_sync_jobs for custom_app stores. Each claimed job pages
+// through as many pages as fit in the shared time budget below (not just
+// one) — a 10,000-order historical backfill at 25 orders/page used to take
+// ~400 cron ticks (1/min) to finish, over 6 hours. Looping within the
+// budget instead means one job can make dozens of calls in a single tick;
+// Shopify's own 429 backoff (lib/shopify-rate-limit.ts) self-regulates how
+// fast that can actually go, so this doesn't need its own throttle on top.
+// A job whose resource isn't exhausted when the budget runs out just saves
+// its current page_info and stays 'pending' for the next tick — still
+// bounded by Vercel's 60s ceiling regardless of how large the backlog is.
 const SYNC_FNS: Record<string, (shop: string, token: string, storeId: string, service: ReturnType<typeof createServiceClient>, pageInfo: string | null) => Promise<SyncPageResult>> = {
   locations: syncLocationsPage,
   inventory: syncInventoryPage,
@@ -25,6 +30,7 @@ const SYNC_FNS: Record<string, (shop: string, token: string, storeId: string, se
 
 const JOBS_PER_TICK = 10
 const MAX_ATTEMPTS = 5
+const TIME_BUDGET_MS = 50_000 // leaves ~10s margin under maxDuration=60
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -34,6 +40,7 @@ export async function GET(request: Request) {
   }
 
   const service = createServiceClient()
+  const tickStart = Date.now()
 
   const { data: jobs } = await service
     .from('shopify_sync_jobs')
@@ -42,9 +49,11 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true })
     .limit(JOBS_PER_TICK)
 
-  let processed = 0, completed = 0, failed = 0
+  let processed = 0, completed = 0, failed = 0, totalPages = 0
 
   for (const job of jobs ?? []) {
+    if (Date.now() - tickStart >= TIME_BUDGET_MS) break
+
     const { data: claimed } = await service
       .from('shopify_sync_jobs')
       .update({ status: 'processing', updated_at: new Date().toISOString() })
@@ -69,30 +78,35 @@ export async function GET(request: Request) {
       continue
     }
 
+    let pageInfo = job.page_info as string | null
+    let recordsSynced = job.records_synced ?? 0
+    let done = false
+
     try {
       const token = await getValidAccessToken(store)
-      const result = await syncFn(store.shopify_domain, token, job.store_id, service, job.page_info)
-
-      if (result.nextPageInfo) {
-        await service.from('shopify_sync_jobs').update({
-          status: 'pending',
-          page_info: result.nextPageInfo,
-          records_synced: job.records_synced + result.recordsProcessed,
-          updated_at: new Date().toISOString(),
-        }).eq('id', job.id)
-      } else {
-        await service.from('shopify_sync_jobs').update({
-          status: 'completed',
-          records_synced: job.records_synced + result.recordsProcessed,
-          updated_at: new Date().toISOString(),
-        }).eq('id', job.id)
-        completed++
+      while (Date.now() - tickStart < TIME_BUDGET_MS) {
+        const result = await syncFn(store.shopify_domain, token, job.store_id, service, pageInfo)
+        recordsSynced += result.recordsProcessed
+        totalPages++
+        pageInfo = result.nextPageInfo
+        if (!pageInfo) { done = true; break }
       }
+
+      await service.from('shopify_sync_jobs').update({
+        status: done ? 'completed' : 'pending',
+        page_info: pageInfo,
+        records_synced: recordsSynced,
+        updated_at: new Date().toISOString(),
+      }).eq('id', job.id)
+      if (done) completed++
+      if (!done) break // out of time budget — don't start another job this tick
     } catch (err) {
       const message = err instanceof ShopifyConnectionError ? `${err.code}: ${err.message}` : String(err)
       const attempts = (job.attempts ?? 0) + 1
       await service.from('shopify_sync_jobs').update({
         status: attempts >= MAX_ATTEMPTS ? 'failed' : 'pending',
+        page_info: pageInfo,
+        records_synced: recordsSynced,
         attempts,
         error_message: message,
         updated_at: new Date().toISOString(),
@@ -102,5 +116,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, processed, completed, failed })
+  return NextResponse.json({ ok: true, processed, completed, failed, pages: totalPages })
 }

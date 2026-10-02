@@ -812,3 +812,37 @@ CREATE POLICY "shopify_discounts_own" ON shopify_discounts FOR ALL
   USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
 CREATE POLICY "shopify_sync_jobs_own" ON shopify_sync_jobs FOR ALL
   USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+
+-- ─── increment_customer_order_stats: atomic customer stats update ────────────
+-- handleOrderCreate (app/api/shopify/webhooks) used to read total_orders/
+-- total_spent, add to them in application code, then write the result back
+-- — classic read-then-write race: two orders for the same customer landing
+-- within the same window can both read the same baseline and one write
+-- clobbers the other, silently losing an order from that customer's count.
+-- At low volume this is rare; at 10k orders/day it becomes a real,
+-- occasionally-occurring data-correctness bug. A single INSERT ... ON
+-- CONFLICT DO UPDATE is atomic at the row level, so this can't happen.
+CREATE OR REPLACE FUNCTION increment_customer_order_stats(
+  p_store_id    UUID,
+  p_phone       TEXT,
+  p_name        TEXT,
+  p_email       TEXT,
+  p_order_value NUMERIC
+)
+RETURNS UUID LANGUAGE plpgsql AS $$
+DECLARE
+  v_id UUID;
+BEGIN
+  INSERT INTO customers (store_id, phone, name, email, whatsapp_opt_in, total_orders, total_spent, last_order_at)
+  VALUES (p_store_id, p_phone, p_name, NULLIF(p_email, ''), true, 1, p_order_value, NOW())
+  ON CONFLICT (store_id, phone) DO UPDATE SET
+    total_orders    = customers.total_orders + 1,
+    total_spent     = customers.total_spent + p_order_value,
+    last_order_at   = NOW(),
+    name            = COALESCE(customers.name, EXCLUDED.name),
+    email           = COALESCE(customers.email, EXCLUDED.email),
+    whatsapp_opt_in = true
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$;
