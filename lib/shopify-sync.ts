@@ -265,6 +265,7 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
   const data = await shopifyGraphQL<OrdersResponse>(shop, token, ORDERS_QUERY, { cursor: pageInfo })
   const edges = data.orders.edges
   let count = 0
+  const touchedCustomerIds = new Set<string>()
 
   for (const { node: o } of edges) {
     // order.phone and customer.phone are almost always null in practice —
@@ -328,6 +329,7 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
     }, { onConflict: 'store_id,shopify_order_id' }).select('id').single()
     if (orderErr || !orderRow) throw new Error(`shopify_orders upsert: ${orderErr?.message}`)
     count++
+    if (customerId) touchedCustomerIds.add(customerId)
 
     const lineItems = o.lineItems.edges.map(({ node: li }) => ({
       order_id: orderRow.id,
@@ -363,6 +365,29 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
       const { error } = await service.from('shopify_returns').upsert(returns, { onConflict: 'store_id,shopify_return_id' })
       if (error) throw new Error(`shopify_returns upsert: ${error.message}`)
     }
+  }
+
+  // Recompute total_orders/total_spent/last_order_at from shopify_orders
+  // itself (not an incremental +1) for every customer touched on this page —
+  // Campaigns' VIP/repeat-buyer/inactive audience segments read these
+  // columns directly, and shopify_orders' UNIQUE(store_id, shopify_order_id)
+  // means aggregating from it is always correct even if a page gets synced
+  // more than once (an incremental counter would double-count on a retry).
+  for (const customerId of touchedCustomerIds) {
+    const { data: custOrders } = await service
+      .from('shopify_orders')
+      .select('total_price, shopify_created_at')
+      .eq('customer_id', customerId)
+    if (!custOrders?.length) continue
+    const totalSpent = custOrders.reduce((sum, o) => sum + (o.total_price ?? 0), 0)
+    const lastOrderAt = custOrders.reduce<string | null>((latest, o) => (
+      o.shopify_created_at && (!latest || o.shopify_created_at > latest) ? o.shopify_created_at : latest
+    ), null)
+    await service.from('customers').update({
+      total_orders: custOrders.length,
+      total_spent: totalSpent,
+      last_order_at: lastOrderAt,
+    }).eq('id', customerId)
   }
 
   return {

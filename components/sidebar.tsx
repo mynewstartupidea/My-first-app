@@ -8,7 +8,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
   FileText, BarChart2, Code2, Sparkles,
   Settings, LogOut, MessageCircle, Store,
-  ChevronRight, LifeBuoy, Plug, UserPlus,
+  ChevronRight, LifeBuoy, Plug, UserPlus, ShoppingBag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/user-role'
@@ -21,6 +21,7 @@ const NAV = [
   { href: '/dashboard/live-chat',   icon: MessageSquare,   label: 'Live Chat',  badge: 'NEW' },
   { href: '/dashboard/contacts',    icon: Users,           label: 'Contacts'    },
   { href: '/dashboard/leads',       icon: UserPlus,        label: 'Leads'       },
+  { href: '/dashboard/shopify',     icon: ShoppingBag,     label: 'Shopify',    shopifyOnly: true },
   { href: '/dashboard/campaigns',   icon: Megaphone,       label: 'Campaigns'   },
   { href: '/dashboard/automations', icon: Zap,             label: 'Automations' },
   { href: '/dashboard/ai-assistant', icon: Sparkles,       label: 'AI Assistant' },
@@ -39,6 +40,7 @@ interface SidebarProps {
   storeName?: string | null
   plan?: string
   role?: UserRole
+  shopifyConnected?: boolean
 }
 
 interface BillingUsage {
@@ -47,7 +49,7 @@ interface BillingUsage {
   messages_remaining: number
 }
 
-export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }: SidebarProps) {
+export default function Sidebar({ storeName, plan = 'starter', role = 'owner', shopifyConnected = false }: SidebarProps) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
@@ -82,7 +84,9 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner' }:
     return pathname.startsWith(href)
   }
 
-  const visibleNav       = NAV.filter(item => canAccess(role, item.href))
+  const visibleNav       = NAV
+    .filter(item => !('shopifyOnly' in item) || shopifyConnected)
+    .filter(item => canAccess(role, item.href))
   const visibleNavBottom = NAV_BOTTOM.filter(item => canAccess(role, item.href))
 
   return (

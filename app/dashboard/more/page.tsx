@@ -6,8 +6,10 @@ import { getUserRole } from '@/lib/get-user-role'
 import { canAccess } from '@/lib/user-role'
 import {
   Settings, Megaphone, Zap, BarChart2, Sparkles,
-  Users, FileText, Plug, Code2, LifeBuoy, ChevronRight,
+  Users, FileText, Plug, Code2, LifeBuoy, ChevronRight, ShoppingBag,
 } from 'lucide-react'
+import { createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import InstallAppCard from '@/components/install-app-card'
 import SignOutButton from '@/components/sign-out-button'
 import NotificationBell from '@/components/notification-bell'
@@ -50,7 +52,17 @@ export default async function MorePage() {
   if (!user) redirect('/login')
 
   const role = await getUserRole(user.id, user.email ?? '')
+
+  const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
+  const { data: store } = await service
+    .from('stores').select('shopify_domain').eq('user_id', ownerId).eq('is_active', true)
+    .not('shopify_domain', 'is', null).limit(1).maybeSingle()
+
   const groups = GROUPS
+    .map(g => g.title === 'Manage' && store?.shopify_domain
+      ? { ...g, items: [{ href: '/dashboard/shopify', icon: ShoppingBag, label: 'Shopify', blurb: 'Orders, abandoned checkouts, revenue' }, ...g.items] }
+      : g)
     .map(g => ({ ...g, items: g.items.filter(item => canAccess(role, item.href)) }))
     .filter(g => g.items.length > 0)
 

@@ -40,7 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <InstallPromptInitializer />
       <RouteProgress />
       {/* Desktop sidebar — hidden on mobile */}
-      <Sidebar storeName={displayName} plan={store?.plan} role={role} />
+      <Sidebar storeName={displayName} plan={store?.plan} role={role} shopifyConnected={!!store?.shopify_domain} />
 
       {/* Main content — no left margin on mobile, sidebar margin on desktop.
           min-w-0 is load-bearing: without it, a flex item refuses to shrink below its
