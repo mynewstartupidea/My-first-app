@@ -76,7 +76,7 @@ export default function TestWhatsAppPage() {
             placeholder="e.g. 919876543210"
             className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white
                        placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500
-                       font-mono text-sm"
+                       font-mono text-base"
           />
           <p className="text-xs text-gray-500">
             Include country code, no + or spaces. India example: 919876543210

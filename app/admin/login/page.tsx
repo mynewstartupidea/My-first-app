@@ -78,7 +78,7 @@ function AdminLoginInner() {
                 onChange={e => setEmail(e.target.value)}
                 required
                 placeholder="admin@wapaci.com"
-                className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600"
+                className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-9 pr-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600"
               />
             </div>
           </div>
@@ -93,7 +93,7 @@ function AdminLoginInner() {
                 onChange={e => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600"
+                className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-9 pr-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600"
               />
             </div>
           </div>

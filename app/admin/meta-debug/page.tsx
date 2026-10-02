@@ -99,7 +99,7 @@ export default function MetaDebugPage() {
               value={token}
               onChange={e => setToken(e.target.value)}
               placeholder="EAAxxxxxxx…"
-              className="flex-1 bg-black/30 border border-white/10 text-white rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600"
+              className="flex-1 bg-black/30 border border-white/10 text-white rounded-xl px-4 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600"
             />
             <button onClick={run} disabled={loading || !token.trim()}
               className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-40 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition">

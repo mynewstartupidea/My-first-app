@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({})) as {
-    name?: string; phone?: string; email?: string; source?: string; notes?: string
+    name?: string; phone?: string; email?: string; source?: string; notes?: string; force?: boolean
   }
   if (!body.name?.trim() && !body.phone?.trim() && !body.email?.trim()) {
     return NextResponse.json({ error: 'Provide at least one of: name, phone, email' }, { status: 400 })
@@ -50,6 +50,25 @@ export async function POST(request: Request) {
     .from('stores').select('id').eq('user_id', ownerId).eq('is_active', true).maybeSingle()
 
   const normalizedPhone = body.phone?.trim() ? (normalizeIndianPhone(body.phone.trim()) ?? body.phone.trim()) : null
+
+  // Unlike bulk CSV import (where silently skipping duplicates is the right
+  // call for 500 rows at once), a single manual add is a deliberate action by
+  // one rep — surface the existing lead and let them confirm rather than
+  // either silently creating a duplicate or silently blocking a legitimate
+  // repeat walk-in.
+  if (normalizedPhone && !body.force) {
+    const { data: existing } = await service
+      .from('leads').select('id, name, lead_status, created_at')
+      .eq('user_id', ownerId).eq('phone', normalizedPhone)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (existing) {
+      return NextResponse.json({
+        error: 'duplicate',
+        existingLead: existing,
+        message: `A lead with this phone number already exists${existing.name ? ` (${existing.name})` : ''}.`,
+      }, { status: 409 })
+    }
+  }
 
   const { data: saved, error } = await service
     .from('leads')

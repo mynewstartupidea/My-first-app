@@ -47,15 +47,23 @@ function splitCSVLine(line: string, delimiter: string): string[] {
 
 interface ParsedContact { phone: string; name?: string }
 
-function parseFileContent(content: string, filename: string): ParsedContact[] {
+// scannedRows is tracked separately from the returned (valid, deduped)
+// contacts — without it, "Numbers found" and "Valid contacts" in the upload
+// result always read as the exact same number (both were just
+// contacts.length), so a file with a bunch of malformed/empty phone cells
+// looked identical in the UI to one where every row imported cleanly, with
+// no visibility into how many rows actually got silently dropped.
+function parseFileContent(content: string, filename: string): { contacts: ParsedContact[]; scannedRows: number } {
   const seen = new Map<string, string | undefined>() // phone -> name
+  let scannedRows = 0
 
   const ext = filename.toLowerCase().split('.').pop() ?? ''
 
   // VCF / vCard
   if (ext === 'vcf') {
-    const cards = content.split(/BEGIN:VCARD/i)
+    const cards = content.split(/BEGIN:VCARD/i).filter(c => c.trim())
     for (const card of cards) {
+      scannedRows++
       const fnMatch = card.match(/^FN[^:]*:(.*)/im)
       const name = fnMatch?.[1]?.trim().replace(/\\n/g, ' ')
       for (const m of card.matchAll(/^TEL[^:]*:(.*)/gim)) {
@@ -63,7 +71,7 @@ function parseFileContent(content: string, filename: string): ParsedContact[] {
         if (phone && !seen.has(phone)) seen.set(phone, name)
       }
     }
-    return [...seen.entries()].map(([phone, name]) => ({ phone, name }))
+    return { contacts: [...seen.entries()].map(([phone, name]) => ({ phone, name })), scannedRows }
   }
 
   const lines = content.split(/\r?\n/)
@@ -86,6 +94,7 @@ function parseFileContent(content: string, filename: string): ParsedContact[] {
   for (let i = startLine; i < lines.length; i++) {
     const line = lines[i].trim()
     if (!line) continue
+    scannedRows++
 
     if (isCSV) {
       const cells = splitCSVLine(line, delimiter)
@@ -116,7 +125,7 @@ function parseFileContent(content: string, filename: string): ParsedContact[] {
     }
   }
 
-  return [...seen.entries()].map(([phone, name]) => ({ phone, name }))
+  return { contacts: [...seen.entries()].map(([phone, name]) => ({ phone, name })), scannedRows }
 }
 
 async function checkWhatsAppBatch(phones: string[], token: string, phoneId: string): Promise<Set<string>> {
@@ -193,7 +202,7 @@ export async function POST(request: Request) {
   }
 
   // Parse contacts from file
-  const contacts = parseFileContent(body.content, body.filename)
+  const { contacts, scannedRows } = parseFileContent(body.content, body.filename)
   const uniquePhones = [...new Set(contacts.map(c => c.phone))]
 
   // Get WhatsApp credentials
@@ -269,12 +278,12 @@ export async function POST(request: Request) {
     saved = toInsert.length - skipped
   }
 
-  console.log(`[contacts/upload] store=${store!.id} found=${contacts.length} valid=${uniquePhones.length} whatsapp=${whatsappSet.size} saved=${saved} skipped=${skipped}`)
+  console.log(`[contacts/upload] store=${store!.id} scanned=${scannedRows} valid=${uniquePhones.length} whatsapp=${whatsappSet.size} saved=${saved} skipped=${skipped}`)
 
   return NextResponse.json({
     filename:         body.filename,
     uploaded_at:      new Date().toISOString(),
-    found:            contacts.length,
+    found:            scannedRows,
     valid:            uniquePhones.length,
     whatsapp:         whatsappSet.size,
     saved,

@@ -3631,7 +3631,7 @@ export default function AdminAdsPage() {
                         rows={10}
                         value={v.script}
                         onChange={e => setVo(ad.id, { script: e.target.value })}
-                        className="w-full text-sm text-slate-200 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-1 focus:ring-purple-500/50 font-mono leading-relaxed"
+                        className="w-full text-base text-slate-200 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-1 focus:ring-purple-500/50 font-mono leading-relaxed"
                       />
                       <p className="text-slate-600 text-[10px] mt-1.5">
                         Write plain English · Use <code className="text-slate-500">...</code> for pauses · Short sentences on separate lines = natural rhythm · Tone is controlled by Voice Direction below
@@ -3682,7 +3682,7 @@ export default function AdminAdsPage() {
                           value={v.customDir}
                           onChange={e => setVo(ad.id, { customDir: e.target.value })}
                           placeholder="e.g. speak faster, more urgent, emphasize the numbers..."
-                          className="w-full text-xs text-slate-300 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-purple-500/50 placeholder-slate-700"
+                          className="w-full text-base text-slate-300 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-purple-500/50 placeholder-slate-700"
                         />
                       </div>
 

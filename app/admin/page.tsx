@@ -389,10 +389,10 @@ export default function AdminPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
                 <input value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Search name, email, company, phone…"
-                  className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600" />
+                  className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-9 pr-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600" />
               </div>
               <select value={planFilter} onChange={e => setPlanFilter(e.target.value)}
-                className="bg-white/5 border border-white/10 text-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]">
+                className="bg-white/5 border border-white/10 text-slate-300 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]">
                 <option value="all">All plans</option>
                 <option value="trial">Trial</option>
                 <option value="starter">Starter</option>
@@ -401,7 +401,7 @@ export default function AdminPage() {
                 <option value="enterprise">Enterprise</option>
               </select>
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-                className="bg-white/5 border border-white/10 text-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]">
+                className="bg-white/5 border border-white/10 text-slate-300 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]">
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
                 <option value="trialing">Trialing</option>
@@ -793,7 +793,7 @@ export default function AdminPage() {
                                 onChange={e => setTicketNotes(prev => ({ ...prev, [t.id]: e.target.value }))}
                                 placeholder="Add a response or internal note…"
                                 rows={3}
-                                className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600 resize-none"
+                                className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600 resize-none"
                               />
                               <div className="flex items-center gap-2 mt-3">
                                 {(['open','in_progress','resolved','closed'] as const).map(s => (
@@ -849,7 +849,7 @@ export default function AdminPage() {
 
             {actionType === 'plan' && (
               <select value={newPlan} onChange={e => setNewPlan(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366] mb-4">
+                className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] mb-4">
                 <option value="trial">Trial (free)</option>
                 <option value="starter">Starter — $29/mo</option>
                 <option value="growth">Growth — $49/mo</option>

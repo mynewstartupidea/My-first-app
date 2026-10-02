@@ -168,7 +168,7 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: (result
               </div>
               <div className="space-y-2 mb-5">
                 <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-sm text-gray-500">Numbers found</span>
+                  <span className="text-sm text-gray-500">Rows scanned</span>
                   <span className="text-sm font-bold text-gray-800">{result.found.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between py-2.5 px-4 rounded-xl bg-blue-50 border border-blue-100">

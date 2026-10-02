@@ -537,8 +537,9 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
   const [notes, setNotes]   = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  const [dupeConfirm, setDupeConfirm] = useState<string | null>(null)
 
-  const save = async () => {
+  const save = async (force = false) => {
     if (!name.trim() && !phone.trim() && !email.trim()) {
       setError('Enter at least a name, phone, or email')
       return
@@ -549,14 +550,19 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
     }
     setSaving(true)
     setError(null)
+    setDupeConfirm(null)
     const res = await fetch('/api/leads/manual', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ name: name.trim(), phone: phone.trim(), email: email.trim(), source, notes: notes.trim() }),
+      body:    JSON.stringify({ name: name.trim(), phone: phone.trim(), email: email.trim(), source, notes: notes.trim(), force }),
     })
     setSaving(false)
     if (!res.ok) {
-      const d = await res.json().catch(() => ({})) as { error?: string }
+      const d = await res.json().catch(() => ({})) as { error?: string; message?: string }
+      if (d.error === 'duplicate') {
+        setDupeConfirm(d.message ?? 'A lead with this phone number already exists.')
+        return
+      }
       setError(d.error ?? 'Failed to save lead')
       return
     }
@@ -591,15 +597,27 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
           <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
           {error && <p className="text-xs text-red-500">{error}</p>}
+          {dupeConfirm && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-amber-700 flex-1">{dupeConfirm} Add it anyway?</p>
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-end gap-2 mt-5">
           <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition">
             Cancel
           </button>
-          <button onClick={save} disabled={saving}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save lead'}
-          </button>
+          {dupeConfirm ? (
+            <button onClick={() => save(true)} disabled={saving}
+              className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Add anyway'}
+            </button>
+          ) : (
+            <button onClick={() => save()} disabled={saving}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save lead'}
+            </button>
+          )}
         </div>
       </div>
     </div>
