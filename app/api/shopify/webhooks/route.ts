@@ -7,6 +7,16 @@ import { decrypt } from '@/lib/encryption'
 // Normalise a raw phone string to E.164.
 // Uses the Shopify address country_code to determine prefix for bare 10-digit numbers.
 // Defaults to +91 (India) when country is unknown — primary market.
+// REST webhook payloads give plain numeric ids (order.id, line_item.id, ...)
+// while the periodic GraphQL sync (lib/shopify-sync.ts) stores everything as
+// GIDs (gid://shopify/Order/123) — constructing the same GID format here
+// keeps store_id+shopify_order_id upserts from either path landing on the
+// same row instead of silently creating a duplicate "REST-flavored" order
+// row alongside the "GraphQL-flavored" one for the same real order.
+function toGid(resource: string, id: unknown): string {
+  return `gid://shopify/${resource}/${id}`
+}
+
 function toE164(raw: string, countryCode = ''): string {
   if (!raw) return ''
   if (raw.startsWith('+')) return `+${raw.replace(/\D/g, '')}`
@@ -332,14 +342,57 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     .from('customers').select('total_orders, total_spent')
     .eq('store_id', store.id).eq('phone', phone).maybeSingle()
 
-  await supabase.from('customers').upsert({
+  const { data: customerRow } = await supabase.from('customers').upsert({
     store_id: store.id, phone, name: firstName,
     email: String((order.customer as Record<string, unknown>)?.email ?? order.email ?? ''),
     whatsapp_opt_in: true,
     total_orders: (existingCustomer?.total_orders ?? 0) + 1,
     total_spent: (existingCustomer?.total_spent ?? 0) + orderValue,
     last_order_at: new Date().toISOString(),
-  }, { onConflict: 'store_id,phone', ignoreDuplicates: false })
+  }, { onConflict: 'store_id,phone', ignoreDuplicates: false }).select('id').maybeSingle()
+
+  // Mirror into shopify_orders immediately instead of waiting for the next
+  // periodic sync (app/api/cron/shopify-sync) — that's what the Store page's
+  // "Recent Orders" list reads from, and it used to only pick up an order
+  // once someone clicked Sync Now or a cron tick happened to run.
+  const { data: orderRow } = await supabase.from('shopify_orders').upsert({
+    store_id: store.id,
+    customer_id: customerRow?.id ?? null,
+    shopify_order_id: toGid('Order', order.id),
+    order_number: String(order.name ?? orderNumber),
+    email: String(order.email ?? ''),
+    phone,
+    currency: String(order.currency ?? 'INR'),
+    total_price: orderValue,
+    subtotal_price: order.subtotal_price ? parseFloat(String(order.subtotal_price)) : null,
+    total_tax: order.total_tax ? parseFloat(String(order.total_tax)) : null,
+    total_discounts: order.total_discounts ? parseFloat(String(order.total_discounts)) : null,
+    financial_status: order.financial_status ? String(order.financial_status) : null,
+    fulfillment_status: order.fulfillment_status ? String(order.fulfillment_status) : null,
+    cancelled_at: order.cancelled_at ?? null,
+    tags: String(order.tags ?? ''),
+    note: order.note ? String(order.note) : null,
+    shopify_created_at: order.created_at ?? new Date().toISOString(),
+    shopify_updated_at: order.updated_at ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'store_id,shopify_order_id' }).select('id').maybeSingle()
+
+  if (orderRow) {
+    const lineItems = ((order.line_items as Record<string, unknown>[]) ?? []).map(li => ({
+      order_id: orderRow.id,
+      shopify_line_item_id: toGid('LineItem', li.id),
+      shopify_product_id: li.product_id ? toGid('Product', li.product_id) : null,
+      shopify_variant_id: li.variant_id ? toGid('ProductVariant', li.variant_id) : null,
+      title: String(li.title ?? ''),
+      variant_title: li.variant_title ? String(li.variant_title) : null,
+      sku: li.sku ? String(li.sku) : null,
+      quantity: Number(li.quantity ?? 0),
+      price: li.price ? parseFloat(String(li.price)) : null,
+    }))
+    if (lineItems.length) {
+      await supabase.from('shopify_order_line_items').upsert(lineItems, { onConflict: 'order_id,shopify_line_item_id' })
+    }
+  }
 }
 
 async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
@@ -443,6 +496,18 @@ async function handleOrderUpdated(supabase: ReturnType<typeof createServiceClien
         .eq('id', j.id)
     }
   }
+
+  // Keep the shopify_orders mirror current too — same GID format the
+  // periodic sync and handleOrderCreate both use as the upsert key, so this
+  // updates the same row instead of creating a stray one.
+  await supabase.from('shopify_orders').update({
+    financial_status: financialStatus || null,
+    fulfillment_status: fulfillmentStatus || null,
+    total_refunded: order.total_refunded ? parseFloat(String(order.total_refunded)) : undefined,
+    cancelled_at: order.cancelled_at ?? null,
+    shopify_updated_at: order.updated_at ?? now,
+    updated_at: now,
+  }).eq('store_id', store.id).eq('shopify_order_id', toGid('Order', order.id))
 }
 
 // ─── Win-back: triggered by cron, not a webhook event ────────────────────────
