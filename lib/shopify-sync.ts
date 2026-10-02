@@ -211,7 +211,7 @@ const ORDERS_QUERY = `
           updatedAt
           customer { id }
           fulfillments(first: 3) { trackingInfo { number url } }
-          returns(first: 10) { edges { node { id status totalQuantity requestedAt } } }
+          returns(first: 10) { edges { node { id status totalQuantity } } }
           lineItems(first: 50) {
             edges { node {
               id title variantTitle sku quantity
@@ -245,7 +245,7 @@ interface OrdersResponse {
       updatedAt: string
       customer: { id: string } | null
       fulfillments: { trackingInfo: { number: string | null; url: string | null }[] }[]
-      returns: { edges: { node: { id: string; status: string; totalQuantity: number; requestedAt: string | null } }[] }
+      returns: { edges: { node: { id: string; status: string; totalQuantity: number } }[] }
       lineItems: { edges: { node: {
         id: string; title: string; variantTitle: string | null; sku: string | null; quantity: number
         originalUnitPriceSet: { shopMoney: { amount: string } } | null
@@ -315,14 +315,17 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
 
     // Returns only exist nested under an order in Shopify's GraphQL schema
     // (there's no root-level `returns` field) — synced here rather than as
-    // a separate job, using the order row id we already have.
+    // a separate job, using the order row id we already have. requested_at
+    // is left null: `requestedAt` isn't a real field on Return (confirmed
+    // live — Shopify rejected it), and no verified replacement is used
+    // instead of guessing at another field name.
     const returns = o.returns.edges.map(({ node: r }) => ({
       store_id: storeId,
       order_id: orderRow.id,
       shopify_return_id: r.id,
       status: r.status,
       total_quantity: r.totalQuantity,
-      requested_at: r.requestedAt,
+      requested_at: null,
     }))
     if (returns.length) {
       const { error } = await service.from('shopify_returns').upsert(returns, { onConflict: 'store_id,shopify_return_id' })
