@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { fetchShopify } from '@/lib/shopify-rate-limit'
+import { customerToE164 } from '@/lib/shopify'
 
 const API_VERSION = '2026-07'
 
@@ -209,7 +210,9 @@ const ORDERS_QUERY = `
           note
           createdAt
           updatedAt
-          customer { id }
+          customer { id phone }
+          shippingAddress { phone firstName lastName countryCode }
+          billingAddress { phone firstName lastName countryCode }
           fulfillments(first: 3) { trackingInfo { number url } }
           returns(first: 10) { edges { node { id status totalQuantity } } }
           lineItems(first: 50) {
@@ -243,7 +246,9 @@ interface OrdersResponse {
       note: string | null
       createdAt: string
       updatedAt: string
-      customer: { id: string } | null
+      customer: { id: string; phone: string | null } | null
+      shippingAddress: { phone: string | null; firstName: string | null; lastName: string | null; countryCode: string | null } | null
+      billingAddress: { phone: string | null; firstName: string | null; lastName: string | null; countryCode: string | null } | null
       fulfillments: { trackingInfo: { number: string | null; url: string | null }[] }[]
       returns: { edges: { node: { id: string; status: string; totalQuantity: number } }[] }
       lineItems: { edges: { node: {
@@ -262,11 +267,38 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
   let count = 0
 
   for (const { node: o } of edges) {
+    // order.phone and customer.phone are almost always null in practice —
+    // confirmed live against a real store: the phone a shopper enters at
+    // checkout lands on shippingAddress/billingAddress, not those fields.
+    // Falling back through all four so a real phone actually gets captured.
+    const rawPhone = o.phone || o.shippingAddress?.phone || o.billingAddress?.phone || o.customer?.phone || ''
+    const countryCode = (o.shippingAddress?.countryCode ?? o.billingAddress?.countryCode ?? '').toUpperCase()
+    const phone = customerToE164(rawPhone, countryCode)
+    const customerName = [
+      o.shippingAddress?.firstName ?? o.billingAddress?.firstName,
+      o.shippingAddress?.lastName ?? o.billingAddress?.lastName,
+    ].filter(Boolean).join(' ') || null
+
     let customerId: string | null = null
     if (o.customer?.id) {
       const { data: match } = await service.from('customers')
         .select('id').eq('store_id', storeId).eq('shopify_customer_id', gidToNumeric(o.customer.id)).maybeSingle()
       customerId = match?.id ?? null
+    }
+    // No shopify_customer_id match (or no Shopify customer at all — guest
+    // checkout) but we do have a real phone number: upsert a customer
+    // record from the order's own contact details so this shopper still
+    // ends up reachable on WhatsApp, same as the webhook path already does
+    // for real-time orders.
+    if (!customerId && phone) {
+      const { data: upserted } = await service.from('customers').upsert({
+        store_id: storeId,
+        phone,
+        name: customerName,
+        email: o.email,
+        whatsapp_opt_in: true,
+      }, { onConflict: 'store_id,phone', ignoreDuplicates: false }).select('id').maybeSingle()
+      customerId = upserted?.id ?? null
     }
     const tracking = o.fulfillments[0]?.trackingInfo?.[0]
 
@@ -276,7 +308,7 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
       shopify_order_id: o.id,
       order_number: o.name,
       email: o.email,
-      phone: o.phone,
+      phone: phone || null,
       currency: o.currencyCode,
       total_price: money(o.totalPriceSet),
       subtotal_price: money(o.subtotalPriceSet),

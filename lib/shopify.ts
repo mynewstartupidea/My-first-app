@@ -4,7 +4,7 @@ const SHOPIFY_API_VERSION = '2026-07'
 // Normalise a raw phone string to E.164 using the customer's country code.
 // Returns empty string for unparseable numbers rather than silently skipping them
 // (the caller can decide to skip or log).
-function customerToE164(raw: string, countryCode = ''): string {
+export function customerToE164(raw: string, countryCode = ''): string {
   if (!raw) return ''
   if (raw.startsWith('+')) return `+${raw.replace(/\D/g, '')}`
   const digits = raw.replace(/\D/g, '')
