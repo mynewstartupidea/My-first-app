@@ -321,11 +321,24 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     await attributeRevenue(supabase, store.id, phone, orderValue, order.id).catch(() => null)
   }
 
-  // Update customer stats
+  // Update customer stats — this used to hardcode total_orders: 1 on every
+  // order (so a repeat customer's second, third, ... order all overwrote it
+  // back down to 1) and never touched total_spent at all, leaving it stuck
+  // at 0 forever. Confirmed live: a real ₹878 COD order left total_spent=0.
+  // Campaigns' VIP/repeat-buyer segments read these columns directly, so a
+  // stale value here silently breaks targeting. Read-then-write instead of
+  // a blind upsert so repeat orders actually accumulate.
+  const { data: existingCustomer } = await supabase
+    .from('customers').select('total_orders, total_spent')
+    .eq('store_id', store.id).eq('phone', phone).maybeSingle()
+
   await supabase.from('customers').upsert({
     store_id: store.id, phone, name: firstName,
     email: String((order.customer as Record<string, unknown>)?.email ?? order.email ?? ''),
-    whatsapp_opt_in: true, total_orders: 1, last_order_at: new Date().toISOString(),
+    whatsapp_opt_in: true,
+    total_orders: (existingCustomer?.total_orders ?? 0) + 1,
+    total_spent: (existingCustomer?.total_spent ?? 0) + orderValue,
+    last_order_at: new Date().toISOString(),
   }, { onConflict: 'store_id,phone', ignoreDuplicates: false })
 }
 
