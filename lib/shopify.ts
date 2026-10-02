@@ -262,9 +262,13 @@ export async function syncShopifyCustomers(
   return { synced, skipped }
 }
 
-export function verifyShopifyWebhook(body: string, hmacHeader: string): boolean {
-  const secret = process.env.SHOPIFY_API_SECRET
-  if (!secret) return false
+// secret defaults to the legacy single-app SHOPIFY_API_SECRET (public OAuth
+// flow — one app, one secret, shared across every merchant). Custom-app
+// stores each have their OWN client secret, so Shopify signs their webhooks
+// with it instead — callers for that flow must pass the store's own
+// (decrypted) secret explicitly, since the env var won't match.
+export function verifyShopifyWebhook(body: string, hmacHeader: string, secret = process.env.SHOPIFY_API_SECRET): boolean {
+  if (!secret || !hmacHeader) return false
   const hash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
   const a = Buffer.from(hash)
   const b = Buffer.from(hmacHeader)

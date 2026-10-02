@@ -597,3 +597,218 @@ ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS shopify_access_token_enc   TEXT,
   ADD COLUMN IF NOT EXISTS shopify_token_expires_at   TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS shopify_granted_scopes     TEXT[];
+
+-- ─── Shopify: data mirror tables (orders/products/inventory/locations/      ──
+-- ─── abandoned checkouts/returns/discounts) + background sync job queue ────
+-- Phase 2-4 of the custom-app connection work above. Every resource table
+-- follows the same shape as `customers.shopify_customer_id`: a
+-- UNIQUE(store_id, shopify_*_id) so sync writes are plain upserts, safe to
+-- re-run, and never create duplicates on retry.
+--
+-- shopify_sync_jobs is the background-sync queue — same optimistic-lock
+-- claiming pattern as `automation_jobs` (status='pending' -> conditional
+-- UPDATE to 'processing'), polled by app/api/cron/shopify-sync. Each cron
+-- tick processes ONE PAGE per job (not a whole resource) so a single
+-- invocation can never run past Vercel's 60s function ceiling regardless of
+-- how large a store's order history is — a job just re-queues itself with
+-- its next page cursor until done. This is deliberately REST-pagination
+-- based, not Shopify's GraphQL Bulk Operations API — simpler to operate and
+-- sufficient at the page-per-tick cadence; revisit only if a merchant's
+-- historical backfill is too large to finish in a reasonable number of
+-- cron ticks.
+
+CREATE TABLE IF NOT EXISTS shopify_locations (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id            UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  shopify_location_id TEXT NOT NULL,
+  name                TEXT,
+  address1            TEXT,
+  city                TEXT,
+  province            TEXT,
+  country             TEXT,
+  active              BOOLEAN DEFAULT true,
+  created_at          TIMESTAMPTZ DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, shopify_location_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_products (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id            UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  shopify_product_id  TEXT NOT NULL,
+  title               TEXT,
+  vendor              TEXT,
+  product_type        TEXT,
+  status              TEXT,
+  tags                TEXT,
+  image_url           TEXT,
+  shopify_created_at  TIMESTAMPTZ,
+  shopify_updated_at  TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, shopify_product_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_product_variants (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id             UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  product_id           UUID REFERENCES shopify_products(id) ON DELETE CASCADE NOT NULL,
+  shopify_variant_id   TEXT NOT NULL,
+  shopify_product_id   TEXT NOT NULL,
+  title                TEXT,
+  sku                  TEXT,
+  price                NUMERIC,
+  compare_at_price     NUMERIC,
+  inventory_item_id    TEXT,
+  inventory_quantity   INTEGER,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, shopify_variant_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_orders (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id             UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  customer_id          UUID REFERENCES customers(id) ON DELETE SET NULL,
+  shopify_order_id     TEXT NOT NULL,
+  order_number         TEXT,
+  email                TEXT,
+  phone                TEXT,
+  currency             TEXT,
+  total_price          NUMERIC,
+  subtotal_price       NUMERIC,
+  total_tax            NUMERIC,
+  total_discounts      NUMERIC,
+  total_refunded       NUMERIC DEFAULT 0,
+  financial_status     TEXT,
+  fulfillment_status   TEXT,
+  tracking_number      TEXT,
+  tracking_url         TEXT,
+  cancelled_at         TIMESTAMPTZ,
+  tags                 TEXT,
+  note                 TEXT,
+  shopify_created_at   TIMESTAMPTZ,
+  shopify_updated_at   TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, shopify_order_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_order_line_items (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id              UUID REFERENCES shopify_orders(id) ON DELETE CASCADE NOT NULL,
+  shopify_line_item_id  TEXT NOT NULL,
+  shopify_product_id    TEXT,
+  shopify_variant_id    TEXT,
+  title                 TEXT,
+  variant_title         TEXT,
+  sku                   TEXT,
+  quantity              INTEGER,
+  price                 NUMERIC,
+  UNIQUE (order_id, shopify_line_item_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_inventory_levels (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id             UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  inventory_item_id    TEXT NOT NULL,
+  shopify_location_id  TEXT NOT NULL,
+  available            INTEGER,
+  updated_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, inventory_item_id, shopify_location_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_abandoned_checkouts (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id             UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  customer_id          UUID REFERENCES customers(id) ON DELETE SET NULL,
+  shopify_checkout_id  TEXT NOT NULL,
+  email                TEXT,
+  phone                TEXT,
+  total_price          NUMERIC,
+  currency             TEXT,
+  recovery_url         TEXT,
+  line_items           JSONB DEFAULT '[]'::jsonb,
+  abandoned_at         TIMESTAMPTZ,
+  completed_at         TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, shopify_checkout_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_returns (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id             UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  order_id             UUID REFERENCES shopify_orders(id) ON DELETE SET NULL,
+  shopify_return_id    TEXT NOT NULL,
+  status               TEXT,
+  total_quantity       INTEGER,
+  requested_at         TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, shopify_return_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_discounts (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id             UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  shopify_discount_id  TEXT NOT NULL,
+  title                TEXT,
+  code                 TEXT,
+  discount_type        TEXT,
+  value                TEXT,
+  status               TEXT,
+  starts_at            TIMESTAMPTZ,
+  ends_at              TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (store_id, shopify_discount_id)
+);
+
+CREATE TABLE IF NOT EXISTS shopify_sync_jobs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id        UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  resource        TEXT NOT NULL CHECK (resource IN (
+                     'orders','products','inventory','locations',
+                     'abandoned_checkouts','discounts','returns'
+                   )),
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','completed','failed')),
+  page_info       TEXT,
+  attempts        INTEGER DEFAULT 0,
+  records_synced  INTEGER DEFAULT 0,
+  error_message   TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS shopify_sync_jobs_claim_idx ON shopify_sync_jobs(status, created_at);
+
+ALTER TABLE shopify_locations            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_products             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_product_variants     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_orders               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_order_line_items     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_inventory_levels     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_abandoned_checkouts  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_returns              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_discounts            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopify_sync_jobs            ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "shopify_locations_own" ON shopify_locations FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_products_own" ON shopify_products FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_product_variants_own" ON shopify_product_variants FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_orders_own" ON shopify_orders FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_order_line_items_own" ON shopify_order_line_items FOR ALL
+  USING (order_id IN (SELECT id FROM shopify_orders WHERE store_id IN (SELECT id FROM stores WHERE user_id = auth.uid())));
+CREATE POLICY "shopify_inventory_levels_own" ON shopify_inventory_levels FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_abandoned_checkouts_own" ON shopify_abandoned_checkouts FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_returns_own" ON shopify_returns FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_discounts_own" ON shopify_discounts FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));
+CREATE POLICY "shopify_sync_jobs_own" ON shopify_sync_jobs FOR ALL
+  USING (store_id IN (SELECT id FROM stores WHERE user_id = auth.uid()));

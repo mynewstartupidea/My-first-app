@@ -3,7 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { getUserRole } from '@/lib/get-user-role'
 import { pickPreferredStore } from '@/lib/store-selection'
-import { validateShopDomain, syncShopifyCustomers } from '@/lib/shopify'
+import { validateShopDomain, syncShopifyCustomers, registerWebhooks, getShopifyAppUrl } from '@/lib/shopify'
 import { encrypt } from '@/lib/encryption'
 import {
   requestAccessToken,
@@ -121,10 +121,31 @@ export async function POST(request: Request) {
     }
 
     // 5. Kick off initial customer sync — fire-and-forget, same pattern as
-    // the OAuth callback route.
+    // the OAuth callback route. Small/fast enough (paginated, capped at 4
+    // pages) to not need the job-queue treatment below.
     syncShopifyCustomers(shop, tokenData.access_token, storeId, service, 4).catch(e =>
       console.error('[shopify/custom-app/connect] customer sync error:', e)
     )
+
+    // 6. Register webhooks for incremental updates — this is what actually
+    // drives the existing abandoned-cart/order-confirmation/COD/shipping/
+    // upsell/review automations (app/api/shopify/webhooks/route.ts) for this
+    // store going forward, not just data mirroring.
+    registerWebhooks(shop, tokenData.access_token, getShopifyAppUrl()).catch(e =>
+      console.error('[shopify/custom-app/connect] webhook registration error:', e)
+    )
+
+    // 7. Enqueue background sync jobs for everything too large/slow to do
+    // inline (orders/products/inventory/etc.) — processed page-by-page by
+    // app/api/cron/shopify-sync so a large store's history never risks
+    // running past a single request's time limit. locations is enqueued
+    // first and inventory last since inventory sync depends on locations
+    // already existing (see lib/shopify-sync.ts).
+    const resources = ['locations', 'products', 'orders', 'abandoned_checkouts', 'discounts', 'returns', 'inventory']
+    const { error: jobsError } = await service.from('shopify_sync_jobs').insert(
+      resources.map(resource => ({ store_id: storeId, resource, status: 'pending' as const }))
+    )
+    if (jobsError) console.error('[shopify/custom-app/connect] sync job enqueue error:', jobsError.message)
 
     return NextResponse.json({
       connected: true,

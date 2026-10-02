@@ -60,6 +60,7 @@ function IntegrationsInner() {
   const [toast, setToast]               = useState<{ msg: string; ok: boolean } | null>(null)
   const [testing, setTesting]           = useState(false)
   const [syncing, setSyncing]           = useState(false)
+  const [syncingOrders, setSyncingOrders] = useState(false)
   const [syncingCustomers, setSyncingCustomers] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string>('All')
@@ -174,11 +175,26 @@ function IntegrationsInner() {
   async function handleSyncProducts() {
     setSyncing(true)
     const res  = await fetch('/api/shopify/sync-products', { method: 'POST' })
-    const data = await res.json() as { count?: number; error?: string }
+    const data = await res.json() as { count?: number; syncing?: boolean; message?: string; error?: string }
     setSyncing(false)
     if (res.ok && data.count !== undefined) {
-      showToast(`Synced! Found ${data.count} product${data.count !== 1 ? 's' : ''} in your store.`)
+      showToast(data.syncing
+        ? (data.message ?? `Sync running — ${data.count} product${data.count !== 1 ? 's' : ''} synced so far.`)
+        : `Synced! Found ${data.count} product${data.count !== 1 ? 's' : ''} in your store.`
+      )
       setStore(prev => prev ? { ...prev, product_count: data.count! } : prev)
+    } else {
+      showToast(data.error ?? 'Sync failed', false)
+    }
+  }
+
+  async function handleSyncOrders() {
+    setSyncingOrders(true)
+    const res  = await fetch('/api/shopify/sync-orders', { method: 'POST' })
+    const data = await res.json() as { count?: number; message?: string; error?: string }
+    setSyncingOrders(false)
+    if (res.ok) {
+      showToast(data.message ?? `${data.count ?? 0} orders synced so far.`)
     } else {
       showToast(data.error ?? 'Sync failed', false)
     }
@@ -334,6 +350,16 @@ function IntegrationsInner() {
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <Package className="w-3.5 h-3.5" />}
               Sync Products
+            </button>
+            <button
+              onClick={handleSyncOrders}
+              disabled={syncingOrders}
+              className="flex items-center gap-2 text-sm font-medium text-green-700 bg-white border border-green-200 hover:bg-green-50 px-3 py-2 rounded-xl transition"
+            >
+              {syncingOrders
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Package className="w-3.5 h-3.5" />}
+              Sync Orders
             </button>
             <button
               onClick={handleSyncCustomers}

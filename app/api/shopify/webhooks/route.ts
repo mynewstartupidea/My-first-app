@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyShopifyWebhook } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
+import { decrypt } from '@/lib/encryption'
 
 // Normalise a raw phone string to E.164.
 // Uses the Shopify address country_code to determine prefix for bare 10-digit numbers.
@@ -30,21 +31,30 @@ export async function POST(request: Request) {
   const topic     = request.headers.get('X-Shopify-Topic') ?? ''
   const shopDomain = request.headers.get('X-Shopify-Shop-Domain') ?? ''
 
-  if (!verifyShopifyWebhook(body, hmac)) {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-  }
-
-  const payload = JSON.parse(body)
   const supabase = createServiceClient()
 
+  // Store must be looked up before verifying — custom_app stores sign their
+  // webhooks with their OWN client secret (set when the merchant created
+  // their app), not the single shared SHOPIFY_API_SECRET the legacy OAuth
+  // flow uses, so we need to know which kind of store this is first.
   const { data: store } = await supabase
     .from('stores')
-    .select('id, whatsapp_bsp, whatsapp_api_key, shop_name')
+    .select('id, whatsapp_bsp, whatsapp_api_key, shop_name, shopify_connection_type, shopify_client_secret_enc')
     .eq('shopify_domain', shopDomain)
     .eq('is_active', true)
     .maybeSingle()
 
   if (!store) return NextResponse.json({ ok: true })
+
+  const webhookSecret = store.shopify_connection_type === 'custom_app' && store.shopify_client_secret_enc
+    ? decrypt(store.shopify_client_secret_enc)
+    : undefined // falls back to SHOPIFY_API_SECRET inside verifyShopifyWebhook
+
+  if (!verifyShopifyWebhook(body, hmac, webhookSecret)) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+  }
+
+  const payload = JSON.parse(body)
 
   try {
     switch (topic) {
@@ -79,7 +89,14 @@ export async function POST(request: Request) {
         console.log(`[webhook] shop/redact for ${shopDomain}`)
         break
       case 'app/uninstalled':
-        await supabase.from('stores').update({ is_active: false, shopify_access_token: null, updated_at: new Date().toISOString() }).eq('shopify_domain', shopDomain)
+        await supabase.from('stores').update({
+          is_active: false,
+          shopify_access_token: null,
+          shopify_access_token_enc: null,
+          shopify_client_secret_enc: null,
+          shopify_token_expires_at: null,
+          updated_at: new Date().toISOString(),
+        }).eq('shopify_domain', shopDomain)
         await supabase.from('billing').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('billing_provider', 'shopify')
           .in('user_id', (await supabase.from('stores').select('user_id').eq('shopify_domain', shopDomain).then(r => r.data?.map(s => s.user_id) ?? [])))
         break
