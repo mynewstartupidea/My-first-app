@@ -245,7 +245,7 @@ function LoginForm() {
   const titles: Record<Mode, { h: string; sub: string; btn: string }> = {
     signin: { h: 'Welcome back',       sub: 'Sign in to your dashboard',     btn: 'Sign In'            },
     signup: { h: 'Create your account', sub: 'Start recovering revenue today', btn: 'Create Account'     },
-    forgot: { h: 'Reset your password', sub: 'We\'ll email you a 6-digit code', btn: 'Send code'         },
+    forgot: { h: 'Reset your password', sub: 'We\'ll email you a code', btn: 'Send code'                 },
   }
   const { h, sub, btn } = titles[mode]
 
@@ -351,7 +351,7 @@ function LoginForm() {
             {mode === 'forgot' && otpSent ? 'Enter the code' : h}
           </h2>
           <p className="text-slate-500 text-sm mb-6">
-            {mode === 'forgot' && otpSent ? <>We emailed a 6-digit code to <span className="font-medium text-slate-700">{email}</span></> : sub}
+            {mode === 'forgot' && otpSent ? <>We emailed a code to <span className="font-medium text-slate-700">{email}</span></> : sub}
           </p>
 
           {error && (
@@ -370,7 +370,7 @@ function LoginForm() {
           {mode === 'forgot' && otpSent ? (
             <form onSubmit={handleVerifyCode} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">6-digit code</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Code from your email</label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -379,7 +379,7 @@ function LoginForm() {
                   value={resetCode}
                   onChange={e => setResetCode(e.target.value)}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base tracking-[0.3em] text-center font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
-                  placeholder="000000"
+                  placeholder="00000000"
                   autoFocus
                 />
               </div>
