@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
-import { renderTemplate } from '@/lib/utils'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export const maxDuration = 60
 
-// POST /api/campaigns/send — execute a campaign immediately
-// Body: { campaign_id: string }
+// POST /api/campaigns/send — snapshots the full audience into
+// campaign_recipients and hands off to app/api/cron/campaign-send for the
+// actual sending. Used to fetch up to 1000 matching customers and send to
+// all of them in one synchronous loop inside this request — anything past
+// 1000 silently never got messaged, and because message/opt-in logging only
+// happened in one batch AFTER the whole loop finished, a timeout partway
+// through (easy to hit well under 1000 recipients at real WhatsApp API
+// latency) meant messages that were actually sent (and billed) left zero
+// record of it. This route now just builds the recipient list and returns —
+// no cap, no in-request sending, no risk of losing already-sent history to
+// a timeout.
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,12 +23,6 @@ export async function POST(req: NextRequest) {
   const { campaign_id } = await req.json()
   if (!campaign_id) return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })
 
-  // campaigns/stores/whatsapp_accounts/customers RLS is USING (auth.uid() =
-  // user_id) with no team-member carve-out — this route used to query all of
-  // them with the plain RLS-bound client keyed on the caller's own id, so a
-  // campaign a teammate had just created (via POST /api/campaigns, which IS
-  // correctly owner-resolved) could never actually be found or sent by them:
-  // "Campaign not found" on every attempt but the owner's own.
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
 
@@ -31,9 +32,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Monthly message limit reached. Upgrade your plan for more messages.' }, { status: 403 })
   }
 
+  // campaigns has no user_id column — it's scoped by store_id, like every
+  // other table in this app. The query this route used to run,
+  // .eq('user_id', ownerId), fails outright ("column campaigns.user_id does
+  // not exist") and has been rejecting every single send attempt as
+  // "Campaign not found." Fetch the campaign, then verify its store_id
+  // belongs to one of the resolved owner's own stores.
   const { data: campaign, error: cErr } = await service
-    .from('campaigns').select('*').eq('id', campaign_id).eq('user_id', ownerId).single()
+    .from('campaigns').select('*').eq('id', campaign_id).single()
   if (cErr || !campaign) return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+
+  const { data: ownedStore } = await service
+    .from('stores').select('id').eq('id', campaign.store_id).eq('user_id', ownerId).maybeSingle()
+  if (!ownedStore) return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
 
   // Atomic claim: only update if still in draft/scheduled — prevents double-send
   const { data: claimed } = await service
@@ -47,33 +58,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Campaign already running or completed' }, { status: 400 })
   }
 
-  // Fetch store for WhatsApp config
-  const { data: store } = await service
-    .from('stores').select('*').eq('id', campaign.store_id).single()
-  if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
-
-  let apiKeyOverride: string | undefined = store.whatsapp_api_key ?? undefined
-  let phoneNumberIdOverride: string | undefined = undefined
-
-  if (store.whatsapp_bsp === 'meta') {
-    const { data: wa } = await service
-      .from('whatsapp_accounts')
-      .select('phone_number_id, access_token')
-      .eq('user_id', ownerId)
-      .eq('status', 'connected')
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle()
-
-    apiKeyOverride        = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? wa?.access_token ?? apiKeyOverride
-    phoneNumberIdOverride = wa?.phone_number_id ?? undefined
-  }
-
-  // Fetch audience
+  // Build audience — same segment logic as before, just no .limit(1000).
   let query = service
     .from('customers')
     .select('id, phone, name')
-    .eq('store_id', store.id)
+    .eq('store_id', campaign.store_id)
 
   if (campaign.audience === 'opted_in') {
     query = query.eq('whatsapp_opt_in', true)
@@ -96,69 +85,25 @@ export async function POST(req: NextRequest) {
   // 'all' intentionally includes all synced contacts. Actual send failures will
   // update whatsapp_opt_in for numbers Meta reports as invalid/not registered.
 
-  const { data: customers } = await query.limit(1000)
+  const { data: customers } = await query
   if (!customers || customers.length === 0) {
-    // Revert claim so the campaign can be retried
     await service.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
     return NextResponse.json({ error: 'No eligible customers in this audience segment' }, { status: 400 })
   }
 
-  let sentCount = 0
-  let failedCount = 0
-  const messageLogs: object[]  = []
-  const optInIds:   string[]   = []
-  const optOutIds:  string[]   = []
-
-  for (const customer of customers) {
-    const personalizedMessage = renderTemplate(campaign.message, { name: customer.name ?? 'there' })
-
-    const result = await sendWhatsAppMessage({
-      to:            customer.phone,
-      message:       personalizedMessage,
-      bsp:           store.whatsapp_bsp,
-      apiKey:        apiKeyOverride,
-      phoneNumberId: phoneNumberIdOverride,
-    })
-
-    if (result.success) {
-      sentCount++
-      optInIds.push(customer.id)
-      messageLogs.push({
-        store_id:       store.id,
-        customer_phone: customer.phone,
-        customer_name:  customer.name,
-        type:           'broadcast',
-        message:        personalizedMessage,
-        status:         'sent',
-        bsp_message_id: result.messageId,
-      })
-    } else {
-      failedCount++
-      const notReachable = /not registered on WhatsApp|invalid phone number/i.test(result.error ?? '')
-      if (notReachable) optOutIds.push(customer.id)
+  // Bulk insert in chunks — a single call with 10k+ rows risks hitting a
+  // payload-size limit; 500-row chunks stay comfortably under it either way.
+  const CHUNK = 500
+  for (let i = 0; i < customers.length; i += CHUNK) {
+    const chunk = customers.slice(i, i + CHUNK).map(c => ({
+      campaign_id, customer_id: c.id, phone: c.phone, name: c.name, status: 'pending' as const,
+    }))
+    const { error: insErr } = await service.from('campaign_recipients').upsert(chunk, { onConflict: 'campaign_id,customer_id', ignoreDuplicates: true })
+    if (insErr) {
+      await service.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
+      return NextResponse.json({ error: `Failed to queue recipients: ${insErr.message}` }, { status: 500 })
     }
   }
 
-  // Batch the DB writes — one call instead of 2× per customer
-  await Promise.all([
-    messageLogs.length
-      ? service.from('messages').insert(messageLogs)
-      : Promise.resolve(),
-    optInIds.length
-      ? service.from('customers').update({ whatsapp_opt_in: true  }).in('id', optInIds)
-      : Promise.resolve(),
-    optOutIds.length
-      ? service.from('customers').update({ whatsapp_opt_in: false }).in('id', optOutIds)
-      : Promise.resolve(),
-  ])
-
-  // Update campaign status
-  await service.from('campaigns').update({
-    status:      'completed',
-    sent_count:  sentCount,
-    failed_count: failedCount,
-    updated_at:  new Date().toISOString(),
-  }).eq('id', campaign_id)
-
-  return NextResponse.json({ success: true, sentCount, failedCount })
+  return NextResponse.json({ success: true, queued: customers.length })
 }

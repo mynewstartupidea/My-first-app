@@ -846,3 +846,33 @@ BEGIN
   RETURN v_id;
 END;
 $$;
+
+-- ─── Campaign sending: recipient queue, replaces the old one-shot loop ───────
+-- app/api/campaigns/send used to fetch up to 1000 matching customers and
+-- send to all of them sequentially inside one request — anything beyond
+-- 1000 silently never got messaged, and because the message/opt-in log was
+-- only written in one batch AFTER the whole loop finished, a timeout partway
+-- through (easy to hit well under 1000 recipients at real WhatsApp API
+-- latency) meant messages that were actually sent (and billed) had zero
+-- record of ever happening. campaign_recipients snapshots the full audience
+-- (no cap) when a campaign launches; app/api/cron/campaign-send processes
+-- it in batches, writing each result immediately, so a timeout or restart
+-- loses at most the in-flight message, not the whole campaign's history.
+CREATE TABLE IF NOT EXISTS campaign_recipients (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id    UUID REFERENCES campaigns(id) ON DELETE CASCADE NOT NULL,
+  customer_id    UUID REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  phone          TEXT NOT NULL,
+  name           TEXT,
+  status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sending','sent','failed','skipped')),
+  error_message  TEXT,
+  bsp_message_id TEXT,
+  sent_at        TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (campaign_id, customer_id)
+);
+CREATE INDEX IF NOT EXISTS campaign_recipients_pending_idx ON campaign_recipients(campaign_id, status);
+
+ALTER TABLE campaign_recipients ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "campaign_recipients_own" ON campaign_recipients FOR ALL
+  USING (campaign_id IN (SELECT id FROM campaigns WHERE user_id = auth.uid()));

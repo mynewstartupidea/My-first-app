@@ -1056,7 +1056,7 @@ function CampaignsContent() {
     })
     const data = await res.json()
     setSending(null)
-    if (res.ok) { showToast(`Sent to ${data.sentCount} customers!`); load() }
+    if (res.ok) { showToast(`Sending to ${data.queued} customers — this runs in the background, refresh in a minute to see progress.`); load() }
     else showToast(data.error ?? 'Failed', false)
   }
 
