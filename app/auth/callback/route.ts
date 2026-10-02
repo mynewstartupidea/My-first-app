@@ -33,5 +33,18 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+  // No ?code= — this is either a genuine failure, OR (confirmed live: the
+  // Shopify App Store new-merchant auto-sign-in flow, which generates an
+  // admin link server-side and redirects straight into it) a link type that
+  // authenticates via the URL *hash* instead, which the server can never
+  // see at all. That case still gets completed client-side on /login from
+  // the hash — but this redirect used to just say "/login?error=auth_failed"
+  // with no `next`, so even a SUCCESSFUL hash-based completion afterward had
+  // nothing but the default /dashboard to go to: a brand-new Shopify
+  // merchant landed in an empty dashboard instead of the pricing page they
+  // were supposed to see. Forward `next` as `returnTo`, which /login's
+  // existing hash-completion logic already reads.
+  const fallbackParams = new URLSearchParams({ error: 'auth_failed' })
+  if (next !== '/dashboard') fallbackParams.set('returnTo', next)
+  return NextResponse.redirect(`${origin}/login?${fallbackParams}`)
 }
