@@ -875,4 +875,6 @@ CREATE INDEX IF NOT EXISTS campaign_recipients_pending_idx ON campaign_recipient
 
 ALTER TABLE campaign_recipients ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "campaign_recipients_own" ON campaign_recipients FOR ALL
-  USING (campaign_id IN (SELECT id FROM campaigns WHERE user_id = auth.uid()));
+  USING (campaign_id IN (
+    SELECT id FROM campaigns WHERE store_id IN (SELECT id FROM stores WHERE user_id = auth.uid())
+  ));
