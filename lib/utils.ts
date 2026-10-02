@@ -26,8 +26,18 @@ export function timeAgo(date: string) {
   return `${Math.floor(seconds / 86400)}d ago`
 }
 
+// Conditional sections ({{#key}}...{{/key}}, included only when vars[key] is
+// truthy) were being written into automation templates (e.g. a discount
+// block in the abandoned-cart message) without ever being supported here —
+// the old regex only matched \w+ (word characters), so "#discount" never
+// matched at all and the raw {{#discount}}...{{/discount}} markup leaked
+// straight into real WhatsApp messages. Sections are resolved first, then
+// plain {{var}} substitution runs on what's left.
 export function renderTemplate(template: string, vars: Record<string, string>) {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
+  const withSections = template.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, inner) => (
+    vars[key] ? inner : ''
+  ))
+  return withSections.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
 }
 
 // Extracts variable values from a template in the order they appear.

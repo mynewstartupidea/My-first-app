@@ -163,6 +163,11 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     cart_url:       checkoutUrl,
     discount_code:  '',
     discount_value: String(auto.discount_value ?? 10),
+    // '' is falsy to renderTemplate's {{#discount}}...{{/discount}} check —
+    // a template using that section to wrap its discount-code mention now
+    // correctly omits the whole thing instead of printing it with a blank
+    // code, instead of leaking raw {{#discount}} markup as before.
+    discount:       '',
   }
 
   const message = renderTemplate(auto.template, vars)
