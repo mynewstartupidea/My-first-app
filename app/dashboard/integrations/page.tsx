@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Plug, CheckCircle2, MessageCircle, Zap, AlertCircle,
-  Loader2, ExternalLink, RefreshCw, Unplug, Package, Users,
+  Loader2, ExternalLink, RefreshCw, Unplug, Package, Users, Lock,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -65,6 +65,16 @@ function IntegrationsInner() {
   const [activeCategory, setActiveCategory] = useState<string>('All')
   const [domain, setDomain]             = useState('')
   const [connecting, setConnecting]     = useState(false)
+
+  // Custom-app connection (client credentials grant) — the merchant creates
+  // their own app via Shopify's dev dashboard (no App Store review needed)
+  // and gives us shop domain + client id + client secret. Kept separate from
+  // the legacy domain/connecting OAuth-popup state above, which stays dormant.
+  const [shopInput, setShopInput]             = useState('')
+  const [clientIdInput, setClientIdInput]     = useState('')
+  const [clientSecretInput, setClientSecretInput] = useState('')
+  const [connectingCustomApp, setConnectingCustomApp] = useState(false)
+  const [connectError, setConnectError]       = useState<string | null>(null)
 
   const router  = useRouter()
 
@@ -183,6 +193,42 @@ function IntegrationsInner() {
       showToast(`Imported ${data.synced} customer${data.synced !== 1 ? 's' : ''} with phone numbers.`)
     } else {
       showToast(data.error ?? 'Sync failed', false)
+    }
+  }
+
+  async function handleCustomAppConnect(e: React.FormEvent) {
+    e.preventDefault()
+    setConnectError(null)
+    if (!shopInput.trim() || !clientIdInput.trim() || !clientSecretInput.trim()) {
+      setConnectError('Shop domain, client id and client secret are all required.')
+      return
+    }
+    setConnectingCustomApp(true)
+    try {
+      const res = await fetch('/api/shopify/custom-app/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shop: shopInput.trim(), clientId: clientIdInput.trim(), clientSecret: clientSecretInput.trim() }),
+      })
+      const data = await res.json() as {
+        connected: boolean; shop?: string; missing_scopes?: string[]; error?: string; message?: string
+      }
+      if (data.connected) {
+        setClientSecretInput('')
+        showToast(
+          data.missing_scopes?.length
+            ? `Connected! Missing scopes: ${data.missing_scopes.join(', ')} — some features will be limited until you grant them.`
+            : 'Shopify store connected successfully!'
+        )
+        await loadStore()
+        router.refresh()
+      } else {
+        setConnectError(data.message ?? data.error ?? 'Could not connect to Shopify.')
+      }
+    } catch {
+      setConnectError('Could not reach the server. Please try again.')
+    } finally {
+      setConnectingCustomApp(false)
     }
   }
 
@@ -313,16 +359,71 @@ function IntegrationsInner() {
         </div>
 
       ) : (
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 mb-6 md:mb-8">
-          <div className="flex items-start gap-4">
+        <div id="shopify-connect-form" className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 mb-6 md:mb-8">
+          <div className="flex items-start gap-4 mb-4">
             <Package className="w-5 h-5 text-slate-400 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
-              <p className="font-semibold text-slate-700">Shopify — Coming Soon</p>
+              <p className="font-semibold text-slate-700">Connect your Shopify store</p>
               <p className="text-slate-500 text-sm mt-0.5">
-                Wapaci is currently focused on Facebook Lead Ads. Shopify store sync isn&apos;t available to connect right now.
+                Create a custom app for your store in Shopify&apos;s dev dashboard, grant it the scopes it asks for,
+                install it, then paste the 3 values it gives you below.
               </p>
             </div>
           </div>
+
+          <form onSubmit={handleCustomAppConnect} className="ml-0 sm:ml-9 space-y-3 max-w-md">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Shop domain</label>
+              <input
+                type="text"
+                value={shopInput}
+                onChange={e => setShopInput(e.target.value)}
+                placeholder="yourstore.myshopify.com"
+                className="w-full text-base px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#25D366]/40"
+                disabled={connectingCustomApp}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Client ID</label>
+              <input
+                type="text"
+                value={clientIdInput}
+                onChange={e => setClientIdInput(e.target.value)}
+                placeholder="From your custom app's API credentials"
+                className="w-full text-base px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#25D366]/40"
+                disabled={connectingCustomApp}
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Client secret</label>
+              <input
+                type="password"
+                value={clientSecretInput}
+                onChange={e => setClientSecretInput(e.target.value)}
+                placeholder="From your custom app's API credentials"
+                className="w-full text-base px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#25D366]/40"
+                disabled={connectingCustomApp}
+                autoComplete="off"
+              />
+            </div>
+            <p className="flex items-center gap-1.5 text-xs text-slate-400">
+              <Lock className="w-3 h-3 flex-shrink-0" /> Encrypted at rest. Sent straight to our backend, never stored in your browser.
+            </p>
+            {connectError && (
+              <p className="text-sm text-red-600">{connectError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={connectingCustomApp}
+              className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition disabled:opacity-60"
+            >
+              {connectingCustomApp
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Plug className="w-3.5 h-3.5" />}
+              Connect store
+            </button>
+          </form>
         </div>
       )}
 
@@ -367,12 +468,12 @@ function IntegrationsInner() {
                 'text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0',
                 isShopifyConnected ? 'bg-[#25D366]/10 text-[#25D366]' : 'bg-slate-100 text-slate-500'
               )}>
-                {isShopifyConnected ? 'Connected' : 'Coming Soon'}
+                {isShopifyConnected ? 'Connected' : 'Not connected'}
               </span>
             </div>
 
             <p className="text-slate-500 text-sm leading-relaxed flex-1">
-              Sync orders, customers, and abandoned carts from your Shopify store.
+              Sync customers from your own Shopify custom app — no app review needed.
             </p>
 
             {isShopifyConnected && store && (
@@ -402,9 +503,12 @@ function IntegrationsInner() {
                   </button>
                 </div>
               ) : (
-                <button disabled className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-400 text-sm font-medium px-4 py-2.5 rounded-xl cursor-not-allowed">
-                  Coming Soon
-                </button>
+                <a
+                  href="#shopify-connect-form"
+                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
+                >
+                  <Plug className="w-4 h-4" /> Connect
+                </a>
               )}
             </div>
           </div>

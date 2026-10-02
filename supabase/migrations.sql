@@ -574,3 +574,26 @@ ALTER TABLE inbound_messages
   DROP CONSTRAINT IF EXISTS inbound_messages_message_id_key;
 ALTER TABLE inbound_messages
   ADD CONSTRAINT inbound_messages_message_id_key UNIQUE (message_id);
+
+-- ─── Shopify: merchant custom-app connection (client credentials grant) ──────
+-- Shopify's public-app review kept rejecting the OAuth-based app (that flow,
+-- lib/shopify.ts + app/api/shopify/callback, is left fully intact and
+-- dormant). The replacement: each merchant creates their OWN custom app via
+-- Shopify's dev dashboard (no App Store review needed) and gives Wapaci
+-- shop domain + client id + client secret. Wapaci exchanges those for an
+-- access token via Shopify's client-credentials grant (POST
+-- /admin/oauth/access_token, grant_type=client_credentials) — see
+-- lib/shopify-custom-app.ts. shopify_connection_type is how every route
+-- tells the two flows apart; legacy rows default to 'oauth_app' and keep
+-- using the existing plaintext shopify_access_token column untouched.
+-- Client secret and access token are encrypted at rest (lib/encryption.ts,
+-- AES-256-GCM) — the first encrypted-at-rest columns in this schema; nothing
+-- else is retrofitted.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS shopify_connection_type TEXT DEFAULT 'oauth_app'
+    CHECK (shopify_connection_type IN ('oauth_app','custom_app')),
+  ADD COLUMN IF NOT EXISTS shopify_client_id         TEXT,
+  ADD COLUMN IF NOT EXISTS shopify_client_secret_enc  TEXT,
+  ADD COLUMN IF NOT EXISTS shopify_access_token_enc   TEXT,
+  ADD COLUMN IF NOT EXISTS shopify_token_expires_at   TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS shopify_granted_scopes     TEXT[];
