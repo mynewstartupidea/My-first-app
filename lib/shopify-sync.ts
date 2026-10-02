@@ -211,6 +211,7 @@ const ORDERS_QUERY = `
           updatedAt
           customer { id }
           fulfillments(first: 3) { trackingInfo { number url } }
+          returns(first: 10) { edges { node { id status totalQuantity requestedAt } } }
           lineItems(first: 50) {
             edges { node {
               id title variantTitle sku quantity
@@ -244,6 +245,7 @@ interface OrdersResponse {
       updatedAt: string
       customer: { id: string } | null
       fulfillments: { trackingInfo: { number: string | null; url: string | null }[] }[]
+      returns: { edges: { node: { id: string; status: string; totalQuantity: number; requestedAt: string | null } }[] }
       lineItems: { edges: { node: {
         id: string; title: string; variantTitle: string | null; sku: string | null; quantity: number
         originalUnitPriceSet: { shopMoney: { amount: string } } | null
@@ -309,6 +311,22 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
     if (lineItems.length) {
       const { error } = await service.from('shopify_order_line_items').upsert(lineItems, { onConflict: 'order_id,shopify_line_item_id' })
       if (error) throw new Error(`shopify_order_line_items upsert: ${error.message}`)
+    }
+
+    // Returns only exist nested under an order in Shopify's GraphQL schema
+    // (there's no root-level `returns` field) — synced here rather than as
+    // a separate job, using the order row id we already have.
+    const returns = o.returns.edges.map(({ node: r }) => ({
+      store_id: storeId,
+      order_id: orderRow.id,
+      shopify_return_id: r.id,
+      status: r.status,
+      total_quantity: r.totalQuantity,
+      requested_at: r.requestedAt,
+    }))
+    if (returns.length) {
+      const { error } = await service.from('shopify_returns').upsert(returns, { onConflict: 'store_id,shopify_return_id' })
+      if (error) throw new Error(`shopify_returns upsert: ${error.message}`)
     }
   }
 
@@ -431,50 +449,9 @@ export async function syncDiscountsPage(shop: string, token: string, storeId: st
   }
 }
 
-// ─── Returns (GraphQL) ──────────────────────────────────────────────────────
-
-const RETURNS_QUERY = `
-  query SyncReturns($cursor: String) {
-    returns(first: 30, after: $cursor) {
-      pageInfo { hasNextPage endCursor }
-      edges { node { id status totalQuantity requestedAt order { id } } }
-    }
-  }
-`
-
-interface ReturnsResponse {
-  returns: {
-    pageInfo: { hasNextPage: boolean; endCursor: string | null }
-    edges: { node: { id: string; status: string; totalQuantity: number; requestedAt: string | null; order: { id: string } | null } }[]
-  }
-}
-
-export async function syncReturnsPage(shop: string, token: string, storeId: string, service: Service, pageInfo: string | null): Promise<SyncPageResult> {
-  const data = await shopifyGraphQL<ReturnsResponse>(shop, token, RETURNS_QUERY, { cursor: pageInfo })
-  const edges = data.returns.edges
-  let count = 0
-
-  for (const { node: r } of edges) {
-    let orderId: string | null = null
-    if (r.order?.id) {
-      const { data: match } = await service.from('shopify_orders').select('id').eq('store_id', storeId).eq('shopify_order_id', r.order.id).maybeSingle()
-      orderId = match?.id ?? null
-    }
-
-    const { error } = await service.from('shopify_returns').upsert({
-      store_id: storeId,
-      order_id: orderId,
-      shopify_return_id: r.id,
-      status: r.status,
-      total_quantity: r.totalQuantity,
-      requested_at: r.requestedAt,
-    }, { onConflict: 'store_id,shopify_return_id' })
-    if (error) throw new Error(`shopify_returns upsert: ${error.message}`)
-    count++
-  }
-
-  return {
-    nextPageInfo: data.returns.pageInfo.hasNextPage ? data.returns.pageInfo.endCursor : null,
-    recordsProcessed: count,
-  }
-}
+// Returns are synced inline inside syncOrdersPage above — Shopify's GraphQL
+// schema only exposes `returns` nested under an order (confirmed live: a
+// root-level `returns` query field doesn't exist and errors with
+// "Field 'returns' doesn't exist on type 'QueryRoot'"), so there's no
+// separate "returns" resource/job; shopify_returns rows are written
+// alongside their parent order.

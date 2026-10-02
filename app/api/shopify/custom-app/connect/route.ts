@@ -141,7 +141,10 @@ export async function POST(request: Request) {
     // running past a single request's time limit. locations is enqueued
     // first and inventory last since inventory sync depends on locations
     // already existing (see lib/shopify-sync.ts).
-    const resources = ['locations', 'products', 'orders', 'abandoned_checkouts', 'discounts', 'returns', 'inventory']
+    // returns is deliberately not a standalone job — it's synced inline
+    // inside the orders job (see lib/shopify-sync.ts), since Shopify only
+    // exposes returns nested under an order, not as a root-level query.
+    const resources = ['locations', 'products', 'orders', 'abandoned_checkouts', 'discounts', 'inventory']
     const { error: jobsError } = await service.from('shopify_sync_jobs').insert(
       resources.map(resource => ({ store_id: storeId, resource, status: 'pending' as const }))
     )

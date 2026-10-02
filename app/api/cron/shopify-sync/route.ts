@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getValidAccessToken, ShopifyConnectionError } from '@/lib/shopify-custom-app'
 import {
   syncLocationsPage, syncInventoryPage, syncProductsPage, syncOrdersPage,
-  syncAbandonedCheckoutsPage, syncDiscountsPage, syncReturnsPage,
+  syncAbandonedCheckoutsPage, syncDiscountsPage,
   type SyncPageResult,
 } from '@/lib/shopify-sync'
 
@@ -21,7 +21,6 @@ const SYNC_FNS: Record<string, (shop: string, token: string, storeId: string, se
   orders: syncOrdersPage,
   abandoned_checkouts: syncAbandonedCheckoutsPage,
   discounts: syncDiscountsPage,
-  returns: syncReturnsPage,
 }
 
 const JOBS_PER_TICK = 10

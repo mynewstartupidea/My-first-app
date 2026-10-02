@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Plug, CheckCircle2, MessageCircle, Zap, AlertCircle,
-  Loader2, ExternalLink, RefreshCw, Unplug, Package, Users, Lock,
+  Loader2, ExternalLink, RefreshCw, Unplug, Package, Users, Lock, ShoppingCart, Receipt,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -77,6 +77,12 @@ function IntegrationsInner() {
   const [connectingCustomApp, setConnectingCustomApp] = useState(false)
   const [connectError, setConnectError]       = useState<string | null>(null)
 
+  interface AbandonedCheckout { id: string; email: string | null; phone: string | null; total_price: number | null; currency: string | null; recovery_url: string | null; abandoned_at: string | null }
+  interface ShopifyOrderRow { id: string; order_number: string | null; email: string | null; phone: string | null; total_price: number | null; currency: string | null; financial_status: string | null; fulfillment_status: string | null; shopify_created_at: string | null }
+  const [checkouts, setCheckouts] = useState<AbandonedCheckout[]>([])
+  const [recentOrders, setRecentOrders] = useState<ShopifyOrderRow[]>([])
+  const [activityTab, setActivityTab] = useState<'checkouts' | 'orders'>('checkouts')
+
   const router  = useRouter()
 
   const showToast = useCallback((msg: string, ok = true) => {
@@ -98,6 +104,15 @@ function IntegrationsInner() {
   }, [])
 
   useEffect(() => { loadStore() }, [loadStore])
+
+  useEffect(() => {
+    if (!store?.shopify_domain) return
+    fetch('/api/shopify/recent-activity').then(r => r.ok ? r.json() : null).then(data => {
+      if (!data) return
+      setCheckouts(data.checkouts ?? [])
+      setRecentOrders(data.orders ?? [])
+    })
+  }, [store?.shopify_domain])
 
   useEffect(() => {
     function handleShopifyMessage(event: MessageEvent) {
@@ -450,6 +465,90 @@ function IntegrationsInner() {
               Connect store
             </button>
           </form>
+        </div>
+      )}
+
+      {/* ── Recent Shopify activity (abandoned checkouts + orders) ─────────── */}
+      {isShopifyConnected && (checkouts.length > 0 || recentOrders.length > 0) && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-6 md:mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => setActivityTab('checkouts')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition',
+                activityTab === 'checkouts' ? 'bg-[#25D366] text-white' : 'text-slate-500 border border-slate-200 hover:bg-slate-50'
+              )}
+            >
+              <ShoppingCart className="w-3.5 h-3.5" /> Abandoned Checkouts ({checkouts.length})
+            </button>
+            <button
+              onClick={() => setActivityTab('orders')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition',
+                activityTab === 'orders' ? 'bg-[#25D366] text-white' : 'text-slate-500 border border-slate-200 hover:bg-slate-50'
+              )}
+            >
+              <Receipt className="w-3.5 h-3.5" /> Recent Orders ({recentOrders.length})
+            </button>
+          </div>
+
+          {activityTab === 'checkouts' && (
+            checkouts.length === 0 ? (
+              <p className="text-sm text-slate-400 py-4 text-center">No abandoned checkouts yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {checkouts.map(c => (
+                  <div key={c.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{c.phone ?? c.email ?? 'Unknown shopper'}</p>
+                      <p className="text-xs text-slate-400">
+                        {c.abandoned_at ? new Date(c.abandoned_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
+                        {c.phone && c.email ? ` · ${c.email}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-sm font-semibold text-slate-700">
+                        {c.currency ?? ''} {c.total_price ?? '—'}
+                      </span>
+                      {c.recovery_url && (
+                        <a href={c.recovery_url} target="_blank" rel="noopener noreferrer" className="text-[#25D366] hover:text-[#128C7E]">
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {activityTab === 'orders' && (
+            recentOrders.length === 0 ? (
+              <p className="text-sm text-slate-400 py-4 text-center">No orders synced yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {recentOrders.map(o => (
+                  <div key={o.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{o.order_number ?? '—'} · {o.phone ?? o.email ?? 'No contact'}</p>
+                      <p className="text-xs text-slate-400">
+                        {o.shopify_created_at ? new Date(o.shopify_created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
+                        {' · '}{o.financial_status ?? '—'}{o.fulfillment_status ? ` · ${o.fulfillment_status}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700 flex-shrink-0">
+                      {o.currency ?? ''} {o.total_price ?? '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
+            To message these shoppers on WhatsApp automatically, set up{' '}
+            <Link href="/dashboard/automations" className="text-[#25D366] hover:underline">Abandoned Cart Recovery in Automations</Link>.
+          </p>
         </div>
       )}
 
