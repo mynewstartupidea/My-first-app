@@ -7,7 +7,7 @@ import {
   CheckCircle2, ArrowRight, Loader2, AlertCircle,
   Store, MessageCircle, Zap, ShoppingCart, Package,
   Sparkles, SkipForward, ChevronRight, ShoppingBag, UserPlus,
-  Facebook, Globe, Users, Phone, Copy, Check, ExternalLink,
+  Phone, LayoutDashboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { hasShopifyConnection } from '@/lib/store-selection'
@@ -15,16 +15,20 @@ import { SIDEBAR_SECTIONS, DEFAULT_SECTIONS_BY_BUSINESS_TYPE } from '@/lib/sideb
 import Link from 'next/link'
 
 type BusinessType = 'ecommerce' | 'lead_gen'
-type Step = 'welcome' | 'business_type' | 'sidebar_sections' | 'connect' | 'whatsapp' | 'automations' | 'done'
+// 'connect' (Shopify/lead-source) and 'whatsapp' used to be onboarding steps
+// — removed so signup gets people into the actual product as fast as
+// possible. Both connections now happen in-app instead: Shopify via a
+// "Connect your store" prompt right on /dashboard/shopify once it's in the
+// sidebar (business_type='ecommerce' puts it there by default), WhatsApp via
+// the existing banner on the main Dashboard + Settings → WhatsApp.
+type Step = 'welcome' | 'business_type' | 'sidebar_sections' | 'automations' | 'done'
 
-const STEPS: Step[] = ['welcome', 'business_type', 'sidebar_sections', 'connect', 'whatsapp', 'automations', 'done']
+const STEPS: Step[] = ['welcome', 'business_type', 'sidebar_sections', 'automations', 'done']
 
 const STEP_META: Record<Step, { title: string; sub: string }> = {
   welcome:          { title: 'Welcome',        sub: 'Get started'       },
   business_type:    { title: 'Your Business',  sub: 'Tell us about you' },
   sidebar_sections: { title: 'Your Sidebar',   sub: 'Pick what you see' },
-  connect:          { title: 'Connect',        sub: 'Link your source'  },
-  whatsapp:         { title: 'WhatsApp',       sub: 'Set up messaging'  },
   automations:      { title: 'Automations',    sub: 'Enable flows'      },
   done:             { title: 'All Set!',       sub: 'You\'re ready'     },
 }
@@ -252,14 +256,14 @@ function WelcomeStep({ email, onNext }: { email: string; onNext: () => void }) {
       <h1 className="text-3xl font-bold text-slate-900 mb-3">Welcome to Wapaci! 👋</h1>
       <p className="text-slate-500 mb-2">You&apos;re signed in as <span className="font-semibold text-slate-700">{email}</span></p>
       <p className="text-slate-400 text-sm mb-8">
-        Let&apos;s get you set up in 3 quick steps. You&apos;ll be recovering revenue with WhatsApp automations in under 10 minutes.
+        A couple of quick questions, then you&apos;re in — connect Shopify and WhatsApp whenever you&apos;re ready.
       </p>
 
       <div className="grid grid-cols-1 gap-3 mb-8 text-left">
         {[
-          { icon: Store,         text: 'Connect your Shopify store'              },
-          { icon: MessageCircle, text: 'Link your WhatsApp Business account'     },
-          { icon: Zap,           text: 'Enable abandoned cart & COD automations' },
+          { icon: Zap,            text: 'Tell us a bit about your business'       },
+          { icon: LayoutDashboard, text: 'Pick what shows in your sidebar'        },
+          { icon: MessageCircle,  text: 'Connect Shopify & WhatsApp anytime after' },
         ].map(({ icon: Icon, text }, i) => (
           <div key={i} className="flex items-center gap-3 bg-slate-50 rounded-xl p-4">
             <div className="w-8 h-8 bg-[#25D366]/10 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -276,438 +280,6 @@ function WelcomeStep({ email, onNext }: { email: string; onNext: () => void }) {
         className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-3.5 rounded-2xl transition text-base shadow-lg shadow-green-500/20"
       >
         Get started <ArrowRight className="w-5 h-5" />
-      </button>
-    </div>
-  )
-}
-
-// ─── Connect Store step ───────────────────────────────────────────────────────
-
-function ConnectStoreStep({
-  storeConnected, onNext, onSkip
-}: {
-  storeConnected: boolean
-  onNext: () => void
-  onSkip: () => void
-}) {
-  const [domain, setDomain]     = useState('')
-  const [connecting, setConnecting] = useState(false)
-  const [error, setError]       = useState('')
-
-  function handleConnect() {
-    if (!domain.trim()) return
-    let d = domain.trim().toLowerCase().replace(/^https?:\/\//, '')
-    if (!d.includes('.')) d = `${d}.myshopify.com`
-    if (!d.includes('.myshopify.com')) d = `${d}.myshopify.com`
-    setConnecting(true)
-    localStorage.setItem('wapaci_onboarding_return', 'whatsapp')
-    window.location.href = `/api/shopify/install?shop=${d}&returnTo=/onboarding`
-  }
-
-  if (storeConnected) {
-    return (
-      <div className="text-center max-w-md mx-auto">
-        <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <CheckCircle2 className="w-8 h-8 text-green-600" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Store connected!</h2>
-        <p className="text-slate-500 mb-8">Your ecommerce store is linked and ready. Customers and orders will sync automatically.</p>
-        <button
-          onClick={onNext}
-          className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-3.5 rounded-2xl transition"
-        >
-          Continue <ArrowRight className="w-5 h-5" />
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-md mx-auto">
-      <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-        <Store className="w-8 h-8 text-orange-600" />
-      </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Connect your store</h2>
-      <p className="text-slate-500 text-center mb-8">We&apos;ll sync your customers, orders, and abandoned carts automatically.</p>
-
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
-
-      {/* Shopify */}
-      <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 mb-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 bg-[#95BF47]/10 rounded-xl flex items-center justify-center">
-            <Store className="w-5 h-5 text-[#95BF47]" />
-          </div>
-          <div>
-            <p className="font-semibold text-slate-800">Shopify</p>
-            <p className="text-xs text-slate-400">One-click OAuth connection</p>
-          </div>
-          <span className="ml-auto text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">Available</span>
-        </div>
-        <div className="flex gap-2">
-          <input
-            value={domain}
-            onChange={e => setDomain(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleConnect()}
-            placeholder="yourstore.myshopify.com"
-            className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
-          />
-          <button
-            onClick={handleConnect}
-            disabled={connecting || !domain.trim()}
-            className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition whitespace-nowrap"
-          >
-            {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect'}
-          </button>
-        </div>
-      </div>
-
-      {/* WooCommerce - coming soon */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-5 opacity-50 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-purple-100 rounded-xl flex items-center justify-center">
-            <Store className="w-5 h-5 text-purple-500" />
-          </div>
-          <div>
-            <p className="font-semibold text-slate-800">WooCommerce</p>
-            <p className="text-xs text-slate-400">WordPress plugin coming soon</p>
-          </div>
-          <span className="ml-auto text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-full">Coming soon</span>
-        </div>
-      </div>
-
-      <button
-        onClick={onSkip}
-        className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 text-sm py-2 transition"
-      >
-        <SkipForward className="w-4 h-4" /> I&apos;ll connect later
-      </button>
-    </div>
-  )
-}
-
-// ─── Connect lead source step ─────────────────────────────────────────────────
-
-function ConnectLeadSourceStep({ onNext }: { onNext: () => void }) {
-  const [apiKey, setApiKey]       = useState<string | null>(null)
-  const [loadingKey, setLoadingKey] = useState(false)
-  const [showSnippet, setShowSnippet] = useState(false)
-  const [copied, setCopied]       = useState(false)
-  const [keyError, setKeyError]   = useState('')
-
-  async function revealSnippet() {
-    if (apiKey) { setShowSnippet(true); return }
-    setLoadingKey(true)
-    setKeyError('')
-    try {
-      const res  = await fetch('/api/developer/key')
-      const data = await res.json() as { api_key?: string; error?: string }
-      if (!res.ok || !data.api_key) { setKeyError(data.error ?? 'Could not generate your API key.'); return }
-      setApiKey(data.api_key)
-      setShowSnippet(true)
-    } catch {
-      setKeyError('Network error. Please try again.')
-    } finally {
-      setLoadingKey(false)
-    }
-  }
-
-  function copySnippet() {
-    if (!apiKey) return
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.wapaci.com'
-    const snippet = `fetch('${origin}/api/leads/ingest', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ${apiKey}',
-  },
-  body: JSON.stringify({ name, email, phone, source: 'Website' }),
-})`
-    navigator.clipboard.writeText(snippet)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <div className="max-w-md mx-auto">
-      <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-        <Users className="w-8 h-8 text-emerald-600" />
-      </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Connect a lead source</h2>
-      <p className="text-slate-500 text-center mb-8">Pick how leads reach you — you can set up more than one, anytime.</p>
-
-      {/* Facebook Lead Ads */}
-      <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 mb-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Facebook className="w-5 h-5 text-blue-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-slate-800">Facebook Lead Ads</p>
-            <p className="text-xs text-slate-400">Sync leads from your ad forms automatically</p>
-          </div>
-        </div>
-        <Link
-          href="/dashboard/leads"
-          className="flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-medium px-4 py-2.5 rounded-xl transition"
-        >
-          Connect in Leads <ExternalLink className="w-3.5 h-3.5" />
-        </Link>
-      </div>
-
-      {/* Website / landing page form */}
-      <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 mb-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Globe className="w-5 h-5 text-purple-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-slate-800">Website or landing page form</p>
-            <p className="text-xs text-slate-400">Send form submissions straight to Wapaci</p>
-          </div>
-        </div>
-
-        {keyError && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-3 py-2 mb-3">
-            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {keyError}
-          </div>
-        )}
-
-        {!showSnippet ? (
-          <button
-            onClick={revealSnippet}
-            disabled={loadingKey}
-            className="w-full flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 disabled:opacity-50 text-slate-700 text-sm font-medium px-4 py-2.5 rounded-xl transition"
-          >
-            {loadingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get my API snippet'}
-          </button>
-        ) : (
-          <div>
-            <pre className="bg-slate-900 text-slate-100 text-[10px] sm:text-[11px] rounded-xl p-3 overflow-x-auto mb-2 leading-relaxed">
-{`fetch('.../api/leads/ingest', {
-  method: 'POST',
-  headers: { 'Authorization': 'Bearer ${apiKey?.slice(0, 12)}…' },
-  body: JSON.stringify({ name, email, phone }),
-})`}
-            </pre>
-            <button
-              onClick={copySnippet}
-              className="w-full flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium px-3 py-2 rounded-xl transition"
-            >
-              {copied ? <><Check className="w-3.5 h-3.5 text-emerald-600" /> Copied full snippet</> : <><Copy className="w-3.5 h-3.5" /> Copy full snippet</>}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Manual entry */}
-      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-slate-200 rounded-xl flex items-center justify-center flex-shrink-0">
-            <UserPlus className="w-5 h-5 text-slate-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-slate-800 text-sm">Prefer to add leads yourself?</p>
-            <p className="text-xs text-slate-400">The Leads page always lets you add one manually — no setup needed.</p>
-          </div>
-        </div>
-      </div>
-
-      <button
-        onClick={onNext}
-        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-3.5 rounded-2xl transition"
-      >
-        Continue <ArrowRight className="w-5 h-5" />
-      </button>
-    </div>
-  )
-}
-
-// ─── WhatsApp step ────────────────────────────────────────────────────────────
-
-declare global {
-  interface Window {
-    FB?: {
-      init: (o: object) => void
-      login: (cb: (r: { authResponse?: { code?: string } | null; status?: string }) => void, opts: object) => void
-    }
-    fbAsyncInit?: () => void
-  }
-}
-
-function WhatsAppStep({
-  storeId, onNext, onSkip
-}: {
-  storeId: string | null
-  onNext: () => void
-  onSkip: () => void
-}) {
-  const [fbReady,    setFbReady]    = useState(false)
-  const [connecting, setConnecting] = useState(false)
-  const [connected,  setConnected]  = useState(false)
-  const [phone,      setPhone]      = useState('')
-  const [error,      setError]      = useState('')
-  const supabase = useMemo(() => createClient(), [])
-
-  // Load FB SDK
-  useEffect(() => {
-    const appId = process.env.NEXT_PUBLIC_META_APP_ID
-    if (!appId) return
-    if (window.FB) { setFbReady(true); return }
-    window.fbAsyncInit = function () {
-      window.FB!.init({ appId, version: 'v22.0', xfbml: false, status: false })
-      setFbReady(true)
-    }
-    if (!document.getElementById('fb-jssdk')) {
-      const s = document.createElement('script')
-      s.id  = 'fb-jssdk'
-      s.src = 'https://connect.facebook.net/en_US/sdk.js'
-      s.async = true; s.defer = true
-      document.head.appendChild(s)
-    }
-  }, [])
-
-  async function launchSignup() {
-    if (!window.FB) { setError('Facebook SDK not ready — refresh and try again.'); return }
-    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
-    if (!configId) { setError('WhatsApp signup not configured. Please contact support.'); return }
-    setConnecting(true)
-    setError('')
-
-    const fbLoginOpts = {
-      config_id:                      configId,
-      response_type:                  'code',
-      override_default_response_type: true,
-      extras:                         { sessionInfoVersion: 2 },
-    }
-
-    // Safety timeout — reset if FB never fires the callback
-    const timeoutId = setTimeout(() => {
-      setConnecting(false)
-      setError('Connection timed out. Please try again.')
-    }, 5 * 60 * 1000)
-
-    window.FB.login(async (response) => {
-      clearTimeout(timeoutId)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw = response as any
-      const code = raw?.authResponse?.code as string | undefined
-
-      // Extract sessionInfo — Meta places it in different locations across SDK versions
-      const candidateInfo =
-        raw?.authResponse?.sessionInfo ??
-        raw?.authResponse?.session_info ??
-        raw?.sessionInfo ??
-        raw?.session_info ??
-        null
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      function hasWabaFields(x: any) { return !!(x?.wabaID || x?.waba_id || x?.phoneNumberID || x?.phone_number_id) }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      function normalise(x: any) {
-        if (!x) return null
-        return {
-          businessID:         x.businessID         ?? x.business_id         ?? undefined,
-          wabaID:             x.wabaID              ?? x.waba_id             ?? undefined,
-          phoneNumberID:      x.phoneNumberID       ?? x.phone_number_id     ?? undefined,
-          displayPhoneNumber: x.displayPhoneNumber  ?? x.display_phone_number ?? undefined,
-        }
-      }
-      const sessionInfo = hasWabaFields(candidateInfo) ? normalise(candidateInfo) : null
-
-      if (!code) {
-        setConnecting(false)
-        const status = response?.status ?? ''
-        if (status !== 'unknown' && status !== '') setError('WhatsApp connection cancelled.')
-        return
-      }
-
-      try {
-        const res  = await fetch('/api/meta/callback', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ code, sessionInfo }),
-        })
-        const data = await res.json() as { ok: boolean; phone?: string; error?: string }
-        if (!data.ok) { setError(data.error ?? 'Connection failed. Try again.'); setConnecting(false); return }
-
-        if (storeId) {
-          await supabase.from('stores').update({ whatsapp_bsp: 'meta', updated_at: new Date().toISOString() }).eq('id', storeId)
-        }
-        setPhone(data.phone ?? '')
-        setConnected(true)
-        setConnecting(false)
-        setTimeout(onNext, 1500)
-      } catch {
-        setError('Network error. Please try again.')
-        setConnecting(false)
-      }
-    }, fbLoginOpts)
-  }
-
-  if (connected) {
-    return (
-      <div className="text-center max-w-md mx-auto">
-        <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <CheckCircle2 className="w-8 h-8 text-green-600" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">WhatsApp connected!</h2>
-        <p className="text-slate-500 mb-2">{phone && <span className="font-semibold text-slate-700">{phone}</span>}</p>
-        <p className="text-slate-400 text-sm">Your WhatsApp Business number is ready. Moving to the next step…</p>
-        <Loader2 className="w-5 h-5 animate-spin text-[#25D366] mx-auto mt-6" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-md mx-auto">
-      <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-        <MessageCircle className="w-8 h-8 text-green-600" />
-      </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Connect WhatsApp</h2>
-      <p className="text-slate-500 text-center mb-8 text-sm">
-        Link your WhatsApp Business number via Meta Embedded Signup — takes about 2 minutes.
-      </p>
-
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-3 mb-7">
-        {[
-          { icon: '🔒', label: 'No BSP fee',      desc: 'Direct Meta API' },
-          { icon: '⚡', label: '2-min setup',      desc: 'Embedded Signup' },
-          { icon: '✅', label: 'Meta verified',    desc: 'Official partner' },
-        ].map(f => (
-          <div key={f.label} className="bg-slate-50 rounded-xl p-3 text-center">
-            <div className="text-xl mb-1">{f.icon}</div>
-            <p className="text-xs font-semibold text-slate-700">{f.label}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{f.desc}</p>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={launchSignup}
-        disabled={connecting || !fbReady}
-        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-semibold py-3.5 rounded-2xl transition mb-3"
-      >
-        {connecting
-          ? <><Loader2 className="w-5 h-5 animate-spin" /> Connecting…</>
-          : !fbReady
-            ? <><Loader2 className="w-5 h-5 animate-spin" /> Loading…</>
-            : <><MessageCircle className="w-5 h-5" /> Connect WhatsApp</>
-        }
-      </button>
-      <button onClick={onSkip} className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 text-sm py-2 transition">
-        <SkipForward className="w-4 h-4" /> I&apos;ll connect WhatsApp later
       </button>
     </div>
   )
@@ -958,9 +530,14 @@ function DoneStep({
   // this business type would show "None enabled" even right after someone
   // just turned Missed Call Follow-up on.
   const automationsOn = isEcommerce ? automationCount > 0 : missedCallFollowupOn
+  // Onboarding no longer has a connect step at all, so storeConnected is
+  // only ever true here for a returning user who already had Shopify linked
+  // from before — a fresh signup always lands on the "not connected yet"
+  // copy, pointing at the sidebar instead of a step that no longer exists.
+  const firstLineOn = isEcommerce ? storeConnected : true
   const firstLineLabel = isEcommerce
-    ? 'Connected and syncing'
-    : (storeConnected ? 'Lead source connected' : 'Add leads in the Leads tab anytime')
+    ? (storeConnected ? 'Connected and syncing' : 'Not connected yet — connect it from Shopify in your sidebar')
+    : 'Add leads in the Leads tab anytime'
   const automationsLabel = isEcommerce
     ? (automationCount > 0 ? `${automationCount} automation${automationCount > 1 ? 's' : ''} enabled` : 'None enabled yet — set up in Automations')
     : (missedCallFollowupOn ? 'Missed Call Follow-up is on' : 'Not enabled yet — set up in Automations')
@@ -980,14 +557,14 @@ function DoneStep({
       {/* Summary */}
       <div className="bg-slate-50 rounded-2xl p-5 mb-8 text-left space-y-3">
         <div className="flex items-center gap-3">
-          <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', (isEcommerce ? storeConnected : true) ? 'bg-green-100' : 'bg-slate-100')}>
-            <Store className={cn('w-4 h-4', (isEcommerce ? storeConnected : true) ? 'text-green-600' : 'text-slate-400')} />
+          <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', firstLineOn ? 'bg-green-100' : 'bg-slate-100')}>
+            <Store className={cn('w-4 h-4', firstLineOn ? 'text-green-600' : 'text-slate-400')} />
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-slate-800">{isEcommerce ? 'Store' : 'Leads'}</p>
             <p className="text-xs text-slate-500">{firstLineLabel}</p>
           </div>
-          {(isEcommerce ? storeConnected : true) && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+          {firstLineOn && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
         </div>
         <div className="flex items-center gap-3">
           <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', automationsOn ? 'bg-green-100' : 'bg-slate-100')}>
@@ -1001,9 +578,22 @@ function DoneStep({
         </div>
       </div>
 
+      {isEcommerce && !storeConnected ? (
+        <button
+          onClick={() => router.push('/dashboard/shopify')}
+          className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-3.5 rounded-2xl transition text-base shadow-lg shadow-green-500/20 mb-3"
+        >
+          Connect Shopify <ArrowRight className="w-5 h-5" />
+        </button>
+      ) : null}
       <button
         onClick={() => router.push('/dashboard')}
-        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-3.5 rounded-2xl transition text-base shadow-lg shadow-green-500/20 mb-4"
+        className={cn(
+          'w-full flex items-center justify-center gap-2 font-semibold py-3.5 rounded-2xl transition text-base mb-4',
+          isEcommerce && !storeConnected
+            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            : 'bg-[#25D366] hover:bg-[#128C7E] text-white shadow-lg shadow-green-500/20'
+        )}
       >
         Go to Dashboard <ArrowRight className="w-5 h-5" />
       </button>
@@ -1122,8 +712,6 @@ function OnboardingContent() {
   function next() {
     const idx = STEPS.indexOf(step)
     if (idx < STEPS.length - 1) {
-      // Refresh store data when advancing past the connect step
-      if (step === 'connect') loadUser()
       // DoneStep's summary needs the real current value for a lead-gen
       // account — LeadAutomationsStep writes it via a dedicated route, not
       // through loadUser's store-scoped queries.
@@ -1183,26 +771,6 @@ function OnboardingContent() {
           <SidebarSectionsStep
             businessType={businessType}
             onSelect={handleSelectSections}
-          />
-        )}
-
-        {step === 'connect' && (
-          businessType === 'ecommerce' ? (
-            <ConnectStoreStep
-              storeConnected={storeConnected}
-              onNext={next}
-              onSkip={next}
-            />
-          ) : (
-            <ConnectLeadSourceStep onNext={next} />
-          )
-        )}
-
-        {step === 'whatsapp' && (
-          <WhatsAppStep
-            storeId={storeId}
-            onNext={next}
-            onSkip={next}
           />
         )}
 

@@ -3,12 +3,13 @@ import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import {
-  ShoppingBag, CheckCircle2, AlertCircle, Zap,
+  ShoppingBag, CheckCircle2, Zap,
   ArrowRight, Link2, Webhook, Megaphone, Package, ShoppingCart, MessageCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { timeAgo, formatCurrency, cn } from '@/lib/utils'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { getUserRole } from '@/lib/get-user-role'
 import ShopifySyncNowButton from '@/components/shopify-sync-now-button'
 
 // Same avatar-initials/color scheme as Contacts (app/dashboard/contacts/page.tsx)
@@ -40,6 +41,8 @@ export default async function ShopifyPage() {
   // found nothing and always showed "not connected".
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
+  const role = await getUserRole(user.id, user.email ?? '')
+  const canConnect = role === 'owner' || role === 'admin'
 
   const { data: storeRows } = await service
     .from('stores').select('*').eq('user_id', ownerId).eq('is_active', true)
@@ -100,7 +103,7 @@ export default async function ShopifyPage() {
           </h1>
           <p className="text-gray-400 text-sm mt-0.5">Everything synced from your store, and what to do with it</p>
         </div>
-        {store ? (
+        {store && (
           <div className="flex items-center gap-2">
             {isCustomApp && <ShopifySyncNowButton />}
             <Link href="/dashboard/campaigns"
@@ -108,24 +111,37 @@ export default async function ShopifyPage() {
               <Megaphone size={15} /> Launch Campaign
             </Link>
           </div>
-        ) : (
-          <Link href="/dashboard/integrations"
-            className="flex items-center gap-2 bg-[#96bf48] hover:bg-[#7da33a] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition">
-            <Link2 size={15} /> Connect Shopify
-          </Link>
         )}
       </div>
 
       {!store ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-4">
-          <AlertCircle size={20} className="text-amber-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-amber-800">Shopify store not connected</p>
-            <p className="text-amber-600 text-sm mt-1">Connect your store to enable automatic WhatsApp messaging for orders, carts, and shipping updates.</p>
-            <Link href="/dashboard/integrations" className="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold text-amber-700 hover:text-amber-900">
-              Connect Shopify <ArrowRight size={14} />
-            </Link>
+        // Onboarding no longer connects Shopify itself — this is the actual
+        // connect moment now, first time someone clicks into Shopify from the
+        // sidebar. Matches the Leads page's "Connect Facebook" empty state:
+        // centered icon/headline/button, not a slim inline banner easy to
+        // miss. Non-owner/admin roles still reach this page (manager has
+        // nav access to it) but can't actually connect — api/shopify/install
+        // and custom-app/connect both 403 them server-side — so the button
+        // itself is swapped for a message instead of a control that would
+        // just fail.
+        <div className="flex flex-col items-center justify-center text-center gap-5 py-16 px-6">
+          <div className="w-16 h-16 bg-[#96bf48]/10 rounded-2xl flex items-center justify-center">
+            <ShoppingBag size={32} className="text-[#96bf48]" />
           </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Connect your store</h2>
+            <p className="text-sm text-gray-400 max-w-sm">
+              {canConnect
+                ? 'Link your Shopify store to sync orders, abandoned checkouts, and customers — and start messaging them on WhatsApp automatically.'
+                : 'Ask your account owner or admin to connect Shopify — orders, abandoned checkouts, and customers will show up here once it’s linked.'}
+            </p>
+          </div>
+          {canConnect && (
+            <Link href="/dashboard/integrations"
+              className="flex items-center gap-2 px-6 py-3 bg-[#96bf48] hover:bg-[#7da33a] text-white text-sm font-semibold rounded-xl transition active:scale-[0.97]">
+              <Link2 size={15} /> Connect Shopify
+            </Link>
+          )}
         </div>
       ) : (
         <>
