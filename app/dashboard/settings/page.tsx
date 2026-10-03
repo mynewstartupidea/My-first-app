@@ -475,6 +475,7 @@ function SettingsInner() {
     }
     setStore(prev => prev ? { ...prev, shop_name: storeNameEdit.trim() } : prev)
     showToast('Store name saved!')
+    router.refresh()  // re-renders server components (sidebar footer shows this name) so it updates immediately
   }
 
   async function setBusinessType(type: 'ecommerce' | 'lead_gen') {
@@ -493,6 +494,7 @@ function SettingsInner() {
     }
     setStore(prev => prev ? { ...prev, business_type: type } : prev)
     showToast('Business type saved!')
+    router.refresh()  // re-renders server components (dashboard reads business_type) so it updates immediately
   }
 
   async function toggleSection(key: string) {
@@ -517,6 +519,7 @@ function SettingsInner() {
       return
     }
     setStore(prev => prev ? { ...prev, visible_sections: next } : prev)
+    router.refresh()  // re-renders server components (sidebar/mobile nav read this) so it updates immediately
   }
 
   async function disconnectStore() {
@@ -1075,7 +1078,11 @@ function SettingsInner() {
                     <button
                       key={key}
                       onClick={() => toggleSection(key)}
-                      disabled={saving}
+                      // Disabled while ANY toggle in this grid is saving, not just
+                      // this one — two rapid clicks before the first PATCH resolves
+                      // would otherwise both read the same stale store.visible_sections
+                      // and the second write silently clobbers the first.
+                      disabled={savingSectionKey !== null}
                       className={cn(
                         'flex items-center gap-2 text-sm font-medium px-3 py-2.5 rounded-xl border-2 transition disabled:opacity-50 text-left',
                         on ? 'border-[#25D366] bg-[#25D366]/5 text-[#128C7E]' : 'border-slate-200 text-slate-500 hover:border-slate-300'
