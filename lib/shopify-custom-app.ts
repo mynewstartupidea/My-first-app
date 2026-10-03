@@ -150,11 +150,20 @@ export async function getValidAccessToken(store: CustomAppStoreRow): Promise<str
   const token = await requestAccessToken(store.shopify_domain, store.shopify_client_id, clientSecret)
 
   const service = createServiceClient()
-  await service.from('stores').update({
+  const { error: persistErr } = await service.from('stores').update({
     shopify_access_token_enc: encrypt(token.access_token),
     shopify_token_expires_at: new Date(Date.now() + token.expires_in * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   }).eq('id', store.id)
+  // The freshly-minted token is still valid and gets returned either way —
+  // only the DB cache write is what might have failed, previously silently.
+  // If it did, the next call for this store won't see the refresh and will
+  // request yet another token from Shopify instead of reusing this one;
+  // harmless to correctness (still gets a working token every time) but
+  // worth a log line instead of being invisible, since repeated redundant
+  // client-credential requests are otherwise indistinguishable from normal
+  // scheduled refreshes.
+  if (persistErr) console.error('[getValidAccessToken] failed to persist refreshed token:', persistErr.message, 'store:', store.id)
 
   return token.access_token
 }
