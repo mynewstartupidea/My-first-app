@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getUserRole } from '@/lib/get-user-role'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
-import { getOrCreateLandingPlan, createRazorpaySubscription } from '@/lib/razorpay'
+import { getOrCreateLandingPlan, createRazorpaySubscription, cancelRazorpaySubscription } from '@/lib/razorpay'
 
 // Turns the Settings → Billing "Upgrade" buttons (previously just a WhatsApp
 // chat link — no automated checkout existed) into a real subscription. The
@@ -42,7 +42,24 @@ export async function POST(request: Request) {
   const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: existing } = await service
-    .from('billing').select('razorpay_subscription_id, status').eq('user_id', ownerId).maybeSingle()
+    .from('billing')
+    .select('razorpay_subscription_id, status, pending_razorpay_subscription_id')
+    .eq('user_id', ownerId).maybeSingle()
+
+  // A second upgrade click before the first's webhook arrives (double-click,
+  // or retrying after a slow/failed checkout popup) used to overwrite
+  // pending_razorpay_subscription_id with the new attempt's id, with no
+  // record anywhere of the FIRST attempt's subscription. If that first
+  // checkout was actually completed, it became a permanent, untracked,
+  // still-billing Razorpay subscription — the webhook for it later matches
+  // neither the active row (still the old subscription) nor the pending row
+  // (already overwritten), so it's silently dropped. Cancel any outstanding
+  // pending attempt first so there's never more than one unresolved pending
+  // subscription per owner at a time.
+  if (existing?.pending_razorpay_subscription_id) {
+    try { await cancelRazorpaySubscription(existing.pending_razorpay_subscription_id) }
+    catch (e) { console.error('[billing/razorpay/create] failed to cancel superseded pending subscription:', e) }
+  }
 
   const planId = await getOrCreateLandingPlan(service, {
     planKey: `wapaci_${body.planId}_${plan.priceInr}_monthly`,

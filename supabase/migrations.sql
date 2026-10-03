@@ -981,3 +981,21 @@ BEGIN
   RETURN v_start_pos % p_member_count;
 END;
 $$;
+
+-- ─── razorpay_webhook_events: idempotency for subscription webhook deliveries ──
+-- No dedup of any kind existed for Razorpay subscription webhooks — in
+-- particular, a redelivered subscription.charged event (Razorpay retries on
+-- a slow/5xx response, same as every other webhook provider in this
+-- codebase) reset messages_used back to 0 a second time for the same real
+-- charge, granting extra free quota. Same precedent as
+-- inbound_messages_message_id_key for the Meta webhook. Keyed on
+-- event+subscription+cycle-start rather than a payload-level delivery id,
+-- since Razorpay's webhook payload shape doesn't reliably guarantee one
+-- across API versions — event+subscription+current_start is already unique
+-- per real billing-cycle event.
+CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  idempotency_key TEXT NOT NULL UNIQUE,
+  event           TEXT NOT NULL,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
