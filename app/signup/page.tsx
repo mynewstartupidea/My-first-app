@@ -131,7 +131,7 @@ export default function SignupPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 text-left">
+          <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8 text-left">
             <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
               <CheckCircle2 className="w-8 h-8 text-green-600" />
             </div>
@@ -202,20 +202,20 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4 py-6 sm:py-10">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-5 sm:mb-8">
           <Link href="/" className="inline-flex flex-col items-center group">
-            <div className="inline-flex items-center justify-center w-14 h-14 bg-white rounded-2xl shadow-xl mb-3 group-hover:scale-105 transition">
-              <MessageCircle className="w-8 h-8 text-[#25D366]" />
+            <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-2xl shadow-xl mb-2 sm:mb-3 group-hover:scale-105 transition">
+              <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8 text-[#25D366]" />
             </div>
-            <h1 className="text-2xl font-bold text-white">Wapaci</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Wapaci</h1>
           </Link>
           <p className="text-green-100 mt-1 text-sm">Grow on WhatsApp.</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8">
           <h2 className="text-xl font-bold text-slate-900 mb-1">Create your account</h2>
           <p className="text-slate-500 text-sm mb-6">Start recovering revenue with WhatsApp — free for 14 days</p>
 
@@ -226,8 +226,12 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Row 1: Full name + Company */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Row 1: Full name + Company — stacked below sm: at 2 columns on a
+                narrow phone, each field had so little width left (page p-4 +
+                card padding + gap, split in half) that placeholder text like
+                "KidsCraft India" or "+91 98765 43210" visibly clipped
+                mid-word instead of just being a bit snug. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">
                   <User className="w-3 h-3 inline mr-1" />Your name
@@ -255,7 +259,7 @@ export default function SignupPage() {
             </div>
 
             {/* Row 2: Phone + Team size */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">
                   <Phone className="w-3 h-3 inline mr-1" />Phone number
