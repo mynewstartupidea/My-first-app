@@ -3127,6 +3127,12 @@ function LeadsContent() {
   const [sourceFilter,  setSourceFilter]  = useState<string | null>(null)
   const [showAddLead,   setShowAddLead]   = useState(false)
   const [showCsvImport, setShowCsvImport] = useState(false)
+  // Leads with no page_id/form_id at all (manual, CSV import, website-form
+  // ingest) — fetched separately only for the "no Facebook pages connected"
+  // empty state below, since the normal fetchLeads/init flow never runs at
+  // all when there's no page to scope to (see that effect's early exit).
+  const [noPageLeads,       setNoPageLeads]       = useState<Lead[]>([])
+  const [noPageLeadsLoaded, setNoPageLeadsLoaded] = useState(false)
   const [activeForms,    setActiveForms]    = useState<ActiveForm[]>([])
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [total,          setTotal]          = useState(0)
@@ -3198,6 +3204,16 @@ function LeadsContent() {
     setPendingPages(pend)
     setPickedPageIds(new Set(pend.map(x => x.page_id)))
     return p
+  }, [])
+
+  // Used only by the "no Facebook pages connected" empty state — the backend
+  // (/api/facebook/leads) already returns every one of the owner's leads when
+  // called with no page_id/form_id/source, so this needs no new API route.
+  const fetchNoPageLeads = useCallback(async () => {
+    const r = await fetch('/api/facebook/leads?limit=20')
+    const d = await r.json() as { leads?: Lead[] }
+    setNoPageLeads(d.leads ?? [])
+    setNoPageLeadsLoaded(true)
   }, [])
 
   const fetchActiveForms = useCallback(async (pageId: string) => {
@@ -3341,6 +3357,12 @@ function LeadsContent() {
         if (pageId !== cachedPageId) {
           await Promise.all([fetchActiveForms(pageId), fetchLeads('all', pageId), fetchStats(pageId)])
         }
+      } else {
+        // No Facebook pages connected — the empty-state screen below still
+        // needs to know about any leads that arrived through a page-less
+        // source (manual add, CSV import, website-form ingest) so it doesn't
+        // claim there's nothing here when there actually is.
+        await fetchNoPageLeads()
       }
 
       setLoadingForms(false)
@@ -3661,29 +3683,72 @@ function LeadsContent() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  // "Connect Facebook" empty state — only shown after we've confirmed pages is empty
+  // "Connect Facebook" empty state — only shown after we've confirmed pages is
+  // empty. This used to be a hard dead-end with no way to reach the leads
+  // list or "Add lead manually" at all (the normal page body below never
+  // renders without a selected Facebook page) — meaning every non-Facebook
+  // lead source (manual entry, CSV import, website-form ingest) was
+  // completely unreachable for any account that had never connected
+  // Facebook, which is every ecommerce-typed account and plenty of lead-gen
+  // ones too. Now shows whatever page-less leads already exist, and always
+  // offers Add lead / Import CSV as real, working alternatives to Facebook.
   if (pagesLoaded && pages.length === 0) {
     return (
       <>
-      <div className="p-6 lg:p-8 flex flex-col items-center justify-center min-h-[60vh] gap-5 text-center">
+      <div className="p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
         {banner && (
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm w-full max-w-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
             {banner.type === 'success' ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
             <span className="flex-1">{banner.msg}</span>
             <button onClick={() => setBanner(null)}><X className="w-4 h-4 opacity-50 hover:opacity-100 transition" /></button>
           </div>
         )}
-        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center">
-          <Facebook className="w-8 h-8 text-blue-500" />
+
+        <div className="flex flex-col items-center justify-center text-center gap-5 py-6">
+          <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center">
+            <Facebook className="w-8 h-8 text-blue-500" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Connect Facebook Lead Ads</h2>
+            <p className="text-sm text-gray-400 max-w-sm">Connect your Facebook pages to receive leads and send automated WhatsApp messages.</p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap justify-center">
+            <a href="/api/facebook/auth"
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97]">
+              <Facebook className="w-4 h-4" /> Connect Facebook
+            </a>
+            <AddLeadDropdown onAddManual={() => setShowAddLead(true)} onImportCsv={() => setShowCsvImport(true)} />
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Connect Facebook Lead Ads</h2>
-          <p className="text-sm text-gray-400 max-w-sm">Connect your Facebook pages to receive leads and send automated WhatsApp messages.</p>
-        </div>
-        <a href="/api/facebook/auth"
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition active:scale-[0.97]">
-          <Facebook className="w-4 h-4" /> Connect Facebook
-        </a>
+
+        {noPageLeadsLoaded && noPageLeads.length > 0 && (
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800">Your leads</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Not from Facebook — added manually, via CSV, or your website form</p>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {noPageLeads.map(lead => {
+                const meta = SOURCE_META[lead.source ?? 'other'] ?? SOURCE_META.other
+                return (
+                  <div key={lead.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold">
+                      {(lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{lead.name ?? lead.phone ?? 'Unknown'}</p>
+                      {lead.phone && lead.name && <p className="text-xs text-gray-400 truncate">{lead.phone}</p>}
+                    </div>
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: meta.bg, color: meta.text }}>
+                      {meta.label}
+                    </span>
+                    <span className="text-[11px] text-gray-300 flex-shrink-0 hidden sm:inline">{timeAgo(lead.created_at)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
       {pendingPages.length > 0 && (
         <PagePickerModal
@@ -3692,6 +3757,29 @@ function LeadsContent() {
           setPickedPageIds={setPickedPageIds}
           confirmingPick={confirmingPick}
           confirmPageSelection={confirmPageSelection}
+        />
+      )}
+      {showAddLead && (
+        <AddLeadModal
+          onClose={() => setShowAddLead(false)}
+          onSaved={() => {
+            setShowAddLead(false)
+            setBanner({ type: 'success', msg: 'Lead added' })
+            fetchNoPageLeads()
+          }}
+        />
+      )}
+      {showCsvImport && (
+        <CsvImportModal
+          onClose={() => setShowCsvImport(false)}
+          onImported={({ imported, duplicates, invalidPhones }) => {
+            setShowCsvImport(false)
+            const parts = [`${imported} imported`]
+            if (duplicates) parts.push(`${duplicates} duplicate${duplicates !== 1 ? 's' : ''} skipped`)
+            if (invalidPhones) parts.push(`${invalidPhones} invalid phone${invalidPhones !== 1 ? 's' : ''} skipped`)
+            setBanner({ type: 'success', msg: parts.join(', ') })
+            fetchNoPageLeads()
+          }}
         />
       )}
       </>
