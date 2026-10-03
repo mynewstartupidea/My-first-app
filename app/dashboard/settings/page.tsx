@@ -1060,7 +1060,13 @@ function SettingsInner() {
                         on ? 'border-[#25D366] bg-[#25D366]/5 text-[#128C7E]' : 'border-slate-200 text-slate-500 hover:border-slate-300'
                       )}
                     >
-                      {on && <CheckCircle2 className="w-3.5 h-3.5" />} {label}
+                      {/* Icon always takes up space, just hidden when unselected —
+                          conditionally rendering it (instead of hiding it) shifted
+                          how much width was left for the label, so the selected
+                          button could wrap to a second line while the other stayed
+                          on one, making the two buttons different heights. */}
+                      <CheckCircle2 className={cn('w-3.5 h-3.5 flex-shrink-0', !on && 'invisible')} />
+                      {label}
                     </button>
                   )
                 })}
