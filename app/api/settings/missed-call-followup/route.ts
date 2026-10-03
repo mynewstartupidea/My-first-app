@@ -41,10 +41,15 @@ export async function PATCH(request: Request) {
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
 
+  // upsert, not update — signup's own user_profiles insert is explicitly
+  // best-effort and uncaught (see app/signup/page.tsx), so an owner with no
+  // profile row yet is a real, reachable state, not just a test artifact.
+  // .update() against a missing row matches zero rows and succeeds silently
+  // (no error from Supabase), so this toggle could appear to save from the
+  // UI while never actually persisting anywhere.
   const { error } = await service
     .from('user_profiles')
-    .update({ missed_call_followup_enabled: body.enabled })
-    .eq('id', ownerId)
+    .upsert({ id: ownerId, missed_call_followup_enabled: body.enabled }, { onConflict: 'id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, enabled: body.enabled })

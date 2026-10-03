@@ -862,8 +862,29 @@ function LeadAutomationsStep({ onNext, onSkip }: { onNext: () => void; onSkip: (
 
 // ─── Done step ────────────────────────────────────────────────────────────────
 
-function DoneStep({ storeConnected, automationCount }: { storeConnected: boolean; automationCount: number }) {
+function DoneStep({
+  businessType, storeConnected, automationCount, missedCallFollowupOn
+}: {
+  businessType: BusinessType | null
+  storeConnected: boolean
+  automationCount: number
+  missedCallFollowupOn: boolean
+}) {
   const router = useRouter()
+  const isEcommerce = businessType === 'ecommerce'
+  // For lead-gen, "automations" set up during onboarding is the Missed Call
+  // Follow-up toggle — the ecommerce `automations` table count means nothing
+  // here (it's a different table entirely), so checking automationCount for
+  // this business type would show "None enabled" even right after someone
+  // just turned Missed Call Follow-up on.
+  const automationsOn = isEcommerce ? automationCount > 0 : missedCallFollowupOn
+  const firstLineLabel = isEcommerce
+    ? 'Connected and syncing'
+    : (storeConnected ? 'Lead source connected' : 'Add leads in the Leads tab anytime')
+  const automationsLabel = isEcommerce
+    ? (automationCount > 0 ? `${automationCount} automation${automationCount > 1 ? 's' : ''} enabled` : 'None enabled yet — set up in Automations')
+    : (missedCallFollowupOn ? 'Missed Call Follow-up is on' : 'Not enabled yet — set up in Automations')
+
   return (
     <div className="text-center max-w-md mx-auto">
       <div className="w-20 h-20 bg-[#25D366]/10 rounded-3xl flex items-center justify-center mx-auto mb-6 animate-bounce">
@@ -871,32 +892,32 @@ function DoneStep({ storeConnected, automationCount }: { storeConnected: boolean
       </div>
       <h1 className="text-3xl font-bold text-slate-900 mb-3">You&apos;re all set! 🎉</h1>
       <p className="text-slate-500 mb-8">
-        Wapaci is configured and ready to help you recover revenue with WhatsApp automations.
+        {isEcommerce
+          ? 'Wapaci is configured and ready to help you recover revenue with WhatsApp automations.'
+          : 'Wapaci is configured and ready to help you capture and follow up with leads over WhatsApp.'}
       </p>
 
       {/* Summary */}
       <div className="bg-slate-50 rounded-2xl p-5 mb-8 text-left space-y-3">
         <div className="flex items-center gap-3">
-          <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', storeConnected ? 'bg-green-100' : 'bg-slate-100')}>
-            <Store className={cn('w-4 h-4', storeConnected ? 'text-green-600' : 'text-slate-400')} />
+          <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', (isEcommerce ? storeConnected : true) ? 'bg-green-100' : 'bg-slate-100')}>
+            <Store className={cn('w-4 h-4', (isEcommerce ? storeConnected : true) ? 'text-green-600' : 'text-slate-400')} />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-slate-800">Store</p>
-            <p className="text-xs text-slate-500">{storeConnected ? 'Connected and syncing' : 'Not connected yet — set up in Settings'}</p>
+            <p className="text-sm font-medium text-slate-800">{isEcommerce ? 'Store' : 'Leads'}</p>
+            <p className="text-xs text-slate-500">{firstLineLabel}</p>
           </div>
-          {storeConnected && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+          {(isEcommerce ? storeConnected : true) && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
         </div>
         <div className="flex items-center gap-3">
-          <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', automationCount > 0 ? 'bg-green-100' : 'bg-slate-100')}>
-            <Zap className={cn('w-4 h-4', automationCount > 0 ? 'text-green-600' : 'text-slate-400')} />
+          <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', automationsOn ? 'bg-green-100' : 'bg-slate-100')}>
+            <Zap className={cn('w-4 h-4', automationsOn ? 'text-green-600' : 'text-slate-400')} />
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-slate-800">Automations</p>
-            <p className="text-xs text-slate-500">
-              {automationCount > 0 ? `${automationCount} automation${automationCount > 1 ? 's' : ''} enabled` : 'None enabled yet — set up in Automations'}
-            </p>
+            <p className="text-xs text-slate-500">{automationsLabel}</p>
           </div>
-          {automationCount > 0 && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+          {automationsOn && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
         </div>
       </div>
 
@@ -930,6 +951,7 @@ function OnboardingContent() {
   const [storeConnected, setStoreConnected] = useState(false)
   const [businessType, setBusinessType] = useState<BusinessType | null>(null)
   const [automationCount, setAutomationCount] = useState(0)
+  const [missedCallFollowupOn, setMissedCallFollowupOn] = useState(false)
   const [loading, setLoading]     = useState(true)
   const supabase = useMemo(() => createClient(), [])
 
@@ -938,16 +960,35 @@ function OnboardingContent() {
     if (!user) { router.replace('/login'); return }
     setUserEmail(user.email ?? '')
 
-    const { data: store } = await supabase
+    let store = (await supabase
       .from('stores').select('id, shopify_domain, business_type')
-      .eq('user_id', user.id).eq('is_active', true).maybeSingle()
+      .eq('user_id', user.id).eq('is_active', true).maybeSingle()).data
+
+    // Signup itself doesn't provision a stores row (only /dashboard's own
+    // fallback and team-invite acceptance do) — this page is now the first
+    // screen that actually needs one (BusinessTypeStep PATCHes immediately),
+    // so a genuinely fresh signup landing straight here would otherwise hit
+    // "No store found" on the very first Continue click.
+    if (!store) {
+      const { data: profile } = await supabase
+        .from('user_profiles').select('company_name').eq('id', user.id).maybeSingle()
+      const shopName = profile?.company_name || (user.user_metadata?.company_name as string | undefined) || 'My Store'
+      const { data: newStore } = await supabase
+        .from('stores')
+        .insert({ user_id: user.id, shop_name: shopName, is_active: true, whatsapp_bsp: 'mock', plan: 'starter' })
+        .select('id, shopify_domain, business_type').single()
+      if (newStore) {
+        store = newStore
+        await supabase.rpc('create_default_automations', { p_store_id: newStore.id })
+      }
+    }
 
     if (store) {
       setStoreId(store.id)
-      // A bare stores row is auto-provisioned at signup regardless of
-      // business type — "connected" here must mean Shopify is actually
-      // linked, not merely that the row exists, or this step's success
-      // screen shows for every new user before they've connected anything.
+      // A bare stores row is auto-provisioned regardless of business type —
+      // "connected" here must mean Shopify is actually linked, not merely
+      // that the row exists, or this step's success screen shows for every
+      // new user before they've connected anything.
       setStoreConnected(hasShopifyConnection(store))
       setBusinessType((store.business_type as BusinessType | null) ?? null)
 
@@ -993,6 +1034,15 @@ function OnboardingContent() {
     if (idx < STEPS.length - 1) {
       // Refresh store data when advancing past the connect step
       if (step === 'connect') loadUser()
+      // DoneStep's summary needs the real current value for a lead-gen
+      // account — LeadAutomationsStep writes it via a dedicated route, not
+      // through loadUser's store-scoped queries.
+      if (step === 'automations' && businessType !== 'ecommerce') {
+        fetch('/api/settings/missed-call-followup')
+          .then(r => r.json())
+          .then((d: { enabled?: boolean }) => setMissedCallFollowupOn(!!d.enabled))
+          .catch(() => {})
+      }
       setStep(STEPS[idx + 1])
     }
   }
@@ -1073,8 +1123,10 @@ function OnboardingContent() {
 
         {step === 'done' && (
           <DoneStep
+            businessType={businessType}
             storeConnected={storeConnected}
             automationCount={automationCount}
+            missedCallFollowupOn={missedCallFollowupOn}
           />
         )}
       </div>
