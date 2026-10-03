@@ -143,7 +143,10 @@ export default async function ShopifyPage() {
             </Link>
           </div>
 
-          {/* Stat cards — mirrors Contacts' stat-card grid exactly */}
+          {/* Stat cards — mirrors Contacts' stat-card grid exactly. 5 stats
+              in a 2-col mobile grid left the last one sitting alone in a
+              half-empty row — span it full-width there instead so it reads
+              as a deliberate closing row, not a leftover. */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
               { label: 'Orders', value: orderCount.toLocaleString(), color: '#6b7280' },
@@ -151,8 +154,11 @@ export default async function ShopifyPage() {
               { label: 'Abandoned Checkouts', value: checkoutCount.toLocaleString(), color: '#f97316', sub: checkoutCount > 0 ? `${formatCurrency(recoverableValue)} recoverable` : undefined },
               { label: 'Reachable on WhatsApp', value: customerCount.toLocaleString(), color: '#25D366' },
               { label: 'Products', value: productCount.toLocaleString(), color: '#3b82f6' },
-            ].map(s => (
-              <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 sm:p-4 min-w-0">
+            ].map((s, i, arr) => (
+              <div key={s.label} className={cn(
+                'bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 sm:p-4 min-w-0',
+                i === arr.length - 1 && arr.length % 2 === 1 && 'col-span-2 sm:col-span-1',
+              )}>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 tabular-nums">{s.value}</p>
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
