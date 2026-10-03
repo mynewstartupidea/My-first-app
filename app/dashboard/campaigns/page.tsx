@@ -1021,17 +1021,29 @@ function CampaignsContent() {
     setCampaigns(data.campaigns)
     setTemplates(data.templates)
 
+    // Must match app/api/campaigns/send/route.ts's audience query EXACTLY —
+    // these used to diverge in three ways: this preview had no
+    // whatsapp_opt_in filter at all (the real send applies one to every
+    // segment except 'all'), first_time here was total_orders <= 1
+    // (includes 0-order contacts) vs. the backend's exactly-1, and inactive
+    // segments here excluded never-ordered contacts entirely vs. the
+    // backend's .or('last_order_at.is.null, ...') which counts them as
+    // inactive. The number shown before sending wasn't the number who'd
+    // actually receive it.
     const custs = data.customers
     const now = Date.now()
+    const optedIn = custs.filter(c => c.whatsapp_opt_in)
+    const inactiveFor = (days: number) =>
+      optedIn.filter(c => !c.last_order_at || now - new Date(c.last_order_at).getTime() > days * 86400000).length
     setCounts({
       all:           custs.length,
-      opted_in:      custs.filter(c => c.whatsapp_opt_in).length,
-      vip:           custs.filter(c => c.total_spent >= 5000).length,
-      repeat_buyers: custs.filter(c => c.total_orders >= 2).length,
-      first_time:    custs.filter(c => c.total_orders <= 1).length,
-      inactive_30:   custs.filter(c => c.last_order_at && now - new Date(c.last_order_at).getTime() > 30 * 86400000).length,
-      inactive_60:   custs.filter(c => c.last_order_at && now - new Date(c.last_order_at).getTime() > 60 * 86400000).length,
-      inactive_90:   custs.filter(c => c.last_order_at && now - new Date(c.last_order_at).getTime() > 90 * 86400000).length,
+      opted_in:      optedIn.length,
+      vip:           optedIn.filter(c => c.total_spent >= 5000).length,
+      repeat_buyers: optedIn.filter(c => c.total_orders >= 2).length,
+      first_time:    optedIn.filter(c => c.total_orders === 1).length,
+      inactive_30:   inactiveFor(30),
+      inactive_60:   inactiveFor(60),
+      inactive_90:   inactiveFor(90),
     })
 
     setLoading(false)

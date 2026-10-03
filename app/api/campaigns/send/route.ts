@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { queueCampaignAudience } from '@/lib/campaign-queue'
 
 export const maxDuration = 60
 
@@ -58,52 +59,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Campaign already running or completed' }, { status: 400 })
   }
 
-  // Build audience — same segment logic as before, just no .limit(1000).
-  let query = service
-    .from('customers')
-    .select('id, phone, name')
-    .eq('store_id', campaign.store_id)
-
-  if (campaign.audience === 'opted_in') {
-    query = query.eq('whatsapp_opt_in', true)
-  } else if (campaign.audience === 'inactive_30') {
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    query = query.eq('whatsapp_opt_in', true).or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
-  } else if (campaign.audience === 'inactive_60') {
-    const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
-    query = query.eq('whatsapp_opt_in', true).or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
-  } else if (campaign.audience === 'inactive_90') {
-    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-    query = query.eq('whatsapp_opt_in', true).or(`last_order_at.is.null,last_order_at.lt.${cutoff}`)
-  } else if (campaign.audience === 'vip') {
-    query = query.eq('whatsapp_opt_in', true).gte('total_spent', 5000)
-  } else if (campaign.audience === 'repeat_buyers') {
-    query = query.eq('whatsapp_opt_in', true).gte('total_orders', 2)
-  } else if (campaign.audience === 'first_time') {
-    query = query.eq('whatsapp_opt_in', true).eq('total_orders', 1)
-  }
-  // 'all' intentionally includes all synced contacts. Actual send failures will
-  // update whatsapp_opt_in for numbers Meta reports as invalid/not registered.
-
-  const { data: customers } = await query
-  if (!customers || customers.length === 0) {
+  const result = await queueCampaignAudience(service, campaign)
+  if (!result.success) {
     await service.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
-    return NextResponse.json({ error: 'No eligible customers in this audience segment' }, { status: 400 })
+    return NextResponse.json({ error: result.error }, { status: result.error.startsWith('No eligible') ? 400 : 500 })
   }
 
-  // Bulk insert in chunks — a single call with 10k+ rows risks hitting a
-  // payload-size limit; 500-row chunks stay comfortably under it either way.
-  const CHUNK = 500
-  for (let i = 0; i < customers.length; i += CHUNK) {
-    const chunk = customers.slice(i, i + CHUNK).map(c => ({
-      campaign_id, customer_id: c.id, phone: c.phone, name: c.name, status: 'pending' as const,
-    }))
-    const { error: insErr } = await service.from('campaign_recipients').upsert(chunk, { onConflict: 'campaign_id,customer_id', ignoreDuplicates: true })
-    if (insErr) {
-      await service.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
-      return NextResponse.json({ error: `Failed to queue recipients: ${insErr.message}` }, { status: 500 })
-    }
-  }
-
-  return NextResponse.json({ success: true, queued: customers.length })
+  return NextResponse.json({ success: true, queued: result.queued })
 }

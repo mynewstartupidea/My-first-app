@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { renderTemplate } from '@/lib/utils'
+import { queueCampaignAudience } from '@/lib/campaign-queue'
 
 export const maxDuration = 60
 
@@ -22,6 +23,31 @@ export async function GET(request: Request) {
 
   const service = createServiceClient()
   const tickStart = Date.now()
+
+  // A campaign saved with status='scheduled' and a future scheduled_at had
+  // nothing that ever auto-launched it — app/api/campaigns/route.ts lets it
+  // be created, but only a human manually clicking Send later actually
+  // queues its recipients. Due ones get claimed and queued here the same
+  // way app/api/campaigns/send does (same shared helper), right before the
+  // normal recipient-processing loop below picks them up like any other
+  // pending batch.
+  const { data: dueCampaigns } = await service
+    .from('campaigns')
+    .select('id, store_id, audience')
+    .eq('status', 'scheduled')
+    .lte('scheduled_at', new Date().toISOString())
+  for (const due of dueCampaigns ?? []) {
+    const { data: claimed } = await service
+      .from('campaigns').update({ status: 'running', updated_at: new Date().toISOString() })
+      .eq('id', due.id).eq('status', 'scheduled').select('id')
+    if (!claimed || claimed.length === 0) continue // claimed by a concurrent tick
+
+    const result = await queueCampaignAudience(service, due)
+    if (!result.success) {
+      await service.from('campaigns').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', due.id)
+      console.error(`[campaign-send cron] scheduled campaign ${due.id} failed to queue:`, result.error)
+    }
+  }
 
   const { data: recipients } = await service
     .from('campaign_recipients')
