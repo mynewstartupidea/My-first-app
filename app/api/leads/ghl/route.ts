@@ -96,6 +96,20 @@ export async function POST(req: Request) {
 
   const normalizedPhone = phone ? (normalizeIndianPhone(phone) ?? phone) : null
 
+  // Like app/api/leads/ingest, this endpoint had no duplicate-submission
+  // guard at all — a GHL webhook retry (network blip, slow response) meant
+  // a second identical lead row and a second WhatsApp send for the same
+  // contact. Short debounce window, not a permanent dedupe, so the same
+  // contact genuinely re-submitting later still creates a fresh lead.
+  if (normalizedPhone) {
+    const { data: recent } = await supabase
+      .from('leads').select('id')
+      .eq('store_id', store.id).eq('phone', normalizedPhone)
+      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+      .limit(1).maybeSingle()
+    if (recent) return NextResponse.json({ success: true, lead_id: recent.id, duplicate: true })
+  }
+
   const { data: saved, error: saveErr } = await supabase
     .from('leads')
     .insert({

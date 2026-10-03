@@ -102,19 +102,20 @@ export async function syncFacebookPageLeads(
   if (!forms.length) return { synced: 0, newLeads: 0 }
 
   // ── Round-robin distribution setup ─────────────────────────────────────────
+  // rr_current_pos itself is now read-and-advanced atomically per batch via
+  // advance_round_robin_position (see below) — no local position tracking
+  // needed here anymore.
   let rrMembersWithEmail: Array<{ user_id: string; email: string }> = []
-  let rrPos = 0
   let orgId: string | null = null
 
   const { data: orgRow } = await service
     .from('organizations')
-    .select('id, lead_distribution_mode, rr_current_pos, distribution_members')
+    .select('id, lead_distribution_mode, distribution_members')
     .eq('owner_id', ownerId)
     .maybeSingle()
 
   if (orgRow?.lead_distribution_mode === 'round_robin') {
     const distMembers = (orgRow.distribution_members ?? []) as Array<{ user_id: string }>
-    rrPos = orgRow.rr_current_pos ?? 0
     orgId = orgRow.id as string
 
     if (distMembers.length > 0) {
@@ -186,15 +187,22 @@ export async function syncFacebookPageLeads(
     synced += fbLeads.length
 
     // ── Round-robin auto-assign newly imported leads ────────────────────────
-    if (rrMembersWithEmail.length > 0 && saved?.length) {
+    // advance_round_robin_position atomically reads+advances rr_current_pos
+    // and returns the position to start THIS batch from — see the migration
+    // comment for why the old read-once/advance-locally/write-once-at-end
+    // pattern was a race under concurrent syncs for the same org.
+    if (rrMembersWithEmail.length > 0 && saved?.length && orgId) {
+      const { data: batchStartPos } = await service.rpc('advance_round_robin_position', {
+        p_org_id: orgId, p_count: saved.length, p_member_count: rrMembersWithEmail.length,
+      })
+      const startPos = batchStartPos ?? 0
       for (let idx = 0; idx < saved.length; idx++) {
-        const member = rrMembersWithEmail[(rrPos + idx) % rrMembersWithEmail.length]
+        const member = rrMembersWithEmail[(startPos + idx) % rrMembersWithEmail.length]
         await service.from('leads')
           .update({ assigned_to: member.user_id, assigned_name: member.email })
           .eq('id', saved[idx].id)
           .is('assigned_to', null)
       }
-      rrPos = (rrPos + saved.length) % rrMembersWithEmail.length
     }
 
     // Only queue WhatsApp jobs when automation is enabled AND WhatsApp is connected
@@ -224,10 +232,19 @@ export async function syncFacebookPageLeads(
           }
         })
       if (jobs.length) {
-        await service.from('automation_jobs').insert(jobs).then(null, () => null)
-        const queuedIds = saved.filter(s => s.phone).map(s => s.id)
-        await service.from('leads').update({ wa_status: 'pending' }).in('id', queuedIds)
-        newLeads += jobs.length
+        // The insert error was previously discarded (.then(null, () => null))
+        // and leads were marked wa_status:'pending' regardless of whether it
+        // actually succeeded — if the insert failed, those leads looked
+        // "queued" forever in the dashboard with no job ever created and no
+        // way to tell. Only mark the ones that actually got a job.
+        const { error: insertErr } = await service.from('automation_jobs').insert(jobs)
+        if (insertErr) {
+          console.error('[facebook-sync] automation_jobs insert failed:', insertErr.message)
+        } else {
+          const queuedIds = saved.filter(s => s.phone).map(s => s.id)
+          await service.from('leads').update({ wa_status: 'pending' }).in('id', queuedIds)
+          newLeads += jobs.length
+        }
       }
     }
 
@@ -235,10 +252,6 @@ export async function syncFacebookPageLeads(
       .from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
       .eq('id', form.id)
-  }
-
-  if (orgId && rrMembersWithEmail.length > 0) {
-    await service.from('organizations').update({ rr_current_pos: rrPos }).eq('id', orgId)
   }
 
   return { synced, newLeads }

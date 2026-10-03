@@ -68,7 +68,16 @@ export async function GET(request: Request) {
       form_name:        form.form_name,
       name, email, phone, fields,
       raw_data:   { field_data: fl.field_data },
-      wa_status:  phone ? 'pending' : 'no_phone',
+      // Was 'pending' unconditionally — every other lead-ingestion path in
+      // this codebase (the real-time webhook, lib/facebook-sync.ts, manual/
+      // bulk-import/ingest routes) sets 'imported' here and only upgrades to
+      // 'pending' once an automation_jobs row is actually created below. A
+      // lead synced for a form whose automation is disabled (is_enabled =
+      // false, e.g. the merchant is still drafting the message) got marked
+      // 'pending' here with no job ever queued — permanently excluded from
+      // bulk-message (which only targets 'imported'/'failed') and showing
+      // "Resend WhatsApp" in the UI for a message that was never sent.
+      wa_status:  phone ? 'imported' : 'no_phone',
       created_at: fl.created_time,
     }))
 
@@ -99,7 +108,15 @@ export async function GET(request: Request) {
             scheduled_at:   new Date().toISOString(),
           }
         })
-      if (jobs.length) await supabase.from('automation_jobs').insert(jobs).then(null, () => null)
+      if (jobs.length) {
+        const { error: insertErr } = await supabase.from('automation_jobs').insert(jobs)
+        if (insertErr) {
+          console.error('[cron/facebook-leads] automation_jobs insert failed:', insertErr.message)
+        } else {
+          await supabase.from('leads').update({ wa_status: 'pending' })
+            .in('id', savedRows.filter(s => s.phone).map(s => s.id))
+        }
+      }
     }
 
     await supabase

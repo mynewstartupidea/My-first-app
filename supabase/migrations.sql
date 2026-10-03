@@ -951,3 +951,33 @@ $$;
 -- simply scheduled a while ago but are still genuinely in progress.
 ALTER TABLE automation_jobs
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- ─── advance_round_robin_position: atomic read-and-advance for lead assignment ──
+-- lib/facebook-sync.ts used to read organizations.rr_current_pos once at the
+-- start of a sync run, advance it in local app-code variables across every
+-- batch of leads processed, and write the final value back once at the very
+-- end -- classic read-then-write race: two syncs for the same org running
+-- concurrently (a manual "Sync now" click landing alongside the scheduled
+-- cron, for example) both read the same starting position and could assign
+-- two different new leads to the same rep instead of rotating, with
+-- whichever final write lands last silently discarding the other run's
+-- progress. This does the read-and-advance as one atomic, row-locked
+-- operation and returns the position to start assigning THIS batch from.
+CREATE OR REPLACE FUNCTION advance_round_robin_position(p_org_id UUID, p_count INTEGER, p_member_count INTEGER)
+RETURNS INTEGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_start_pos INTEGER;
+BEGIN
+  IF p_member_count <= 0 THEN RETURN 0; END IF;
+
+  -- Row lock held until this transaction commits — a second concurrent call
+  -- for the same org_id blocks here until the first's UPDATE is visible.
+  SELECT COALESCE(rr_current_pos, 0) INTO v_start_pos FROM organizations WHERE id = p_org_id FOR UPDATE;
+
+  UPDATE organizations
+  SET rr_current_pos = (v_start_pos + p_count) % p_member_count
+  WHERE id = p_org_id;
+
+  RETURN v_start_pos % p_member_count;
+END;
+$$;

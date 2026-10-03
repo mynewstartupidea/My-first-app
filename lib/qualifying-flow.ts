@@ -74,13 +74,13 @@ async function maybeStartFlow(
   const questions = (auto?.qualifying_questions as string[] | null) ?? []
   if (!questions.length) return
 
-  const sendResult = await sendWhatsAppMessage({ to: phone, message: questions[0] })
-  if (!sendResult.success) {
-    console.error('[Qualifying flow] failed to send first question:', sendResult.error)
-    return
-  }
-
-  await service.from('lead_qualifying_progress').insert({
+  // Claim BEFORE sending, not after — two WhatsApp replies from the same
+  // lead arriving close together (or a webhook redelivery landing
+  // concurrently with the original) both used to pass the `existing` check
+  // above before either's INSERT committed, so both sent the first
+  // question. lead_id's UNIQUE constraint makes this insert the actual
+  // race winner: only the first caller's insert succeeds, so only it sends.
+  const { error: insertErr } = await service.from('lead_qualifying_progress').insert({
     lead_id: lead.id as string,
     store_id: storeId,
     phone: phoneSuffix,
@@ -88,6 +88,12 @@ async function maybeStartFlow(
     answers: [],
     status: 'in_progress',
   })
+  if (insertErr) return // lost the race (or a genuine error) — either way, don't send
+
+  const sendResult = await sendWhatsAppMessage({ to: phone, message: questions[0] })
+  if (!sendResult.success) {
+    console.error('[Qualifying flow] failed to send first question:', sendResult.error)
+  }
   // The lead's very first reply just triggered the first question — it wasn't
   // an answer to anything, so firstReplyText is intentionally not saved.
   void firstReplyText
@@ -129,24 +135,35 @@ async function continueFlow(
     fields: { ...existingFields, [askedQuestion]: answerText },
   }).eq('id', progress.lead_id)
 
+  // Optimistic-concurrency claim: the WHERE clause re-checks question_index
+  // still matches what we read it as. Two concurrent replies from the same
+  // lead both read the same question_index before either's UPDATE
+  // committed, so both used to send the same next question and whichever
+  // write landed last silently overwrote the other's recorded answer, with
+  // no error either way. Only the caller whose UPDATE actually matches a
+  // row (the real winner) proceeds to send — the loser's `claimed` check
+  // below catches it and returns quietly instead.
   const nextIndex = askedIndex + 1
   if (nextIndex < questions.length) {
-    const sendResult = await sendWhatsAppMessage({ to: phone, message: questions[nextIndex] })
-    if (!sendResult.success) {
-      console.error('[Qualifying flow] failed to send next question:', sendResult.error)
-      return
-    }
-    await service.from('lead_qualifying_progress').update({
+    const { data: claimed } = await service.from('lead_qualifying_progress').update({
       question_index: nextIndex,
       answers,
       updated_at: new Date().toISOString(),
-    }).eq('id', progress.id)
+    }).eq('id', progress.id).eq('question_index', askedIndex).select('id')
+    if (!claimed || claimed.length === 0) return
+
+    const sendResult = await sendWhatsAppMessage({ to: phone, message: questions[nextIndex] })
+    if (!sendResult.success) {
+      console.error('[Qualifying flow] failed to send next question:', sendResult.error)
+    }
   } else {
-    await sendWhatsAppMessage({ to: phone, message: CLOSING_MESSAGE })
-    await service.from('lead_qualifying_progress').update({
+    const { data: claimed } = await service.from('lead_qualifying_progress').update({
       answers,
       status: 'completed',
       updated_at: new Date().toISOString(),
-    }).eq('id', progress.id)
+    }).eq('id', progress.id).eq('question_index', askedIndex).select('id')
+    if (!claimed || claimed.length === 0) return
+
+    await sendWhatsAppMessage({ to: phone, message: CLOSING_MESSAGE })
   }
 }

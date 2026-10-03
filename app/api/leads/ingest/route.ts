@@ -38,6 +38,22 @@ export async function POST(req: Request) {
   // Custom fields — everything except standard keys
   const fields = Object.fromEntries(Object.entries(rest).filter(([k]) => !STANDARD_KEYS.has(k)))
 
+  // This endpoint has no natural idempotency key (unlike Facebook's
+  // leadgen_id) — a flaky client double-submitting the same form, or a
+  // landing page's own retry logic, created a second lead row and queued a
+  // second WhatsApp message with no guard at all. A short debounce window
+  // (not a permanent dedupe — the same person legitimately re-submitting
+  // weeks later should still create a fresh lead) catches the realistic
+  // failure mode without blocking genuine repeat interest.
+  if (normalizedPhone) {
+    const { data: recent } = await supabase
+      .from('leads').select('id')
+      .eq('store_id', store.id).eq('phone', normalizedPhone)
+      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+      .limit(1).maybeSingle()
+    if (recent) return NextResponse.json({ success: true, lead_id: recent.id, duplicate: true })
+  }
+
   // Save lead
   const { data: saved, error: saveErr } = await supabase
     .from('leads')
