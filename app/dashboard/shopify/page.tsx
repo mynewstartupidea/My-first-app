@@ -82,7 +82,7 @@ export default async function ShopifyPage() {
   ]
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-5xl space-y-5">
+    <div className="p-4 md:p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
