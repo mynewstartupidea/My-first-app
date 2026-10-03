@@ -833,6 +833,12 @@ RETURNS UUID LANGUAGE plpgsql AS $$
 DECLARE
   v_id UUID;
 BEGIN
+  -- whatsapp_opt_in = true in the DO UPDATE SET (removed below) used to
+  -- unconditionally re-opt-in every existing customer on their next order,
+  -- silently undoing an explicit opt-out that app/api/cron/campaign-send
+  -- sets when WhatsApp reports a number as invalid/unregistered -- wasting
+  -- a future send attempt (and quota) on a number already known to be dead.
+  -- It only belongs in the INSERT branch now, for a genuinely new customer.
   INSERT INTO customers (store_id, phone, name, email, whatsapp_opt_in, total_orders, total_spent, last_order_at)
   VALUES (p_store_id, p_phone, p_name, NULLIF(p_email, ''), true, 1, p_order_value, NOW())
   ON CONFLICT (store_id, phone) DO UPDATE SET
@@ -840,8 +846,7 @@ BEGIN
     total_spent     = customers.total_spent + p_order_value,
     last_order_at   = NOW(),
     name            = COALESCE(customers.name, EXCLUDED.name),
-    email           = COALESCE(customers.email, EXCLUDED.email),
-    whatsapp_opt_in = true
+    email           = COALESCE(customers.email, EXCLUDED.email)
   RETURNING id INTO v_id;
   RETURN v_id;
 END;

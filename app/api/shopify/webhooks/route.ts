@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { verifyShopifyWebhook } from '@/lib/shopify'
+import { verifyShopifyWebhook, customerToE164 } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate } from '@/lib/utils'
 import { decrypt } from '@/lib/encryption'
 
-// Normalise a raw phone string to E.164.
-// Uses the Shopify address country_code to determine prefix for bare 10-digit numbers.
-// Defaults to +91 (India) when country is unknown — primary market.
 // REST webhook payloads give plain numeric ids (order.id, line_item.id, ...)
 // while the periodic GraphQL sync (lib/shopify-sync.ts) stores everything as
 // GIDs (gid://shopify/Order/123) — constructing the same GID format here
@@ -37,24 +34,6 @@ async function automationJobExists(
     .limit(1)
     .maybeSingle()
   return !!data
-}
-
-function toE164(raw: string, countryCode = ''): string {
-  if (!raw) return ''
-  if (raw.startsWith('+')) return `+${raw.replace(/\D/g, '')}`
-  const digits = raw.replace(/\D/g, '')
-  if (!digits) return ''
-  // Already includes country code digits (11–15 digits)
-  if (digits.length > 10) return `+${digits}`
-  // 10-digit number — infer country prefix
-  if (digits.length === 10) {
-    if (countryCode === 'US' || countryCode === 'CA') return `+1${digits}`
-    if (countryCode === 'GB') return `+44${digits}`
-    if (countryCode === 'AU') return `+61${digits}`
-    if (countryCode === 'AE') return `+971${digits}`
-    return `+91${digits}` // default: India
-  }
-  return `+91${digits}`
 }
 
 export async function POST(request: Request) {
@@ -111,7 +90,7 @@ export async function POST(request: Request) {
         // Shopify GDPR: delete customer data
         await supabase.from('customers').delete()
           .eq('store_id', store.id)
-          .eq('phone', toE164(String((payload as Record<string, unknown>).phone ?? '')))
+          .eq('phone', customerToE164(String((payload as Record<string, unknown>).phone ?? '')))
         console.log(`[webhook] customers/redact for ${shopDomain}`)
         break
       case 'shop/redact':
@@ -166,7 +145,7 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     (checkout.shipping_address as Record<string, unknown>)?.country_code ??
     (checkout.billing_address  as Record<string, unknown>)?.country_code ?? ''
   ).toUpperCase()
-  const phone = toE164(rawPhone, countryCode)
+  const phone = customerToE164(rawPhone, countryCode)
   const lineItems   = (checkout.line_items as Record<string, unknown>[]) ?? []
   const firstName   = String((checkout.shipping_address as Record<string, unknown>)?.first_name ?? 'there')
   const checkoutUrl = String(checkout.abandoned_checkout_url ?? '')
@@ -308,7 +287,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     (order.shipping_address as Record<string, unknown>)?.country_code ??
     (order.billing_address  as Record<string, unknown>)?.country_code ?? ''
   ).toUpperCase()
-  const phone = toE164(rawPhone, countryCode)
+  const phone = customerToE164(rawPhone, countryCode)
 
   const isCOD        = String((order.payment_gateway_names as string[])?.[0] ?? '').toLowerCase().includes('cod') ||
                        String(order.payment_gateway ?? '').toLowerCase().includes('cod') ||
@@ -371,22 +350,36 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     await attributeRevenue(supabase, store.id, phone, orderValue, order.id).catch(() => null)
   }
 
-  // Update customer stats atomically — this used to read total_orders/
-  // total_spent, increment in application code, then write the result back,
-  // which races under concurrent orders for the same customer (two orders
-  // landing close together can both read the same baseline and one write
-  // clobbers the other). increment_customer_order_stats does the whole
-  // read-modify-write as a single INSERT ... ON CONFLICT DO UPDATE, atomic
-  // at the row level — matters at 10k orders/day where that window of
-  // concurrency stops being a theoretical edge case.
-  const { data: customerId } = await supabase.rpc('increment_customer_order_stats', {
-    p_store_id: store.id,
-    p_phone: phone,
-    p_name: firstName,
-    p_email: String((order.customer as Record<string, unknown>)?.email ?? order.email ?? ''),
-    p_order_value: orderValue,
-  })
-  const customerRow = customerId ? { id: customerId as string } : null
+  // increment_customer_order_stats must only ever run once per real order —
+  // unlike automation_jobs (deduped via automationJobExists above), this had
+  // no such guard: a retried orders/create webhook (Shopify's delivery is
+  // "at least once", not exactly-once) would increment total_orders/
+  // total_spent a second time for the same order, permanently inflating a
+  // customer's stats with no periodic correction (the periodic orders sync
+  // only ever re-runs once, at connect time or on a manual Sync Now click).
+  // Checking whether shopify_orders already has this order is what tells us
+  // whether this is a genuinely new order or a replayed webhook.
+  const shopifyOrderGid = toGid('Order', order.id)
+  const { data: existingOrder } = await supabase
+    .from('shopify_orders').select('id').eq('store_id', store.id).eq('shopify_order_id', shopifyOrderGid).maybeSingle()
+
+  let customerRow: { id: string } | null = null
+  if (!existingOrder) {
+    const { data: customerId } = await supabase.rpc('increment_customer_order_stats', {
+      p_store_id: store.id,
+      p_phone: phone,
+      p_name: firstName,
+      p_email: String((order.customer as Record<string, unknown>)?.email ?? order.email ?? ''),
+      p_order_value: orderValue,
+    })
+    customerRow = customerId ? { id: customerId as string } : null
+  } else {
+    // Order already counted — still need the customer id to keep
+    // shopify_orders.customer_id correct on a replayed webhook, just without
+    // incrementing anything again.
+    const { data: match } = await supabase.from('customers').select('id').eq('store_id', store.id).eq('phone', phone).maybeSingle()
+    customerRow = match ?? null
+  }
 
   // Mirror into shopify_orders immediately instead of waiting for the next
   // periodic sync (app/api/cron/shopify-sync) — that's what the Store page's
@@ -395,7 +388,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
   const { data: orderRow } = await supabase.from('shopify_orders').upsert({
     store_id: store.id,
     customer_id: customerRow?.id ?? null,
-    shopify_order_id: toGid('Order', order.id),
+    shopify_order_id: shopifyOrderGid,
     order_number: String(order.name ?? orderNumber),
     email: String(order.email ?? ''),
     phone,
@@ -439,7 +432,7 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     (order.shipping_address as Record<string, unknown>)?.country_code ??
     (order.billing_address  as Record<string, unknown>)?.country_code ?? ''
   ).toUpperCase()
-  const customerPhone = toE164(rawPhone, countryCode)
+  const customerPhone = customerToE164(rawPhone, countryCode)
 
   const firstName   = String((order.customer as Record<string, unknown>)?.first_name ?? 'there')
   const orderNumber = String(order.order_number ?? order.name ?? '')

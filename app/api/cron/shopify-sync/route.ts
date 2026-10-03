@@ -53,6 +53,19 @@ export async function GET(request: Request) {
   const service = createServiceClient()
   const tickStart = Date.now()
 
+  // A job claimed into 'processing' had no reclaim at all — if the function
+  // was hard-killed mid-job (Vercel's 60s ceiling firing while a fetch was
+  // in flight, an OOM) rather than throwing a catchable JS error, the row
+  // stayed 'processing' forever: invisible to the main query below (which
+  // only looks at 'pending'), and actively blocking a fresh job from being
+  // enqueued later, since sync-all/sync-orders only enqueue when none is
+  // already pending/processing for that resource. 10 minutes is generous
+  // enough to never reclaim a job that's still genuinely working within the
+  // same tick's 50s budget.
+  const stuckCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  await service.from('shopify_sync_jobs').update({ status: 'pending', updated_at: new Date().toISOString() })
+    .eq('status', 'processing').lt('updated_at', stuckCutoff)
+
   await requeueStaleAbandonedCheckoutSync(service)
 
   const { data: jobs } = await service

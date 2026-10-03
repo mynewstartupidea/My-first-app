@@ -471,7 +471,7 @@ function IntegrationsInner() {
       {/* ── Recent Shopify activity (abandoned checkouts + orders) ─────────── */}
       {isShopifyConnected && (checkouts.length > 0 || recentOrders.length > 0) && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 mb-6 md:mb-8">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
             <button
               onClick={() => setActivityTab('checkouts')}
               className={cn(

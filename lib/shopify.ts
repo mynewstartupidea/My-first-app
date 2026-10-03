@@ -189,6 +189,28 @@ export async function registerWebhooks(shop: string, token: string, appUrl: stri
   }
 }
 
+// Counterpart to registerWebhooks — had no equivalent at all until now, so
+// disconnecting a store (app/api/shopify/disconnect) never actually told
+// Shopify to stop sending events here. Best-effort: called with a token
+// that's about to be discarded, so a failure here shouldn't block the local
+// disconnect itself — the caller should catch, not propagate.
+export async function unregisterWebhooks(shop: string, token: string, appUrl: string) {
+  const address = `${appUrl}/api/shopify/webhooks`
+  const listRes = await fetch(
+    `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/webhooks.json?limit=250`,
+    { headers: { 'X-Shopify-Access-Token': token } }
+  )
+  if (!listRes.ok) return
+  const { webhooks: existing } = await listRes.json() as { webhooks: { id: number; address: string }[] }
+  for (const w of existing ?? []) {
+    if (w.address !== address) continue
+    await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/webhooks/${w.id}.json`, {
+      method: 'DELETE',
+      headers: { 'X-Shopify-Access-Token': token },
+    })
+  }
+}
+
 interface ShopifyCustomer {
   id: number
   first_name?: string

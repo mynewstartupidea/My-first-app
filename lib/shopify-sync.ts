@@ -89,7 +89,16 @@ export async function syncLocationsPage(shop: string, token: string, storeId: st
 export async function syncInventoryPage(shop: string, token: string, storeId: string, service: Service, pageInfo: string | null): Promise<SyncPageResult> {
   const { data: locations } = await service.from('shopify_locations').select('shopify_location_id').eq('store_id', storeId)
   const locationIds = (locations ?? []).map(l => l.shopify_location_id).join(',')
-  if (!locationIds) return { nextPageInfo: null, recordsProcessed: 0 }
+  // Both jobs get enqueued with the same timestamp on connect, so there's no
+  // real ordering guarantee the cron processes locations before inventory —
+  // confirmed: if inventory happened to run first, this used to return
+  // {nextPageInfo: null, recordsProcessed: 0}, which the cron reads as
+  // "done" and marks the job permanently 'completed' with zero records —
+  // inventory would then never sync again for that store, silently, with no
+  // error anywhere. Throwing instead routes through the cron's existing
+  // attempts/retry mechanism, so it just waits for locations to show up on
+  // a later tick instead of giving up forever on the first one.
+  if (!locationIds) throw new Error('No locations synced yet — retrying once locations sync completes')
 
   const { json, nextPageInfo } = await shopifyRestPage(
     shop, token, 'inventory_levels.json', { location_ids: locationIds, limit: '250' }, pageInfo,
