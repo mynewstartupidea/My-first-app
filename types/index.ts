@@ -18,6 +18,7 @@ export interface Store {
   is_active: boolean
   plan: Plan
   business_type: 'ecommerce' | 'lead_gen' | null
+  visible_sections: string[] | null
   platform: string | null
   store_domain: string | null
   connected_at: string | null

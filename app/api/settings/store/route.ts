@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { getUserRole } from '@/lib/get-user-role'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { SIDEBAR_SECTION_KEYS } from '@/lib/sidebar-sections'
 
 // PATCH /api/settings/store — updates the org's store (name, manual WhatsApp
 // number/API key). Settings → Store/WhatsApp used to write directly through
@@ -27,6 +28,7 @@ export async function PATCH(request: Request) {
     whatsapp_number?: string | null
     whatsapp_api_key?: string | null
     business_type?: 'ecommerce' | 'lead_gen'
+    visible_sections?: string[]
   }
 
   const service = createServiceClient()
@@ -50,6 +52,13 @@ export async function PATCH(request: Request) {
   }
   if (body.business_type === 'ecommerce' || body.business_type === 'lead_gen') {
     updates.business_type = body.business_type
+  }
+  if (Array.isArray(body.visible_sections)) {
+    // Validated against the known section keys, not trusted as-is — an
+    // unrecognized key saved here would just permanently hide nothing (the
+    // nav filter only shows items it recognizes), but filtering keeps the
+    // stored value meaningful if SIDEBAR_SECTIONS ever changes shape.
+    updates.visible_sections = body.visible_sections.filter(k => SIDEBAR_SECTION_KEYS.includes(k))
   }
 
   const { error } = await service.from('stores').update(updates).eq('id', store.id)

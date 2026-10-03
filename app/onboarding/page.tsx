@@ -11,20 +11,22 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { hasShopifyConnection } from '@/lib/store-selection'
+import { SIDEBAR_SECTIONS, DEFAULT_SECTIONS_BY_BUSINESS_TYPE } from '@/lib/sidebar-sections'
 import Link from 'next/link'
 
 type BusinessType = 'ecommerce' | 'lead_gen'
-type Step = 'welcome' | 'business_type' | 'connect' | 'whatsapp' | 'automations' | 'done'
+type Step = 'welcome' | 'business_type' | 'sidebar_sections' | 'connect' | 'whatsapp' | 'automations' | 'done'
 
-const STEPS: Step[] = ['welcome', 'business_type', 'connect', 'whatsapp', 'automations', 'done']
+const STEPS: Step[] = ['welcome', 'business_type', 'sidebar_sections', 'connect', 'whatsapp', 'automations', 'done']
 
 const STEP_META: Record<Step, { title: string; sub: string }> = {
-  welcome:       { title: 'Welcome',        sub: 'Get started'       },
-  business_type: { title: 'Your Business',  sub: 'Tell us about you' },
-  connect:       { title: 'Connect',        sub: 'Link your source'  },
-  whatsapp:      { title: 'WhatsApp',       sub: 'Set up messaging'  },
-  automations:   { title: 'Automations',    sub: 'Enable flows'      },
-  done:          { title: 'All Set!',       sub: 'You\'re ready'     },
+  welcome:          { title: 'Welcome',        sub: 'Get started'       },
+  business_type:    { title: 'Your Business',  sub: 'Tell us about you' },
+  sidebar_sections: { title: 'Your Sidebar',   sub: 'Pick what you see' },
+  connect:          { title: 'Connect',        sub: 'Link your source'  },
+  whatsapp:         { title: 'WhatsApp',       sub: 'Set up messaging'  },
+  automations:      { title: 'Automations',    sub: 'Enable flows'      },
+  done:             { title: 'All Set!',       sub: 'You\'re ready'     },
 }
 
 // ─── Progress bar ──────────────────────────────────────────────────────────────
@@ -153,6 +155,84 @@ function BusinessTypeStep({
       <button
         onClick={handleContinue}
         disabled={!selected || saving}
+        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-semibold py-3.5 rounded-2xl transition text-base shadow-lg shadow-green-500/20"
+      >
+        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continue <ArrowRight className="w-5 h-5" /></>}
+      </button>
+    </div>
+  )
+}
+
+// ─── Sidebar sections step ─────────────────────────────────────────────────────
+
+function SidebarSectionsStep({
+  businessType, onSelect
+}: {
+  businessType: BusinessType | null
+  onSelect: (sections: string[]) => Promise<void>
+}) {
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(DEFAULT_SECTIONS_BY_BUSINESS_TYPE[businessType ?? 'lead_gen'])
+  )
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
+
+  function toggle(key: string) {
+    setSelected(prev => {
+      const n = new Set(prev)
+      n.has(key) ? n.delete(key) : n.add(key)
+      return n
+    })
+  }
+
+  async function handleContinue() {
+    setSaving(true)
+    setError('')
+    try {
+      await onSelect(Array.from(selected))
+    } catch {
+      setError('Could not save — please try again.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="max-w-xl mx-auto">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">What do you want in your sidebar?</h2>
+        <p className="text-slate-500 text-sm">We&apos;ve pre-checked the usual picks — add or remove anything, anytime, from Settings.</p>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-8">
+        {SIDEBAR_SECTIONS.map(({ key, label }) => {
+          const on = selected.has(key)
+          return (
+            <button
+              key={key}
+              onClick={() => toggle(key)}
+              className={cn(
+                'flex items-center gap-2 text-sm font-medium px-3 py-3 rounded-xl border-2 transition text-left',
+                on ? 'border-[#25D366] bg-[#25D366]/5 text-[#128C7E]' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+              )}
+            >
+              <div className={cn('w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center', on ? 'border-[#25D366] bg-[#25D366]' : 'border-slate-300')}>
+                {on && <CheckCircle2 className="w-3 h-3 text-white" />}
+              </div>
+              <span className="truncate">{label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <button
+        onClick={handleContinue}
+        disabled={saving}
         className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-semibold py-3.5 rounded-2xl transition text-base shadow-lg shadow-green-500/20"
       >
         {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continue <ArrowRight className="w-5 h-5" /></>}
@@ -1014,6 +1094,16 @@ function OnboardingContent() {
     next()
   }
 
+  async function handleSelectSections(sections: string[]) {
+    const res = await fetch('/api/settings/store', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visible_sections: sections }),
+    })
+    if (!res.ok) throw new Error('Failed to save sidebar sections')
+    next()
+  }
+
   useEffect(() => {
     loadUser()
   }, [loadUser])
@@ -1086,6 +1176,13 @@ function OnboardingContent() {
           <BusinessTypeStep
             initialValue={businessType}
             onSelect={handleSelectBusinessType}
+          />
+        )}
+
+        {step === 'sidebar_sections' && (
+          <SidebarSectionsStep
+            businessType={businessType}
+            onSelect={handleSelectSections}
           />
         )}
 

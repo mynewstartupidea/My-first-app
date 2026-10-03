@@ -1013,3 +1013,12 @@ ALTER TABLE stores
 -- Backfill existing rows by inferring from whether Shopify was ever connected.
 UPDATE stores SET business_type = CASE WHEN shopify_domain IS NOT NULL THEN 'ecommerce' ELSE 'lead_gen' END
 WHERE business_type IS NULL;
+
+-- ─── stores.visible_sections: user-customizable sidebar/mobile-footer ─────────
+-- Freely multi-select, independent of business_type — an ecommerce account
+-- that also wants Leads visible (or vice versa) just checks both, rather than
+-- business_type being an either/or gate on nav visibility. NULL/empty means
+-- "show everything" (today's full nav), so every existing account keeps its
+-- current sidebar unchanged until they actively customize it.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS visible_sections TEXT[];

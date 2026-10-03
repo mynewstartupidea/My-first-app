@@ -13,21 +13,25 @@ import {
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/user-role'
 import { canAccess } from '@/lib/user-role'
+import { resolveVisibleSections } from '@/lib/sidebar-sections'
 import NotificationBell from '@/components/notification-bell'
 import WaHealthBadge from '@/components/wa-health-badge'
 
+// `key` matches lib/sidebar-sections.ts's SIDEBAR_SECTIONS — Dashboard has
+// none, since it's never optional. Every other item here is user-
+// customizable via Settings → Sidebar (or the onboarding step that seeds it).
 const NAV = [
   { href: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard'   },
-  { href: '/dashboard/live-chat',   icon: MessageSquare,   label: 'Live Chat',  badge: 'NEW' },
-  { href: '/dashboard/contacts',    icon: Users,           label: 'Contacts'    },
-  { href: '/dashboard/leads',       icon: UserPlus,        label: 'Leads'       },
-  { href: '/dashboard/shopify',     icon: ShoppingBag,     label: 'Shopify',    shopifyOnly: true },
-  { href: '/dashboard/campaigns',   icon: Megaphone,       label: 'Campaigns'   },
-  { href: '/dashboard/automations', icon: Zap,             label: 'Automations' },
-  { href: '/dashboard/ai-assistant', icon: Sparkles,       label: 'AI Assistant' },
-  { href: '/dashboard/templates',   icon: FileText,        label: 'Templates'   },
-  { href: '/dashboard/integrations', icon: Plug,           label: 'Integrations' },
-  { href: '/dashboard/analytics',   icon: BarChart2,       label: 'Analytics'   },
+  { href: '/dashboard/live-chat',   icon: MessageSquare,   label: 'Live Chat',  badge: 'NEW', key: 'live_chat' },
+  { href: '/dashboard/contacts',    icon: Users,           label: 'Contacts',    key: 'contacts' },
+  { href: '/dashboard/leads',       icon: UserPlus,        label: 'Leads',       key: 'leads' },
+  { href: '/dashboard/shopify',     icon: ShoppingBag,     label: 'Shopify',     key: 'shopify' },
+  { href: '/dashboard/campaigns',   icon: Megaphone,       label: 'Campaigns',   key: 'campaigns' },
+  { href: '/dashboard/automations', icon: Zap,             label: 'Automations', key: 'automations' },
+  { href: '/dashboard/ai-assistant', icon: Sparkles,       label: 'AI Assistant', key: 'ai_assistant' },
+  { href: '/dashboard/templates',   icon: FileText,        label: 'Templates',   key: 'templates' },
+  { href: '/dashboard/integrations', icon: Plug,           label: 'Integrations', key: 'integrations' },
+  { href: '/dashboard/analytics',   icon: BarChart2,       label: 'Analytics',   key: 'analytics' },
 ]
 
 const NAV_BOTTOM = [
@@ -40,7 +44,7 @@ interface SidebarProps {
   storeName?: string | null
   plan?: string
   role?: UserRole
-  shopifyConnected?: boolean
+  visibleSections?: string[] | null
 }
 
 interface BillingUsage {
@@ -49,7 +53,7 @@ interface BillingUsage {
   messages_remaining: number
 }
 
-export default function Sidebar({ storeName, plan = 'starter', role = 'owner', shopifyConnected = false }: SidebarProps) {
+export default function Sidebar({ storeName, plan = 'starter', role = 'owner', visibleSections = null }: SidebarProps) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
@@ -84,8 +88,9 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner', s
     return pathname.startsWith(href)
   }
 
+  const enabledSections   = resolveVisibleSections(visibleSections)
   const visibleNav       = NAV
-    .filter(item => !('shopifyOnly' in item) || shopifyConnected)
+    .filter(item => !item.key || enabledSections.has(item.key))
     .filter(item => canAccess(role, item.href))
   const visibleNavBottom = NAV_BOTTOM.filter(item => canAccess(role, item.href))
 

@@ -9,8 +9,9 @@ import {
   AlertCircle, ExternalLink, Trash2, Info, ChevronDown, ChevronUp,
   CreditCard, Users, Shield,
   UserPlus, Mail, Lock, RefreshCw, XCircle, ArrowUpRight,
-  BarChart2, Phone, Target,
+  BarChart2, Phone, Target, LayoutDashboard,
 } from 'lucide-react'
+import { SIDEBAR_SECTIONS, SIDEBAR_SECTION_KEYS } from '@/lib/sidebar-sections'
 // Lead-ads billing plans (Razorpay)
 const LEAD_PLANS = [
   { id: 'starter',    name: 'Starter',    price: '₹2,499', messages: 5000,      description: 'Best for getting started',        recommended: false },
@@ -90,6 +91,7 @@ function SettingsInner() {
   const [savingWA, setSavingWA]               = useState(false)
   const [savingStore, setSavingStore]         = useState(false)
   const [savingBusinessType, setSavingBusinessType] = useState(false)
+  const [savingSectionKey, setSavingSectionKey] = useState<string | null>(null)
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [waNumber, setWaNumber]               = useState('')
   const [waApiKey, setWaApiKey]               = useState('')
@@ -127,7 +129,7 @@ function SettingsInner() {
 
   // UI
   const [toast, setToast]                     = useState<{ msg: string; ok: boolean } | null>(null)
-  const [activeTab, setActiveTab]             = useState<'account' | 'store' | 'whatsapp' | 'billing' | 'team' | 'security'>('account')
+  const [activeTab, setActiveTab]             = useState<'account' | 'store' | 'sidebar' | 'whatsapp' | 'billing' | 'team' | 'security'>('account')
 
   // Billing
   const [billing, setBilling]                 = useState<BillingStatus | null>(null)
@@ -282,6 +284,7 @@ function SettingsInner() {
     if (urlTab === 'whatsapp') setActiveTab('whatsapp')
     else if (urlTab === 'team') setActiveTab('team')
     else if (urlTab === 'store') setActiveTab('store')
+    else if (urlTab === 'sidebar') setActiveTab('sidebar')
     else if (urlTab === 'billing') setActiveTab('billing')
     else if (urlTab === 'security') setActiveTab('security')
   }, [urlTab])
@@ -490,6 +493,30 @@ function SettingsInner() {
     }
     setStore(prev => prev ? { ...prev, business_type: type } : prev)
     showToast('Business type saved!')
+  }
+
+  async function toggleSection(key: string) {
+    if (!store) return
+    // NULL/empty visible_sections means "show everything" (see
+    // lib/sidebar-sections.ts) — unchecking the first item ever needs to
+    // start from the full list, not an empty one, or it'd read as "only
+    // show this one item" instead of "show everything except this one."
+    const current = store.visible_sections && store.visible_sections.length > 0
+      ? store.visible_sections : SIDEBAR_SECTION_KEYS
+    const next = current.includes(key) ? current.filter(k => k !== key) : [...current, key]
+    setSavingSectionKey(key)
+    const res = await fetch('/api/settings/store', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visible_sections: next }),
+    })
+    setSavingSectionKey(null)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      showToast(data.error ?? 'Failed to save', false)
+      return
+    }
+    setStore(prev => prev ? { ...prev, visible_sections: next } : prev)
   }
 
   async function disconnectStore() {
@@ -882,7 +909,8 @@ function SettingsInner() {
 
   const TABS = [
     { id: 'account',  label: 'Account',   icon: Store       },
-    { id: 'store',    label: 'Store',      icon: Store       },
+    { id: 'store',    label: 'Profile',    icon: Store       },
+    { id: 'sidebar',  label: 'Sidebar',    icon: LayoutDashboard },
     { id: 'whatsapp', label: 'WhatsApp',   icon: MessageCircle },
     { id: 'billing',  label: 'Billing',     icon: CreditCard  },
     { id: 'team',     label: 'Team',       icon: Users       },
@@ -954,13 +982,13 @@ function SettingsInner() {
         <InstallAppCard />
       </section>
 
-      {/* ── Ecommerce Store ──────────────────────────────────────────────────── */}
+      {/* ── Profile ──────────────────────────────────────────────────────────── */}
       <section className={cn('bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 mb-4 sm:mb-5', activeTab !== 'store' && 'hidden')}>
         <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
           <div className="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center">
             <Store className="w-3.5 h-3.5 text-green-600" />
           </div>
-          Ecommerce Store
+          Profile
         </h2>
 
         {store ? (
@@ -988,10 +1016,31 @@ function SettingsInner() {
                 </button>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <Store className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+            <p className="font-semibold text-slate-600">Setting up your workspace…</p>
+            <p className="text-slate-400 text-sm mt-1">Refresh the page to continue.</p>
+          </div>
+        )}
+      </section>
 
+      {/* ── Sidebar customization ────────────────────────────────────────────── */}
+      <section className={cn('bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 mb-4 sm:mb-5', activeTab !== 'sidebar' && 'hidden')}>
+        <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+          <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+            <LayoutDashboard className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          Sidebar &amp; Dashboard
+        </h2>
+        <p className="text-slate-400 text-xs mb-5 ml-9">Choose what shows in your sidebar and mobile nav — nothing here is ever locked, pick anything regardless of business type.</p>
+
+        {store ? (
+          <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Business type</label>
-              <p className="text-xs text-slate-400 mb-2">Controls which metrics your Dashboard shows by default — doesn&apos;t limit what you can use.</p>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Dashboard view</label>
+              <p className="text-xs text-slate-400 mb-2">Controls which metrics your Dashboard home page shows by default.</p>
               <div className="grid grid-cols-2 gap-2">
                 {([
                   { key: 'ecommerce' as const, label: 'Ecommerce Store' },
@@ -1009,6 +1058,35 @@ function SettingsInner() {
                       )}
                     >
                       {on && <CheckCircle2 className="w-3.5 h-3.5" />} {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Sidebar sections</label>
+              <p className="text-xs text-slate-400 mb-2">Everything checked appears in your sidebar (and as mobile nav tabs) — check as many as you use.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {SIDEBAR_SECTIONS.map(({ key, label }) => {
+                  const on = !store.visible_sections || store.visible_sections.length === 0 || store.visible_sections.includes(key)
+                  const saving = savingSectionKey === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => toggleSection(key)}
+                      disabled={saving}
+                      className={cn(
+                        'flex items-center gap-2 text-sm font-medium px-3 py-2.5 rounded-xl border-2 transition disabled:opacity-50 text-left',
+                        on ? 'border-[#25D366] bg-[#25D366]/5 text-[#128C7E]' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                      )}
+                    >
+                      {saving
+                        ? <Loader2 className="w-3.5 h-3.5 flex-shrink-0 animate-spin" />
+                        : <div className={cn('w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center', on ? 'border-[#25D366] bg-[#25D366]' : 'border-slate-300')}>
+                            {on && <CheckCircle2 className="w-3 h-3 text-white" />}
+                          </div>}
+                      <span className="truncate">{label}</span>
                     </button>
                   )
                 })}

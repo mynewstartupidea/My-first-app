@@ -24,7 +24,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: storeRows } = await service
     .from('stores')
-    .select('shop_name, plan, shopify_domain')
+    .select('shop_name, plan, shopify_domain, visible_sections')
     .eq('user_id', ownerId)
     .eq('is_active', true)
     .order('connected_at', { ascending: false, nullsFirst: false })
@@ -40,7 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <InstallPromptInitializer />
       <RouteProgress />
       {/* Desktop sidebar — hidden on mobile */}
-      <Sidebar storeName={displayName} plan={store?.plan} role={role} shopifyConnected={!!store?.shopify_domain} />
+      <Sidebar storeName={displayName} plan={store?.plan} role={role} visibleSections={store?.visible_sections ?? null} />
 
       {/* Main content — no left margin on mobile, sidebar margin on desktop.
           min-w-0 is load-bearing: without it, a flex item refuses to shrink below its
@@ -60,7 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </main>
 
       {/* Mobile bottom tab bar — hidden on desktop */}
-      <MobileBottomNav />
+      <MobileBottomNav visibleSections={store?.visible_sections ?? null} />
     </div>
   )
 }

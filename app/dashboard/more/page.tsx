@@ -6,35 +6,41 @@ import { getUserRole } from '@/lib/get-user-role'
 import { canAccess } from '@/lib/user-role'
 import {
   Settings, Megaphone, Zap, BarChart2, Sparkles,
-  Users, FileText, Plug, Code2, LifeBuoy, ChevronRight, ShoppingBag,
+  Users, FileText, Plug, Code2, LifeBuoy, ChevronRight, ShoppingBag, UserPlus,
 } from 'lucide-react'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { resolveVisibleSections, MOBILE_FOOTER_PRIORITY } from '@/lib/sidebar-sections'
 import InstallAppCard from '@/components/install-app-card'
 import SignOutButton from '@/components/sign-out-button'
 import NotificationBell from '@/components/notification-bell'
 
-// Everything that doesn't earn a permanent bottom-tab slot (Home/Leads/Chat
-// are the only things opened constantly) lives here instead — grouped by how
-// often it actually gets touched, not dumped as one flat list. Filtered by
-// the same canAccess() the desktop sidebar already uses, so a sales rep sees
-// exactly the reduced set they're meant to, same as everywhere else in the app.
-const GROUPS: { title: string; items: { href: string; icon: typeof Settings; label: string; blurb: string }[] }[] = [
+// Everything that doesn't earn one of the bottom nav's 2 dynamic tab slots
+// (see components/mobile-bottom-nav.tsx — picked per-account from
+// visible_sections, not hardcoded to Leads/Chat anymore) lives here instead,
+// grouped by how often it actually gets touched. `key` matches
+// lib/sidebar-sections.ts's SIDEBAR_SECTIONS; items with none (Developer,
+// Support) are account-wide utilities and always show. Filtered by the same
+// canAccess() the desktop sidebar already uses, so a sales rep sees exactly
+// the reduced set they're meant to, same as everywhere else in the app.
+const GROUPS: { title: string; items: { key?: string; href: string; icon: typeof Settings; label: string; blurb: string }[] }[] = [
   {
     title: 'Run the business',
     items: [
-      { href: '/dashboard/automations', icon: Zap,        label: 'Automations', blurb: 'Auto-replies and follow-up rules' },
-      { href: '/dashboard/ai-assistant', icon: Sparkles,  label: 'AI Assistant', blurb: 'AI auto-reply on WhatsApp' },
-      { href: '/dashboard/campaigns',   icon: Megaphone,   label: 'Campaigns',   blurb: 'Bulk WhatsApp sends' },
-      { href: '/dashboard/analytics',   icon: BarChart2,   label: 'Analytics',   blurb: 'Lead quality and close rate' },
+      { key: 'leads',       href: '/dashboard/leads',       icon: UserPlus,    label: 'Leads',       blurb: 'Capture and follow up with leads' },
+      { key: 'shopify',     href: '/dashboard/shopify',     icon: ShoppingBag, label: 'Shopify',     blurb: 'Orders, abandoned checkouts, revenue' },
+      { key: 'automations', href: '/dashboard/automations', icon: Zap,         label: 'Automations', blurb: 'Auto-replies and follow-up rules' },
+      { key: 'ai_assistant', href: '/dashboard/ai-assistant', icon: Sparkles,  label: 'AI Assistant', blurb: 'AI auto-reply on WhatsApp' },
+      { key: 'campaigns',   href: '/dashboard/campaigns',   icon: Megaphone,   label: 'Campaigns',   blurb: 'Bulk WhatsApp sends' },
+      { key: 'analytics',   href: '/dashboard/analytics',   icon: BarChart2,   label: 'Analytics',   blurb: 'Lead quality and close rate' },
     ],
   },
   {
     title: 'Manage',
     items: [
-      { href: '/dashboard/contacts',     icon: Users,    label: 'Contacts',     blurb: 'Saved WhatsApp contacts' },
-      { href: '/dashboard/templates',    icon: FileText, label: 'Templates',    blurb: 'Approved WhatsApp message templates' },
-      { href: '/dashboard/integrations', icon: Plug,     label: 'Integrations', blurb: 'Connect other tools' },
+      { key: 'contacts',     href: '/dashboard/contacts',     icon: Users,    label: 'Contacts',     blurb: 'Saved WhatsApp contacts' },
+      { key: 'templates',    href: '/dashboard/templates',    icon: FileText, label: 'Templates',    blurb: 'Approved WhatsApp message templates' },
+      { key: 'integrations', href: '/dashboard/integrations', icon: Plug,     label: 'Integrations', blurb: 'Connect other tools' },
     ],
   },
   {
@@ -56,14 +62,23 @@ export default async function MorePage() {
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: store } = await service
-    .from('stores').select('shopify_domain').eq('user_id', ownerId).eq('is_active', true)
-    .not('shopify_domain', 'is', null).limit(1).maybeSingle()
+    .from('stores').select('visible_sections').eq('user_id', ownerId).eq('is_active', true)
+    .limit(1).maybeSingle()
+
+  const enabledSections = resolveVisibleSections(store?.visible_sections ?? null)
+  // Whichever 2 sections the bottom nav is already showing as tabs — kept out
+  // of this list so nothing appears twice.
+  const footerPicks = new Set(MOBILE_FOOTER_PRIORITY.filter(k => enabledSections.has(k)).slice(0, 2))
 
   const groups = GROUPS
-    .map(g => g.title === 'Manage' && store?.shopify_domain
-      ? { ...g, items: [{ href: '/dashboard/shopify', icon: ShoppingBag, label: 'Shopify', blurb: 'Orders, abandoned checkouts, revenue' }, ...g.items] }
-      : g)
-    .map(g => ({ ...g, items: g.items.filter(item => canAccess(role, item.href)) }))
+    .map(g => ({
+      ...g,
+      items: g.items.filter(item =>
+        (!item.key || enabledSections.has(item.key)) &&
+        !(item.key && footerPicks.has(item.key)) &&
+        canAccess(role, item.href)
+      ),
+    }))
     .filter(g => g.items.length > 0)
 
   return (
