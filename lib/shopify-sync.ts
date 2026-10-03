@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { fetchShopify } from '@/lib/shopify-rate-limit'
 import { customerToE164 } from '@/lib/shopify'
+import { renderTemplate } from '@/lib/utils'
 
 const API_VERSION = '2026-07'
 
@@ -398,10 +399,28 @@ export async function syncOrdersPage(shop: string, token: string, storeId: strin
 
 // ─── Abandoned checkouts (REST) ────────────────────────────────────────────
 
+// Recently-abandoned-but-unmessaged checkouts only get a WhatsApp message
+// from this sync path if they're within this window — otherwise turning on
+// Abandoned Cart Recovery (or a sync catching up after a missed webhook)
+// could message a shopper about a cart from weeks ago as if it just
+// happened. The real-time webhook path isn't subject to this since it only
+// ever sees checkouts as they happen.
+const ABANDONED_MESSAGE_MAX_AGE_MS = 48 * 60 * 60 * 1000
+
 export async function syncAbandonedCheckoutsPage(shop: string, token: string, storeId: string, service: Service, pageInfo: string | null): Promise<SyncPageResult> {
   const { json, nextPageInfo } = await shopifyRestPage(shop, token, 'checkouts.json', { limit: '50' }, pageInfo)
   const checkouts = (json.checkouts as Record<string, unknown>[]) ?? []
   let count = 0
+
+  // Fetched once per page, not per checkout. If a merchant turns Abandoned
+  // Cart Recovery on after checkouts already exist (or a webhook was ever
+  // missed — Shopify's delivery is "at least once", not guaranteed), this
+  // periodic sync is what catches them: it's the only path that revisits
+  // checkouts Shopify already told us about once before.
+  const { data: store } = await service.from('stores').select('shop_name').eq('id', storeId).maybeSingle()
+  const { data: auto } = await service
+    .from('automations').select('*')
+    .eq('store_id', storeId).eq('type', 'abandoned_cart').eq('is_enabled', true).maybeSingle()
 
   for (const c of checkouts) {
     const email = (c.email as string | null) ?? null
@@ -428,6 +447,41 @@ export async function syncAbandonedCheckoutsPage(shop: string, token: string, st
     }, { onConflict: 'store_id,shopify_checkout_id' })
     if (error) throw new Error(`shopify_abandoned_checkouts upsert: ${error.message}`)
     count++
+
+    // Catch-up messaging: only if the automation is on, this checkout is
+    // still open (not completed), has a phone, is recent enough to still
+    // make sense, and no job already exists for it (the webhook may have
+    // already handled it — this is strictly a safety net, not a second
+    // trigger).
+    const abandonedAt = c.created_at ? new Date(String(c.created_at)).getTime() : 0
+    const isRecent = abandonedAt > 0 && Date.now() - abandonedAt < ABANDONED_MESSAGE_MAX_AGE_MS
+    if (auto && phone && !c.completed_at && isRecent) {
+      const { data: existingJob } = await service
+        .from('automation_jobs').select('id')
+        .eq('store_id', storeId).eq('type', 'abandoned_cart')
+        .contains('context', { checkout_id: c.id })
+        .limit(1).maybeSingle()
+
+      if (!existingJob) {
+        const firstName = String((c.shipping_address as Record<string, unknown> | null)?.first_name ?? 'there')
+        const normalizedPhone = customerToE164(phone, String((c.shipping_address as Record<string, unknown> | null)?.country_code ?? '').toUpperCase())
+        const message = renderTemplate(auto.template, {
+          name: firstName,
+          shop_name: store?.shop_name ?? 'our store',
+          cart_url: String(c.abandoned_checkout_url ?? ''),
+          discount_code: '',
+          discount_value: String(auto.discount_value ?? 10),
+          discount: '',
+        })
+        await service.from('automation_jobs').insert({
+          store_id: storeId, automation_id: auto.id, type: 'abandoned_cart',
+          customer_phone: normalizedPhone || phone, customer_name: firstName, message,
+          context: { checkout_id: c.id, checkout_url: c.abandoned_checkout_url ?? '' },
+          status: 'pending',
+          scheduled_at: new Date(Date.now() + auto.delay_minutes * 60 * 1000).toISOString(),
+        })
+      }
+    }
   }
 
   return { nextPageInfo, recordsProcessed: count }

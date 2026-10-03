@@ -32,6 +32,17 @@ const JOBS_PER_TICK = 10
 const MAX_ATTEMPTS = 5
 const TIME_BUDGET_MS = 50_000 // leaves ~10s margin under maxDuration=60
 
+// Every resource job only ever ran once — at connect time, or whenever
+// someone clicked "Sync Now". That meant turning on Abandoned Cart Recovery
+// a week after connecting did nothing for checkouts that already existed:
+// nothing would ever re-check them. This re-enqueues an abandoned_checkouts
+// job for every custom_app store whose last one finished more than this
+// long ago (and isn't already in flight) — a recurring heartbat so a
+// newly-enabled automation (or a webhook that got missed — Shopify's
+// delivery is "at least once", not guaranteed) actually gets caught up by
+// the next tick or two, not left stale indefinitely.
+const RESYNC_INTERVAL_MS = 5 * 60 * 1000
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -41,6 +52,8 @@ export async function GET(request: Request) {
 
   const service = createServiceClient()
   const tickStart = Date.now()
+
+  await requeueStaleAbandonedCheckoutSync(service)
 
   const { data: jobs } = await service
     .from('shopify_sync_jobs')
@@ -117,4 +130,41 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ ok: true, processed, completed, failed, pages: totalPages })
+}
+
+async function requeueStaleAbandonedCheckoutSync(service: ReturnType<typeof createServiceClient>) {
+  const { data: stores } = await service
+    .from('stores')
+    .select('id')
+    .eq('shopify_connection_type', 'custom_app')
+    .eq('is_active', true)
+  if (!stores?.length) return
+
+  // One query for the most recent abandoned_checkouts job per store, rather
+  // than a query per store — fine to loop in JS from here since this runs
+  // against however many stores are actually connected, not per recipient.
+  const { data: recentJobs } = await service
+    .from('shopify_sync_jobs')
+    .select('store_id, status, updated_at')
+    .eq('resource', 'abandoned_checkouts')
+    .in('store_id', stores.map(s => s.id))
+    .order('updated_at', { ascending: false })
+  const latestByStore = new Map<string, { status: string; updated_at: string }>()
+  for (const j of recentJobs ?? []) {
+    if (!latestByStore.has(j.store_id)) latestByStore.set(j.store_id, j)
+  }
+
+  const cutoff = Date.now() - RESYNC_INTERVAL_MS
+  const toEnqueue = stores
+    .filter(s => {
+      const latest = latestByStore.get(s.id)
+      if (!latest) return true // never synced at all
+      if (latest.status === 'pending' || latest.status === 'processing') return false // already in flight
+      return new Date(latest.updated_at).getTime() < cutoff
+    })
+    .map(s => ({ store_id: s.id, resource: 'abandoned_checkouts' as const, status: 'pending' as const }))
+
+  if (toEnqueue.length) {
+    await service.from('shopify_sync_jobs').insert(toEnqueue)
+  }
 }
