@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { getUserRole } from '@/lib/get-user-role'
 import { getShopifyAppUrl, unregisterWebhooks } from '@/lib/shopify'
 import { getValidAccessToken } from '@/lib/shopify-custom-app'
 
@@ -10,6 +11,18 @@ export async function POST() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Owner/admin only — unlike most Settings mutations, this one didn't 403
+  // for other roles, it actually worked: the owner-resolution fix below
+  // means a Manager (who has /dashboard/shopify nav access) clicking
+  // Disconnect genuinely breaks the org's real Shopify connection, not a
+  // silent no-op. Added when auditing the same class of gap that let a
+  // Manager's own Connect attempt (api/shopify/install) attach the store to
+  // their own account instead of the org's.
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin') {
+    return NextResponse.json({ error: 'Only the account owner or an admin can disconnect Shopify.' }, { status: 403 })
+  }
 
   // Owner-resolved + service client — this previously ran on the RLS-bound
   // client filtered by the caller's own user.id, same bug class fixed

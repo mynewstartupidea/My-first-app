@@ -158,6 +158,7 @@ function IntegrationsInner() {
       shop_failed: 'Shopify connected, but shop details could not be fetched. Check app scopes.',
       store_failed: 'Shopify connected, but we could not save the store. Please contact support.',
       oauth_failed: 'Shopify connected, but setup could not finish. Please try again.',
+      permission_denied: 'Only the account owner or an admin can connect Shopify.',
     }
     if (status && errors[status]) showToast(errors[status], false)
   }, [searchParams, showToast])
