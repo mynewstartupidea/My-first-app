@@ -13,6 +13,7 @@ import {
   Tag, Clock, ChevronRight, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import CustomSelect from '@/components/custom-select'
 
 const PLAN_PRICES: Record<string, number> = { starter: 29, growth: 49, scale: 99, enterprise: 299 }
 const PLAN_COLORS: Record<string, string> = {
@@ -391,23 +392,33 @@ export default function AdminPage() {
                   placeholder="Search name, email, company, phone…"
                   className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-9 pr-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] placeholder:text-slate-600" />
               </div>
-              <select value={planFilter} onChange={e => setPlanFilter(e.target.value)}
-                className="bg-white/5 border border-white/10 text-slate-300 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]">
-                <option value="all">All plans</option>
-                <option value="trial">Trial</option>
-                <option value="starter">Starter</option>
-                <option value="growth">Growth</option>
-                <option value="scale">Scale</option>
-                <option value="enterprise">Enterprise</option>
-              </select>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-                className="bg-white/5 border border-white/10 text-slate-300 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]">
-                <option value="all">All statuses</option>
-                <option value="active">Active</option>
-                <option value="trialing">Trialing</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="past_due">Past due</option>
-              </select>
+              <CustomSelect
+                dark
+                className="w-auto"
+                value={planFilter}
+                onChange={setPlanFilter}
+                options={[
+                  { value: 'all',        label: 'All plans' },
+                  { value: 'trial',      label: 'Trial' },
+                  { value: 'starter',    label: 'Starter' },
+                  { value: 'growth',     label: 'Growth' },
+                  { value: 'scale',      label: 'Scale' },
+                  { value: 'enterprise', label: 'Enterprise' },
+                ]}
+              />
+              <CustomSelect
+                dark
+                className="w-auto"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'all',       label: 'All statuses' },
+                  { value: 'active',    label: 'Active' },
+                  { value: 'trialing',  label: 'Trialing' },
+                  { value: 'cancelled', label: 'Cancelled' },
+                  { value: 'past_due',  label: 'Past due' },
+                ]}
+              />
               <p className="text-slate-500 text-sm">{filtered.length} / {users.length} users</p>
             </div>
 
@@ -848,14 +859,19 @@ export default function AdminPage() {
             </div>
 
             {actionType === 'plan' && (
-              <select value={newPlan} onChange={e => setNewPlan(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] mb-4">
-                <option value="trial">Trial (free)</option>
-                <option value="starter">Starter — $29/mo</option>
-                <option value="growth">Growth — $49/mo</option>
-                <option value="scale">Scale — $99/mo</option>
-                <option value="enterprise">Enterprise — $299/mo</option>
-              </select>
+              <CustomSelect
+                dark
+                className="mb-4"
+                value={newPlan}
+                onChange={setNewPlan}
+                options={[
+                  { value: 'trial',      label: 'Trial (free)' },
+                  { value: 'starter',    label: 'Starter — $29/mo' },
+                  { value: 'growth',     label: 'Growth — $49/mo' },
+                  { value: 'scale',      label: 'Scale — $99/mo' },
+                  { value: 'enterprise', label: 'Enterprise — $299/mo' },
+                ]}
+              />
             )}
 
             {actionType === 'cancel' && (

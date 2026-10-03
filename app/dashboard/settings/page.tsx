@@ -25,6 +25,7 @@ import Script from 'next/script'
 import { cn, timeAgo } from '@/lib/utils'
 import type { Store as StoreType } from '@/types'
 import InstallAppCard from '@/components/install-app-card'
+import CustomSelect from '@/components/custom-select'
 
 declare global {
   interface Window {
@@ -78,6 +79,15 @@ const ROLE_COLORS: Record<string, string> = {
   member:  'bg-slate-100 text-slate-600',
   support: 'bg-amber-100 text-amber-700',
 }
+
+// 'member' displays as "Sales" everywhere in this UI — matches the label the
+// invite-role picker and the Team Activity table both already used.
+const ROLE_OPTIONS = [
+  { value: 'admin',   label: 'Admin' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'member',  label: 'Sales' },
+  { value: 'support', label: 'Support' },
+]
 
 // ─── Inner component (uses useSearchParams) ───────────────────────────────────
 
@@ -161,6 +171,7 @@ function SettingsInner() {
   const [sendingInvite, setSendingInvite]     = useState(false)
   const [removingId, setRemovingId]           = useState<string | null>(null)
   const [changingRoleId, setChangingRoleId]   = useState<string | null>(null)
+  const [openRoleMenuId, setOpenRoleMenuId]   = useState<string | null>(null)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword]         = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
@@ -232,6 +243,19 @@ function SettingsInner() {
   }, [supabase])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Closes the per-row role picker (a compact pill, not a bordered box, so it
+  // doesn't use the shared CustomSelect component) when clicking outside it —
+  // keyed by member id since there's one of these per row in a .map().
+  useEffect(() => {
+    if (!openRoleMenuId) return
+    const onClickOutside = (e: MouseEvent) => {
+      const el = document.querySelector(`[data-role-menu="${openRoleMenuId}"]`)
+      if (el && !el.contains(e.target as Node)) setOpenRoleMenuId(null)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [openRoleMenuId])
 
   // ── Load Facebook JS SDK for Embedded Signup ──────────────────────────────
   useEffect(() => {
@@ -1666,19 +1690,21 @@ function SettingsInner() {
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Why are you cancelling? <span className="text-red-500">*</span>
               </label>
-              <select
+              <CustomSelect
                 value={cancelReason}
-                onChange={e => setCancelReason(e.target.value)}
-                className="w-full text-base px-3 py-2.5 border border-slate-200 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-red-200"
-              >
-                <option value="">Select a reason…</option>
-                <option value="too_expensive">Too expensive</option>
-                <option value="not_using">Not using it enough</option>
-                <option value="missing_features">Missing features I need</option>
-                <option value="switching">Switching to another tool</option>
-                <option value="technical_issues">Technical issues</option>
-                <option value="other">Other</option>
-              </select>
+                onChange={setCancelReason}
+                placeholder="Select a reason…"
+                className="mb-3"
+                buttonClassName="focus:ring-red-200"
+                options={[
+                  { value: 'too_expensive',     label: 'Too expensive' },
+                  { value: 'not_using',         label: 'Not using it enough' },
+                  { value: 'missing_features',  label: 'Missing features I need' },
+                  { value: 'switching',         label: 'Switching to another tool' },
+                  { value: 'technical_issues',  label: 'Technical issues' },
+                  { value: 'other',             label: 'Other' },
+                ]}
+              />
 
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Anything else you'd like to share? <span className="text-slate-400">(optional)</span>
@@ -1742,13 +1768,7 @@ function SettingsInner() {
               </div>
               <div className="w-full sm:w-40 sm:flex-shrink-0">
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Role</label>
-                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
-                  <option value="admin">Admin</option>
-                  <option value="manager">Manager</option>
-                  <option value="member">Sales</option>
-                  <option value="support">Support</option>
-                </select>
+                <CustomSelect value={inviteRole} onChange={setInviteRole} options={ROLE_OPTIONS} />
               </div>
               <div className="flex sm:items-end">
                 <button onClick={handleInvite} disabled={sendingInvite || !inviteEmail.trim()}
@@ -1813,27 +1833,41 @@ function SettingsInner() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-800 truncate">{m.email}</p>
                         <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                          <div className="relative inline-flex items-center">
-                            <select
-                              value={m.role}
-                              onChange={e => handleChangeRole(m.id, e.target.value)}
+                          <div className="relative inline-flex items-center" data-role-menu={m.id}>
+                            <button
+                              type="button"
                               disabled={changingRoleId === m.id}
+                              onClick={() => setOpenRoleMenuId(openRoleMenuId === m.id ? null : m.id)}
                               className={cn(
                                 // text-base (not text-[10px]) to avoid iOS Safari's
                                 // auto-zoom-on-focus on sub-16px inputs; py-1.5 (not
                                 // py-0.5) to bring the tappable height closer to the
                                 // ~40px touch-target guideline on a dense mobile row.
-                                'text-base font-medium pl-2.5 pr-7 py-1.5 rounded-full capitalize appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-wait border-0 focus:outline-none focus:ring-1 focus:ring-offset-1',
+                                'text-base font-medium pl-2.5 pr-7 py-1.5 rounded-full cursor-pointer disabled:opacity-50 disabled:cursor-wait border-0 focus:outline-none focus:ring-1 focus:ring-offset-1',
                                 ROLE_COLORS[m.role] ?? ROLE_COLORS.member
                               )}>
-                              <option value="admin">Admin</option>
-                              <option value="manager">Manager</option>
-                              <option value="member">Sales</option>
-                              <option value="support">Support</option>
-                            </select>
+                              {ROLE_OPTIONS.find(o => o.value === m.role)?.label ?? m.role}
+                            </button>
                             {changingRoleId === m.id
                               ? <Loader2 className="w-3 h-3 animate-spin absolute right-2 pointer-events-none" />
                               : <ChevronDown className="w-3 h-3 absolute right-2 pointer-events-none" />}
+                            {openRoleMenuId === m.id && (
+                              <div className="absolute z-20 top-full left-0 mt-1.5 min-w-[110px] bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden py-1">
+                                {ROLE_OPTIONS.map(o => (
+                                  <button
+                                    key={o.value}
+                                    type="button"
+                                    onClick={() => { handleChangeRole(m.id, o.value); setOpenRoleMenuId(null) }}
+                                    className={cn(
+                                      'w-full px-3 py-2 text-left text-sm transition whitespace-nowrap',
+                                      o.value === m.role ? 'bg-[#25D366]/5 text-[#128C7E] font-medium' : 'text-slate-700 hover:bg-slate-50'
+                                    )}
+                                  >
+                                    {o.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <span className={cn(
                             'text-[10px] px-1.5 py-0.5 rounded-full',

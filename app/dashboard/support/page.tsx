@@ -6,6 +6,7 @@ import {
   MessageSquare, ChevronDown, ChevronUp, Tag, AlertCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import CustomSelect from '@/components/custom-select'
 
 interface Ticket {
   id: string
@@ -132,26 +133,20 @@ export default function SupportPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Category</label>
-              <select
-                value={category}
-                onChange={e => setCategory(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
-                {CATEGORIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
+              <CustomSelect value={category} onChange={setCategory} options={CATEGORIES} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Priority</label>
-              <select
+              <CustomSelect
                 value={priority}
-                onChange={e => setPriority(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white">
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
+                onChange={setPriority}
+                options={[
+                  { value: 'low',    label: 'Low' },
+                  { value: 'normal', label: 'Normal' },
+                  { value: 'high',   label: 'High' },
+                  { value: 'urgent', label: 'Urgent' },
+                ]}
+              />
             </div>
           </div>
 

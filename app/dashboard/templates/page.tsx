@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { StarterTemplate } from '@/lib/whatsapp-templates'
+import CustomSelect from '@/components/custom-select'
 
 // ─── Built-in template data ───────────────────────────────────────────────────
 
@@ -388,15 +389,11 @@ function TemplateModal({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Category</label>
-            <select
+            <CustomSelect
               value={category}
-              onChange={e => setCategory(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white"
-            >
-              {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
+              onChange={setCategory}
+              options={Object.entries(CATEGORY_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+            />
           </div>
 
           <div>

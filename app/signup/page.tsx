@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAppUrl } from '@/lib/get-app-url'
 import {
   MessageCircle, Loader2, AlertCircle, CheckCircle2,
-  User, Building2, Phone, Users, Mail, Lock, ArrowRight, ChevronDown,
+  User, Building2, Phone, Users, Mail, Lock, ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
+import CustomSelect from '@/components/custom-select'
 
 const TEAM_SIZES = [
   { value: 'just_me',  label: 'Just me' },
@@ -27,53 +28,6 @@ function passwordStrength(pw: string): { label: string; color: string; width: st
   if (score <= 1) return { label: 'Weak',   color: 'bg-orange-400', width: 'w-2/4' }
   if (score <= 2) return { label: 'Medium', color: 'bg-yellow-400', width: 'w-3/4' }
   return               { label: 'Strong',  color: 'bg-green-500',  width: 'w-full' }
-}
-
-// A plain <select>'s open-state dropdown is rendered entirely by the OS/
-// browser, not CSS — on mobile that showed up as an unstyled dark overlay
-// that didn't match anything else on this custom-built page (and could open
-// upward, overlapping the field above it). Same button+menu pattern already
-// used elsewhere in this app (e.g. leads/page.tsx's PageDropdown) instead.
-function TeamSizeDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [])
-
-  const selected = TEAM_SIZES.find(t => t.value === value)
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 border border-slate-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366] transition"
-      >
-        <span className={selected ? 'text-slate-900' : 'text-slate-400'}>{selected?.label ?? 'Select…'}</span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute z-20 top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden py-1">
-          {TEAM_SIZES.map(t => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => { onChange(t.value); setOpen(false) }}
-              className={`w-full px-4 py-2.5 text-left text-sm transition ${t.value === value ? 'bg-[#25D366]/5 text-[#128C7E] font-medium' : 'text-slate-700 hover:bg-slate-50'}`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 
 export default function SignupPage() {
@@ -324,7 +278,7 @@ export default function SignupPage() {
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">
                   <Users className="w-3 h-3 inline mr-1" />Team size
                 </label>
-                <TeamSizeDropdown value={teamSize} onChange={setTeamSize} />
+                <CustomSelect value={teamSize} onChange={setTeamSize} options={TEAM_SIZES} />
               </div>
             </div>
 

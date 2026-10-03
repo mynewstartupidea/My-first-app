@@ -12,6 +12,7 @@ import {
 import type { StarterTemplate } from '@/lib/whatsapp-templates'
 import type { UserRole } from '@/lib/user-role'
 import { timeAgo } from '@/lib/utils'
+import CustomSelect from '@/components/custom-select'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -581,12 +582,12 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
-            <select value={source} onChange={e => setSource(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-              {Object.entries(SOURCE_META).map(([key, meta]) => (
-                <option key={key} value={key}>{meta.label}</option>
-              ))}
-            </select>
+            <CustomSelect
+              value={source}
+              onChange={setSource}
+              buttonClassName="focus:ring-blue-500/20"
+              options={Object.entries(SOURCE_META).map(([key, meta]) => ({ value: key, label: meta.label }))}
+            />
           </div>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Name"
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
@@ -729,11 +730,15 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
               {([['Name', nameCol, setNameCol], ['Phone', phoneCol, setPhoneCol], ['Email', emailCol, setEmailCol]] as const).map(([label, val, setter]) => (
                 <div key={label}>
                   <label className="block text-[11px] font-medium text-gray-400 mb-1">{label}</label>
-                  <select value={val} onChange={e => setter(Number(e.target.value))}
-                    className="w-full text-base border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
-                    <option value={-1}>— none —</option>
-                    {headers.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
-                  </select>
+                  <CustomSelect
+                    compact
+                    value={String(val)}
+                    onChange={v => setter(Number(v))}
+                    options={[
+                      { value: '-1', label: '— none —' },
+                      ...headers.map((h, i) => ({ value: String(i), label: h || `Column ${i + 1}` })),
+                    ]}
+                  />
                 </div>
               ))}
             </div>
@@ -1892,27 +1897,29 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
             {assigning ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 flex-shrink-0" />
             ) : teamMembers.filter(m => m.status === 'active' && m.user_id).length > 0 ? (
-              <select
-                defaultValue=""
-                onChange={e => {
-                  if (!e.target.value) return
-                  const val = e.target.value
+              // Always controlled back to "" — this is a quick-action trigger
+              // (picking an option immediately assigns the lead), not a
+              // persisted selection, so it always rests back on the
+              // placeholder rather than showing the last person picked.
+              <CustomSelect
+                value=""
+                onChange={val => {
+                  if (!val) return
                   if (val === '__self') {
                     handleAssign()
                   } else {
                     const m = teamMembers.find(t => t.user_id === val)
                     if (m) handleAssign(m.user_id!, m.email.split('@')[0])
                   }
-                  e.target.value = ''
                 }}
-                className="text-base border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 flex-shrink-0"
-              >
-                <option value="">Assign to…</option>
-                <option value="__self">Me</option>
-                {teamMembers.filter(m => m.status === 'active' && m.user_id).map(m => (
-                  <option key={m.id} value={m.user_id!}>{m.email.split('@')[0]}</option>
-                ))}
-              </select>
+                placeholder="Assign to…"
+                className="flex-shrink-0 w-auto"
+                buttonClassName="text-gray-600 focus:ring-blue-500/20"
+                options={[
+                  { value: '__self', label: 'Me' },
+                  ...teamMembers.filter(m => m.status === 'active' && m.user_id).map(m => ({ value: m.user_id!, label: m.email.split('@')[0] })),
+                ]}
+              />
             ) : !localAssignedName && (
               <button onClick={() => handleAssign()} disabled={assigning}
                 className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition active:scale-[0.97] disabled:opacity-60 flex items-center gap-1.5 flex-shrink-0">
@@ -4122,23 +4129,27 @@ function LeadsContent() {
                   </button>
                 )}
               </div>
-<select
-                value={perPage}
-                onChange={e => {
-                  const v = Number(e.target.value) as 25 | 50 | 100
-                  setPerPage(v)
-                  setCurrentPage(1)
-                  if (selectedPageId) {
-                    setLoadingLeads(true)
-                    fetchLeads(selectedFormId, selectedPageId, 1, v, leadSearch).finally(() => setLoadingLeads(false))
-                  }
-                }}
-                className="hidden md:block text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none text-gray-500 cursor-pointer"
-              >
-                <option value={25}>25 / page</option>
-                <option value={50}>50 / page</option>
-                <option value={100}>100 / page</option>
-              </select>
+              <div className="hidden md:block w-auto">
+                <CustomSelect
+                  compact
+                  value={String(perPage)}
+                  onChange={v => {
+                    const n = Number(v) as 25 | 50 | 100
+                    setPerPage(n)
+                    setCurrentPage(1)
+                    if (selectedPageId) {
+                      setLoadingLeads(true)
+                      fetchLeads(selectedFormId, selectedPageId, 1, n, leadSearch).finally(() => setLoadingLeads(false))
+                    }
+                  }}
+                  buttonClassName="text-gray-500"
+                  options={[
+                    { value: '25',  label: '25 / page' },
+                    { value: '50',  label: '50 / page' },
+                    { value: '100', label: '100 / page' },
+                  ]}
+                />
+              </div>
             </div>
 
             {/* Table */}

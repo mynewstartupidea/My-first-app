@@ -8,6 +8,7 @@ import {
   Copy, CheckCircle2, Clock, XCircle, Ban, ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import CustomSelect from '@/components/custom-select'
 
 interface LandingLead {
   id: string
@@ -99,14 +100,16 @@ export default function LandingLeadsPage() {
               className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40"
             />
           </div>
-          <select
+          <CustomSelect
+            dark
+            className="w-auto sm:flex-shrink-0"
             value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/40"
-          >
-            <option value="all">All statuses</option>
-            {Object.entries(STATUS_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
-          </select>
+            onChange={v => setStatusFilter(v as typeof statusFilter)}
+            options={[
+              { value: 'all', label: 'All statuses' },
+              ...Object.entries(STATUS_META).map(([k, m]) => ({ value: k, label: m.label })),
+            ]}
+          />
         </div>
 
         {loading ? (
