@@ -122,6 +122,20 @@ export async function POST(request: Request) {
         continue
       }
 
+      // Meta redelivers webhook events (slow/ambiguous acks, and this route
+      // has no maxDuration set, which only raises the odds of a
+      // timeout-triggered retry) — without this check, a redelivery for the
+      // same leadgen_id re-queued a second identical WhatsApp send for a
+      // lead already messaged. The lead upsert above always runs again
+      // (refreshing contact fields is fine/desired on a redelivery); only
+      // the message-queueing needs to be exactly-once.
+      const { data: existingJob } = await supabase
+        .from('automation_jobs').select('id')
+        .eq('store_id', conn.store_id).eq('type', 'lead_ad')
+        .contains('context', { facebook_lead_id: leadId })
+        .limit(1).maybeSingle()
+      if (existingJob) continue
+
       const vars = { ...fields, name: name ?? 'there', email: email ?? '', phone: phone ?? '' }
       const message = renderTemplate(auto.message_template, vars)
       const waTemplateName = (auto.wa_template_name as string | null) || null

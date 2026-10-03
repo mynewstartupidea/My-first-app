@@ -940,3 +940,14 @@ BEGIN
   WHERE user_id = p_user_id;
 END;
 $$;
+
+-- ─── automation_jobs: updated_at for stuck-'processing' reclaim ─────────────
+-- This table had no updated_at at all (only created_at/scheduled_at/
+-- sent_at), so there was no way to tell "when was this job claimed into
+-- processing" -- needed to reclaim a job orphaned by a hard-killed
+-- function (same gap already fixed for shopify_sync_jobs). scheduled_at
+-- can't substitute: it's set once at insert time and doesn't change when
+-- a job is claimed, so filtering on it would misfire on jobs that were
+-- simply scheduled a while ago but are still genuinely in progress.
+ALTER TABLE automation_jobs
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();

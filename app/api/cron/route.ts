@@ -14,6 +14,19 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient()
 
+  // A job claimed into 'processing' had no reclaim at all — if the function
+  // was hard-killed mid-send (Vercel's 60s ceiling firing while
+  // sendWhatsAppMessage's network call was in flight, an OOM) rather than
+  // throwing a catchable JS error, the row stayed 'processing' forever:
+  // invisible to the main query below (which only looks at 'pending'), so
+  // that lead/customer silently never got messaged with no retry and no
+  // error surfaced anywhere. Same fix already applied to shopify_sync_jobs
+  // earlier today. 10 minutes is generous enough to never reclaim a job
+  // that's still genuinely mid-send.
+  const stuckJobCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  await supabase.from('automation_jobs').update({ status: 'pending', updated_at: new Date().toISOString() })
+    .eq('status', 'processing').lt('updated_at', stuckJobCutoff)
+
   // ── Follow-up due notifications ──────────────────────────────────────────
   // Send one notification per user who has overdue/due-today follow-up leads.
   // Deduped: only one notification per user per calendar day.
@@ -81,7 +94,7 @@ export async function GET(request: Request) {
     // If the row was already claimed by a concurrent run, data will be empty; skip it.
     const { data: claimed } = await supabase
       .from('automation_jobs')
-      .update({ status: 'processing' })
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
       .eq('id', job.id)
       .eq('status', 'pending')
       .select('id')
