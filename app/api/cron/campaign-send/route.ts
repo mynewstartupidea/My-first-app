@@ -124,6 +124,14 @@ export async function GET(request: Request) {
           type: 'broadcast', message: personalizedMessage, status: 'sent', bsp_message_id: result.messageId,
         }),
         service.from('customers').update({ whatsapp_opt_in: true }).eq('id', recipient.customer_id),
+        // Confirmed by grepping the whole codebase: increment_messages_used
+        // was only ever called from the automation_jobs cron and a test
+        // route — campaign broadcasts have never counted against a
+        // merchant's plan quota, in the old implementation or this rebuild
+        // until now. Without this, a Starter plan could blast an unlimited
+        // number of campaign messages for free while Wapaci still pays the
+        // real per-message WhatsApp API cost.
+        service.rpc('increment_messages_used', { p_user_id: ownerId }).then(() => null, () => null),
       ])
     } else {
       failed++
