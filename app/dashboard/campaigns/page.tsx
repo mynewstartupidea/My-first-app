@@ -1039,6 +1039,21 @@ function CampaignsContent() {
 
   useEffect(() => { load() }, [load])
 
+  // Campaign sending moved off the synchronous request-response path onto a
+  // background cron (app/api/cron/campaign-send) — a merchant launching a
+  // campaign used to see final sent/failed counts immediately; now the page
+  // would just sit there showing "running" with no visible progress unless
+  // they manually refreshed. Poll while anything is actually in flight so
+  // sent_count/failed_count update on their own as the cron works through
+  // the queue, and stop once nothing is running so this isn't a background
+  // timer running forever on an idle page.
+  const hasRunningCampaign = campaigns.some(c => c.status === 'running')
+  useEffect(() => {
+    if (!hasRunningCampaign) return
+    const id = setInterval(load, 8000)
+    return () => clearInterval(id)
+  }, [hasRunningCampaign, load])
+
   // Load lead campaigns independently (no store required)
   const loadLeadCampaigns = useCallback(async () => {
     const r = await fetch('/api/lead-campaigns')
