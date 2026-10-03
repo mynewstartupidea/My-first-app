@@ -138,6 +138,11 @@ function SettingsInner() {
   // this hides the buttons for those roles instead of letting them click
   // "Upgrade," complete real Razorpay payment, and hit a 403 after the fact.
   const [canManageBilling, setCanManageBilling] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelReason, setCancelReason]       = useState('')
+  const [cancelDetail, setCancelDetail]       = useState('')
+  const [cancelling, setCancelling]           = useState(false)
+  const [cancelError, setCancelError]         = useState('')
   // Team
   const [members, setMembers]                 = useState<TeamMember[]>([])
   const [loadingMembers, setLoadingMembers]   = useState(false)
@@ -337,6 +342,31 @@ function SettingsInner() {
       modal: { ondismiss: () => setSubscribingPlan(null) },
     })
     rzp.open()
+  }
+
+  async function handleCancel() {
+    if (!cancelReason.trim()) {
+      setCancelError("Please tell us why you're cancelling.")
+      return
+    }
+    setCancelError('')
+    setCancelling(true)
+    const res = await fetch('/api/billing/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: cancelReason, detail: cancelDetail }),
+    })
+    const data = await res.json() as { ok?: boolean; error?: string }
+    if (!res.ok || !data.ok) {
+      setCancelError(data.error ?? 'Could not cancel — please try again.')
+      setCancelling(false)
+      return
+    }
+    setCancelling(false)
+    setShowCancelModal(false)
+    setCancelReason('')
+    setCancelDetail('')
+    loadBilling()
   }
 
   useEffect(() => {
@@ -1325,7 +1355,20 @@ function SettingsInner() {
               {/* All plans comparison */}
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
                 <h3 className="font-semibold text-slate-800 mb-1">All Plans</h3>
-                <p className="text-slate-400 text-xs mb-5">Billed monthly via Razorpay. Cancel anytime.</p>
+                <p className="text-slate-400 text-xs mb-5">
+                  Billed monthly via Razorpay. Cancel anytime.
+                  {billing?.status === 'active' && canManageBilling && (
+                    <>
+                      {' '}
+                      <button
+                        onClick={() => setShowCancelModal(true)}
+                        className="text-slate-400 hover:text-red-500 underline transition"
+                      >
+                        Cancel subscription
+                      </button>
+                    </>
+                  )}
+                </p>
                 {billingError && (
                   <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
                     <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
@@ -1410,6 +1453,90 @@ function SettingsInner() {
               </section>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Cancel subscription modal ────────────────────────────────────────── */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-overlay-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-y-auto sm:overflow-hidden max-h-[90vh] sm:max-h-none animate-sheet-up sm:animate-none pb-[env(safe-area-inset-bottom)] sm:pb-0">
+            <div className="sm:hidden sticky top-0 z-10 bg-white flex justify-center pt-2.5 pb-1 flex-shrink-0">
+              <div className="w-9 h-1 rounded-full bg-slate-300" />
+            </div>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                  <XCircle className="w-4 h-4 text-red-500" />
+                </div>
+                <h2 className="font-semibold text-gray-900">Cancel subscription</h2>
+              </div>
+              <button
+                onClick={() => { setShowCancelModal(false); setCancelError('') }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition"
+              >
+                <XCircle className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4">
+                Your plan will be cancelled immediately — you'll lose access to WhatsApp automation,
+                Facebook Lead Ads sync, and campaign sending right away. This can't be undone; you'll
+                need to subscribe again to restore access.
+              </p>
+
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Why are you cancelling? <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                className="w-full text-base px-3 py-2.5 border border-slate-200 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-red-200"
+              >
+                <option value="">Select a reason…</option>
+                <option value="too_expensive">Too expensive</option>
+                <option value="not_using">Not using it enough</option>
+                <option value="missing_features">Missing features I need</option>
+                <option value="switching">Switching to another tool</option>
+                <option value="technical_issues">Technical issues</option>
+                <option value="other">Other</option>
+              </select>
+
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Anything else you'd like to share? <span className="text-slate-400">(optional)</span>
+              </label>
+              <textarea
+                value={cancelDetail}
+                onChange={e => setCancelDetail(e.target.value)}
+                rows={3}
+                className="w-full text-base px-3 py-2.5 border border-slate-200 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-red-200 resize-none"
+                placeholder="Tell us more…"
+              />
+
+              {cancelError && (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                  <p className="text-xs text-red-600">{cancelError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowCancelModal(false); setCancelError('') }}
+                  className="flex-1 text-sm font-semibold text-slate-600 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition"
+                >
+                  Keep subscription
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="flex-1 text-sm font-semibold text-white py-2.5 rounded-lg bg-red-500 hover:bg-red-600 transition disabled:opacity-60 flex items-center justify-center gap-1.5"
+                >
+                  {cancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Cancel subscription'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
