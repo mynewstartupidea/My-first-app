@@ -50,17 +50,27 @@ export default async function ShopifyPage() {
   const store = preferredStore?.shopify_domain ? preferredStore : null
   const isCustomApp = store?.shopify_connection_type === 'custom_app'
 
+  // shopify_orders/shopify_abandoned_checkouts get written by the webhook
+  // handler (app/api/shopify/webhooks/route.ts) for EITHER connection type —
+  // it only branches on shopify_connection_type to pick the right HMAC
+  // secret, not to decide whether to mirror data. Gating these queries
+  // behind isCustomApp meant an oauth_app store (currently dormant, but the
+  // backend path is deliberately kept alive for a possible future
+  // re-enable) would show zero orders/revenue/checkouts here despite real
+  // rows existing for it. Only shopify_products is genuinely custom_app-only
+  // — the legacy oauth sync path never wrote that table, only
+  // stores.product_count (shown elsewhere, not on this page).
   const [
     custRes, autoRes, orderStatsRes, checkoutStatsRes, productRes,
     recentOrdersRes, recentCheckoutsRes,
   ] = await Promise.all([
     store ? service.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
     store ? service.from('automations').select('type,is_enabled').eq('store_id', store.id) : Promise.resolve({ data: [] }),
-    store && isCustomApp ? service.from('shopify_orders').select('total_price', { count: 'exact' }).eq('store_id', store.id) : Promise.resolve({ data: [], count: 0 }),
-    store && isCustomApp ? service.from('shopify_abandoned_checkouts').select('total_price', { count: 'exact' }).eq('store_id', store.id).is('completed_at', null) : Promise.resolve({ data: [], count: 0 }),
+    store ? service.from('shopify_orders').select('total_price', { count: 'exact' }).eq('store_id', store.id) : Promise.resolve({ data: [], count: 0 }),
+    store ? service.from('shopify_abandoned_checkouts').select('total_price', { count: 'exact' }).eq('store_id', store.id).is('completed_at', null) : Promise.resolve({ data: [], count: 0 }),
     store && isCustomApp ? service.from('shopify_products').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
-    store && isCustomApp ? service.from('shopify_orders').select('id, order_number, email, phone, total_price, currency, financial_status, fulfillment_status, shopify_created_at').eq('store_id', store.id).order('shopify_created_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
-    store && isCustomApp ? service.from('shopify_abandoned_checkouts').select('id, email, phone, total_price, currency, recovery_url, abandoned_at').eq('store_id', store.id).is('completed_at', null).order('abandoned_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
+    store ? service.from('shopify_orders').select('id, order_number, email, phone, total_price, currency, financial_status, fulfillment_status, shopify_created_at').eq('store_id', store.id).order('shopify_created_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
+    store ? service.from('shopify_abandoned_checkouts').select('id, email, phone, total_price, currency, recovery_url, abandoned_at').eq('store_id', store.id).is('completed_at', null).order('abandoned_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
   ])
 
   const customerCount    = custRes.count ?? 0
