@@ -60,7 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </main>
 
       {/* Mobile bottom tab bar — hidden on desktop */}
-      <MobileBottomNav visibleSections={store?.visible_sections ?? null} />
+      <MobileBottomNav visibleSections={store?.visible_sections ?? null} role={role} />
     </div>
   )
 }

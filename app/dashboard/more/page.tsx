@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
-import { resolveVisibleSections, MOBILE_FOOTER_PRIORITY } from '@/lib/sidebar-sections'
+import { resolveVisibleSections, MOBILE_FOOTER_PRIORITY, SIDEBAR_SECTIONS } from '@/lib/sidebar-sections'
 import InstallAppCard from '@/components/install-app-card'
 import SignOutButton from '@/components/sign-out-button'
 import NotificationBell from '@/components/notification-bell'
@@ -67,8 +67,18 @@ export default async function MorePage() {
 
   const enabledSections = resolveVisibleSections(store?.visible_sections ?? null)
   // Whichever 2 sections the bottom nav is already showing as tabs — kept out
-  // of this list so nothing appears twice.
-  const footerPicks = new Set(MOBILE_FOOTER_PRIORITY.filter(k => enabledSections.has(k)).slice(0, 2))
+  // of this list so nothing appears twice. Must mirror MobileBottomNav's own
+  // canAccess() filtering exactly, or a restricted role (Sales/Support/
+  // Manager) could see an item here that it actually never got a footer tab
+  // for (role-filtered out there), duplicating nothing — but equally, an
+  // item the bottom nav DID give to a lower role instead of a higher-
+  // priority one it couldn't access would otherwise show twice here too.
+  const footerPicks = new Set(
+    MOBILE_FOOTER_PRIORITY
+      .filter(k => enabledSections.has(k))
+      .filter(k => { const s = SIDEBAR_SECTIONS.find(s => s.key === k); return s && canAccess(role, s.href) })
+      .slice(0, 2)
+  )
 
   const groups = GROUPS
     .map(g => ({
@@ -103,7 +113,9 @@ export default async function MorePage() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900">Settings</p>
-          <p className="text-xs text-gray-400 mt-0.5">Account, WhatsApp, team, billing</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {role === 'owner' || role === 'admin' ? 'Account, WhatsApp, team, billing' : 'Account, password'}
+          </p>
         </div>
         <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
       </Link>

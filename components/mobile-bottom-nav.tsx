@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SIDEBAR_SECTIONS, MOBILE_FOOTER_PRIORITY, resolveVisibleSections } from '@/lib/sidebar-sections'
+import type { UserRole } from '@/lib/user-role'
+import { canAccess } from '@/lib/user-role'
 
 // Home and More are permanent; the two slots between them are picked from
 // whichever sections the account has enabled, ranked by MOBILE_FOOTER_PRIORITY
@@ -20,15 +22,22 @@ const SECTION_ICONS: Record<string, typeof MessageSquare> = {
   templates: FileText, integrations: Plug, analytics: BarChart2,
 }
 
-export default function MobileBottomNav({ visibleSections = null }: { visibleSections?: string[] | null }) {
+export default function MobileBottomNav({
+  visibleSections = null, role = 'owner'
+}: { visibleSections?: string[] | null; role?: UserRole }) {
   const pathname = usePathname()
 
   const enabledSections = resolveVisibleSections(visibleSections)
   const footerSections = MOBILE_FOOTER_PRIORITY
     .filter(key => enabledSections.has(key))
-    .slice(0, 2)
     .map(key => SIDEBAR_SECTIONS.find(s => s.key === key))
     .filter((s): s is NonNullable<typeof s> => !!s)
+    // A Sales/Support/Manager role must never get a footer tab linking
+    // somewhere canAccess() wouldn't let them reach from the desktop
+    // sidebar either — this was missing entirely here (the desktop Sidebar
+    // already combines both filters; this component only had the first).
+    .filter(s => canAccess(role, s.href))
+    .slice(0, 2)
 
   const TABS = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },

@@ -8,6 +8,8 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { assignSystemUserToWABA, exchangeMetaCode, subscribeWABAWebhooks } from '@/lib/whatsapp'
 import { provisionStarterTemplates } from '@/lib/whatsapp-templates'
 import type { MetaDebugInfo, MetaSessionInfo } from '@/lib/whatsapp'
+import { getUserRole } from '@/lib/get-user-role'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // ─── Shared processing ────────────────────────────────────────────────────────
 
@@ -124,6 +126,18 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
 
+  // Owner/admin only, same tier as every other WhatsApp-connection mutation
+  // — this wrote whatsapp_accounts/stores keyed by the CALLER's own id with
+  // no role check at all, so a team member completing this flow created a
+  // stray row under their own id (nothing else reads it — every lookup
+  // resolves to the org owner's row) instead of either actually connecting
+  // the org's WhatsApp or being told they can't.
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin') {
+    return NextResponse.json({ ok: false, error: 'Only the account owner or an admin can connect WhatsApp.' }, { status: 403 })
+  }
+  const ownerId = await resolveOwnerUserId(createServiceClient(), user.id)
+
   const body = await request.json().catch(() => ({})) as {
     code?:                string
     sessionInfo?:         MetaSessionInfo
@@ -139,7 +153,7 @@ export async function POST(request: Request) {
   console.log('[Meta callback] connectionMode:', body.connectionMode ?? 'cloud_api')
 
   const result = await processMetaCode(
-    body.code, undefined, user.id, body.sessionInfo, body.rawAuthResponseKeys, body.rawAuthResponse,
+    body.code, undefined, ownerId, body.sessionInfo, body.rawAuthResponseKeys, body.rawAuthResponse,
     body.connectionMode ?? 'cloud_api',
   )
   return NextResponse.json(result)
@@ -164,8 +178,16 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(`${origin}/login`)
 
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin') {
+    return NextResponse.redirect(
+      `${origin}/dashboard/settings?tab=whatsapp&error=${encodeURIComponent('Only the account owner or an admin can connect WhatsApp.')}`
+    )
+  }
+  const ownerId = await resolveOwnerUserId(createServiceClient(), user.id)
+
   const redirectUri = `${origin}/api/meta/callback`
-  const result      = await processMetaCode(code, redirectUri, user.id)
+  const result      = await processMetaCode(code, redirectUri, ownerId)
 
   if (!result.ok) {
     return NextResponse.redirect(

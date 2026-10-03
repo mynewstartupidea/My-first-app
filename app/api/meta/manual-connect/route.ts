@@ -4,11 +4,24 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getUserRole } from '@/lib/get-user-role'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+
+  // Owner/admin only, same tier as the Embedded Signup flow and every other
+  // Settings mutation — had no role check at all, and wrote whatsapp_accounts
+  // keyed by the CALLER's own user_id rather than the org owner's, so a
+  // team member "connecting" WhatsApp here created a stray row under their
+  // own id that the rest of the app never reads (every lookup resolves to
+  // the owner's row), reporting success while doing nothing real.
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin') {
+    return NextResponse.json({ ok: false, error: 'Only the account owner or an admin can connect WhatsApp.' }, { status: 403 })
+  }
 
   const body = await request.json().catch(() => ({})) as {
     wabaId?:             string
@@ -42,20 +55,20 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient()
-  const authClient = await createClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
 
-  const { data: storeRows } = await authClient
+  const { data: storeRows } = await service
     .from('stores')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .limit(1)
   const store = storeRows?.[0] ?? null
 
-  await service.from('whatsapp_accounts').delete().eq('user_id', user.id)
+  await service.from('whatsapp_accounts').delete().eq('user_id', ownerId)
 
   const { error: insertErr } = await service.from('whatsapp_accounts').insert({
-    user_id:              user.id,
+    user_id:              ownerId,
     store_id:             store?.id ?? null,
     business_id:          businessId?.trim() ?? wabaId.trim(),
     waba_id:              wabaId.trim(),

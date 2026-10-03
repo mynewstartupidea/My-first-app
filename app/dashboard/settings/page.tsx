@@ -12,6 +12,7 @@ import {
   BarChart2, Phone, Target, LayoutDashboard,
 } from 'lucide-react'
 import { SIDEBAR_SECTIONS, SIDEBAR_SECTION_KEYS } from '@/lib/sidebar-sections'
+import type { UserRole } from '@/lib/user-role'
 // Lead-ads billing plans (Razorpay)
 const LEAD_PLANS = [
   { id: 'starter',    name: 'Starter',    price: '₹2,499', messages: 5000,      description: 'Best for getting started',        recommended: false },
@@ -141,6 +142,12 @@ function SettingsInner() {
   // this hides the buttons for those roles instead of letting them click
   // "Upgrade," complete real Razorpay payment, and hit a 403 after the fact.
   const [canManageBilling, setCanManageBilling] = useState(false)
+  // Starts as the most restrictive role, not 'owner' — an owner/admin seeing
+  // one extra tab flicker in for a moment is harmless; a Sales/Support rep
+  // briefly seeing Billing/Team/Profile/Sidebar before this loads is exactly
+  // the exposure this is meant to prevent.
+  const [role, setRole] = useState<UserRole>('member')
+  const [roleLoaded, setRoleLoaded] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason]       = useState('')
   const [cancelDetail, setCancelDetail]       = useState('')
@@ -373,14 +380,41 @@ function SettingsInner() {
     loadBilling()
   }
 
+  // Runs on mount, not gated by activeTab — the TABS filter below needs the
+  // real role before the first render decides which tabs to show at all,
+  // not just once someone happens to click into Billing.
+  useEffect(() => {
+    fetch('/api/me/role')
+      .then(r => r.json())
+      .then((d: { role?: string }) => {
+        const r = (d.role as UserRole) ?? 'member'
+        setRole(r)
+        setCanManageBilling(r === 'owner' || r === 'admin')
+      })
+      .catch(() => {})
+      .finally(() => setRoleLoaded(true))
+  }, [])
+
   useEffect(() => {
     if (activeTab !== 'billing') return
     loadBilling()
-    fetch('/api/me/role')
-      .then(r => r.json())
-      .then((d: { role?: string }) => setCanManageBilling(d.role === 'owner' || d.role === 'admin'))
-      .catch(() => {})
   }, [activeTab, loadBilling])
+
+  // Filtering the tab BUTTONS isn't enough on its own — a deep link like
+  // ?tab=billing sets activeTab before role is even known (see the urlTab
+  // effect above), and each tab's content section is gated purely on
+  // activeTab, not on role. Without this, a Sales rep opening that link
+  // directly would still see the Billing panel render underneath, just
+  // with no button for it in the bar. Gated on roleLoaded specifically (not
+  // just "role !== owner/admin") — role starts at the restrictive default
+  // before the fetch resolves, and redirecting on that default would bounce
+  // a legitimate owner/admin's own ?tab=billing deep link back to Account
+  // before their real role even loads.
+  const OWNER_ONLY_TABS = ['store', 'sidebar', 'whatsapp', 'billing', 'team']
+  useEffect(() => {
+    if (!roleLoaded || role === 'owner' || role === 'admin') return
+    if (OWNER_ONLY_TABS.includes(activeTab)) setActiveTab('account')
+  }, [roleLoaded, role, activeTab])
 
   // Keep the active tab pill visible in the scrollable tab bar — matters when landing
   // directly on a non-first tab (e.g. ?tab=team), where it'd otherwise start scrolled
@@ -910,15 +944,23 @@ function SettingsInner() {
   const statusMeta   = STATUS_META[billing?.status ?? 'trialing'] ?? STATUS_META.trialing
   const usagePct     = billing ? Math.min(100, Math.round((billing.messages_used / billing.messages_limit) * 100)) : 0
 
+  // Profile/Sidebar/WhatsApp/Billing/Team are all owner/admin actions
+  // server-side (every mutation they trigger 403s for anyone else) — showing
+  // them to a Sales/Support/Manager rep anyway meant a tab full of controls
+  // that would just fail, plus exposing things like the org's billing status
+  // and team roster to a role with no reason to see either. Account (their
+  // own email) and Security (their own password) stay visible to everyone.
+  const isOwnerOrAdmin = role === 'owner' || role === 'admin'
   const TABS = [
-    { id: 'account',  label: 'Account',   icon: Store       },
-    { id: 'store',    label: 'Profile',    icon: Store       },
-    { id: 'sidebar',  label: 'Sidebar',    icon: LayoutDashboard },
-    { id: 'whatsapp', label: 'WhatsApp',   icon: MessageCircle },
-    { id: 'billing',  label: 'Billing',     icon: CreditCard  },
-    { id: 'team',     label: 'Team',       icon: Users       },
-    { id: 'security', label: 'Security',   icon: Shield      },
+    { id: 'account',  label: 'Account',   icon: Store,           ownerOnly: false },
+    { id: 'store',    label: 'Profile',    icon: Store,           ownerOnly: true  },
+    { id: 'sidebar',  label: 'Sidebar',    icon: LayoutDashboard, ownerOnly: true  },
+    { id: 'whatsapp', label: 'WhatsApp',   icon: MessageCircle,   ownerOnly: true  },
+    { id: 'billing',  label: 'Billing',     icon: CreditCard,     ownerOnly: true  },
+    { id: 'team',     label: 'Team',       icon: Users,           ownerOnly: true  },
+    { id: 'security', label: 'Security',   icon: Shield,          ownerOnly: false },
   ] as const
+  const visibleTabs = TABS.filter(t => !t.ownerOnly || isOwnerOrAdmin)
 
   return (
     <div className="p-4 md:p-6 lg:p-8 animate-fade-in max-w-3xl">
@@ -947,7 +989,7 @@ function SettingsInner() {
           one swipe away. The fade at least signals there's more. */}
       <div className="relative mb-5 md:mb-7">
         <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1 overflow-x-auto -mx-1 px-1 sm:mx-0">
-          {TABS.map(({ id, label }) => (
+          {visibleTabs.map(({ id, label }) => (
             <button
               key={id}
               data-settings-tab={id}
