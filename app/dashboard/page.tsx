@@ -5,7 +5,7 @@ import {
   IndianRupee, MessageSquare, TrendingUp,
   ArrowRight, Zap, AlertCircle, CheckCircle2,
   Send, Eye, MousePointerClick, Users, Target,
-  Phone, Calendar, BarChart2,
+  Phone, Calendar, BarChart2, Package, ShoppingCart,
 } from 'lucide-react'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
 import Link from 'next/link'
@@ -92,6 +92,13 @@ export default async function DashboardPage() {
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
+  // Drives which stat cards/widgets render below — never a hard feature gate
+  // (every account can still reach Leads, Shopify, etc. from the nav), just
+  // which metrics are the DEFAULT view. NULL (not yet chosen, or pre-dates
+  // this column) degrades to 'lead_gen', today's existing behavior.
+  const businessType: 'ecommerce' | 'lead_gen' = store?.business_type === 'ecommerce' ? 'ecommerce' : 'lead_gen'
+  const isEcommerce = businessType === 'ecommerce'
+
   // Billing usage for low-credit banner
   const { data: billing } = await service
     .from('billing')
@@ -104,119 +111,140 @@ export default async function DashboardPage() {
   const msgPct   = msgLimit >= 999_999_999 ? 0 : Math.min(100, Math.round((msgUsed / msgLimit) * 100))
   const msgLeft  = Math.max(0, msgLimit - msgUsed)
 
-  // Lead-based dashboard metrics need to match what the Leads page shows by default:
-  // it defaults to the earliest-connected Facebook Page (facebook_connections ordered
-  // by created_at) unless the browser has a different page cached in sessionStorage —
-  // which a server-rendered dashboard can't see. Scoping to that same default page
-  // keeps "Total Leads" here in sync with what the user sees when they open Leads,
-  // instead of summing every page the account has ever connected.
-  const { data: defaultConnection } = await service
-    .from('facebook_connections')
-    .select('id, page_id, page_name')
-    .eq('user_id', ownerId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  const defaultPageId = defaultConnection?.page_id ?? null
-  const defaultConnectionId = defaultConnection?.id ?? null
-
-  // Follow-ups due today or overdue — for the sales team widget. Org-owned leads OR
-  // ones specifically assigned to this viewer, same visibility rule used elsewhere
-  // (e.g. /api/facebook/leads) — a rep sees the org's pool plus their own assignments.
-  let followupQuery = service
-    .from('leads')
-    .select('id, name, phone, lead_status, followup_at, wa_status')
-    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
-    .not('followup_at', 'is', null)
-    .lte('followup_at', new Date().toISOString())
-    .not('lead_status', 'in', '("converted","lost","junk")')
-  if (defaultPageId) followupQuery = followupQuery.eq('page_id', defaultPageId)
-  const { data: followupLeads } = await followupQuery
-    .order('followup_at', { ascending: true })
-    .limit(5)
-
-  const followupDue = (followupLeads ?? []) as Array<{
+  // The widgets below (Follow-ups Due, Team Activity, Lead KPIs, Lead Outcomes/
+  // Sources) are all lead-gen concepts — skipped entirely for an ecommerce
+  // account rather than querying data that would just render empty.
+  let defaultPageId: string | null = null
+  let defaultConnectionId: string | null = null
+  let followupDue: Array<{
     id: string; name: string | null; phone: string | null
     lead_status: string | null; followup_at: string; wa_status: string
-  }>
-
-  // Team Activity — owner/admin only, mirrors /api/settings/team-activity's gate
-  // (resolveManagedOrg returns null for a Sales/Support/Manager rep, so this stays
-  // empty and the section below just doesn't render for them).
+  }> = []
   type TeamActivityRow = {
     user_id: string; email: string; role: string
     leads_assigned: number; converted: number; calls_logged: number; last_activity_at: string | null
   }
   let teamActivity: TeamActivityRow[] = []
-  const managedOrg = await resolveManagedOrg(service, user.id, user.email ?? '')
-  if (managedOrg) {
-    let ownerEmail = user.email ?? ''
-    if (ownerId !== user.id) {
-      const { data: ownerUser } = await service.auth.admin.getUserById(ownerId)
-      ownerEmail = ownerUser?.user?.email ?? ownerEmail
+
+  if (!isEcommerce) {
+    // Lead-based dashboard metrics need to match what the Leads page shows by default:
+    // it defaults to the earliest-connected Facebook Page (facebook_connections ordered
+    // by created_at) unless the browser has a different page cached in sessionStorage —
+    // which a server-rendered dashboard can't see. Scoping to that same default page
+    // keeps "Total Leads" here in sync with what the user sees when they open Leads,
+    // instead of summing every page the account has ever connected.
+    const { data: defaultConnection } = await service
+      .from('facebook_connections')
+      .select('id, page_id, page_name')
+      .eq('user_id', ownerId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    defaultPageId = defaultConnection?.page_id ?? null
+    defaultConnectionId = defaultConnection?.id ?? null
+
+    // Follow-ups due today or overdue — for the sales team widget. Org-owned leads OR
+    // ones specifically assigned to this viewer, same visibility rule used elsewhere
+    // (e.g. /api/facebook/leads) — a rep sees the org's pool plus their own assignments.
+    let followupQuery = service
+      .from('leads')
+      .select('id, name, phone, lead_status, followup_at, wa_status')
+      .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
+      .not('followup_at', 'is', null)
+      .lte('followup_at', new Date().toISOString())
+      .not('lead_status', 'in', '("converted","lost","junk")')
+    if (defaultPageId) followupQuery = followupQuery.eq('page_id', defaultPageId)
+    const { data: followupLeads } = await followupQuery
+      .order('followup_at', { ascending: true })
+      .limit(5)
+
+    followupDue = (followupLeads ?? []) as typeof followupDue
+
+    // Team Activity — owner/admin only, mirrors /api/settings/team-activity's gate
+    // (resolveManagedOrg returns null for a Sales/Support/Manager rep, so this stays
+    // empty and the section below just doesn't render for them).
+    const managedOrg = await resolveManagedOrg(service, user.id, user.email ?? '')
+    if (managedOrg) {
+      let ownerEmail = user.email ?? ''
+      if (ownerId !== user.id) {
+        const { data: ownerUser } = await service.auth.admin.getUserById(ownerId)
+        ownerEmail = ownerUser?.user?.email ?? ownerEmail
+      }
+      const { data: orgMembers } = await service
+        .from('team_members')
+        .select('id, user_id, email, role')
+        .eq('organization_id', managedOrg.id)
+        .eq('status', 'active')
+        .not('user_id', 'is', null)
+
+      const people = [
+        { user_id: ownerId, email: ownerEmail, role: 'owner' },
+        ...(orgMembers ?? []).map(m => ({ user_id: m.user_id as string, email: m.email as string, role: m.role as string })),
+      ]
+      const peopleIds = people.map(p => p.user_id)
+
+      const [{ data: activityLeads }, { data: callLogs }] = await Promise.all([
+        service.from('leads').select('assigned_to, lead_status').eq('user_id', ownerId),
+        service.from('call_logs').select('called_by, created_at').in('called_by', peopleIds),
+      ])
+
+      teamActivity = people
+        .map(person => {
+          const assigned = (activityLeads ?? []).filter(l => l.assigned_to === person.user_id)
+          const converted = assigned.filter(l => l.lead_status === 'converted').length
+          const calls = (callLogs ?? []).filter(c => c.called_by === person.user_id)
+          const lastActivityAt = calls.reduce<string | null>((latest, c) => {
+            const t = c.created_at as string
+            return !latest || t > latest ? t : latest
+          }, null)
+          return {
+            user_id: person.user_id, email: person.email, role: person.role,
+            leads_assigned: assigned.length, converted, calls_logged: calls.length,
+            last_activity_at: lastActivityAt,
+          }
+        })
+        .sort((a, b) => b.calls_logged - a.calls_logged)
     }
-    const { data: orgMembers } = await service
-      .from('team_members')
-      .select('id, user_id, email, role')
-      .eq('organization_id', managedOrg.id)
-      .eq('status', 'active')
-      .not('user_id', 'is', null)
-
-    const people = [
-      { user_id: ownerId, email: ownerEmail, role: 'owner' },
-      ...(orgMembers ?? []).map(m => ({ user_id: m.user_id as string, email: m.email as string, role: m.role as string })),
-    ]
-    const peopleIds = people.map(p => p.user_id)
-
-    const [{ data: activityLeads }, { data: callLogs }] = await Promise.all([
-      service.from('leads').select('assigned_to, lead_status').eq('user_id', ownerId),
-      service.from('call_logs').select('called_by, created_at').in('called_by', peopleIds),
-    ])
-
-    teamActivity = people
-      .map(person => {
-        const assigned = (activityLeads ?? []).filter(l => l.assigned_to === person.user_id)
-        const converted = assigned.filter(l => l.lead_status === 'converted').length
-        const calls = (callLogs ?? []).filter(c => c.called_by === person.user_id)
-        const lastActivityAt = calls.reduce<string | null>((latest, c) => {
-          const t = c.created_at as string
-          return !latest || t > latest ? t : latest
-        }, null)
-        return {
-          user_id: person.user_id, email: person.email, role: person.role,
-          leads_assigned: assigned.length, converted, calls_logged: calls.length,
-          last_activity_at: lastActivityAt,
-        }
-      })
-      .sort((a, b) => b.calls_logged - a.calls_logged)
   }
 
-  const [analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes, leadSourcesRes] = await Promise.all([
+  const [
+    analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes, leadSourcesRes,
+    custRes, orderStatsRes, checkoutStatsRes, recentOrdersRes, ecomAutosRes,
+  ] = await Promise.all([
     store ? service.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? service.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? service.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
-    defaultPageId
+    isEcommerce ? Promise.resolve({ data: [] }) : defaultPageId
       ? service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).eq('page_id', defaultPageId)
       : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId),
-    defaultConnectionId
+    isEcommerce ? Promise.resolve({ data: [] }) : defaultConnectionId
       ? service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).eq('connection_id', defaultConnectionId)
       : service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId),
     // Deliberately per-viewer (not owner-scoped) — each teammate has their own
     // user_profiles row and their own missed-call-followup preference.
-    supabase.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),
+    isEcommerce ? Promise.resolve({ data: null }) : supabase.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),
     // Speed-to-lead: first automated "lead_ad" WhatsApp send per phone number, used
     // below to measure time from lead creation to first contact. Scoped to the last
     // 30 days so a handful of old bulk-resends to stale leads can't skew the median.
-    store
-      ? service.from('automation_jobs').select('customer_phone, sent_at')
+    isEcommerce || !store ? Promise.resolve({ data: [] })
+      : service.from('automation_jobs').select('customer_phone, sent_at')
           .eq('store_id', store.id).eq('type', 'lead_ad').eq('status', 'sent')
-          .gte('sent_at', thirtyDaysAgo).order('sent_at', { ascending: true })
-      : Promise.resolve({ data: [] }),
+          .gte('sent_at', thirtyDaysAgo).order('sent_at', { ascending: true }),
     // Lead Sources breakdown is deliberately NOT page-scoped like leadStats
     // above — non-Facebook sources (walk-in, referral, channel partner,
     // landing page) have no page_id at all, so filtering by defaultPageId
     // would silently exclude every one of them and always show 100% Facebook.
-    service.from('leads').select('source').eq('user_id', ownerId),
+    isEcommerce ? Promise.resolve({ data: [] }) : service.from('leads').select('source').eq('user_id', ownerId),
+
+    // Ecommerce-only — same queries already proven correct on /dashboard/shopify
+    // (shopify_orders/shopify_abandoned_checkouts get written by the webhook
+    // handler for either Shopify connection type, so these aren't gated on
+    // isCustomApp the way shopify_products is over there).
+    isEcommerce && store ? service.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
+    isEcommerce && store ? service.from('shopify_orders').select('total_price', { count: 'exact' }).eq('store_id', store.id) : Promise.resolve({ data: [], count: 0 }),
+    isEcommerce && store ? service.from('shopify_abandoned_checkouts').select('total_price', { count: 'exact' }).eq('store_id', store.id).is('completed_at', null) : Promise.resolve({ data: [], count: 0 }),
+    isEcommerce && store ? service.from('shopify_orders').select('id, order_number, email, phone, total_price, currency, financial_status, fulfillment_status, shopify_created_at').eq('store_id', store.id).order('shopify_created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
+    isEcommerce && store ? service.from('automations').select('type,is_enabled').eq('store_id', store.id) : Promise.resolve({ data: [] }),
   ])
 
   const analytics = analyticsRes.data ?? []
@@ -226,8 +254,31 @@ export default async function DashboardPage() {
     delivered_count: number; read_count?: number; revenue_attributed?: number; created_at: string
   }>
 
-  // Lead-gen KPIs — this business runs on Facebook Lead Ads, not Shopify, so
-  // revenue/cart/COD figures from analytics_daily are always zero and misleading.
+  // Ecommerce KPIs — same queries/shape as /dashboard/shopify, so the numbers
+  // here always match that page exactly.
+  const customerCount    = custRes.count ?? 0
+  const orderCount       = orderStatsRes.count ?? 0
+  const revenue          = (orderStatsRes.data ?? []).reduce((sum, o) => sum + (o.total_price ?? 0), 0)
+  const checkoutCount    = checkoutStatsRes.count ?? 0
+  const recoverableValue = (checkoutStatsRes.data ?? []).reduce((sum, c) => sum + (c.total_price ?? 0), 0)
+  const recentOrders     = recentOrdersRes.data ?? []
+  const ecomAutomations  = (ecomAutosRes.data ?? []) as Array<{ type: string; is_enabled: boolean }>
+  const activeEcomAutos  = ecomAutomations.filter(a => a.is_enabled).length
+
+  // Cart/COD rates from analytics_daily's running counters — cartsRecovered is
+  // completed-after-reminder checkouts, checkoutCount above is still-open
+  // (abandoned) ones, so together they're the full "ever abandoned" pool.
+  const cartsRecoveredTotal = analytics.reduce((sum, r) => sum + (r.carts_recovered ?? 0), 0)
+  const codVerifiedTotal    = analytics.reduce((sum, r) => sum + (r.cod_verified ?? 0), 0)
+  const codCancelledTotal   = analytics.reduce((sum, r) => sum + (r.cod_cancelled ?? 0), 0)
+  const cartRecoveryRate = (cartsRecoveredTotal + checkoutCount) > 0
+    ? Math.round((cartsRecoveredTotal / (cartsRecoveredTotal + checkoutCount)) * 100) : 0
+  const codConfirmRate = (codVerifiedTotal + codCancelledTotal) > 0
+    ? Math.round((codVerifiedTotal / (codVerifiedTotal + codCancelledTotal)) * 100) : 0
+
+  // Lead-gen KPIs — naturally all-zero/empty for an ecommerce account since
+  // the queries feeding these were skipped above (isEcommerce branches in the
+  // Promise.all resolve to empty data), not because this business runs leads.
   const leadStats = leadsStatsRes.data ?? []
   const totalLeads = leadStats.length
   const hotLeads = leadStats.filter(l => l.lead_status === 'hot').length
@@ -346,6 +397,77 @@ export default async function DashboardPage() {
   const deliveryRate = totals.sent > 0 ? Math.round((totals.delivered / totals.sent) * 100) : 0
   const readRate = deliveryRate > 0 ? Math.round(deliveryRate * 0.65) : 0
 
+  // Performance section's last two stats swap by business type — Response/
+  // Conversion Rate are lead concepts, Cart Recovery/COD Confirm are ecom ones.
+  const perfStats = isEcommerce
+    ? [
+        { label: 'Delivery Rate',       value: totals.sent > 0 ? `${deliveryRate}%` : '—', color: 'bg-blue-500', pct: deliveryRate },
+        { label: 'Read Rate',           value: totals.sent > 0 ? `${readRate}%` : '—',     color: 'bg-purple-500', pct: readRate },
+        { label: 'Cart Recovery Rate',  value: (cartsRecoveredTotal + checkoutCount) > 0 ? `${cartRecoveryRate}%` : '—', color: 'bg-emerald-500', pct: cartRecoveryRate },
+        { label: 'COD Confirm Rate',    value: (codVerifiedTotal + codCancelledTotal) > 0 ? `${codConfirmRate}%` : '—', color: 'bg-orange-400', pct: codConfirmRate },
+      ]
+    : [
+        { label: 'Delivery Rate',   value: totals.sent > 0 ? `${deliveryRate}%` : '—', color: 'bg-blue-500', pct: deliveryRate },
+        { label: 'Read Rate',       value: totals.sent > 0 ? `${readRate}%` : '—',     color: 'bg-purple-500', pct: readRate },
+        { label: 'Response Rate',   value: totalLeads > 0 ? `${responseRate}%` : '—',  color: 'bg-emerald-500', pct: responseRate },
+        { label: 'Conversion Rate', value: totalLeads > 0 ? `${conversionRate}%` : '—', color: 'bg-orange-400', pct: conversionRate },
+      ]
+
+  // Top stat-card grid — same card component either way, different data.
+  const kpiCards = isEcommerce
+    ? [
+        {
+          label: 'Orders', value: formatNumber(orderCount),
+          icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50',
+          sub: orderCount > 0 ? formatCurrency(revenue) + ' revenue' : 'from Shopify',
+          trend: orderCount > 0,
+        },
+        {
+          label: 'Revenue', value: formatCurrency(revenue),
+          icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50',
+          sub: `${formatNumber(orderCount)} orders`,
+          trend: revenue > 0,
+        },
+        {
+          label: 'Abandoned Checkouts', value: formatNumber(checkoutCount),
+          icon: Package, color: 'text-orange-600', bg: 'bg-orange-50',
+          sub: checkoutCount > 0 ? `${formatCurrency(recoverableValue)} recoverable` : 'none open',
+          trend: checkoutCount > 0,
+        },
+        {
+          label: 'Reachable on WhatsApp', value: formatNumber(customerCount),
+          icon: Users, color: 'text-purple-600', bg: 'bg-purple-50',
+          sub: 'customers synced',
+          trend: customerCount > 0,
+        },
+      ]
+    : [
+        {
+          label: 'Total Leads', value: formatNumber(totalLeads),
+          icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50',
+          sub: totalLeads > 0 ? `${responseRate}% messaged` : 'from Facebook Lead Ads',
+          trend: totalLeads > 0,
+        },
+        {
+          label: 'Messages Sent', value: formatNumber(totals.sent),
+          icon: Send, color: 'text-blue-600', bg: 'bg-blue-50',
+          sub: `${deliveryRate}% delivery rate`,
+          trend: totals.sent > 0,
+        },
+        {
+          label: 'Read Rate', value: totals.sent > 0 ? `${readRate}%` : '—',
+          icon: Eye, color: 'text-purple-600', bg: 'bg-purple-50',
+          sub: 'vs 20% email avg',
+          trend: readRate > 50,
+        },
+        {
+          label: 'Hot Leads', value: formatNumber(hotLeads),
+          icon: Target, color: 'text-orange-600', bg: 'bg-orange-50',
+          sub: totalLeads > 0 ? `${conversionRate}% converted` : 'tag leads to track',
+          trend: hotLeads > 0,
+        },
+      ]
+
   const typeLabels: Record<string, string> = {
     abandoned_cart: 'Cart Recovery', cod_verification: 'COD Verify',
     order_confirmation: 'Order', shipping_update: 'Shipping',
@@ -451,34 +573,11 @@ export default async function DashboardPage() {
         <WaHealthBadge variant="light" />
       </div>
 
-      {/* Lead KPIs */}
+      {/* Top KPIs — Orders/Revenue/Checkouts/Customers for ecommerce, Leads/
+          Messages/Read Rate/Hot Leads for lead-gen (§5 of the business-type
+          plan: never a feature gate, just the right numbers for the account). */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
-        {[
-          {
-            label: 'Total Leads', value: formatNumber(totalLeads),
-            icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50',
-            sub: totalLeads > 0 ? `${responseRate}% messaged` : 'from Facebook Lead Ads',
-            trend: totalLeads > 0,
-          },
-          {
-            label: 'Messages Sent', value: formatNumber(totals.sent),
-            icon: Send, color: 'text-blue-600', bg: 'bg-blue-50',
-            sub: `${deliveryRate}% delivery rate`,
-            trend: totals.sent > 0,
-          },
-          {
-            label: 'Read Rate', value: totals.sent > 0 ? `${readRate}%` : '—',
-            icon: Eye, color: 'text-purple-600', bg: 'bg-purple-50',
-            sub: 'vs 20% email avg',
-            trend: readRate > 50,
-          },
-          {
-            label: 'Hot Leads', value: formatNumber(hotLeads),
-            icon: Target, color: 'text-orange-600', bg: 'bg-orange-50',
-            sub: totalLeads > 0 ? `${conversionRate}% converted` : 'tag leads to track',
-            trend: hotLeads > 0,
-          },
-        ].map(card => (
+        {kpiCards.map(card => (
           <div key={card.label} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-3">
               <p className="text-slate-500 text-xs font-medium min-w-0 truncate">{card.label}</p>
@@ -605,12 +704,7 @@ export default async function DashboardPage() {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 min-w-0">
           <h2 className="font-semibold text-slate-800 mb-4">Performance</h2>
           <div className="space-y-3.5">
-            {[
-              { label: 'Delivery Rate',   value: totals.sent > 0 ? `${deliveryRate}%` : '—', color: 'bg-blue-500', pct: deliveryRate },
-              { label: 'Read Rate',       value: totals.sent > 0 ? `${readRate}%` : '—',     color: 'bg-purple-500', pct: readRate },
-              { label: 'Response Rate',   value: totalLeads > 0 ? `${responseRate}%` : '—',  color: 'bg-emerald-500', pct: responseRate },
-              { label: 'Conversion Rate', value: totalLeads > 0 ? `${conversionRate}%` : '—', color: 'bg-orange-400', pct: conversionRate },
-            ].map(stat => (
+            {perfStats.map(stat => (
               <div key={stat.label}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-slate-500 text-xs">{stat.label}</span>
@@ -701,6 +795,37 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Recent Orders — ecommerce counterpart to Lead Outcomes/Sources above.
+          Full detail (abandoned checkouts, products, webhook status) lives on
+          /dashboard/shopify; this is just a glanceable recent-activity list. */}
+      {isEcommerce && recentOrders.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-5 md:mb-6">
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100">
+            <h2 className="font-semibold text-slate-800">Recent Orders</h2>
+            <Link href="/dashboard/shopify" className="text-[#25D366] text-xs font-medium flex items-center gap-1 hover:underline">
+              View all <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {recentOrders.map((o: { id: string; order_number: number | string; email: string | null; phone: string | null; total_price: number; currency: string; financial_status: string | null; fulfillment_status: string | null; shopify_created_at: string }) => (
+              <div key={o.id} className="flex items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-3">
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 text-blue-600 text-xs font-bold">
+                  #{String(o.order_number).slice(-2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">Order #{o.order_number}</p>
+                  <p className="text-xs text-slate-400 truncate">{o.email ?? o.phone ?? '—'}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className="text-sm font-semibold text-slate-800 tabular-nums">{formatCurrency(o.total_price)}</span>
+                  <span className="text-[10px] text-slate-300">{timeAgo(o.shopify_created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -839,27 +964,49 @@ export default async function DashboardPage() {
                 <h3 className="font-semibold text-slate-800">Automations</h3>
                 <Link href="/dashboard/automations" className="text-[#25D366] text-xs font-medium hover:underline">Manage</Link>
               </div>
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 text-xs">Lead Ad Response</span>
-                  {leadForms.length > 0 ? (
-                    <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${activeLeadForms > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                      {activeLeadForms > 0 && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
-                      {activeLeadForms} of {leadForms.length} forms
+              {isEcommerce ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 text-xs">Revenue Automations</span>
+                    {ecomAutomations.length > 0 ? (
+                      <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${activeEcomAutos > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                        {activeEcomAutos > 0 && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                        {activeEcomAutos} of {ecomAutomations.length} active
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Not set up</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 text-xs">Cart Recovery Rate</span>
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      {(cartsRecoveredTotal + checkoutCount) > 0 ? `${cartRecoveryRate}%` : '—'}
                     </span>
-                  ) : (
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Not set up</span>
-                  )}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 text-xs">Missed Call Follow-up</span>
-                  <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${missedCallFollowupOn ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {missedCallFollowupOn
-                      ? <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> On</>
-                      : 'Off'}
-                  </span>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 text-xs">Lead Ad Response</span>
+                    {leadForms.length > 0 ? (
+                      <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${activeLeadForms > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                        {activeLeadForms > 0 && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                        {activeLeadForms} of {leadForms.length} forms
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Not set up</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 text-xs">Missed Call Follow-up</span>
+                    <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${missedCallFollowupOn ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                      {missedCallFollowupOn
+                        ? <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> On</>
+                        : 'Off'}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -887,31 +1034,57 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {/* CTA card — shows the account's own measured speed-to-lead once there's
-              data, instead of just asserting the value of speed in the abstract. */}
-          <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 text-white">
-            <MousePointerClick size={18} className="mb-2 opacity-80" />
-            {medianResponseMinutes !== null ? (
-              <>
-                <p className="font-semibold text-sm">
-                  Your leads hear back in {formatMinutes(medianResponseMinutes)}
-                </p>
-                <p className="text-green-100 text-xs mt-1 leading-relaxed">
-                  {medianResponseMinutes <= 5
-                    ? "That's fast — leads messaged within 5 minutes convert up to 9x more than those contacted an hour later."
-                    : 'Leads messaged within 5 minutes convert up to 9x more than those contacted an hour later. Faster Lead Ad Response setup can close that gap.'}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-semibold text-sm">Speed to lead wins deals</p>
-                <p className="text-green-100 text-xs mt-1 leading-relaxed">Leads messaged within 5 minutes convert up to 9x more often than those contacted an hour later.</p>
-              </>
-            )}
-            <Link href="/dashboard/leads" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
-              View leads <ArrowRight size={12} />
-            </Link>
-          </div>
+          {/* CTA card — ecommerce variant highlights the account's own
+              recoverable cart value; lead-gen variant shows measured
+              speed-to-lead, both once there's data instead of just
+              asserting the value in the abstract. */}
+          {isEcommerce ? (
+            <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 text-white">
+              <ShoppingCart size={18} className="mb-2 opacity-80" />
+              {checkoutCount > 0 ? (
+                <>
+                  <p className="font-semibold text-sm">
+                    {formatCurrency(recoverableValue)} in abandoned carts
+                  </p>
+                  <p className="text-green-100 text-xs mt-1 leading-relaxed">
+                    {checkoutCount} open checkout{checkoutCount !== 1 ? 's' : ''} right now — a WhatsApp reminder recovers 15–25% on average.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-sm">Recover lost sales automatically</p>
+                  <p className="text-green-100 text-xs mt-1 leading-relaxed">Abandoned cart reminders over WhatsApp recover 15–25% of lost sales on average.</p>
+                </>
+              )}
+              <Link href="/dashboard/shopify" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
+                View Shopify <ArrowRight size={12} />
+              </Link>
+            </div>
+          ) : (
+            <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 text-white">
+              <MousePointerClick size={18} className="mb-2 opacity-80" />
+              {medianResponseMinutes !== null ? (
+                <>
+                  <p className="font-semibold text-sm">
+                    Your leads hear back in {formatMinutes(medianResponseMinutes)}
+                  </p>
+                  <p className="text-green-100 text-xs mt-1 leading-relaxed">
+                    {medianResponseMinutes <= 5
+                      ? "That's fast — leads messaged within 5 minutes convert up to 9x more than those contacted an hour later."
+                      : 'Leads messaged within 5 minutes convert up to 9x more than those contacted an hour later. Faster Lead Ad Response setup can close that gap.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-sm">Speed to lead wins deals</p>
+                  <p className="text-green-100 text-xs mt-1 leading-relaxed">Leads messaged within 5 minutes convert up to 9x more often than those contacted an hour later.</p>
+                </>
+              )}
+              <Link href="/dashboard/leads" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
+                View leads <ArrowRight size={12} />
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

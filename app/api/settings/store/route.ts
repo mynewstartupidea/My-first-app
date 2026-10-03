@@ -26,6 +26,7 @@ export async function PATCH(request: Request) {
     shop_name?: string
     whatsapp_number?: string | null
     whatsapp_api_key?: string | null
+    business_type?: 'ecommerce' | 'lead_gen'
   }
 
   const service = createServiceClient()
@@ -46,6 +47,9 @@ export async function PATCH(request: Request) {
     updates.whatsapp_bsp = 'meta'
     if (body.whatsapp_number !== undefined) updates.whatsapp_number = body.whatsapp_number || null
     if (body.whatsapp_api_key !== undefined) updates.whatsapp_api_key = body.whatsapp_api_key || null
+  }
+  if (body.business_type === 'ecommerce' || body.business_type === 'lead_gen') {
+    updates.business_type = body.business_type
   }
 
   const { error } = await service.from('stores').update(updates).eq('id', store.id)

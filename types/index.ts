@@ -17,6 +17,7 @@ export interface Store {
   whatsapp_api_key: string | null
   is_active: boolean
   plan: Plan
+  business_type: 'ecommerce' | 'lead_gen' | null
   platform: string | null
   store_domain: string | null
   connected_at: string | null

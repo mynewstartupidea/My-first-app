@@ -999,3 +999,17 @@ CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
   event           TEXT NOT NULL,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ─── stores.business_type: ecommerce vs lead-gen customization ────────────────
+-- The dashboard, onboarding, and automations all used to assume one business
+-- model (whichever the current account happened to be). This lets each store
+-- declare which it is so the UI can show the right metrics/setup flow for it
+-- — never a hard feature gate (Leads stays usable either way), just which
+-- view is the default. Nullable: code treats a NULL row as 'lead_gen' (today's
+-- de facto behavior) rather than erroring.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS business_type TEXT CHECK (business_type IN ('ecommerce','lead_gen'));
+
+-- Backfill existing rows by inferring from whether Shopify was ever connected.
+UPDATE stores SET business_type = CASE WHEN shopify_domain IS NOT NULL THEN 'ecommerce' ELSE 'lead_gen' END
+WHERE business_type IS NULL;

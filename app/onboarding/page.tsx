@@ -6,18 +6,22 @@ import { createClient } from '@/lib/supabase/client'
 import {
   CheckCircle2, ArrowRight, Loader2, AlertCircle,
   Store, MessageCircle, Zap, ShoppingCart, Package,
-  Sparkles, SkipForward, ChevronRight
+  Sparkles, SkipForward, ChevronRight, ShoppingBag, UserPlus,
+  Facebook, Globe, Users, Phone, Copy, Check, ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { hasShopifyConnection } from '@/lib/store-selection'
 import Link from 'next/link'
 
-type Step = 'welcome' | 'connect_store' | 'whatsapp' | 'automations' | 'done'
+type BusinessType = 'ecommerce' | 'lead_gen'
+type Step = 'welcome' | 'business_type' | 'connect' | 'whatsapp' | 'automations' | 'done'
 
-const STEPS: Step[] = ['welcome', 'connect_store', 'whatsapp', 'automations', 'done']
+const STEPS: Step[] = ['welcome', 'business_type', 'connect', 'whatsapp', 'automations', 'done']
 
 const STEP_META: Record<Step, { title: string; sub: string }> = {
   welcome:       { title: 'Welcome',        sub: 'Get started'       },
-  connect_store: { title: 'Connect Store',  sub: 'Link your store'   },
+  business_type: { title: 'Your Business',  sub: 'Tell us about you' },
+  connect:       { title: 'Connect',        sub: 'Link your source'  },
   whatsapp:      { title: 'WhatsApp',       sub: 'Set up messaging'  },
   automations:   { title: 'Automations',    sub: 'Enable flows'      },
   done:          { title: 'All Set!',       sub: 'You\'re ready'     },
@@ -30,28 +34,129 @@ function StepProgress({ current }: { current: Step }) {
   const visible = STEPS.slice(0, -1) // exclude 'done' from dots
 
   return (
-    <div className="flex items-center gap-2 mb-10">
+    <div className="flex items-center gap-1 sm:gap-2 mb-10">
       {visible.map((s, i) => (
-        <div key={s} className="flex items-center gap-2">
+        <div key={s} className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <div className={cn(
-            'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all',
+            'w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all flex-shrink-0',
             idx > i  ? 'bg-[#25D366] text-white'
             : idx === i ? 'bg-[#25D366] text-white ring-4 ring-[#25D366]/20'
             : 'bg-slate-100 text-slate-400'
           )}>
-            {idx > i ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
+            {idx > i ? <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : i + 1}
           </div>
           <span className={cn(
-            'text-xs font-medium hidden sm:block',
+            'text-xs font-medium hidden md:block whitespace-nowrap',
             idx >= i ? 'text-slate-700' : 'text-slate-400'
           )}>
             {STEP_META[s].title}
           </span>
           {i < visible.length - 1 && (
-            <div className={cn('w-8 h-0.5 rounded-full', idx > i ? 'bg-[#25D366]' : 'bg-slate-200')} />
+            <div className={cn('w-4 sm:w-8 h-0.5 rounded-full flex-shrink-0', idx > i ? 'bg-[#25D366]' : 'bg-slate-200')} />
           )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Business type step ───────────────────────────────────────────────────────
+
+const BUSINESS_TYPE_OPTIONS: Array<{
+  key: BusinessType; icon: typeof ShoppingBag; label: string; desc: string; bullets: string[]
+}> = [
+  {
+    key: 'ecommerce', icon: ShoppingBag, label: 'Ecommerce Store',
+    desc: 'I sell products online (Shopify, etc.)',
+    bullets: ['Connect your Shopify store', 'Recover abandoned carts', 'Verify COD orders over WhatsApp'],
+  },
+  {
+    key: 'lead_gen', icon: UserPlus, label: 'Lead Generation',
+    desc: 'I capture and follow up with leads',
+    bullets: ['Connect Facebook Lead Ads or your website', 'Instantly message new leads', 'Follow up on missed calls'],
+  },
+]
+
+function BusinessTypeStep({
+  initialValue, onSelect
+}: {
+  initialValue: BusinessType | null
+  onSelect: (type: BusinessType) => Promise<void>
+}) {
+  const [selected, setSelected] = useState<BusinessType | null>(initialValue)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+
+  async function handleContinue() {
+    if (!selected) return
+    setSaving(true)
+    setError('')
+    try {
+      await onSelect(selected)
+    } catch {
+      setError('Could not save — please try again.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="max-w-xl mx-auto">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">What&apos;s your business?</h2>
+        <p className="text-slate-500 text-sm">This tailors your dashboard and setup — you can change it later in Settings.</p>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        {BUSINESS_TYPE_OPTIONS.map(({ key, icon: Icon, label, desc, bullets }) => {
+          const on = selected === key
+          return (
+            <button
+              key={key}
+              onClick={() => setSelected(key)}
+              className={cn(
+                'text-left rounded-2xl border-2 p-5 sm:p-6 transition-all',
+                on ? 'border-[#25D366] bg-[#25D366]/5 shadow-md shadow-green-500/10' : 'border-slate-200 hover:border-slate-300 bg-white'
+              )}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center', on ? 'bg-[#25D366] text-white' : 'bg-slate-100 text-slate-500')}>
+                  <Icon className="w-6 h-6" />
+                </div>
+                <div className={cn(
+                  'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition',
+                  on ? 'border-[#25D366] bg-[#25D366]' : 'border-slate-300'
+                )}>
+                  {on && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                </div>
+              </div>
+              <p className="font-bold text-slate-900 text-lg mb-1">{label}</p>
+              <p className="text-slate-500 text-sm mb-4">{desc}</p>
+              <div className="space-y-1.5">
+                {bullets.map(b => (
+                  <div key={b} className="flex items-start gap-2 text-xs text-slate-600">
+                    <CheckCircle2 className={cn('w-3.5 h-3.5 flex-shrink-0 mt-0.5', on ? 'text-[#25D366]' : 'text-slate-300')} />
+                    {b}
+                  </div>
+                ))}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      <button
+        onClick={handleContinue}
+        disabled={!selected || saving}
+        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-semibold py-3.5 rounded-2xl transition text-base shadow-lg shadow-green-500/20"
+      >
+        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continue <ArrowRight className="w-5 h-5" /></>}
+      </button>
     </div>
   )
 }
@@ -200,6 +305,143 @@ function ConnectStoreStep({
         className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 text-sm py-2 transition"
       >
         <SkipForward className="w-4 h-4" /> I&apos;ll connect later
+      </button>
+    </div>
+  )
+}
+
+// ─── Connect lead source step ─────────────────────────────────────────────────
+
+function ConnectLeadSourceStep({ onNext }: { onNext: () => void }) {
+  const [apiKey, setApiKey]       = useState<string | null>(null)
+  const [loadingKey, setLoadingKey] = useState(false)
+  const [showSnippet, setShowSnippet] = useState(false)
+  const [copied, setCopied]       = useState(false)
+  const [keyError, setKeyError]   = useState('')
+
+  async function revealSnippet() {
+    if (apiKey) { setShowSnippet(true); return }
+    setLoadingKey(true)
+    setKeyError('')
+    try {
+      const res  = await fetch('/api/developer/key')
+      const data = await res.json() as { api_key?: string; error?: string }
+      if (!res.ok || !data.api_key) { setKeyError(data.error ?? 'Could not generate your API key.'); return }
+      setApiKey(data.api_key)
+      setShowSnippet(true)
+    } catch {
+      setKeyError('Network error. Please try again.')
+    } finally {
+      setLoadingKey(false)
+    }
+  }
+
+  function copySnippet() {
+    if (!apiKey) return
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.wapaci.com'
+    const snippet = `fetch('${origin}/api/leads/ingest', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ${apiKey}',
+  },
+  body: JSON.stringify({ name, email, phone, source: 'Website' }),
+})`
+    navigator.clipboard.writeText(snippet)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="max-w-md mx-auto">
+      <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+        <Users className="w-8 h-8 text-emerald-600" />
+      </div>
+      <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Connect a lead source</h2>
+      <p className="text-slate-500 text-center mb-8">Pick how leads reach you — you can set up more than one, anytime.</p>
+
+      {/* Facebook Lead Ads */}
+      <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 mb-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Facebook className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-800">Facebook Lead Ads</p>
+            <p className="text-xs text-slate-400">Sync leads from your ad forms automatically</p>
+          </div>
+        </div>
+        <Link
+          href="/dashboard/leads"
+          className="flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-medium px-4 py-2.5 rounded-xl transition"
+        >
+          Connect in Leads <ExternalLink className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+
+      {/* Website / landing page form */}
+      <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 mb-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Globe className="w-5 h-5 text-purple-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-800">Website or landing page form</p>
+            <p className="text-xs text-slate-400">Send form submissions straight to Wapaci</p>
+          </div>
+        </div>
+
+        {keyError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-3 py-2 mb-3">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {keyError}
+          </div>
+        )}
+
+        {!showSnippet ? (
+          <button
+            onClick={revealSnippet}
+            disabled={loadingKey}
+            className="w-full flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 disabled:opacity-50 text-slate-700 text-sm font-medium px-4 py-2.5 rounded-xl transition"
+          >
+            {loadingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get my API snippet'}
+          </button>
+        ) : (
+          <div>
+            <pre className="bg-slate-900 text-slate-100 text-[10px] sm:text-[11px] rounded-xl p-3 overflow-x-auto mb-2 leading-relaxed">
+{`fetch('.../api/leads/ingest', {
+  method: 'POST',
+  headers: { 'Authorization': 'Bearer ${apiKey?.slice(0, 12)}…' },
+  body: JSON.stringify({ name, email, phone }),
+})`}
+            </pre>
+            <button
+              onClick={copySnippet}
+              className="w-full flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium px-3 py-2 rounded-xl transition"
+            >
+              {copied ? <><Check className="w-3.5 h-3.5 text-emerald-600" /> Copied full snippet</> : <><Copy className="w-3.5 h-3.5" /> Copy full snippet</>}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Manual entry */}
+      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-slate-200 rounded-xl flex items-center justify-center flex-shrink-0">
+            <UserPlus className="w-5 h-5 text-slate-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-800 text-sm">Prefer to add leads yourself?</p>
+            <p className="text-xs text-slate-400">The Leads page always lets you add one manually — no setup needed.</p>
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={onNext}
+        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-3.5 rounded-2xl transition"
+      >
+        Continue <ArrowRight className="w-5 h-5" />
       </button>
     </div>
   )
@@ -534,6 +776,90 @@ function AutomationsStep({
   )
 }
 
+// ─── Lead-gen automations step ────────────────────────────────────────────────
+
+function LeadAutomationsStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  const [enabled, setEnabled] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
+
+  async function handleEnable() {
+    setSaving(true)
+    setError('')
+    const res = await fetch('/api/settings/missed-call-followup', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    })
+    setSaving(false)
+    if (!res.ok) { setError('Could not save — please try again.'); return }
+    onNext()
+  }
+
+  return (
+    <div className="max-w-md mx-auto">
+      <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+        <Zap className="w-8 h-8 text-purple-600" />
+      </div>
+      <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Enable automations</h2>
+      <p className="text-slate-500 text-center mb-8 text-sm">
+        Start with this — you can fine-tune per-source auto-replies once a lead source is connected.
+      </p>
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+        </div>
+      )}
+
+      <button
+        onClick={() => setEnabled(e => !e)}
+        className={cn(
+          'w-full flex items-start gap-4 p-4 rounded-2xl border-2 text-left transition mb-4',
+          enabled ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
+        )}
+      >
+        <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0', enabled ? 'bg-emerald-100' : 'bg-slate-100')}>
+          <Phone className={cn('w-5 h-5', enabled ? 'text-emerald-600' : 'text-slate-400')} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span className="font-semibold text-slate-800 text-sm">Missed Call Follow-up</span>
+            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Recommended</span>
+          </div>
+          <p className="text-xs text-slate-500 leading-relaxed">Automatically message a caller on WhatsApp if their call to you goes unanswered.</p>
+        </div>
+        <div className={cn(
+          'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition',
+          enabled ? 'border-[#25D366] bg-[#25D366]' : 'border-slate-300'
+        )}>
+          {enabled && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+        </div>
+      </button>
+
+      <div className="bg-slate-50 rounded-2xl p-4 mb-8 flex items-start gap-3">
+        <Sparkles className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Want to auto-reply to new leads instantly? Once you connect Facebook Lead Ads or your
+          website form, set up a custom reply for it in <span className="font-medium text-slate-600">Leads → Automations</span>.
+        </p>
+      </div>
+
+      <button
+        onClick={handleEnable}
+        disabled={saving}
+        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-semibold py-3.5 rounded-2xl transition mb-3"
+      >
+        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+        {saving ? 'Saving…' : enabled ? 'Enable & continue' : 'Continue'}
+      </button>
+      <button onClick={onSkip} className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 text-sm py-2 transition">
+        <SkipForward className="w-4 h-4" /> I&apos;ll do this later
+      </button>
+    </div>
+  )
+}
+
 // ─── Done step ────────────────────────────────────────────────────────────────
 
 function DoneStep({ storeConnected, automationCount }: { storeConnected: boolean; automationCount: number }) {
@@ -602,6 +928,7 @@ function OnboardingContent() {
   const [userEmail, setUserEmail] = useState('')
   const [storeId, setStoreId]     = useState<string | null>(null)
   const [storeConnected, setStoreConnected] = useState(false)
+  const [businessType, setBusinessType] = useState<BusinessType | null>(null)
   const [automationCount, setAutomationCount] = useState(0)
   const [loading, setLoading]     = useState(true)
   const supabase = useMemo(() => createClient(), [])
@@ -612,11 +939,17 @@ function OnboardingContent() {
     setUserEmail(user.email ?? '')
 
     const { data: store } = await supabase
-      .from('stores').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+      .from('stores').select('id, shopify_domain, business_type')
+      .eq('user_id', user.id).eq('is_active', true).maybeSingle()
 
     if (store) {
       setStoreId(store.id)
-      setStoreConnected(true)
+      // A bare stores row is auto-provisioned at signup regardless of
+      // business type — "connected" here must mean Shopify is actually
+      // linked, not merely that the row exists, or this step's success
+      // screen shows for every new user before they've connected anything.
+      setStoreConnected(hasShopifyConnection(store))
+      setBusinessType((store.business_type as BusinessType | null) ?? null)
 
       const { count } = await supabase
         .from('automations')
@@ -628,6 +961,17 @@ function OnboardingContent() {
 
     setLoading(false)
   }, [supabase, router])
+
+  async function handleSelectBusinessType(type: BusinessType) {
+    const res = await fetch('/api/settings/store', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_type: type }),
+    })
+    if (!res.ok) throw new Error('Failed to save business type')
+    setBusinessType(type)
+    next()
+  }
 
   useEffect(() => {
     loadUser()
@@ -647,8 +991,8 @@ function OnboardingContent() {
   function next() {
     const idx = STEPS.indexOf(step)
     if (idx < STEPS.length - 1) {
-      // Refresh store data when advancing past connect_store
-      if (step === 'connect_store') loadUser()
+      // Refresh store data when advancing past the connect step
+      if (step === 'connect') loadUser()
       setStep(STEPS[idx + 1])
     }
   }
@@ -681,19 +1025,30 @@ function OnboardingContent() {
         )}
       </nav>
 
-      <div className="max-w-xl mx-auto px-6 py-12">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {step !== 'done' && step !== 'welcome' && <StepProgress current={step} />}
 
         {step === 'welcome' && (
           <WelcomeStep email={userEmail} onNext={next} />
         )}
 
-        {step === 'connect_store' && (
-          <ConnectStoreStep
-            storeConnected={storeConnected}
-            onNext={next}
-            onSkip={next}
+        {step === 'business_type' && (
+          <BusinessTypeStep
+            initialValue={businessType}
+            onSelect={handleSelectBusinessType}
           />
+        )}
+
+        {step === 'connect' && (
+          businessType === 'ecommerce' ? (
+            <ConnectStoreStep
+              storeConnected={storeConnected}
+              onNext={next}
+              onSkip={next}
+            />
+          ) : (
+            <ConnectLeadSourceStep onNext={next} />
+          )
         )}
 
         {step === 'whatsapp' && (
@@ -705,11 +1060,15 @@ function OnboardingContent() {
         )}
 
         {step === 'automations' && (
-          <AutomationsStep
-            storeId={storeId}
-            onNext={next}
-            onSkip={next}
-          />
+          businessType === 'ecommerce' ? (
+            <AutomationsStep
+              storeId={storeId}
+              onNext={next}
+              onSkip={next}
+            />
+          ) : (
+            <LeadAutomationsStep onNext={next} onSkip={next} />
+          )
         )}
 
         {step === 'done' && (

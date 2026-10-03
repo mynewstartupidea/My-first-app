@@ -89,6 +89,7 @@ function SettingsInner() {
   const [connecting, setConnecting]           = useState(false)
   const [savingWA, setSavingWA]               = useState(false)
   const [savingStore, setSavingStore]         = useState(false)
+  const [savingBusinessType, setSavingBusinessType] = useState(false)
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [waNumber, setWaNumber]               = useState('')
   const [waApiKey, setWaApiKey]               = useState('')
@@ -471,6 +472,24 @@ function SettingsInner() {
     }
     setStore(prev => prev ? { ...prev, shop_name: storeNameEdit.trim() } : prev)
     showToast('Store name saved!')
+  }
+
+  async function setBusinessType(type: 'ecommerce' | 'lead_gen') {
+    if (!store || store.business_type === type) return
+    setSavingBusinessType(true)
+    const res = await fetch('/api/settings/store', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_type: type }),
+    })
+    setSavingBusinessType(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      showToast(data.error ?? 'Failed to save business type', false)
+      return
+    }
+    setStore(prev => prev ? { ...prev, business_type: type } : prev)
+    showToast('Business type saved!')
   }
 
   async function disconnectStore() {
@@ -967,6 +986,32 @@ function SettingsInner() {
                   className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition">
                   {savingStore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
                 </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Business type</label>
+              <p className="text-xs text-slate-400 mb-2">Controls which metrics your Dashboard shows by default — doesn&apos;t limit what you can use.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: 'ecommerce' as const, label: 'Ecommerce Store' },
+                  { key: 'lead_gen' as const,  label: 'Lead Generation' },
+                ]).map(({ key, label }) => {
+                  const on = (store.business_type ?? 'lead_gen') === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setBusinessType(key)}
+                      disabled={savingBusinessType}
+                      className={cn(
+                        'flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border-2 transition disabled:opacity-50',
+                        on ? 'border-[#25D366] bg-[#25D366]/5 text-[#128C7E]' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                      )}
+                    >
+                      {on && <CheckCircle2 className="w-3.5 h-3.5" />} {label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>
