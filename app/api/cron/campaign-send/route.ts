@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
   const { data: recipients } = await service
     .from('campaign_recipients')
-    .select('id, campaign_id, customer_id, phone, name')
+    .select('id, campaign_id, customer_id, phone, name, attempts')
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(BATCH_SIZE)
@@ -42,12 +42,17 @@ export async function GET(request: Request) {
   const { data: stores } = await service.from('stores').select('*').in('id', storeIds)
   const storeMap = new Map((stores ?? []).map(s => [s.id, s]))
 
-  // Cached per tick so a batch spanning many recipients for the same
-  // campaign/store doesn't re-resolve WhatsApp credentials or re-query quota
-  // on every single message.
+  // WhatsApp credentials are still cached per store for the tick — no
+  // benefit to re-resolving those per message. Quota is NOT cached anymore:
+  // it used to be read once via get_messages_remaining and decremented in
+  // local memory, which let this cron and the automation cron
+  // (app/api/cron/route.ts) each work off a stale snapshot and both send up
+  // to the full remaining amount for the same owner if they ran in
+  // overlapping windows. try_increment_messages_used (supabase/migrations.sql)
+  // checks-and-increments atomically per message instead.
   const waConfigCache = new Map<string, { apiKey?: string; phoneNumberId?: string }>()
-  const quotaCache = new Map<string, number>()
 
+  const MAX_ATTEMPTS = 3
   let processed = 0, sent = 0, failed = 0, skippedQuota = 0
 
   for (const recipient of recipients) {
@@ -73,12 +78,12 @@ export async function GET(request: Request) {
 
     const ownerId = store.user_id as string
 
-    if (!quotaCache.has(ownerId)) {
-      const { data: remaining } = await service.rpc('get_messages_remaining', { p_user_id: ownerId })
-      quotaCache.set(ownerId, remaining ?? 0)
-    }
-    const remainingQuota = quotaCache.get(ownerId)!
-    if (remainingQuota <= 0) {
+    // Atomic check-and-increment — this IS the quota gate now, not a
+    // pre-check against a cached read. If this returns false, the owner is
+    // genuinely at their limit as of this exact instant, not as of whenever
+    // this tick started.
+    const { data: allowed } = await service.rpc('try_increment_messages_used', { p_user_id: ownerId })
+    if (!allowed) {
       await service.from('campaign_recipients')
         .update({ status: 'skipped', error_message: 'Monthly message limit reached' })
         .eq('id', recipient.id)
@@ -114,7 +119,6 @@ export async function GET(request: Request) {
 
     if (result.success) {
       sent++
-      quotaCache.set(ownerId, remainingQuota - 1)
       await Promise.all([
         service.from('campaign_recipients').update({
           status: 'sent', bsp_message_id: result.messageId, sent_at: new Date().toISOString(),
@@ -124,22 +128,35 @@ export async function GET(request: Request) {
           type: 'broadcast', message: personalizedMessage, status: 'sent', bsp_message_id: result.messageId,
         }),
         service.from('customers').update({ whatsapp_opt_in: true }).eq('id', recipient.customer_id),
-        // Confirmed by grepping the whole codebase: increment_messages_used
-        // was only ever called from the automation_jobs cron and a test
-        // route — campaign broadcasts have never counted against a
-        // merchant's plan quota, in the old implementation or this rebuild
-        // until now. Without this, a Starter plan could blast an unlimited
-        // number of campaign messages for free while Wapaci still pays the
-        // real per-message WhatsApp API cost.
-        service.rpc('increment_messages_used', { p_user_id: ownerId }).then(() => null, () => null),
       ])
     } else {
       failed++
+      // The quota unit was already spent atomically above (try_increment_
+      // messages_used) before we knew the send would fail — refund it,
+      // best-effort, so a failed send doesn't cost real quota. Not atomic
+      // with the increment, but the failure path is rare enough that the
+      // tiny residual race (another sender reading the count between spend
+      // and refund) is an acceptable trade for closing the much bigger
+      // concurrent-crons race the atomic increment exists to prevent.
+      await service.rpc('decrement_messages_used', { p_user_id: ownerId }).then(() => null, () => null)
+
+      // lib/whatsapp.ts's own error messages literally say "— will retry"
+      // for WhatsApp rate-limit (130429) and transient service (131000)
+      // errors, but nothing ever actually retried them — they were marked
+      // 'failed' permanently like any other error, silently dropping
+      // whoever got caught in a throughput limit partway through a batch.
+      const isRetryable = /will retry/i.test(result.error ?? '')
+      const attempts = (recipient.attempts ?? 0) + 1
       const notReachable = /not registered on WhatsApp|invalid phone number/i.test(result.error ?? '')
+
       await Promise.all([
-        service.from('campaign_recipients').update({
-          status: 'failed', error_message: result.error ?? 'Unknown error',
-        }).eq('id', recipient.id),
+        isRetryable && attempts < MAX_ATTEMPTS
+          ? service.from('campaign_recipients').update({
+              status: 'pending', attempts, error_message: result.error ?? 'Unknown error',
+            }).eq('id', recipient.id)
+          : service.from('campaign_recipients').update({
+              status: 'failed', attempts, error_message: result.error ?? 'Unknown error',
+            }).eq('id', recipient.id),
         notReachable
           ? service.from('customers').update({ whatsapp_opt_in: false }).eq('id', recipient.customer_id)
           : Promise.resolve(),

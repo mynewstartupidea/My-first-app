@@ -883,3 +883,60 @@ CREATE POLICY "campaign_recipients_own" ON campaign_recipients FOR ALL
   USING (campaign_id IN (
     SELECT id FROM campaigns WHERE store_id IN (SELECT id FROM stores WHERE user_id = auth.uid())
   ));
+
+-- ─── try_increment_messages_used: atomic quota-checked increment ────────────
+-- Two independent crons (app/api/cron/route.ts for automations,
+-- app/api/cron/campaign-send for campaigns) can run in overlapping windows
+-- for the SAME owner. Both used to separately call get_messages_remaining
+-- once per invocation, cache it in local memory, and decrement that local
+-- copy as they sent -- classic check-then-act race: if both read "10
+-- remaining" before either persists anything, both can send up to 10
+-- messages each, 20 total against a 10-message quota. This does the
+-- check and the increment as one atomic, row-locked operation, so a second
+-- concurrent caller for the same owner genuinely waits for the first's
+-- write instead of working off a stale read. Returns false (and does NOT
+-- increment) once the limit is reached.
+CREATE OR REPLACE FUNCTION try_increment_messages_used(p_user_id UUID)
+RETURNS BOOLEAN LANGUAGE plpgsql AS $$
+DECLARE
+  v_rows INTEGER;
+BEGIN
+  INSERT INTO billing (user_id, messages_used, messages_limit, updated_at)
+  VALUES (p_user_id, 0, 500, NOW())
+  ON CONFLICT (user_id) DO NOTHING;
+
+  -- Row lock held until this transaction (the RPC call) commits — a second
+  -- concurrent call for the same user_id blocks here until the first's
+  -- UPDATE below is visible, eliminating the read/write race entirely.
+  PERFORM 1 FROM billing WHERE user_id = p_user_id FOR UPDATE;
+
+  UPDATE billing
+  SET messages_used = COALESCE(messages_used, 0) + 1, updated_at = NOW()
+  WHERE user_id = p_user_id AND COALESCE(messages_used, 0) < COALESCE(messages_limit, 500);
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  RETURN v_rows > 0;
+END;
+$$;
+
+-- ─── campaign_recipients: attempts column for retryable-error backoff ───────
+-- WhatsApp rate-limit/service errors (lib/whatsapp.ts's own error messages
+-- literally say "— will retry") were being marked 'failed' permanently with
+-- no actual retry anywhere — a campaign hitting Meta's throughput limit
+-- partway through just silently dropped the rest of that batch forever.
+ALTER TABLE campaign_recipients
+  ADD COLUMN IF NOT EXISTS attempts INTEGER DEFAULT 0;
+
+-- ─── decrement_messages_used: best-effort refund for try_increment_messages_used ──
+-- campaign-send spends a quota unit atomically before attempting a send
+-- (so the check-and-spend itself can't race); if the send then fails, this
+-- refunds that unit rather than charging quota for a message that was
+-- never actually delivered. Floored at 0 — never goes negative.
+CREATE OR REPLACE FUNCTION decrement_messages_used(p_user_id UUID)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE billing
+  SET messages_used = GREATEST(0, COALESCE(messages_used, 0) - 1), updated_at = NOW()
+  WHERE user_id = p_user_id;
+END;
+$$;

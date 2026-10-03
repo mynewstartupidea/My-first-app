@@ -68,33 +68,14 @@ export async function GET(request: Request) {
 
   let sent = 0, failed = 0
 
-  // Cache per-user remaining messages to avoid N+1 queries
-  const remainingCache: Record<string, number> = {}
-
   // Cache per-store WhatsApp account data (phone_number_id + token) for Meta sends.
   // Using store_id as key; value is null when no whatsapp_accounts row found.
   const waCache: Record<string, { phone_number_id: string | null; access_token: string | null } | null> = {}
 
   for (const job of jobs ?? []) {
-    // Check usage limits for store owner
     const { data: storeOwnerRow } = await supabase
       .from('stores').select('user_id').eq('id', job.store_id).maybeSingle()
     const ownerId = storeOwnerRow?.user_id
-
-    if (ownerId) {
-      if (remainingCache[ownerId] === undefined) {
-        const { data: rem } = await supabase.rpc('get_messages_remaining', { p_user_id: ownerId })
-        remainingCache[ownerId] = rem ?? 500
-      }
-      if (remainingCache[ownerId] <= 0) {
-        await supabase.from('automation_jobs').update({
-          status: 'failed',
-          error_message: 'Monthly message limit reached.',
-        }).eq('id', job.id)
-        failed++
-        continue
-      }
-    }
 
     // Atomically claim this job — only one cron run can win the update.
     // If the row was already claimed by a concurrent run, data will be empty; skip it.
@@ -106,6 +87,29 @@ export async function GET(request: Request) {
       .select('id')
 
     if (!claimed || claimed.length === 0) continue
+
+    // Quota check used to read get_messages_remaining once per invocation
+    // and decrement a local in-memory cache as jobs sent — this and
+    // app/api/cron/campaign-send (bulk campaigns) are two independent
+    // crons that can run in overlapping windows for the same owner; both
+    // working off their own stale local count meant they could each send
+    // up to the full remaining amount, double-spending the real quota.
+    // try_increment_messages_used (supabase/migrations.sql) checks and
+    // increments atomically, so this is the actual gate now, evaluated
+    // fresh per message rather than cached per invocation.
+    let quotaOk = true
+    if (ownerId) {
+      const { data: allowed } = await supabase.rpc('try_increment_messages_used', { p_user_id: ownerId })
+      quotaOk = !!allowed
+    }
+    if (!quotaOk) {
+      await supabase.from('automation_jobs').update({
+        status: 'failed',
+        error_message: 'Monthly message limit reached.',
+      }).eq('id', job.id)
+      failed++
+      continue
+    }
 
     const store = job.stores as { shop_name: string; whatsapp_bsp: string; whatsapp_api_key: string }
 
@@ -176,14 +180,19 @@ export async function GET(request: Request) {
         )
       }
 
-      // Increment billing usage for store owner
-      if (ownerId) {
-        await supabase.rpc('increment_messages_used', { p_user_id: ownerId }).then(null, () => null)
-        if (remainingCache[ownerId] !== undefined) remainingCache[ownerId]--
-      }
-
+      // Quota was already spent atomically above, before the send was even
+      // attempted — nothing left to do here.
       sent++
     } else {
+      // That quota unit was spent before we knew the send would fail —
+      // refund it so a failed send doesn't cost real quota. This job will
+      // likely retry below anyway (and re-spend one unit on the retry),
+      // but a permanently-failed job shouldn't have silently cost quota
+      // for a message that was never delivered.
+      if (ownerId) {
+        await supabase.rpc('decrement_messages_used', { p_user_id: ownerId }).then(null, () => null)
+      }
+
       const retryCount = (job.retry_count ?? 0) + 1
       const permanentlyFailed = retryCount >= 3
       await supabase
