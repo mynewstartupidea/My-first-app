@@ -7,7 +7,7 @@ import {
   Send, Eye, MousePointerClick, Users, Target,
   Phone, Calendar, BarChart2, Package, ShoppingCart,
 } from 'lucide-react'
-import { formatCurrency, formatNumber, timeAgo } from '@/lib/utils'
+import { formatCurrency, formatNumber, timeAgo, cn } from '@/lib/utils'
 import Link from 'next/link'
 import WhatsAppStatusBanner from '@/components/whatsapp-status-banner'
 import WaHealthBadge from '@/components/wa-health-badge'
@@ -587,7 +587,11 @@ export default async function DashboardPage() {
             </div>
             <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{card.value}</p>
             <p className="text-slate-400 text-[11px] sm:text-xs mt-1 flex items-center gap-1 overflow-hidden">
-              {card.trend && <TrendingUp size={11} className="text-emerald-500" />}
+              {/* Icon always takes up space, just hidden when there's no trend —
+                  conditionally rendering it gave cards with a trend less width
+                  for their sub-text than cards without one, so the same-length
+                  text could clip on one card in a row but not its neighbor. */}
+              <TrendingUp size={11} className={cn('text-emerald-500 flex-shrink-0', !card.trend && 'invisible')} />
               {card.sub}
             </p>
           </div>
