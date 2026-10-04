@@ -78,6 +78,11 @@ export async function GET(request: Request) {
     // 4. Determine userId — either from signed state (existing user) or auto-create
     let userId: string
     let isBrandNewMerchant = false
+    // Only a genuinely brand-new, never-confirmed account needs the email-code
+    // gate below — a re-install of an already-verified account (or an existing
+    // Wapaci user linking Shopify from inside the app, the decoded.userId
+    // branch) isn't a new identity to prove, just a returning one.
+    let needsEmailVerification = false
     let merchantEmail: string | null = null
 
     if (decoded.userId) {
@@ -100,35 +105,45 @@ export async function GET(request: Request) {
       if (existingStore?.user_id) {
         // Re-install: reuse existing account, still need magic link (no browser session yet)
         userId = existingStore.user_id
-        isBrandNewMerchant = true  // still need magic link to sign them in
         console.log('[Shopify OAuth] re-install — reusing existing user:', userId)
 
         // Get their email for magic link
         const { data: { user: existingUser } } = await supabase.auth.admin.getUserById(userId)
         merchantEmail = existingUser?.email ?? merchantEmail
+      } else if (!merchantEmail) {
+        // Shopify didn't hand over a real email at all — there is nothing to
+        // verify, so this must NOT auto-create an account (that used to fall
+        // back to a fabricated @shopify-install.wapaci.com address nobody
+        // could ever receive a code at, which is worse than just asking them
+        // to sign up properly). Send them through the normal signup form —
+        // same real-email-verification path as everyone else — and they can
+        // reconnect Shopify from Integrations once they're a real account.
+        console.log('[Shopify OAuth] no email from Shopify — sending merchant through normal signup')
+        return NextResponse.redirect(`${origin}/signup?shop=${encodeURIComponent(shop)}`)
       } else {
-        // Brand new merchant — create a Wapaci account auto-confirmed (no email required)
-        const emailToUse = merchantEmail ?? `${shop.replace('.myshopify.com', '')}@shopify-install.wapaci.com`
-        merchantEmail = emailToUse
-
+        // Brand new merchant, real email available — create the account
+        // UNCONFIRMED. This is the same anti-fake-signup gate as the direct
+        // /signup form: a Shopify App Store install proves they're logged
+        // into a real Shopify admin, but not that shopDetails.email is an
+        // inbox they currently control, so it still needs its own code.
         const { data: newUserData, error: createErr } = await supabase.auth.admin.createUser({
-          email:          emailToUse,
-          email_confirm:  true,
+          email:          merchantEmail,
+          email_confirm:  false,
           password:       crypto.randomBytes(24).toString('hex'),
           user_metadata:  { shop, source: 'shopify_install', shop_name: shopDetails.name },
         })
 
         if (createErr || !newUserData.user) {
           console.error('[Shopify OAuth] auto-createUser failed:', createErr?.message)
-          // Fall back: redirect to signup so merchant can create an account manually
-          const pricingUrl = `/shopify/pricing?shop=${encodeURIComponent(shop)}`
+          // Fall back: redirect to login so merchant can create an account manually
           return NextResponse.redirect(
             `${origin}/login?returnTo=${encodeURIComponent(`/api/shopify/install?shop=${encodeURIComponent(shop)}`)}`
           )
         }
 
         userId = newUserData.user.id
-        console.log('[Shopify OAuth] auto-created Wapaci account:', userId, 'email:', emailToUse)
+        needsEmailVerification = true
+        console.log('[Shopify OAuth] auto-created unconfirmed Wapaci account:', userId, 'email:', merchantEmail)
       }
     }
 
@@ -217,12 +232,25 @@ export async function GET(request: Request) {
       (billing?.status === 'active' || billing?.status === 'trialing')
 
     const pricingUrl = `${origin}/shopify/pricing?shop=${encodeURIComponent(shop)}`
+    const nextPath = hasShopifyBilling ? '/dashboard' : `/shopify/pricing?shop=${encodeURIComponent(shop)}`
 
-    // 10. For new App Store merchants — sign them in automatically via magic link,
-    //     then send to pricing (or dashboard if already has billing).
+    // 10. Brand-new, just-created account — same anti-fake-signup gate as the
+    //     direct /signup form: no magic link, no dashboard access, until they
+    //     prove they actually control this inbox via a real emailed code.
+    if (needsEmailVerification && merchantEmail) {
+      const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: merchantEmail })
+      if (resendErr) console.error('[Shopify OAuth] verification email send failed:', resendErr.message)
+      console.log('[Shopify OAuth] new merchant — sent verification code, redirecting to /shopify/verify')
+      return NextResponse.redirect(
+        `${origin}/shopify/verify?email=${encodeURIComponent(merchantEmail)}&next=${encodeURIComponent(nextPath)}`
+      )
+    }
+
+    // 11. Re-install of an already-verified account — sign them back in via
+    //     magic link, same convenience as any other "you're already you"
+    //     link-based auth in this app (not a new identity to prove).
     if (isBrandNewMerchant && merchantEmail) {
-      const nextPage = hasShopifyBilling ? `${origin}/dashboard` : pricingUrl
-      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPage.replace(origin, ''))}`
+      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
 
       const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
         type:    'magiclink',
@@ -231,14 +259,14 @@ export async function GET(request: Request) {
       })
 
       if (!linkErr && linkData?.properties?.action_link) {
-        console.log('[Shopify OAuth] new merchant — redirecting via magic link to pricing')
+        console.log('[Shopify OAuth] returning merchant — redirecting via magic link')
         return NextResponse.redirect(linkData.properties.action_link)
       }
 
       // Magic link failed — fall back to login with returnTo
       console.error('[Shopify OAuth] generateLink failed:', linkErr?.message)
       return NextResponse.redirect(
-        `${origin}/login?returnTo=${encodeURIComponent(hasShopifyBilling ? '/dashboard' : `/shopify/pricing?shop=${encodeURIComponent(shop)}`)}`
+        `${origin}/login?returnTo=${encodeURIComponent(nextPath)}`
       )
     }
 
