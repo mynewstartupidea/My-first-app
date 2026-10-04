@@ -9,8 +9,16 @@ import { getOrCreateLandingPlan, createRazorpaySubscription } from '@/lib/razorp
 // row still exists for the sales team to call and close manually.
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PRICE_RUPEES = 1999
-const PLAN_KEY = 'lp_leads_1999_monthly'
+
+// Keyed by the landing page's own `source` value — each lp/* page posts its
+// own source, so the Razorpay plan/charge description actually matches what
+// the visitor saw and signed up for, instead of every landing page silently
+// billing under the first one's "Lead Response Plan" name regardless of
+// which page they actually came from.
+const PLANS: Record<string, { amountRupees: number; planKey: string; name: string }> = {
+  lp_leads:     { amountRupees: 1999, planKey: 'lp_leads_1999_monthly',     name: 'Wapaci — Lead Response Plan (Monthly)' },
+  lp_ecommerce: { amountRupees: 1999, planKey: 'lp_ecommerce_1999_monthly', name: 'Wapaci — Ecommerce Plan (Monthly)' },
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as {
@@ -21,6 +29,7 @@ export async function POST(request: Request) {
   const phone   = (body.phone ?? '').trim()
   const email   = (body.email ?? '').trim().toLowerCase()
   const source  = (body.source ?? 'lp_leads').trim()
+  const plan    = PLANS[source] ?? PLANS.lp_leads
 
   if (!name)  return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   if (!phone) return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
@@ -42,11 +51,7 @@ export async function POST(request: Request) {
   // From here on, the lead row already exists — a Razorpay failure is
   // reported to the visitor but never loses the contact details above.
   try {
-    const planId = await getOrCreateLandingPlan(service, {
-      planKey: PLAN_KEY,
-      amountRupees: PRICE_RUPEES,
-      name: 'Wapaci — Lead Response Plan (Monthly)',
-    })
+    const planId = await getOrCreateLandingPlan(service, plan)
     const { subscriptionId } = await createRazorpaySubscription({
       planId,
       notes: { landing_lead_id: lead.id, source },

@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import EcomLanding from './EcomLanding'
 
 export const metadata: Metadata = {
-  title: 'WhatsApp Cart Recovery for E-commerce — Wapaci',
-  description: 'Stop losing ₹68 of every ₹100 in abandoned carts. Wapaci sends WhatsApp reminders with 98% open rate. Works with Shopify & WooCommerce.',
+  title: 'WhatsApp Cart Recovery for Shopify Stores — Wapaci',
+  description: 'Automatically recover abandoned carts, confirm COD orders, and send shipping updates on WhatsApp. Connects to Shopify in minutes. ₹1,999/month.',
   robots: { index: false, follow: false },
 }
 
