@@ -158,23 +158,12 @@ export default function SignupPage() {
                 separate step after signup. */}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">What best describes your business?</label>
-              <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-                {BUSINESS_TYPES.map(bt => {
-                  const selected = businessType === bt.value
-                  return (
-                    <button
-                      key={bt.value}
-                      type="button"
-                      onClick={() => setBusinessType(bt.value)}
-                      className={`flex-1 text-sm font-semibold py-2 rounded-lg transition ${
-                        selected ? 'bg-[#25D366] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      {bt.label}
-                    </button>
-                  )
-                })}
-              </div>
+              <CustomSelect
+                value={businessType}
+                onChange={v => setBusinessType(v as 'ecommerce' | 'lead_gen')}
+                options={BUSINESS_TYPES}
+                placeholder="Select…"
+              />
             </div>
 
             {/* Row 2: Phone + Team size */}
