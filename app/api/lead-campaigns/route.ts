@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { getUserRole } from '@/lib/get-user-role'
 
+// Lead-ad WhatsApp campaigns — only reachable from the Campaigns page's
+// "Lead Ad" tab, which is manager/admin/owner-only (lib/user-role.ts). Gate
+// this the same as app/api/campaigns/route.ts so a 'member'/'support'
+// teammate can't create or send one via direct API call either.
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ error: 'You don\'t have access to Campaigns.' }, { status: 403 })
+  }
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
@@ -23,6 +33,11 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ error: 'You don\'t have access to Campaigns.' }, { status: 403 })
+  }
 
   const body = await request.json() as {
     name: string

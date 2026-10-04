@@ -46,6 +46,7 @@ export default async function DashboardPage() {
   const canManageWhatsApp = role === 'owner' || role === 'admin'
   const canSeeAutomations = canAccess(role, '/dashboard/automations')
   const canSeeCampaigns   = canAccess(role, '/dashboard/campaigns')
+  const canSeeShopify     = canAccess(role, '/dashboard/shopify')
 
   const { data: storeRows } = await service
     .from('stores')
@@ -576,7 +577,7 @@ export default async function DashboardPage() {
       {/* Top KPIs — Orders/Revenue/Checkouts/Customers for ecommerce, Leads/
           Messages/Read Rate/Hot Leads for lead-gen (§5 of the business-type
           plan: never a feature gate, just the right numbers for the account). */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 md:mb-6">
         {kpiCards.map(card => (
           <div key={card.label} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-3">
@@ -1060,9 +1061,11 @@ export default async function DashboardPage() {
                   <p className="text-green-100 text-xs mt-1 leading-relaxed">Abandoned cart reminders over WhatsApp recover 15–25% of lost sales on average.</p>
                 </>
               )}
-              <Link href="/dashboard/shopify" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
-                View Shopify <ArrowRight size={12} />
-              </Link>
+              {canSeeShopify && (
+                <Link href="/dashboard/shopify" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
+                  View Shopify <ArrowRight size={12} />
+                </Link>
+              )}
             </div>
           ) : (
             <div className="bg-gradient-to-br from-[#075E54] to-[#25D366] rounded-2xl p-4 sm:p-5 text-white">

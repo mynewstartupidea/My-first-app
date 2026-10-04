@@ -72,7 +72,15 @@ export default function CustomSelect({
       </button>
       {open && (
         <div className={cn(
-          'absolute z-20 top-full mt-1.5 w-full min-w-max rounded-xl shadow-lg overflow-hidden py-1 max-h-64 overflow-y-auto',
+          // min-w-max here used to force the menu to the width of its widest
+          // option's unwrapped text (whitespace-nowrap), regardless of the
+          // trigger's own width — harmless for short labels, but a long one
+          // (e.g. a plan name with pricing in it) blew the menu out to 2-3x
+          // the trigger's width, overflowing the viewport on mobile and
+          // overlapping sibling fields on desktop. Dropped min-w-max and
+          // whitespace-nowrap below so the menu always matches the trigger
+          // (w-full) and long labels wrap instead of forcing extra width.
+          'absolute z-20 top-full mt-1.5 w-full rounded-xl shadow-lg overflow-hidden py-1 max-h-64 overflow-y-auto',
           dark ? 'bg-[#0a0f1e] border border-white/10' : 'bg-white border border-slate-200'
         )}>
           {options.map(o => (
@@ -81,7 +89,7 @@ export default function CustomSelect({
               type="button"
               onClick={() => { onChange(o.value); setOpen(false) }}
               className={cn(
-                'block w-full px-4 py-2.5 text-left text-sm transition whitespace-nowrap',
+                'block w-full px-4 py-2.5 text-left text-sm transition break-words',
                 o.value === value
                   ? (dark ? 'bg-[#25D366]/10 text-[#25D366] font-medium' : 'bg-[#25D366]/5 text-[#128C7E] font-medium')
                   : (dark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-700 hover:bg-slate-50'),

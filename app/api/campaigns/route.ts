@@ -2,15 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { getUserRole } from '@/lib/get-user-role'
 
 // GET /api/campaigns — list campaigns for the org's store. Resolved to the
 // owner and read via the service client — stores/campaigns RLS is USING
 // (auth.uid() = user_id) with no team-member carve-out, so a teammate
 // always got an empty campaigns list here regardless of the org's real data.
+//
+// Campaigns are manager/admin/owner-only (lib/user-role.ts) — this and POST
+// below previously only checked for a logged-in user, so a 'member' or
+// 'support' teammate (no Campaigns nav link, no UI access) could still list,
+// create, and (via /api/campaigns/send) actually send WhatsApp campaigns by
+// calling the API directly. The page hiding the link was the only gate.
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ error: 'You don\'t have access to Campaigns.' }, { status: 403 })
+  }
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
@@ -38,6 +50,11 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ error: 'You don\'t have access to Campaigns.' }, { status: 403 })
+  }
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)

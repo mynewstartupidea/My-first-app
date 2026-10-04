@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { queueCampaignAudience } from '@/lib/campaign-queue'
+import { getUserRole } from '@/lib/get-user-role'
 
 export const maxDuration = 60
 
@@ -20,6 +21,13 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Campaigns (and sending them) are manager/admin/owner-only — see
+  // app/api/campaigns/route.ts for the same gate and why it's needed here.
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ error: 'You don\'t have access to Campaigns.' }, { status: 403 })
+  }
 
   const { campaign_id } = await req.json()
   if (!campaign_id) return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })

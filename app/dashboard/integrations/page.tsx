@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Plug, CheckCircle2, MessageCircle, Zap, AlertCircle,
-  Loader2, ExternalLink, RefreshCw, Unplug, Package, Users, Lock, ShoppingCart, Receipt,
+  Loader2, ExternalLink, RefreshCw, Unplug, Package, Users, Lock, ShoppingCart, Receipt, ShieldAlert,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -76,6 +76,22 @@ function IntegrationsInner() {
   const [clientSecretInput, setClientSecretInput] = useState('')
   const [connectingCustomApp, setConnectingCustomApp] = useState(false)
   const [connectError, setConnectError]       = useState<string | null>(null)
+
+  // Connect/disconnect are owner/admin only server-side (api/shopify/custom-app/connect,
+  // api/shopify/disconnect both 403 anyone else) — this page used to render the full,
+  // seemingly-working connect form and Disconnect button for every role regardless,
+  // so a Sales/Support/Manager teammate could fill it in, hit submit, and only find
+  // out it was never going to work from a 403 toast. Swap for a plain message instead,
+  // same pattern as the Shopify page's own connect CTA.
+  const [canManageShopify, setCanManageShopify] = useState(true)
+  useEffect(() => {
+    fetch('/api/me/role')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { role?: string } | null) => {
+        if (d?.role) setCanManageShopify(d.role === 'owner' || d.role === 'admin')
+      })
+      .catch(() => {})
+  }, [])
 
   interface AbandonedCheckout { id: string; email: string | null; phone: string | null; total_price: number | null; currency: string | null; recovery_url: string | null; abandoned_at: string | null }
   interface ShopifyOrderRow { id: string; order_number: string | null; email: string | null; phone: string | null; total_price: number | null; currency: string | null; financial_status: string | null; fulfillment_status: string | null; shopify_created_at: string | null }
@@ -389,8 +405,9 @@ function IntegrationsInner() {
             </button>
             <button
               onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="flex items-center gap-2 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 px-3 py-2 rounded-xl transition"
+              disabled={disconnecting || !canManageShopify}
+              title={canManageShopify ? undefined : 'Only the account owner or an admin can disconnect Shopify.'}
+              className="flex items-center gap-2 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 px-3 py-2 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {disconnecting
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -400,6 +417,21 @@ function IntegrationsInner() {
           </div>
         </div>
 
+      ) : !canManageShopify ? (
+        // Connect is owner/admin only server-side (api/shopify/custom-app/connect
+        // 403s anyone else) — show a plain, non-actionable message instead of a
+        // form that would always end in a 403 toast for this role.
+        <div id="shopify-connect-form" className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 mb-6 md:mb-8">
+          <div className="flex items-start gap-4">
+            <ShieldAlert className="w-5 h-5 text-slate-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-slate-700">Shopify isn&apos;t connected yet</p>
+              <p className="text-slate-500 text-sm mt-0.5">
+                Ask your account owner or admin to connect your Shopify store — orders, abandoned checkouts, and customers will show up here once it&apos;s linked.
+              </p>
+            </div>
+          </div>
+        </div>
       ) : (
         <div id="shopify-connect-form" className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 mb-6 md:mb-8">
           <div className="flex items-start gap-4 mb-4">
@@ -619,8 +651,9 @@ function IntegrationsInner() {
                   </a>
                   <button
                     onClick={handleDisconnect}
-                    disabled={disconnecting}
-                    className="flex items-center justify-center gap-2 border border-red-200 text-red-500 hover:bg-red-50 text-sm font-medium px-3 py-2.5 rounded-xl transition"
+                    disabled={disconnecting || !canManageShopify}
+                    title={canManageShopify ? undefined : 'Only the account owner or an admin can disconnect Shopify.'}
+                    className="flex items-center justify-center gap-2 border border-red-200 text-red-500 hover:bg-red-50 text-sm font-medium px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {disconnecting
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />

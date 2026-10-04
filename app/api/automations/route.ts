@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { getUserRole } from '@/lib/get-user-role'
 
 // Backs the Automations page — previously loaded (and saved) via direct
 // client-side queries against stores/whatsapp_accounts/automations, all
 // blocked by RLS (USING auth.uid() = user_id, no team-member carve-out)
 // for anyone but the store owner, even though manager/admin roles are
 // explicitly meant to manage automations (see lib/user-role.ts).
+//
+// That RLS gap is fixed below via the service client, but neither verb
+// then checked the caller's *role* at all — only that they were logged
+// in — so a 'member'/'support' teammate (no Automations nav link) could
+// still read and toggle automations by calling this API directly.
 
 async function resolveContext(userId: string) {
   const service = createServiceClient()
@@ -29,6 +35,11 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ error: 'You don\'t have access to Automations.' }, { status: 403 })
+  }
+
   const { service, store, whatsappConnected } = await resolveContext(user.id)
   if (!store) return NextResponse.json({ hasStore: false, whatsappConnected, storeId: null, automations: [] })
 
@@ -40,6 +51,11 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ error: 'You don\'t have access to Automations.' }, { status: 403 })
+  }
 
   const body = await request.json().catch(() => ({})) as Record<string, unknown> & { type?: string }
   if (!body.type) return NextResponse.json({ error: 'type is required' }, { status: 400 })

@@ -424,6 +424,15 @@ function SettingsInner() {
     loadBilling()
   }, [activeTab, loadBilling])
 
+  // Also fetch once on mount, independent of which tab is active — the
+  // Account tab's "{planLabel} plan" line (rendered immediately, before
+  // anyone has necessarily ever clicked into Billing this session) reads
+  // `billing`, which used to stay null until the Billing tab's own effect
+  // above ran. A paid account landing on the default Account tab would see
+  // "Trial plan" — the fallback for a null `billing` — until they happened
+  // to click into Billing at least once.
+  useEffect(() => { loadBilling() }, [loadBilling])
+
   // Filtering the tab BUTTONS isn't enough on its own — a deep link like
   // ?tab=billing sets activeTab before role is even known (see the urlTab
   // effect above), and each tab's content section is gated purely on
@@ -564,6 +573,17 @@ function SettingsInner() {
     const current = store.visible_sections && store.visible_sections.length > 0
       ? store.visible_sections : SIDEBAR_SECTION_KEYS
     const next = current.includes(key) ? current.filter(k => k !== key) : [...current, key]
+    // An empty array is the exact same value lib/sidebar-sections.ts's
+    // resolveVisibleSections() treats as "nothing customized yet — show
+    // everything" (it has to, for every pre-existing account that never set
+    // this column). Saving [] here to mean "hide every section" would
+    // silently flip to the opposite the instant it round-trips through that
+    // function — the sidebar/mobile nav would come back showing all of
+    // them, with nothing telling the user their last uncheck didn't stick.
+    if (next.length === 0) {
+      showToast('At least one section must stay visible', false)
+      return
+    }
     setSavingSectionKey(key)
     const res = await fetch('/api/settings/store', {
       method: 'PATCH',

@@ -180,7 +180,16 @@ function LoginForm() {
         options: { emailRedirectTo: `${getAppUrl()}/auth/callback?next=/onboarding` },
       })
       setLoading(false)
-      if (error) { setError(error.message); return }
+      if (error) {
+        // Same backend-message substitution as app/signup/page.tsx — an SMTP/
+        // email-provider failure shouldn't be shown to the user verbatim.
+        setError(
+          /sending confirmation email/i.test(error.message)
+            ? "We couldn't send your confirmation email right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
+            : error.message
+        )
+        return
+      }
       setSuccess('Account created! Check your email to confirm your address, then sign in.')
       setMode('signin')
       return

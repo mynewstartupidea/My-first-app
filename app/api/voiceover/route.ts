@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Admin-only: this backs the internal ad-creative tool (app/admin/ads), not any
+// dashboard feature. It burns a paid TTS API key per call, so it must be gated
+// the same way the rest of app/api/admin/** is — any authenticated user is not
+// enough, or a regular paying client could hit it directly and run up cost.
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vaibhavsin9574395@gmail.com'
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user || user.email !== ADMIN_EMAIL) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const apiKey = process.env.RUMIK_API_KEY
   if (!apiKey) {

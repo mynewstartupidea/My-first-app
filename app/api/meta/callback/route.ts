@@ -62,10 +62,17 @@ async function processMetaCode(
     console.warn(`[Meta callback] WARNING: storing 60-day user token for user=${userId}. Set META_SYSTEM_USER_ID + META_SYSTEM_USER_ACCESS_TOKEN in Vercel to use permanent tokens.`)
   }
 
-  const service    = createServiceClient()
-  const authClient = await createClient()
+  const service = createServiceClient()
 
-  const { data: storeRows } = await authClient
+  // Service client, not the caller's session client — `userId` here is the
+  // resolved ORG OWNER's id (see processMetaCode's callers below), which for
+  // an admin teammate completing this flow differs from their own auth.uid().
+  // stores' RLS is USING (auth.uid() = user_id), so a session-scoped query
+  // for the owner's store would silently return zero rows for anyone but the
+  // owner themselves, leaving store_id null on the new whatsapp_accounts row
+  // and skipping the stores.whatsapp_number/bsp/api_key update below even
+  // though the WABA connection itself succeeded.
+  const { data: storeRows } = await service
     .from('stores')
     .select('id')
     .eq('user_id', userId)

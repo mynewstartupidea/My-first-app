@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getUserRole } from '@/lib/get-user-role'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { SHOPIFY_PLANS, TRIAL_DAYS, APP_URL, type ShopifyPlanId } from '@/lib/shopify-billing'
 
 function signBillingReturn(shop: string, planId: string): string {
@@ -15,17 +17,29 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Owner/admin only, same tier as every other billing mutation — this created
+  // a real Shopify subscription (a financial action) with no role check at
+  // all, and looked the store up by the CALLER's own user_id rather than the
+  // org owner's — stores is keyed by the owner's id, so an invited Manager
+  // (who has /dashboard/shopify nav access) hitting this matched zero rows
+  // and got a confusing 404 instead of the subscription they asked for.
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin') {
+    return NextResponse.json({ error: 'Only the account owner or an admin can change the billing plan.' }, { status: 403 })
+  }
+
   const body = await request.json() as { planId?: string; shop?: string }
   const plan = PLAN_MAP[body.planId as ShopifyPlanId]
   if (!plan) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
   if (!body.shop) return NextResponse.json({ error: 'Missing shop' }, { status: 400 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { data: store } = await service
     .from('stores')
     .select('id, shopify_access_token')
     .eq('shopify_domain', body.shop)
-    .eq('user_id', user.id)
+    .eq('user_id', ownerId)
     .eq('is_active', true)
     .maybeSingle()
 

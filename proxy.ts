@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createServiceSupabaseClient } from '@supabase/supabase-js'
+import { canAccess, type UserRole } from '@/lib/user-role'
 
 export default async function proxy(request: NextRequest) {
   const host       = request.headers.get('host') ?? ''
@@ -90,6 +92,44 @@ export default async function proxy(request: NextRequest) {
   // ── Redirect logged-in users away from login/signup ───────────────────────
   if (user && (pathname === '/login' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // ── Dashboard role gate (server-side backstop) ─────────────────────────────
+  // canAccess()/ROLE_NAV_ACCESS (lib/user-role.ts) already decide what each role
+  // SEES in every nav surface — components/sidebar.tsx, components/mobile-bottom-nav.tsx,
+  // app/dashboard/more/page.tsx — but none of that propagates to the actual page
+  // components under app/dashboard/**. Without this, a restricted role (e.g.
+  // 'support' or 'manager') could type a hidden route straight into the URL bar
+  // — /dashboard/campaigns, /dashboard/developer, /dashboard/automations,
+  // /dashboard/analytics, /dashboard/templates, /dashboard/integrations,
+  // /dashboard/ai-assistant — and get the full page anyway, fully functional.
+  // Hiding the nav link was cosmetic only; this makes the same canAccess()
+  // decision authoritative, server-side, before any app/dashboard/** page
+  // renders. '/dashboard' and '/dashboard/more' are permanent hub pages (every
+  // nav surface treats them as always-reachable regardless of role), so
+  // they're exempted the same way every other nav surface does.
+  if (user && pathname.startsWith('/dashboard') && pathname !== '/dashboard' && pathname !== '/dashboard/more') {
+    let role: UserRole = 'owner'
+    try {
+      const service = createServiceSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      const { data: member } = await service
+        .from('team_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
+      if (member?.role) role = member.role as UserRole
+    } catch {
+      role = 'owner'
+    }
+
+    if (!canAccess(role, pathname)) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   return supabaseResponse

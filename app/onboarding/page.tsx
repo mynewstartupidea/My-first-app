@@ -712,14 +712,24 @@ function OnboardingContent() {
   function next() {
     const idx = STEPS.indexOf(step)
     if (idx < STEPS.length - 1) {
-      // DoneStep's summary needs the real current value for a lead-gen
-      // account — LeadAutomationsStep writes it via a dedicated route, not
-      // through loadUser's store-scoped queries.
+      // DoneStep's summary needs the real current value right after the
+      // automations step — automationCount in state is still whatever
+      // loadUser saw on page load (0 for every fresh account), and neither
+      // AutomationsStep nor LeadAutomationsStep update it themselves after
+      // saving, so without this the Done screen would claim "None enabled
+      // yet" immediately after someone just enabled some.
       if (step === 'automations' && businessType !== 'ecommerce') {
         fetch('/api/settings/missed-call-followup')
           .then(r => r.json())
           .then((d: { enabled?: boolean }) => setMissedCallFollowupOn(!!d.enabled))
           .catch(() => {})
+      } else if (step === 'automations' && businessType === 'ecommerce' && storeId) {
+        supabase
+          .from('automations')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId)
+          .eq('is_enabled', true)
+          .then(({ count }) => setAutomationCount(count ?? 0))
       }
       setStep(STEPS[idx + 1])
     }

@@ -18,11 +18,18 @@ export const ROLE_NAV_ACCESS: Record<UserRole, string[]> = {
     '/dashboard/templates',
     '/dashboard/shopify',
     '/dashboard/analytics',
+    // Settings itself is role-gated internally (app/dashboard/settings/page.tsx's
+    // OWNER_ONLY_TABS) down to just the Account tab for non-owner/admin roles —
+    // every role still needs to reach the route for that, or the mobile "More"
+    // page (which links to Settings unconditionally for everyone) silently
+    // dead-ends for exactly the roles that landed here without an entry.
+    '/dashboard/settings',
   ],
   support: [
     '/dashboard',
     '/dashboard/live-chat',
     '/dashboard/contacts',
+    '/dashboard/settings',
   ],
   member: [
     '/dashboard',

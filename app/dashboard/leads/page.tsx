@@ -1950,7 +1950,11 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
                     style={{ background: sourceMeta.bg, color: sourceMeta.text }}>
                     <span className="w-1.5 h-1.5 rounded-full" style={{ background: sourceMeta.dot }} />
-                    {sourceMeta.label}{lead.form_name ? ` · ${lead.form_name}` : ''}
+                    {/* Manual/CSV sources (walk_in, referral, channel_partner's
+                        default label, etc.) stamp form_name as a copy of the
+                        same source label — appending it then rendered as e.g.
+                        "Walk-in · Walk-in". Only show it when it adds info. */}
+                    {sourceMeta.label}{lead.form_name && lead.form_name !== sourceMeta.label ? ` · ${lead.form_name}` : ''}
                   </span>
                 )}
                 {hasAttribution && (
@@ -3738,7 +3742,11 @@ function LeadsContent() {
               {noPageLeads.map(lead => {
                 const meta = SOURCE_META[lead.source ?? 'other'] ?? SOURCE_META.other
                 return (
-                  <div key={lead.id} className="flex items-center gap-3 px-4 py-3">
+                  <div
+                    key={lead.id}
+                    onClick={() => setCallLogLead(lead)}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 active:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold">
                       {(lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()}
                     </div>
@@ -3787,6 +3795,18 @@ function LeadsContent() {
             setBanner({ type: 'success', msg: parts.join(', ') })
             fetchNoPageLeads()
           }}
+        />
+      )}
+      {/* Without this, the "Your leads" rows above had nowhere to click
+          through to — this view returns early (no Facebook pages connected
+          yet) and never reached the CallLogModal rendered at the bottom of
+          the main return below, so clicking a lead here did nothing. */}
+      {callLogLead && (
+        <CallLogModal
+          lead={callLogLead}
+          teamMembers={teamMembers}
+          onClose={() => setCallLogLead(null)}
+          onUpdate={handleLeadUpdate}
         />
       )}
       </>

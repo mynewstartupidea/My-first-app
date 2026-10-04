@@ -1,17 +1,30 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { getUserRole } from '@/lib/get-user-role'
 
 // Backs the Templates page's "My Templates" CRUD — previously done via
 // direct client-side queries against `templates`, whose RLS is USING
 // (user_id = auth.uid()) with no team-member carve-out, so a teammate saw
 // a permanently empty list and every clone/save/favorite/archive/delete
 // silently failed (RLS blocks the write, no visible error).
+//
+// Templates is manager/admin/owner-only (lib/user-role.ts) — every verb
+// here previously only checked for a logged-in user, so a 'member'/
+// 'support' teammate (no Templates nav link) could still list, create,
+// edit and delete templates by calling the API directly.
+
+function canManageTemplates(role: string) {
+  return role === 'owner' || role === 'admin' || role === 'manager'
+}
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (!canManageTemplates(role)) return NextResponse.json({ error: 'You don\'t have access to Templates.' }, { status: 403 })
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
@@ -23,6 +36,9 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (!canManageTemplates(role)) return NextResponse.json({ error: 'You don\'t have access to Templates.' }, { status: 403 })
 
   const body = await request.json().catch(() => ({})) as {
     name?: string; body?: string; category?: string; variables?: string[]; is_builtin?: boolean
@@ -51,6 +67,9 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (!canManageTemplates(role)) return NextResponse.json({ error: 'You don\'t have access to Templates.' }, { status: 403 })
+
   const body = await request.json().catch(() => ({})) as { id?: string } & Record<string, unknown>
   if (!body.id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
   const { id, ...updates } = body
@@ -68,6 +87,9 @@ export async function DELETE(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (!canManageTemplates(role)) return NextResponse.json({ error: 'You don\'t have access to Templates.' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')

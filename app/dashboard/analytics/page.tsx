@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import {
   BarChart2, TrendingUp, Target, Trash2,
   Loader2, RefreshCw, Download, Users, CheckCircle2,
@@ -54,6 +55,14 @@ export default function AnalyticsPage() {
   const [range,   setRange]   = useState<Range>('30d')
   const [data,    setData]    = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
+  // This page is pure lead-gen analytics (ad/form attribution) with no
+  // ecommerce metrics at all — fine for a lead-gen account, but an
+  // ecommerce-only account (no Facebook Lead Ads, all its activity is in
+  // Shopify) always lands on an all-zero "No leads" state here, and the
+  // generic empty-state copy below used to tell them to "sync your Facebook
+  // lead forms," which makes no sense for a store that doesn't run lead ads.
+  // Point them at Shopify (where their real numbers live) instead.
+  const [isEcommerce, setIsEcommerce] = useState(false)
 
   const load = useCallback(async (r: Range) => {
     setLoading(true)
@@ -66,6 +75,15 @@ export default function AnalyticsPage() {
   }, [])
 
   useEffect(() => { load(range) }, [load, range])
+
+  useEffect(() => {
+    fetch('/api/settings/store-status')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { store?: { business_type?: string | null } } | null) => {
+        if (d?.store?.business_type === 'ecommerce') setIsEcommerce(true)
+      })
+      .catch(() => {})
+  }, [])
 
   const chartDays = useMemo(() => {
     if (!data) return []
@@ -332,7 +350,14 @@ export default function AnalyticsPage() {
             <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center shadow-sm">
               <BarChart2 size={36} className="text-slate-200 mx-auto mb-3" />
               <p className="font-semibold text-slate-500">No leads in the last {range}</p>
-              <p className="text-slate-400 text-sm mt-1">Sync your Facebook lead forms to get started.</p>
+              {isEcommerce ? (
+                <p className="text-slate-400 text-sm mt-1">
+                  This page tracks Facebook Lead Ads — for orders, revenue, and abandoned checkouts,{' '}
+                  <Link href="/dashboard/shopify" className="text-[#25D366] hover:underline font-medium">see Shopify</Link>.
+                </p>
+              ) : (
+                <p className="text-slate-400 text-sm mt-1">Sync your Facebook lead forms to get started.</p>
+              )}
             </div>
           )}
         </>

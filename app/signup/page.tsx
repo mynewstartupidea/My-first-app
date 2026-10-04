@@ -103,7 +103,19 @@ export default function SignupPage() {
       },
     })
 
-    if (authErr) { setError(authErr.message); setLoading(false); return }
+    if (authErr) {
+      // Supabase's own error for an SMTP/email-provider failure ("Error
+      // sending confirmation email") is a verbatim backend message, not
+      // something a signing-up user can act on — show something they can,
+      // and keep the raw message for every other case.
+      setError(
+        /sending confirmation email/i.test(authErr.message)
+          ? "We couldn't send your confirmation email right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
+          : authErr.message
+      )
+      setLoading(false)
+      return
+    }
 
     // 2. Save profile row (best-effort — may fail if email not confirmed yet in some configs)
     if (data.user) {
