@@ -260,7 +260,7 @@ function LoginForm() {
 
   const titles: Record<Mode, { h: string; sub: string; btn: string }> = {
     signin: { h: 'Welcome back',       sub: 'Sign in to your dashboard',     btn: 'Sign In'            },
-    signup: { h: 'Create your account', sub: 'Start recovering revenue today', btn: 'Create Account'     },
+    signup: { h: 'Create your account', sub: '', btn: 'Create Account'     },
     forgot: { h: 'Reset your password', sub: 'We\'ll email you a code', btn: 'Send code'                 },
   }
   const { h, sub, btn } = titles[mode]

@@ -115,8 +115,7 @@ export default function SignupPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Create your account</h2>
-          <p className="text-slate-500 text-sm mb-6">Start recovering revenue with WhatsApp — free for 14 days</p>
+          <h2 className="text-xl font-bold text-slate-900 mb-6">Create your account</h2>
 
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
@@ -167,8 +166,8 @@ export default function SignupPage() {
                       key={bt.value}
                       type="button"
                       onClick={() => setBusinessType(bt.value)}
-                      className={`flex-1 text-sm font-medium py-2 rounded-lg transition ${
-                        selected ? 'bg-white text-[#128C7E] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      className={`flex-1 text-sm font-semibold py-2 rounded-lg transition ${
+                        selected ? 'bg-[#25D366] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
                       {bt.label}
