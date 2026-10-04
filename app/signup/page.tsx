@@ -4,9 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  MessageCircle, Loader2, AlertCircle,
-  User, Building2, Phone, Users, Mail, Lock, ArrowRight,
-  ShoppingCart, Target, Check,
+  MessageCircle, Loader2, AlertCircle, ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import CustomSelect from '@/components/custom-select'
@@ -24,8 +22,8 @@ const TEAM_SIZES = [
 // store is provisioned. Not a feature gate, and fully changeable later from
 // Settings, so getting it "wrong" here costs nothing.
 const BUSINESS_TYPES = [
-  { value: 'ecommerce' as const, label: 'Ecommerce store', desc: 'I sell products online', icon: ShoppingCart },
-  { value: 'lead_gen'  as const, label: 'Lead generation',  desc: 'I capture & follow up', icon: Target },
+  { value: 'ecommerce' as const, label: 'Ecommerce store' },
+  { value: 'lead_gen'  as const, label: 'Lead generation' },
 ]
 
 function passwordStrength(pw: string): { label: string; color: string; width: string } {
@@ -134,9 +132,7 @@ export default function SignupPage() {
                 mid-word instead of just being a bit snug. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  <User className="w-3 h-3 inline mr-1" />Your name
-                </label>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Your name</label>
                 <input
                   required
                   value={fullName}
@@ -146,9 +142,7 @@ export default function SignupPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  <Building2 className="w-3 h-3 inline mr-1" />Company / Store
-                </label>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Company / Store</label>
                 <input
                   required
                   value={companyName}
@@ -165,29 +159,19 @@ export default function SignupPage() {
                 separate step after signup. */}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">What best describes your business?</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
                 {BUSINESS_TYPES.map(bt => {
-                  const Icon = bt.icon
                   const selected = businessType === bt.value
                   return (
                     <button
                       key={bt.value}
                       type="button"
                       onClick={() => setBusinessType(bt.value)}
-                      className={`relative h-full flex items-center gap-2.5 text-left px-3 py-2.5 rounded-xl border-2 transition ${
-                        selected ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
+                      className={`flex-1 text-sm font-medium py-2 rounded-lg transition ${
+                        selected ? 'bg-white text-[#128C7E] shadow-sm' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      {selected && (
-                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#25D366] flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-white" />
-                        </span>
-                      )}
-                      <Icon className={`w-4 h-4 flex-shrink-0 ${selected ? 'text-[#128C7E]' : 'text-slate-400'}`} />
-                      <div className="min-w-0">
-                        <p className={`text-sm font-semibold leading-tight ${selected ? 'text-[#128C7E]' : 'text-slate-700'}`}>{bt.label}</p>
-                        <p className="text-xs text-slate-400 leading-tight mt-0.5">{bt.desc}</p>
-                      </div>
+                      {bt.label}
                     </button>
                   )
                 })}
@@ -197,9 +181,7 @@ export default function SignupPage() {
             {/* Row 2: Phone + Team size */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  <Phone className="w-3 h-3 inline mr-1" />Phone number
-                </label>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Phone number</label>
                 <input
                   required
                   type="tel"
@@ -210,18 +192,14 @@ export default function SignupPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  <Users className="w-3 h-3 inline mr-1" />Team size
-                </label>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Team size</label>
                 <CustomSelect value={teamSize} onChange={setTeamSize} options={TEAM_SIZES} />
               </div>
             </div>
 
             {/* Email */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                <Mail className="w-3 h-3 inline mr-1" />Work email
-              </label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Work email</label>
               <input
                 required
                 type="email"
@@ -234,9 +212,7 @@ export default function SignupPage() {
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                <Lock className="w-3 h-3 inline mr-1" />Password
-              </label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
               <input
                 required
                 type="password"
@@ -285,10 +261,6 @@ export default function SignupPage() {
             <Link href="/login" className="text-[#25D366] font-medium hover:underline">Sign in</Link>
           </p>
         </div>
-
-        <p className="text-center text-green-200 text-xs mt-5">
-          No credit card required · Free account
-        </p>
       </div>
     </div>
   )
