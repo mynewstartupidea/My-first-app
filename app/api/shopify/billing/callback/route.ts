@@ -104,17 +104,8 @@ export async function GET(request: Request) {
 
   console.log(`[billing/callback] store=${store.id} plan=${planId} status=${dbStatus}`)
 
-  // Route new merchants (no WhatsApp connected yet) through onboarding.
-  // Returning merchants go straight to dashboard.
-  const { data: wa } = await supabase
-    .from('whatsapp_accounts')
-    .select('id')
-    .eq('user_id', store.user_id)
-    .maybeSingle()
-
-  const destination = wa
-    ? `${APP_URL}/dashboard?billing=success&plan=${planId}`
-    : `${APP_URL}/onboarding?billing=success&plan=${planId}`
-
-  return NextResponse.redirect(destination)
+  // There's no onboarding wizard to route new merchants through anymore —
+  // Shopify/WhatsApp connection happens in-app, anytime, from their own
+  // dashboard pages, same as everyone else lands after signup.
+  return NextResponse.redirect(`${APP_URL}/dashboard?billing=success&plan=${planId}`)
 }

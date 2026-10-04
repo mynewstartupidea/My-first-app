@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     company_name?: string
     phone?: string
     team_size?: string
+    business_type?: string
   }
 
   const email = body.email?.trim().toLowerCase()
@@ -30,10 +31,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
   }
 
-  const fullName    = body.full_name?.trim() ?? ''
-  const companyName = body.company_name?.trim() ?? ''
-  const phone       = body.phone?.trim() ?? ''
-  const teamSize    = body.team_size ?? ''
+  const fullName     = body.full_name?.trim() ?? ''
+  const companyName  = body.company_name?.trim() ?? ''
+  const phone        = body.phone?.trim() ?? ''
+  const teamSize     = body.team_size ?? ''
+  // Defaults to lead_gen (same fallback used everywhere else business_type
+  // is read) rather than rejecting the request — this field only picks
+  // which sidebar defaults get applied, never gates a feature, so there's
+  // nothing to validate-and-reject here even if it's missing or malformed.
+  const businessType = body.business_type === 'ecommerce' ? 'ecommerce' : 'lead_gen'
 
   const service = createServiceClient()
   const { data, error } = await service.auth.admin.createUser({
@@ -45,6 +51,7 @@ export async function POST(request: Request) {
       company_name: companyName,
       phone,
       team_size: teamSize,
+      business_type: businessType,
     },
   })
 

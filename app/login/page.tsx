@@ -198,7 +198,7 @@ function LoginForm() {
         setMode('signin')
         return
       }
-      window.location.href = '/onboarding'
+      window.location.href = '/dashboard'
       return
     }
 

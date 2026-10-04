@@ -13,7 +13,6 @@ export default async function proxy(request: NextRequest) {
     pathname === '/login' ||
     pathname === '/signup' ||
     pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/onboarding') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/shopify') ||
     pathname.startsWith('/api/shopify')
@@ -84,7 +83,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   // ── App routes: require any authenticated user ─────────────────────────────
-  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding'))) {
+  if (!user && pathname.startsWith('/dashboard')) {
     const returnTo = request.nextUrl.pathname + request.nextUrl.search
     return NextResponse.redirect(new URL(`/login?returnTo=${encodeURIComponent(returnTo)}`, request.url))
   }

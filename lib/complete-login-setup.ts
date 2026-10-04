@@ -15,6 +15,7 @@
 //    their own store, same as before this existed.
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { DEFAULT_SECTIONS_BY_BUSINESS_TYPE } from '@/lib/sidebar-sections'
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>
 
@@ -110,14 +111,23 @@ async function provisionStore(supabase: ServerSupabaseClient) {
       (user.user_metadata?.company_name as string | undefined) ||
       'My Store'
 
+    // Asked once on the signup form itself (not a separate onboarding step
+    // anymore) — picks which of the two curated section lists below applies
+    // as a starting point. Purely a default: fully editable afterward from
+    // Settings → Sidebar, and never gates a feature either way.
+    const businessType: 'ecommerce' | 'lead_gen' =
+      user.user_metadata?.business_type === 'ecommerce' ? 'ecommerce' : 'lead_gen'
+
     const { data: store } = await supabase
       .from('stores')
       .insert({
-        user_id:      user.id,
-        shop_name:    shopName,
-        is_active:    true,
-        whatsapp_bsp: 'mock',
-        plan:         'starter',
+        user_id:         user.id,
+        shop_name:       shopName,
+        is_active:       true,
+        whatsapp_bsp:    'mock',
+        plan:            'starter',
+        business_type:   businessType,
+        visible_sections: DEFAULT_SECTIONS_BY_BUSINESS_TYPE[businessType],
       })
       .select('id')
       .single()
