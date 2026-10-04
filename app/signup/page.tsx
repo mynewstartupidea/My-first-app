@@ -372,7 +372,7 @@ export default function SignupPage() {
               className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition mt-2"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-              {loading ? 'Creating account…' : 'Create free account'}
+              {loading ? 'Creating account…' : 'Create account'}
             </button>
 
             <p className="text-center text-xs text-slate-400">

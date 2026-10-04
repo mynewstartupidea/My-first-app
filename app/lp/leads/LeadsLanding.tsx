@@ -299,7 +299,7 @@ function GetStarted() {
 
                 <button type="submit" disabled={step === 'submitting'}
                   className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
-                  {step === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Start now <ArrowRight className="w-4 h-4" /></>}
+                  {step === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Create Account <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </form>
               <p className="text-slate-600 text-[11px] text-center mt-4">Secure payment via Razorpay. Billed every 30 days.</p>
