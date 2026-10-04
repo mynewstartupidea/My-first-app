@@ -234,7 +234,7 @@ type FormStep = 'form' | 'submitting' | 'checkout_pending' | 'saved_no_checkout'
 function GetStarted() {
   const [step, setStep] = useState<FormStep>('form')
   const [name, setName] = useState('')
-  const [company, setCompany] = useState('')
+  const [website, setWebsite] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
@@ -248,7 +248,7 @@ function GetStarted() {
     const res = await fetch('/api/landing/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, company, phone, email, source: 'lp_ecommerce' }),
+      body: JSON.stringify({ name, company: website, phone, email, source: 'lp_ecommerce' }),
     })
     const data = await res.json() as {
       leadId?: string; subscriptionId?: string; keyId?: string
@@ -329,7 +329,7 @@ function GetStarted() {
               <form onSubmit={handleSubmit} className="space-y-3">
                 <input required value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
-                <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Store name"
+                <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="Website"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
                 <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
@@ -340,7 +340,7 @@ function GetStarted() {
 
                 <button type="submit" disabled={step === 'submitting'}
                   className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
-                  {step === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Subscribe now <ArrowRight className="w-4 h-4" /></>}
+                  {step === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Start recovering carts <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </form>
               <p className="text-slate-600 text-[11px] text-center mt-4">Secure payment via Razorpay. Billed every 30 days.</p>
