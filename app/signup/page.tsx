@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getAppUrl } from '@/lib/get-app-url'
 import {
-  MessageCircle, Loader2, AlertCircle, CheckCircle2,
+  MessageCircle, Loader2, AlertCircle,
   User, Building2, Phone, Users, Mail, Lock, ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -39,45 +38,8 @@ export default function SignupPage() {
   const [password, setPassword]       = useState('')
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState('')
-  const [done, setDone]               = useState(false)
-  // Confirming via a typed-in code instead of only the email's link — the
-  // link uses PKCE (createBrowserClient defaults to it), which stores its
-  // verification secret in whichever browser/device ran signUp(). Confirmed
-  // live: that secret is a cookie that simply doesn't exist in any other
-  // browser context, so a confirmation link opened on a different
-  // device/browser than the one used to sign up fails outright with no
-  // recovery path — the same issue already fixed for password reset here.
-  const [otpCode, setOtpCode]         = useState('')
-  const [verifying, setVerifying]     = useState(false)
-  const [verifyError, setVerifyError] = useState('')
-  const [resendMsg, setResendMsg]     = useState('')
   const router = useRouter()
   const supabase = createClient()
-
-  async function handleVerifyCode(e: React.FormEvent) {
-    e.preventDefault()
-    setVerifying(true)
-    setVerifyError('')
-    const { error: otpErr } = await supabase.auth.verifyOtp({ email: email.trim(), token: otpCode.trim(), type: 'signup' })
-    if (otpErr) {
-      setVerifying(false)
-      setVerifyError('Invalid or expired code. Double-check it, or resend below.')
-      return
-    }
-    await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
-    setVerifying(false)
-    router.push('/onboarding')
-  }
-
-  async function handleResend() {
-    setVerifying(true)
-    setVerifyError('')
-    setResendMsg('')
-    const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: email.trim() })
-    setVerifying(false)
-    if (resendErr) { setVerifyError(resendErr.message); return }
-    setResendMsg('New code sent — check your email.')
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -88,130 +50,42 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
 
-    // 1. Create auth user with metadata
-    const { data, error: authErr } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: `${getAppUrl()}/auth/callback?next=/onboarding`,
-        data: {
-          full_name:    fullName.trim(),
-          company_name: companyName.trim(),
-          phone:        phone.trim(),
-          team_size:    teamSize,
-        },
-      },
+    // Created server-side (via the admin API, email_confirm: true) instead of
+    // the client-side supabase.auth.signUp() this used to call — that path
+    // depends on Supabase actually being able to send a confirmation email,
+    // which isn't reliable here and shouldn't be able to block someone from
+    // getting an account at all. No email step means no inbox-check screen:
+    // sign them straight into the session this creates instead.
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.trim(),
+        password,
+        full_name: fullName.trim(),
+        company_name: companyName.trim(),
+        phone: phone.trim(),
+        team_size: teamSize,
+      }),
     })
-
-    if (authErr) {
-      // Supabase's own error for an SMTP/email-provider failure ("Error
-      // sending confirmation email") is a verbatim backend message, not
-      // something a signing-up user can act on — show something they can,
-      // and keep the raw message for every other case.
-      setError(
-        /sending confirmation email/i.test(authErr.message)
-          ? "We couldn't send your confirmation email right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
-          : authErr.message
-      )
+    const body = await res.json().catch(() => ({})) as { error?: string }
+    if (!res.ok) {
+      setError(body.error ?? 'Something went wrong creating your account. Please try again.')
       setLoading(false)
       return
     }
 
-    // 2. Save profile row (best-effort — may fail if email not confirmed yet in some configs)
-    if (data.user) {
-      await supabase.from('user_profiles').upsert({
-        id:           data.user.id,
-        full_name:    fullName.trim(),
-        company_name: companyName.trim(),
-        phone:        phone.trim(),
-        team_size:    teamSize,
-        email:        email.trim(),
-      }, { onConflict: 'id' })
-    }
-
-    setLoading(false)
-
-    // If Supabase auto-confirmed the account (email confirmation disabled),
-    // go straight to onboarding. Otherwise show the "check your inbox" screen.
-    if (data.session) {
-      router.push('/onboarding')
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    if (signInErr) {
+      setError('Account created — please sign in.')
+      setLoading(false)
+      router.push('/login')
       return
     }
-    setDone(true)
-  }
 
-  if (done) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4">
-        <div className="w-full max-w-md text-center">
-          <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8 text-left">
-            <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-              <CheckCircle2 className="w-8 h-8 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-3 text-center">Check your inbox!</h2>
-            <p className="text-slate-500 text-sm mb-6 text-center">
-              We emailed a code to <span className="font-semibold text-slate-800">{email}</span> — enter it below to finish setting up your account.
-            </p>
-
-            {verifyError && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" /> {verifyError}
-              </div>
-            )}
-            {resendMsg && (
-              <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3 mb-4">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {resendMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleVerifyCode} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Code from your email</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  required
-                  value={otpCode}
-                  onChange={e => setOtpCode(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-base tracking-[0.3em] text-center font-mono focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition"
-                  placeholder="00000000"
-                  autoFocus
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={verifying}
-                className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {verifying ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</> : 'Verify & continue'}
-              </button>
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={verifying}
-                className="w-full text-xs text-slate-400 hover:text-slate-600 transition disabled:opacity-60"
-              >
-                Didn&apos;t get a code? Resend
-              </button>
-            </form>
-
-            <p className="text-slate-400 text-xs mt-6 text-center">
-              The link in that email works too, as long as you open it on this same device/browser.
-            </p>
-            <div className="text-center mt-4">
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 text-sm text-[#25D366] font-medium hover:underline"
-              >
-                Back to sign in <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
-          <p className="text-green-200 text-xs mt-5 text-center">Didn&apos;t get the email? Check spam or contact support@wapaci.com</p>
-        </div>
-      </div>
-    )
+    await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
+    setLoading(false)
+    router.push('/onboarding')
   }
 
   return (

@@ -175,23 +175,30 @@ function LoginForm() {
     }
 
     if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({
-        email, password,
-        options: { emailRedirectTo: `${getAppUrl()}/auth/callback?next=/onboarding` },
+      // Created server-side (admin API, email_confirm: true) rather than the
+      // client-side supabase.auth.signUp() this used to call — same reasoning
+      // as app/signup/page.tsx: that path depends on Supabase being able to
+      // send a confirmation email, which isn't reliable here. No email step
+      // means no "check your inbox" detour — sign straight in and go.
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
-      setLoading(false)
-      if (error) {
-        // Same backend-message substitution as app/signup/page.tsx — an SMTP/
-        // email-provider failure shouldn't be shown to the user verbatim.
-        setError(
-          /sending confirmation email/i.test(error.message)
-            ? "We couldn't send your confirmation email right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
-            : error.message
-        )
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        setError(body.error ?? 'Something went wrong creating your account. Please try again.')
+        setLoading(false)
         return
       }
-      setSuccess('Account created! Check your email to confirm your address, then sign in.')
-      setMode('signin')
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      setLoading(false)
+      if (error) {
+        setSuccess('Account created — please sign in.')
+        setMode('signin')
+        return
+      }
+      window.location.href = '/onboarding'
       return
     }
 
