@@ -25,7 +25,7 @@ const TEAM_SIZES = [
 // Settings, so getting it "wrong" here costs nothing.
 const BUSINESS_TYPES = [
   { value: 'ecommerce' as const, label: 'Ecommerce store', desc: 'I sell products online', icon: ShoppingCart },
-  { value: 'lead_gen'  as const, label: 'Lead generation',  desc: 'I capture & follow up with leads', icon: Target },
+  { value: 'lead_gen'  as const, label: 'Lead generation',  desc: 'I capture & follow up', icon: Target },
 ]
 
 function passwordStrength(pw: string): { label: string; color: string; width: string } {
@@ -174,21 +174,20 @@ export default function SignupPage() {
                       key={bt.value}
                       type="button"
                       onClick={() => setBusinessType(bt.value)}
-                      className={`relative h-full flex flex-col text-left px-3 py-3 rounded-xl border-2 transition ${
+                      className={`relative h-full flex items-center gap-2.5 text-left px-3 py-2.5 rounded-xl border-2 transition ${
                         selected ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
                       {selected && (
-                        <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[#25D366] flex items-center justify-center">
+                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#25D366] flex items-center justify-center">
                           <Check className="w-2.5 h-2.5 text-white" />
                         </span>
                       )}
-                      <Icon className={`w-5 h-5 mb-1.5 ${selected ? 'text-[#128C7E]' : 'text-slate-400'}`} />
-                      <p className={`text-sm font-semibold ${selected ? 'text-[#128C7E]' : 'text-slate-700'}`}>{bt.label}</p>
-                      {/* min-h reserves room for 2 lines up front — without it, the shorter
-                          one-line description leaves its card visibly shorter than its
-                          sibling's two-line one, breaking the matched-pair look. */}
-                      <p className="text-xs text-slate-400 mt-0.5 leading-snug min-h-[2rem]">{bt.desc}</p>
+                      <Icon className={`w-4 h-4 flex-shrink-0 ${selected ? 'text-[#128C7E]' : 'text-slate-400'}`} />
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold leading-tight ${selected ? 'text-[#128C7E]' : 'text-slate-700'}`}>{bt.label}</p>
+                        <p className="text-xs text-slate-400 leading-tight mt-0.5">{bt.desc}</p>
+                      </div>
                     </button>
                   )
                 })}
