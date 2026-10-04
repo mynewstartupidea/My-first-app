@@ -174,7 +174,7 @@ export default function SignupPage() {
                       key={bt.value}
                       type="button"
                       onClick={() => setBusinessType(bt.value)}
-                      className={`relative text-left px-3 py-3 rounded-xl border-2 transition ${
+                      className={`relative h-full flex flex-col text-left px-3 py-3 rounded-xl border-2 transition ${
                         selected ? 'border-[#25D366] bg-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
@@ -185,7 +185,10 @@ export default function SignupPage() {
                       )}
                       <Icon className={`w-5 h-5 mb-1.5 ${selected ? 'text-[#128C7E]' : 'text-slate-400'}`} />
                       <p className={`text-sm font-semibold ${selected ? 'text-[#128C7E]' : 'text-slate-700'}`}>{bt.label}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 leading-snug">{bt.desc}</p>
+                      {/* min-h reserves room for 2 lines up front — without it, the shorter
+                          one-line description leaves its card visibly shorter than its
+                          sibling's two-line one, breaking the matched-pair look. */}
+                      <p className="text-xs text-slate-400 mt-0.5 leading-snug min-h-[2rem]">{bt.desc}</p>
                     </button>
                   )
                 })}
