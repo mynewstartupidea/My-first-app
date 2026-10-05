@@ -3694,6 +3694,23 @@ function LeadsContent() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  // Before we know whether this account has any Facebook pages connected,
+  // fall through to the full "connected" dashboard below (tabs, stats grid,
+  // Select-page dropdown, a table-area spinner captioned "Pulling in leads
+  // from Facebook Lead Ads") — for the very common case of a brand-new
+  // account with zero pages, that's ~1-2s of Facebook-flavored chrome and
+  // copy shown before it resolves to the real "Connect Facebook / Add lead
+  // manually" screen below, which looks like the wrong page loaded first.
+  // A plain, neutral spinner here avoids asserting anything about Facebook
+  // connection state until fetchPages() has actually answered.
+  if (!pagesLoaded) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      </div>
+    )
+  }
+
   // "Connect Facebook" empty state — only shown after we've confirmed pages is
   // empty. This used to be a hard dead-end with no way to reach the leads
   // list or "Add lead manually" at all (the normal page body below never
