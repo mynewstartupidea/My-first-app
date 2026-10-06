@@ -102,6 +102,13 @@ export async function getLeadForms(pageId: string, pageToken: string, userToken?
 // result MUST check `ok` first: advancing on a failure silently loses every
 // lead submitted during the outage window forever, since the next sync only
 // looks for leads created after the (wrongly-advanced) watermark.
+//
+// `accessLost` is specifically Facebook's own code 190 (OAuthException —
+// the access token is invalid/expired, or the page/app connection was
+// revoked on Facebook's side) — the one failure mode where retrying later
+// won't help and the real fix is reconnecting. Every other failure (rate
+// limit, transient 5xx) leaves it false, since those genuinely do resolve
+// on their own and shouldn't tell someone their connection is broken.
 export async function getFormLeads(
   formId: string,
   pageToken: string,
@@ -109,7 +116,7 @@ export async function getFormLeads(
   limit = 100,
   until?: string | null,
   maxLeads = 2000,
-): Promise<{ leads: FBLead[]; ok: boolean }> {
+): Promise<{ leads: FBLead[]; ok: boolean; accessLost?: boolean }> {
   const all: FBLead[] = []
   const filters: object[] = []
   if (since) filters.push({ field: 'time_created', operator: 'GREATER_THAN', value: Math.floor(new Date(since).getTime() / 1000) })
@@ -120,9 +127,19 @@ export async function getFormLeads(
   if (filters.length) url += `&filtering=${encodeURIComponent(JSON.stringify(filters))}`
 
   let ok = true
+  let accessLost = false
   while (url && all.length < maxLeads) {
     const res = await fetch(url)
-    if (!res.ok) { ok = false; break }
+    if (!res.ok) {
+      ok = false
+      const body = await res.json().catch(() => null) as { error?: { code?: number; type?: string } } | null
+      // code 190 specifically (not just type: 'OAuthException' — Facebook
+      // overloads that type for rate-limit errors too, under different
+      // numeric codes like 4/17/32, which must NOT trigger a reconnect
+      // message since those resolve on their own on the next sync).
+      if (body?.error?.code === 190) accessLost = true
+      break
+    }
     const data = await res.json() as { data?: FBLead[]; paging?: { next?: string } }
     const page = data.data ?? []
     all.push(...page)
@@ -130,7 +147,7 @@ export async function getFormLeads(
     url = data.paging.next
   }
 
-  return { leads: all, ok }
+  return { leads: all, ok, accessLost }
 }
 
 export async function getFBLead(leadId: string, pageToken: string): Promise<FBLead | null> {

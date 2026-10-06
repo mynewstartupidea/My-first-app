@@ -13,7 +13,7 @@ export async function syncFacebookPageLeads(
   service: ServiceClient,
   ownerId: string,
   pageId: string,
-): Promise<{ synced: number; newLeads: number }> {
+): Promise<{ synced: number; newLeads: number; error?: string }> {
   // All connections for this user on this page (handles multiple reconnects)
   const { data: pageConns } = await service
     .from('facebook_connections')
@@ -135,19 +135,28 @@ export async function syncFacebookPageLeads(
     }
   }
 
-  let synced   = 0
-  let newLeads = 0
+  let synced     = 0
+  let newLeads   = 0
+  let accessLost = false
 
   for (const form of forms) {
     const since = form.last_lead_fetch as string | null
 
-    const { leads: fbLeads, ok: fetchOk } = await getFormLeads(form.form_id as string, liveToken, since)
+    const { leads: fbLeads, ok: fetchOk, accessLost: thisFormAccessLost } = await getFormLeads(form.form_id as string, liveToken, since)
     if (!fetchOk) {
       // Fetch actually failed (expired token, rate limit, transient 5xx) —
       // do NOT advance last_lead_fetch, or every lead submitted during this
       // outage is lost forever once the next successful sync only looks
       // for leads created after the watermark.
       console.error(`[facebook-sync] getFormLeads failed for form ${form.form_id}, leaving last_lead_fetch untouched`)
+      // code 190 (OAuthException) specifically means the token/connection
+      // itself is dead, not a one-off blip — every other form on this same
+      // page shares the same token, so one hit is enough to know the whole
+      // page has lost access. Previously this fell straight through to the
+      // generic "{ synced: 0 }" result below, which the UI shows as
+      // "Already up to date" — actively telling someone their connection
+      // is fine when it's actually broken and needs reconnecting.
+      if (thisFormAccessLost) accessLost = true
       continue
     }
     if (!fbLeads.length) {
@@ -252,6 +261,13 @@ export async function syncFacebookPageLeads(
       .from('lead_form_automations')
       .update({ last_lead_fetch: new Date().toISOString() })
       .eq('id', form.id)
+  }
+
+  if (accessLost) {
+    return {
+      synced, newLeads,
+      error: 'You no longer have access to this Facebook page — please reconnect it from Integrations.',
+    }
   }
 
   return { synced, newLeads }
