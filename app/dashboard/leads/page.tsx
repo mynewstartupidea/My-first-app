@@ -3735,7 +3735,18 @@ function LeadsContent() {
   if (pagesLoaded && pages.length === 0) {
     return (
       <>
-      <div className="p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
+      {/* Full-width p-4 md:p-6 lg:p-8 container, no max-w wrapper — matches
+          every other "nothing connected yet" empty state in the app
+          (Shopify, Contacts): a page header up top, then the centered hero
+          content free to use the actual available width instead of being
+          squeezed into a narrow fixed column that looks stretched/off next
+          to those other pages. */}
+      <div className="p-4 md:p-6 lg:p-8 space-y-5">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Lead Ads</h1>
+          <p className="text-gray-400 text-sm mt-0.5">0 pages connected</p>
+        </div>
+
         {banner && (
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm ${banner.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
             {banner.type === 'success' ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
