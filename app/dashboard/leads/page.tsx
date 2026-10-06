@@ -2300,11 +2300,16 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
   const [search,    setSearch]    = useState('')
 
   const load = useCallback(async () => {
-    if (!pageId) return
     setLoading(true)
     const p = new URLSearchParams({ sort: 'followup_all', limit: '500' })
-    if (selectedFormId !== 'all' && selectedFormId !== '__forms') p.set('form_id', selectedFormId)
-    else p.set('page_id', pageId)
+    // pageId is null for an account with no Facebook pages connected at all
+    // (the empty-state screen's own Follow-ups tab) — omitting page_id/form_id
+    // entirely makes the backend return every one of the owner's leads
+    // regardless of source, same as fetchNoPageLeads already relies on.
+    if (pageId) {
+      if (selectedFormId !== 'all' && selectedFormId !== '__forms') p.set('form_id', selectedFormId)
+      else p.set('page_id', pageId)
+    }
     const r = await fetch(`/api/facebook/leads?${p}`)
     const d = await r.json() as { leads?: Lead[] }
     const loaded = d.leads ?? []
@@ -3382,15 +3387,22 @@ function LeadsContent() {
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch follow-up urgent count (overdue + today) — used for the tab badge
+  // Fetch follow-up urgent count (overdue + today) — used for the tab badge.
+  // Also runs with no page_id at all once we've confirmed there are zero
+  // Facebook pages connected (pages.length === 0) — that's the no-pages
+  // empty state's own Follow-ups tab, which needs the same badge count
+  // across every lead regardless of source. Skipped while pages.length > 0
+  // but selectedPageId hasn't been picked yet (still initializing).
   useEffect(() => {
-    if (!selectedPageId) return
-    const p = new URLSearchParams({ sort: 'followup_due', limit: '1', page_id: selectedPageId })
+    if (!pagesLoaded) return
+    if (pages.length > 0 && !selectedPageId) return
+    const p = new URLSearchParams({ sort: 'followup_due', limit: '1' })
+    if (selectedPageId) p.set('page_id', selectedPageId)
     fetch(`/api/facebook/leads?${p}`)
       .then(r => r.json() as Promise<{ total?: number }>)
       .then(d => setFollowupUrgentCount(d.total ?? 0))
       .catch(() => {})
-  }, [selectedPageId])
+  }, [selectedPageId, pagesLoaded, pages.length])
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -3750,36 +3762,76 @@ function LeadsContent() {
         </div>
 
         {noPageLeadsLoaded && noPageLeads.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h3 className="text-sm font-semibold text-gray-800">Your leads</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Not from Facebook — added manually, via CSV, or your website form</p>
+          <>
+            {/* Follow-up date-setting already worked for any lead (via the
+                same CallLogModal opened below), but with zero Facebook pages
+                connected there was no way to see WHICH leads were due —
+                that view only ever existed inside the page-scoped dashboard
+                below, so an ecommerce account (or any account that never
+                connects Facebook) had no Follow-ups view at all. */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveView('leads')}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition ${
+                  activeView !== 'followups' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                Your leads
+              </button>
+              <button
+                onClick={() => setActiveView('followups')}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition ${
+                  activeView === 'followups' ? 'bg-amber-500 text-white border-amber-500' : 'bg-amber-50 border-amber-200 text-amber-700 hover:border-amber-300'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" /> Follow-ups
+                {followupUrgentCount > 0 && (
+                  <span className={`min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold leading-none ${
+                    activeView === 'followups' ? 'bg-white/25 text-white' : 'bg-red-500 text-white'
+                  }`}>
+                    {followupUrgentCount > 99 ? '99+' : followupUrgentCount}
+                  </span>
+                )}
+              </button>
             </div>
-            <div className="divide-y divide-gray-50">
-              {noPageLeads.map(lead => {
-                const meta = SOURCE_META[lead.source ?? 'other'] ?? SOURCE_META.other
-                return (
-                  <div
-                    key={lead.id}
-                    onClick={() => setCallLogLead(lead)}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 active:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold">
-                      {(lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{lead.name ?? lead.phone ?? 'Unknown'}</p>
-                      {lead.phone && lead.name && <p className="text-xs text-gray-400 truncate">{lead.phone}</p>}
-                    </div>
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: meta.bg, color: meta.text }}>
-                      {meta.label}
-                    </span>
-                    <span className="text-[11px] text-gray-300 flex-shrink-0 hidden sm:inline">{timeAgo(lead.created_at)}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+
+            {activeView === 'followups' ? (
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                <FollowUpsView pageId={null} selectedFormId="all" onCallLog={lead => setCallLogLead(lead)} />
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="text-sm font-semibold text-gray-800">Your leads</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Not from Facebook — added manually, via CSV, or your website form</p>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {noPageLeads.map(lead => {
+                    const meta = SOURCE_META[lead.source ?? 'other'] ?? SOURCE_META.other
+                    return (
+                      <div
+                        key={lead.id}
+                        onClick={() => setCallLogLead(lead)}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 active:bg-slate-100 transition-colors cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold">
+                          {(lead.name ?? lead.phone ?? '?').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{lead.name ?? lead.phone ?? 'Unknown'}</p>
+                          {lead.phone && lead.name && <p className="text-xs text-gray-400 truncate">{lead.phone}</p>}
+                        </div>
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: meta.bg, color: meta.text }}>
+                          {meta.label}
+                        </span>
+                        <span className="text-[11px] text-gray-300 flex-shrink-0 hidden sm:inline">{timeAgo(lead.created_at)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
       {pendingPages.length > 0 && (
