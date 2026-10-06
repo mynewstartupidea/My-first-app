@@ -9,7 +9,7 @@ import {
   AlertCircle, ExternalLink, Trash2, Info, ChevronDown, ChevronUp,
   CreditCard, Users, Shield,
   UserPlus, Mail, Lock, RefreshCw, XCircle, ArrowUpRight,
-  BarChart2, Phone, Target, LayoutDashboard,
+  BarChart2, Phone, Target, LayoutDashboard, Pencil, X,
 } from 'lucide-react'
 import { SIDEBAR_SECTIONS, SIDEBAR_SECTION_KEYS } from '@/lib/sidebar-sections'
 import type { UserRole } from '@/lib/user-role'
@@ -107,6 +107,7 @@ function SettingsInner() {
   const [waNumber, setWaNumber]               = useState('')
   const [waApiKey, setWaApiKey]               = useState('')
   const [storeNameEdit, setStoreNameEdit]     = useState('')
+  const [editingName, setEditingName]         = useState(false)
   const [showGuide, setShowGuide]             = useState(false)
 
   // WhatsApp test message
@@ -555,6 +556,7 @@ function SettingsInner() {
         return
       }
       setStore(prev => prev ? { ...prev, shop_name: storeNameEdit.trim() } : prev)
+      setEditingName(false)
       showToast('Store name saved!')
       router.refresh()  // re-renders server components (sidebar footer shows this name) so it updates immediately
     } catch {
@@ -1169,29 +1171,48 @@ function SettingsInner() {
         </h2>
 
         {store ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <div>
-                <p className="font-semibold text-green-800">{store.shop_name ?? 'My Workspace'}</p>
-                <p className="text-green-500 text-xs mt-0.5">
-                  Active since {store.connected_at
-                    ? new Date(store.connected_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : 'today'}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Workspace display name</label>
-              <div className="flex gap-2">
-                <input value={storeNameEdit} onChange={e => setStoreNameEdit(e.target.value)} placeholder="My Business"
-                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
-                <button onClick={saveStoreName} disabled={savingStore || !storeNameEdit.trim()}
-                  className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition">
-                  {savingStore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
-                </button>
-              </div>
+          <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              {editingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    value={storeNameEdit}
+                    onChange={e => setStoreNameEdit(e.target.value)}
+                    placeholder="My Business"
+                    autoFocus
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') saveStoreName()
+                      if (e.key === 'Escape') { setStoreNameEdit(store.shop_name ?? ''); setEditingName(false) }
+                    }}
+                    className="flex-1 min-w-0 px-3 py-1.5 bg-white border border-green-300 rounded-lg text-base font-semibold text-green-800 focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                  />
+                  <button onClick={saveStoreName} disabled={savingStore || !storeNameEdit.trim()}
+                    title="Save"
+                    className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition">
+                    {savingStore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  </button>
+                  <button onClick={() => { setStoreNameEdit(store.shop_name ?? ''); setEditingName(false) }} disabled={savingStore}
+                    title="Cancel"
+                    className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 rounded-lg transition">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <p className="font-semibold text-green-800 truncate">{store.shop_name ?? 'My Workspace'}</p>
+                  <button onClick={() => { setStoreNameEdit(store.shop_name ?? ''); setEditingName(true) }}
+                    title="Edit workspace name"
+                    className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-green-600/70 hover:text-green-700 hover:bg-green-100 transition opacity-70 group-hover:opacity-100">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              <p className="text-green-500 text-xs mt-0.5">
+                Active since {store.connected_at
+                  ? new Date(store.connected_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : 'today'}
+              </p>
             </div>
           </div>
         ) : (
