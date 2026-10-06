@@ -121,6 +121,32 @@ export async function GET(request: Request) {
         error_message: 'Monthly message limit reached.',
       }).eq('id', job.id)
       failed++
+
+      // automation_jobs.error_message has no UI anywhere that reads it — a
+      // merchant whose automation silently stopped sending had zero way to
+      // find out why. Surface it as a notification instead, deduped to once
+      // per owner per day so every subsequent blocked job this tick (and
+      // every tick after, until the plan is upgraded) doesn't queue a
+      // duplicate.
+      if (ownerId) {
+        const today = new Date().toISOString().split('T')[0]
+        const { count: alreadyNotified } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', ownerId)
+          .eq('type', 'quota_reached')
+          .gte('created_at', `${today}T00:00:00.000Z`)
+        if (!alreadyNotified) {
+          await supabase.from('notifications').insert({
+            user_id: ownerId,
+            type:    'quota_reached',
+            title:   '⚠️ Monthly message limit reached',
+            body:    "Your WhatsApp automations have paused because you hit your plan's monthly message limit. Upgrade your plan to keep sending.",
+            link:    '/dashboard/settings?tab=billing',
+            is_read: false,
+          })
+        }
+      }
       continue
     }
 

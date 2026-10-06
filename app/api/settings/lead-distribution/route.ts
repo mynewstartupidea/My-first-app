@@ -53,6 +53,9 @@ export async function PATCH(request: Request) {
     .update(updates)
     .eq('id', org.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[settings/lead-distribution] save failed:', error.message)
+    return NextResponse.json({ error: "Couldn't save your lead distribution settings — please try again." }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

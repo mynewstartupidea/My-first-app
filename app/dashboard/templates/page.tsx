@@ -551,7 +551,17 @@ export default function TemplatesPage() {
   const loadSaved = useCallback(async () => {
     setLoadingSaved(true)
     const res = await fetch('/api/templates')
-    const data = res.ok ? await res.json() as { templates: SavedTemplate[] } : { templates: [] }
+    if (!res.ok) {
+      // Previously fell back to an empty list on any failure (expired
+      // session, server error) — indistinguishable from a merchant who
+      // genuinely has zero templates, hiding that the load actually failed.
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't load your templates. Please refresh the page.", false)
+      setSaved([])
+      setLoadingSaved(false)
+      return
+    }
+    const data = await res.json() as { templates: SavedTemplate[] }
     setSaved(data.templates)
     setLoadingSaved(false)
   }, [])
@@ -582,7 +592,11 @@ export default function TemplatesPage() {
       }),
     })
     setCloning(null)
-    if (!res.ok) { showToast('Failed to clone template', false); return }
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't clone this template. Please try again.", false)
+      return
+    }
     showToast('Cloned! Now in My Templates.')
     setChip('my_templates')
     loadSaved()
@@ -599,30 +613,57 @@ export default function TemplatesPage() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, body, category, variables: vars }),
         })
-    if (!res.ok) { showToast('Failed to save', false); return }
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't save this template. Please try again.", false)
+      return
+    }
     showToast(editTarget?.id ? 'Template updated!' : 'Template saved!')
     setShowModal(false); setEditTarget(undefined); loadSaved()
   }
 
   async function toggleFavorite(id: string, val: boolean) {
-    await fetch('/api/templates', {
+    // Previously applied this to local state unconditionally with no check
+    // at all — a failed save (expired session, dropped connection) still
+    // showed the star as toggled even though it was never actually saved,
+    // and the next page load would silently revert it.
+    const res = await fetch('/api/templates', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, is_favorite: val }),
     })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't update this template. Please try again.", false)
+      return
+    }
     setSaved(prev => prev.map(t => t.id === id ? { ...t, is_favorite: val } : t))
   }
 
   async function toggleArchive(id: string, val: boolean) {
-    await fetch('/api/templates', {
+    const res = await fetch('/api/templates', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, is_archived: val }),
     })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't update this template. Please try again.", false)
+      return
+    }
     setSaved(prev => prev.map(t => t.id === id ? { ...t, is_archived: val } : t))
   }
 
   async function deleteTemplate(id: string) {
     if (!confirm('Delete this template? This cannot be undone.')) return
-    await fetch(`/api/templates?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    // Previously removed the row from local state unconditionally — a
+    // failed delete (permission revoked mid-session, network error) still
+    // made the template disappear from the list as if it had been deleted,
+    // while it was still sitting in the database.
+    const res = await fetch(`/api/templates?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't delete this template. Please try again.", false)
+      return
+    }
     setSaved(prev => prev.filter(t => t.id !== id))
     showToast('Template deleted')
   }

@@ -28,7 +28,11 @@ export async function GET() {
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
-  const { data } = await service.from('templates').select('*').eq('user_id', ownerId).order('created_at', { ascending: false })
+  const { data, error } = await service.from('templates').select('*').eq('user_id', ownerId).order('created_at', { ascending: false })
+  if (error) {
+    console.error('[templates/list] query error:', error.message)
+    return NextResponse.json({ error: "Couldn't load your templates right now. Please refresh the page." }, { status: 500 })
+  }
   return NextResponse.json({ templates: data ?? [] })
 }
 
@@ -58,7 +62,10 @@ export async function POST(request: Request) {
     is_builtin: body.is_builtin ?? false,
   }).select('*').single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[templates/create] insert error:', error.message)
+    return NextResponse.json({ error: "Couldn't save this template. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ template: data })
 }
 
@@ -79,7 +86,10 @@ export async function PATCH(request: Request) {
   const { data, error } = await service.from('templates').update(updates)
     .eq('id', id).eq('user_id', ownerId).select('*').single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[templates/update] update error:', error.message)
+    return NextResponse.json({ error: "Couldn't update this template. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ template: data })
 }
 
@@ -99,6 +109,9 @@ export async function DELETE(request: Request) {
   const ownerId = await resolveOwnerUserId(service, user.id)
   const { error } = await service.from('templates').delete().eq('id', id).eq('user_id', ownerId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[templates/delete] delete error:', error.message)
+    return NextResponse.json({ error: "Couldn't delete this template. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

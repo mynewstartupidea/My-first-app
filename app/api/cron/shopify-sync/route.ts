@@ -70,7 +70,7 @@ export async function GET(request: Request) {
 
   const { data: jobs } = await service
     .from('shopify_sync_jobs')
-    .select(`*, stores(shopify_domain, shopify_connection_type, shopify_client_id, shopify_client_secret_enc, shopify_access_token_enc, shopify_token_expires_at, id)`)
+    .select(`*, stores(shopify_domain, shopify_connection_type, shopify_client_id, shopify_client_secret_enc, shopify_access_token_enc, shopify_token_expires_at, id, user_id)`)
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(JOBS_PER_TICK)
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
     processed++
 
     const store = job.stores as {
-      id: string; shopify_domain: string | null; shopify_connection_type: string | null
+      id: string; user_id: string; shopify_domain: string | null; shopify_connection_type: string | null
       shopify_client_id: string | null; shopify_client_secret_enc: string | null
       shopify_access_token_enc: string | null; shopify_token_expires_at: string | null
     } | null
@@ -137,7 +137,36 @@ export async function GET(request: Request) {
         error_message: message,
         updated_at: new Date().toISOString(),
       }).eq('id', job.id)
-      if (attempts >= MAX_ATTEMPTS) failed++
+      if (attempts >= MAX_ATTEMPTS) {
+        failed++
+        // This cron has no UI of its own, and the dashboard's Shopify page
+        // never reads shopify_sync_jobs.error_message — a store that looked
+        // "connected" could have its orders/inventory/products silently
+        // stuck mid-backfill forever with nothing anywhere telling the
+        // merchant it had given up retrying. Surface it as a notification,
+        // deduped per store+resource per day so retries within the same
+        // day across ticks don't pile up duplicates.
+        if (store?.user_id) {
+          const today = new Date().toISOString().split('T')[0]
+          const { count: alreadyNotified } = await service
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', store.user_id)
+            .eq('type', 'shopify_sync_failed')
+            .eq('link', `/dashboard/shopify?resource=${job.resource}`)
+            .gte('created_at', `${today}T00:00:00.000Z`)
+          if (!alreadyNotified) {
+            await service.from('notifications').insert({
+              user_id: store.user_id,
+              type:    'shopify_sync_failed',
+              title:   `⚠️ Shopify ${job.resource} sync failed`,
+              body:    `We couldn't sync your Shopify ${job.resource} after several attempts (${message}). Try reconnecting Shopify from Settings if this continues.`,
+              link:    `/dashboard/shopify?resource=${job.resource}`,
+              is_read: false,
+            })
+          }
+        }
+      }
       console.error(`[shopify-sync cron] job ${job.id} (${job.resource}) error:`, message)
     }
   }

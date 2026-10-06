@@ -17,6 +17,6 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(1000)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: `Couldn't load landing_leads: ${error.message}` }, { status: 500 })
   return NextResponse.json({ leads: leads ?? [] })
 }

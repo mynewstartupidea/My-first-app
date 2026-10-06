@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
   if (error) {
     console.error('[Support] insert failed:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: "Couldn't submit your support request — please try again." }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })
@@ -59,6 +59,9 @@ export async function GET() {
 
   const { data, error } = await query.limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[Support] list failed:', error.message)
+    return NextResponse.json({ error: "Couldn't load your support tickets — please try again." }, { status: 500 })
+  }
   return NextResponse.json({ tickets: data ?? [] })
 }

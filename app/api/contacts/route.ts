@@ -39,7 +39,7 @@ export async function GET() {
 
   if (error) {
     console.error('[contacts/list] query error:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: "Couldn't load your contacts right now. Please refresh the page." }, { status: 500 })
   }
 
   console.log(`[contacts/list] store=${store.id} contacts=${contacts?.length ?? 0}`)

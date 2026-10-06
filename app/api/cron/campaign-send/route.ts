@@ -114,6 +114,30 @@ export async function GET(request: Request) {
         .update({ status: 'skipped', error_message: 'Monthly message limit reached' })
         .eq('id', recipient.id)
       skippedQuota++
+
+      // Same gap as app/api/cron/route.ts: campaign_recipients.error_message
+      // has no UI surface, so a campaign silently stalling partway through
+      // because the owner hit their plan limit was invisible. Shares the
+      // same notification type/dedup window as the automation cron — one
+      // "limit reached" alert per owner per day regardless of which cron
+      // hit it first.
+      const today = new Date().toISOString().split('T')[0]
+      const { count: alreadyNotified } = await service
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', ownerId)
+        .eq('type', 'quota_reached')
+        .gte('created_at', `${today}T00:00:00.000Z`)
+      if (!alreadyNotified) {
+        await service.from('notifications').insert({
+          user_id: ownerId,
+          type:    'quota_reached',
+          title:   '⚠️ Monthly message limit reached',
+          body:    "Your WhatsApp campaign has paused because you hit your plan's monthly message limit. Upgrade your plan to keep sending.",
+          link:    '/dashboard/settings?tab=billing',
+          is_read: false,
+        })
+      }
       continue
     }
 

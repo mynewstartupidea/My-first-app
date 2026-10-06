@@ -6,7 +6,7 @@ import {
   Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
   Tag, ChevronDown, MoreVertical, Inbox, Circle, AlertTriangle, ChevronLeft,
-  Sparkles, Trash2,
+  Sparkles, Trash2, CheckCircle2, AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
@@ -196,7 +196,13 @@ export default function LiveChatPage() {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleting, setDeleting]         = useState(false)
+  const [toast, setToast]               = useState<{ msg: string; ok: boolean } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const showToast = useCallback((msg: string, ok = true) => {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 4500)
+  }, [])
 
   // AI on/off is owner/admin only (same tier as billing) — a rep or manager
   // never sees the button, and the API would 403 them anyway if they tried.
@@ -218,18 +224,25 @@ export default function LiveChatPage() {
     if (aiToggling) return
     setAiToggling(true)
     const next = !aiEnabled
-    const res = await fetch('/api/ai/toggle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: next }),
-    })
-    const data = await res.json().catch(() => ({})) as { enabled?: boolean; error?: string }
-    if (res.ok) {
-      setAiEnabled(data.enabled ?? next)
-    } else if (data.error === 'needs_knowledge_base') {
-      router.push('/dashboard/ai-assistant?needsInfo=1')
+    try {
+      const res = await fetch('/api/ai/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      })
+      const data = await res.json().catch(() => ({})) as { enabled?: boolean; error?: string }
+      if (res.ok) {
+        setAiEnabled(data.enabled ?? next)
+      } else if (data.error === 'needs_knowledge_base') {
+        router.push('/dashboard/ai-assistant?needsInfo=1')
+      } else {
+        showToast(`Couldn't turn AI auto-reply ${next ? 'on' : 'off'} — please try again.`, false)
+      }
+    } catch {
+      showToast(`Couldn't turn AI auto-reply ${next ? 'on' : 'off'} — check your connection and try again.`, false)
+    } finally {
+      setAiToggling(false)
     }
-    setAiToggling(false)
   }
 
   // Both of these go through server routes (resolved to the org owner)
@@ -239,25 +252,39 @@ export default function LiveChatPage() {
   // of the org's real chat history.
   const loadThreads = useCallback(async () => {
     setLoading(true)
-    const res = await fetch('/api/live-chat/threads')
-    if (!res.ok) { setLoading(false); return }
-    const data = await res.json() as { storeId: string | null; threads: Thread[] }
-    if (!data.storeId) { setLoading(false); return }
-    setStoreId(data.storeId)
-    setThreads(data.threads)
-    setLoading(false)
-  }, [])
+    try {
+      const res = await fetch('/api/live-chat/threads')
+      if (!res.ok) {
+        showToast("Couldn't load your conversations — refresh the page to try again.", false)
+        return
+      }
+      const data = await res.json() as { storeId: string | null; threads: Thread[] }
+      if (!data.storeId) return
+      setStoreId(data.storeId)
+      setThreads(data.threads)
+    } catch {
+      showToast("Couldn't load your conversations — check your connection and try again.", false)
+    } finally {
+      setLoading(false)
+    }
+  }, [showToast])
 
   const loadThread = useCallback(async (phone: string) => {
     if (!storeId) return
     setLoadingThread(true)
-    const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(phone)}`)
-    const data = res.ok ? await res.json() as { messages: ChatMsg[]; customer: Customer | null } : { messages: [], customer: null }
-    setMessages(data.messages)
-    setCustomer(data.customer)
-    setLoadingThread(false)
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-  }, [storeId])
+    try {
+      const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(phone)}`)
+      const data = res.ok ? await res.json() as { messages: ChatMsg[]; customer: Customer | null } : { messages: [], customer: null }
+      if (!res.ok) showToast("Couldn't load this conversation — please try again.", false)
+      setMessages(data.messages)
+      setCustomer(data.customer)
+    } catch {
+      showToast("Couldn't load this conversation — check your connection and try again.", false)
+    } finally {
+      setLoadingThread(false)
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    }
+  }, [storeId, showToast])
 
   useEffect(() => { loadThreads() }, [loadThreads])
   useEffect(() => { if (selected) loadThread(selected) }, [selected, loadThread])
@@ -265,40 +292,70 @@ export default function LiveChatPage() {
   async function sendReply() {
     if (!reply.trim() || !selected || sending) return
     setSending(true)
-    // /api/live-chat/send — a dedicated route (was /api/whatsapp/test, which
-    // always sends a fixed hello_world template and silently ignored the
-    // typed message; fine for Settings' "send yourself a test", wrong here).
-    const res = await fetch('/api/live-chat/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: selected, message: reply.trim() }),
-    })
-    if (res.ok) { setReply(''); await loadThread(selected); await loadThreads() }
-    setSending(false)
+    try {
+      // /api/live-chat/send — a dedicated route (was /api/whatsapp/test, which
+      // always sends a fixed hello_world template and silently ignored the
+      // typed message; fine for Settings' "send yourself a test", wrong here).
+      const res = await fetch('/api/live-chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: selected, message: reply.trim() }),
+      })
+      if (res.ok) {
+        setReply(''); await loadThread(selected); await loadThreads()
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't send your message — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't send your message — check your connection and try again.", false)
+    } finally {
+      setSending(false)
+    }
   }
 
   const handleTag = async (phone: string, status: LeadStatus | null) => {
-    // Optimistically update local state
+    // Optimistically update local state — reverted below if the save fails.
+    const prevTag = threads.find(t => t.phone === phone)?.tag ?? null
     setThreads(prev => prev.map(t => t.phone === phone ? { ...t, tag: status } : t))
     setTagDropdownOpen(false)
-    await fetch('/api/live-chat/tags', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, status }),
-    })
+    try {
+      const res = await fetch('/api/live-chat/tags', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, status }),
+      })
+      if (!res.ok) {
+        setThreads(prev => prev.map(t => t.phone === phone ? { ...t, tag: prevTag } : t))
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't save this tag — please try again.", false)
+      }
+    } catch {
+      setThreads(prev => prev.map(t => t.phone === phone ? { ...t, tag: prevTag } : t))
+      showToast("Couldn't save this tag — check your connection and try again.", false)
+    }
   }
 
   async function handleDeleteThread() {
     if (!selected || deleting) return
     setDeleting(true)
-    const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(selected)}`, { method: 'DELETE' })
-    setDeleting(false)
-    if (!res.ok) return
-    setThreads(prev => prev.filter(t => t.phone !== selected))
-    setDeleteConfirmOpen(false)
-    setSelected(null)
-    setMessages([])
-    setCustomer(null)
+    try {
+      const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(selected)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't delete this conversation — please try again.", false)
+        return
+      }
+      setThreads(prev => prev.filter(t => t.phone !== selected))
+      setDeleteConfirmOpen(false)
+      setSelected(null)
+      setMessages([])
+      setCustomer(null)
+    } catch {
+      showToast("Couldn't delete this conversation — check your connection and try again.", false)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const selectedThread = threads.find(t => t.phone === selected)
@@ -314,6 +371,15 @@ export default function LiveChatPage() {
 
   return (
     <>
+    {toast && (
+      <div className={cn(
+        'fixed top-4 left-4 right-4 sm:left-auto sm:top-5 sm:right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-medium sm:max-w-sm',
+        toast.ok ? 'bg-[#25D366] text-white' : 'bg-red-500 text-white'
+      )}>
+        {toast.ok ? <CheckCircle2 size={16} className="flex-shrink-0" /> : <AlertCircle size={16} className="flex-shrink-0" />}
+        {toast.msg}
+      </div>
+    )}
     {deleteConfirmOpen && selectedThread && (
       <DeleteChatModal
         name={selectedThread.name ?? selectedThread.phone}

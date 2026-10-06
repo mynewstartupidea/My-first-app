@@ -43,12 +43,19 @@ export default function LandingLeadsPage() {
   const [search, setSearch]   = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | LandingLead['payment_status']>('all')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     const res = await fetch('/api/admin/landing-leads')
     if (!res.ok) {
       if (res.status === 403) { router.replace('/admin/login'); return }
+      // Used to fail completely silently here — the page would just sit on
+      // an empty "No leads match" state forever with zero indication the
+      // fetch had actually failed.
+      const body = await res.json().catch(() => ({}))
+      setLoadError(body.error ?? `Couldn't load leads (HTTP ${res.status}). Try refreshing.`)
       setLoading(false)
       return
     }
@@ -112,7 +119,12 @@ export default function LandingLeadsPage() {
           />
         </div>
 
-        {loading ? (
+        {loadError ? (
+          <div className="text-center py-24">
+            <p className="text-red-400 text-sm mb-3">{loadError}</p>
+            <button onClick={load} className="text-xs text-[#25D366] hover:underline">Retry</button>
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
           </div>

@@ -88,8 +88,10 @@ export async function DELETE(request: Request) {
     service.from('messages').delete().eq('store_id', store.id).eq('customer_phone', phone),
     service.from('inbound_messages').delete().eq('store_id', store.id).eq('from_phone', phone),
   ])
-  if (outRes.error) return NextResponse.json({ error: outRes.error.message }, { status: 500 })
-  if (inRes.error) return NextResponse.json({ error: inRes.error.message }, { status: 500 })
+  if (outRes.error || inRes.error) {
+    console.error('[live-chat/thread] delete failed:', outRes.error?.message, inRes.error?.message)
+    return NextResponse.json({ error: "Couldn't delete this conversation — please try again." }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -30,6 +30,7 @@ export async function POST(request: Request) {
 
   let activated = 0
   let synced    = 0
+  const errors: string[] = []
 
   for (const conn of pending ?? []) {
     if (!selectedPageIds.has(conn.page_id as string)) {
@@ -73,10 +74,18 @@ export async function POST(request: Request) {
     try {
       const result = await syncFacebookPageLeads(service, ownerId, conn.page_id as string)
       synced += result.synced
+      // syncFacebookPageLeads reports access-lost (and other sync problems)
+      // as a normal returned `error` field, not a thrown exception — this
+      // catch block only ever saw real exceptions, so that error was
+      // silently dropped and the response still said "ok: true, activated: N"
+      // even when the page the merchant just picked couldn't actually be
+      // synced at all.
+      if (result.error) errors.push(result.error)
     } catch (e) {
       console.error(`[Facebook select] initial sync failed for page ${conn.page_id}:`, e)
+      errors.push(`Could not fetch leads for "${conn.page_name}" right now. Try refreshing from the Leads page in a moment.`)
     }
   }
 
-  return NextResponse.json({ ok: true, activated, synced })
+  return NextResponse.json({ ok: true, activated, synced, errors: errors.length ? errors : undefined })
 }

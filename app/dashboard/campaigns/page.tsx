@@ -1008,12 +1008,21 @@ function CampaignsContent() {
     // USING (auth.uid() = user_id) with no team-member carve-out, so a
     // teammate got "no store" here regardless of the org's real setup.
     const res = await fetch('/api/campaigns/dashboard')
-    const data = res.ok ? await res.json() as {
+    if (!res.ok) {
+      // Previously treated any failure (expired session, server error) the
+      // same as "no Shopify store connected" — showing the connect-a-store
+      // empty state hid the real reason the page didn't load.
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't load your campaigns. Please refresh the page.", false)
+      setLoading(false)
+      return
+    }
+    const data = await res.json() as {
       hasStore: boolean
       campaigns: Campaign[]
       templates: { id: string; name: string; body: string; category: string }[]
       customers: { phone: string; whatsapp_opt_in: boolean; total_orders: number; total_spent: number; last_order_at: string | null }[]
-    } : { hasStore: false, campaigns: [], templates: [], customers: [] }
+    }
 
     if (!data.hasStore) { setHasStore(false); setLoading(false); return }
     setHasStore(true)
@@ -1084,7 +1093,7 @@ function CampaignsContent() {
     const data = await res.json()
     setSending(null)
     if (res.ok) { showToast(`Sending to ${data.queued} customers — this runs in the background, refresh in a minute to see progress.`); load() }
-    else showToast(data.error ?? 'Failed', false)
+    else showToast(data.error ?? "Couldn't send this campaign. Please try again.", false)
   }
 
   async function duplicateCampaign(c: Campaign) {
@@ -1092,7 +1101,13 @@ function CampaignsContent() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: c.name + ' (Copy)', message: c.message, audience: c.audience }),
     })
+    // Previously did nothing at all on failure — clicking "Duplicate" just
+    // appeared to do nothing, with no sign it had actually failed.
     if (res.ok) { showToast('Campaign duplicated'); load() }
+    else {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't duplicate this campaign. Please try again.", false)
+    }
   }
 
   const totalRevenue = campaigns.reduce((s, c) => s + (c.revenue_attributed ?? 0), 0)

@@ -1764,9 +1764,11 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
   const [tagStatus, setTagStatus] = useState<string | null>(lead.lead_status ?? null)
   const [sendFollowup, setSendFollowup] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [callLogError, setCallLogError] = useState<string | null>(null)
   const [assigning, setAssigning] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [tagging, setTagging]     = useState(false)
+  const [tagError, setTagError]   = useState<string | null>(null)
   const [localAssignedName, setLocalAssignedName] = useState(lead.assigned_name)
 
   useEffect(() => {
@@ -1791,6 +1793,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
   const handleSubmit = async () => {
     if (!outcome) return
     setSubmitting(true)
+    setCallLogError(null)
     const body: Record<string, unknown> = { leadId: lead.id, outcome, notes, sendFollowup }
     if (followupAt) body.followupAt = new Date(followupAt).toISOString()
     if (tagStatus !== lead.lead_status) body.tagStatus = tagStatus
@@ -1800,6 +1803,17 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+    // This previously never checked r.ok — a failed save (expired session,
+    // invalid outcome, dropped connection) still cleared the form and closed
+    // out as if the call log had been recorded, with no sign anything was
+    // ever wrong. Keep the form filled in on failure so the rep doesn't lose
+    // what they typed and can just retry.
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({})) as { error?: string }
+      setCallLogError(d.error ?? "Couldn't save this call log. Please try again.")
+      setSubmitting(false)
+      return
+    }
     const d = await r.json() as { log?: CallLog; followupQueued?: boolean }
     if (d.log) setLogs(prev => [d.log!, ...prev])
 
@@ -1836,14 +1850,26 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
   }
 
   const handleTagChange = async (status: string | null) => {
+    const prev = tagStatus
     const next = tagStatus === status ? null : status
     setTagStatus(next)
     setTagging(true)
-    await fetch('/api/facebook/leads/tag', {
+    setTagError(null)
+    const r = await fetch('/api/facebook/leads/tag', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leadId: lead.id, status: next }),
     })
+    // Previously applied the new tag to local state unconditionally — if the
+    // save failed server-side, the badge still showed the new status as if
+    // it had taken, with nothing telling the rep it hadn't actually saved.
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({})) as { error?: string }
+      setTagStatus(prev)
+      setTagError(d.error ?? "Couldn't update this lead's status. Please try again.")
+      setTagging(false)
+      return
+    }
     onUpdate(lead.id, { lead_status: next })
     setTagging(false)
   }
@@ -1994,6 +2020,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
                 </button>
               ))}
             </div>
+            {tagError && <p className="text-[11px] text-red-500 mt-1.5">{tagError}</p>}
           </div>
 
           {/* Log a call */}
@@ -2070,6 +2097,7 @@ function CallLogModal({ lead, teamMembers, onClose, onUpdate }: {
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
               {submitting ? 'Saving…' : 'Save call log'}
             </button>
+            {callLogError && <p className="text-xs text-red-500 mt-2">{callLogError}</p>}
           </div>
 
           {/* Call history */}
@@ -2506,6 +2534,7 @@ function StatusPicker({ lead, onUpdate }: {
 }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -2521,11 +2550,22 @@ function StatusPicker({ lead, onUpdate }: {
     if (saving) return
     setSaving(true)
     setOpen(false)
-    await fetch(`/api/leads/${lead.id}/status`, {
+    setSaveError(null)
+    const r = await fetch(`/api/leads/${lead.id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
+    // Previously called onUpdate() unconditionally — a failed save still
+    // flipped the badge in the UI as if it had taken, with no sign that the
+    // new status never actually reached the database.
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({})) as { error?: string }
+      setSaveError(d.error ?? "Couldn't update status. Please try again.")
+      setSaving(false)
+      setTimeout(() => setSaveError(null), 3000)
+      return
+    }
     onUpdate(lead.id, { lead_status: status })
     setSaving(false)
   }
@@ -2559,6 +2599,11 @@ function StatusPicker({ lead, onUpdate }: {
           </>
         ) : '+ Tag'}
       </button>
+      {saveError && (
+        <div className="absolute z-50 top-full mt-1 left-0 bg-red-50 border border-red-100 rounded-lg px-2 py-1 whitespace-nowrap">
+          <p className="text-[10px] text-red-600">{saveError}</p>
+        </div>
+      )}
 
       {open && (
         <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[130px]">
@@ -3570,11 +3615,19 @@ function LeadsContent() {
 
   const handleDisconnectAll = async () => {
     if (!confirm('Disconnect all Facebook pages? Lead syncing will stop.')) return
-    await fetch('/api/facebook/pages', {
+    const r = await fetch('/api/facebook/pages', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
     })
+    // Previously cleared all local state unconditionally — a failed
+    // disconnect (network error, session expired) still made the UI look
+    // like every page had been disconnected even though they were still
+    // connected on the server.
+    if (!r.ok) {
+      setBanner({ type: 'error', msg: "Couldn't disconnect your Facebook pages. Please try again." })
+      return
+    }
     setPages([])
     setSelectedPageId(null)
     setActiveForms([])

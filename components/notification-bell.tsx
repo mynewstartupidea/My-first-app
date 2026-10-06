@@ -29,6 +29,7 @@ export default function NotificationBell({ variant = 'dark' }: { variant?: 'dark
   const [open, setOpen]               = useState(false)
   const [items, setItems]             = useState<Notification[]>([])
   const [loading, setLoading]         = useState(false)
+  const [loadError, setLoadError]     = useState(false)
   const panelRef                      = useRef<HTMLDivElement>(null)
   const router                        = useRouter()
 
@@ -37,9 +38,18 @@ export default function NotificationBell({ variant = 'dark' }: { variant?: 'dark
   const fetchNotifications = useCallback(async () => {
     try {
       const r = await fetch('/api/notifications')
+      if (!r.ok) throw new Error(String(r.status))
       const d = await r.json() as { notifications?: Notification[] }
       setItems(d.notifications ?? [])
-    } catch { /* non-fatal */ }
+      setLoadError(false)
+    } catch {
+      // Previously swallowed completely — the panel then rendered "No
+      // notifications yet" on a failed fetch, which reads as "you're all
+      // caught up" when the truth is the list never loaded. Distinguish
+      // the two so a merchant doesn't mistake a backend hiccup for an
+      // empty inbox.
+      setLoadError(true)
+    }
   }, [])
 
   // Poll every 30s
@@ -137,7 +147,12 @@ export default function NotificationBell({ variant = 'dark' }: { variant?: 'dark
 
           {/* List */}
           <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
-            {items.length === 0 ? (
+            {loadError ? (
+              <div className="py-10 text-center">
+                <Bell size={24} className="text-slate-200 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">Couldn't load notifications. Pull down or reopen to retry.</p>
+              </div>
+            ) : items.length === 0 ? (
               <div className="py-10 text-center">
                 <Bell size={24} className="text-slate-200 mx-auto mb-2" />
                 <p className="text-sm text-slate-400">No notifications yet</p>

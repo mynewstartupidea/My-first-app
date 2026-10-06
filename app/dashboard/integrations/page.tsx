@@ -113,11 +113,17 @@ function IntegrationsInner() {
   // Shopify store" here regardless of the org's real connection.
   const loadStore = useCallback(async () => {
     setLoadingStore(true)
-    const res = await fetch('/api/settings/store-status')
-    const data = res.ok ? await res.json() as { store: Store | null } : { store: null }
-    setStore(data.store)
-    setLoadingStore(false)
-  }, [])
+    try {
+      const res = await fetch('/api/settings/store-status')
+      const data = res.ok ? await res.json() as { store: Store | null } : { store: null }
+      setStore(data.store)
+    } catch {
+      setStore(null)
+      showToast("Couldn't check your store connection — refresh the page to try again.", false)
+    } finally {
+      setLoadingStore(false)
+    }
+  }, [showToast])
 
   useEffect(() => { loadStore() }, [loadStore])
 
@@ -194,53 +200,73 @@ function IntegrationsInner() {
 
   async function handleTestConnection() {
     setTesting(true)
-    const res = await fetch('/api/shopify/test-connection')
-    const data = await res.json() as { connected: boolean; shop_name?: string; shop_domain?: string; error?: string }
-    setTesting(false)
-    if (data.connected) {
-      showToast(`Connection OK — ${data.shop_name ?? data.shop_domain}`)
-    } else {
-      showToast(data.error ?? 'Connection test failed', false)
+    try {
+      const res = await fetch('/api/shopify/test-connection')
+      const data = await res.json().catch(() => ({})) as { connected?: boolean; shop_name?: string; shop_domain?: string; error?: string }
+      if (data.connected) {
+        showToast(`Connection OK — ${data.shop_name ?? data.shop_domain}`)
+      } else {
+        showToast(data.error ?? "Couldn't verify the Shopify connection — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't verify the Shopify connection — check your connection and try again.", false)
+    } finally {
+      setTesting(false)
     }
   }
 
   async function handleSyncProducts() {
     setSyncing(true)
-    const res  = await fetch('/api/shopify/sync-products', { method: 'POST' })
-    const data = await res.json() as { count?: number; syncing?: boolean; message?: string; error?: string }
-    setSyncing(false)
-    if (res.ok && data.count !== undefined) {
-      showToast(data.syncing
-        ? (data.message ?? `Sync running — ${data.count} product${data.count !== 1 ? 's' : ''} synced so far.`)
-        : `Synced! Found ${data.count} product${data.count !== 1 ? 's' : ''} in your store.`
-      )
-      setStore(prev => prev ? { ...prev, product_count: data.count! } : prev)
-    } else {
-      showToast(data.error ?? 'Sync failed', false)
+    try {
+      const res  = await fetch('/api/shopify/sync-products', { method: 'POST' })
+      const data = await res.json().catch(() => ({})) as { count?: number; syncing?: boolean; message?: string; error?: string }
+      if (res.ok && data.count !== undefined) {
+        showToast(data.syncing
+          ? (data.message ?? `Sync running — ${data.count} product${data.count !== 1 ? 's' : ''} synced so far.`)
+          : `Synced! Found ${data.count} product${data.count !== 1 ? 's' : ''} in your store.`
+        )
+        setStore(prev => prev ? { ...prev, product_count: data.count! } : prev)
+      } else {
+        showToast(data.error ?? "Couldn't sync products from Shopify — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't sync products from Shopify — check your connection and try again.", false)
+    } finally {
+      setSyncing(false)
     }
   }
 
   async function handleSyncOrders() {
     setSyncingOrders(true)
-    const res  = await fetch('/api/shopify/sync-orders', { method: 'POST' })
-    const data = await res.json() as { count?: number; message?: string; error?: string }
-    setSyncingOrders(false)
-    if (res.ok) {
-      showToast(data.message ?? `${data.count ?? 0} orders synced so far.`)
-    } else {
-      showToast(data.error ?? 'Sync failed', false)
+    try {
+      const res  = await fetch('/api/shopify/sync-orders', { method: 'POST' })
+      const data = await res.json().catch(() => ({})) as { count?: number; message?: string; error?: string }
+      if (res.ok) {
+        showToast(data.message ?? `${data.count ?? 0} orders synced so far.`)
+      } else {
+        showToast(data.error ?? "Couldn't sync orders from Shopify — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't sync orders from Shopify — check your connection and try again.", false)
+    } finally {
+      setSyncingOrders(false)
     }
   }
 
   async function handleSyncCustomers() {
     setSyncingCustomers(true)
-    const res  = await fetch('/api/shopify/sync-customers', { method: 'POST' })
-    const data = await res.json() as { synced?: number; skipped?: number; error?: string }
-    setSyncingCustomers(false)
-    if (res.ok) {
-      showToast(`Imported ${data.synced} customer${data.synced !== 1 ? 's' : ''} with phone numbers.`)
-    } else {
-      showToast(data.error ?? 'Sync failed', false)
+    try {
+      const res  = await fetch('/api/shopify/sync-customers', { method: 'POST' })
+      const data = await res.json().catch(() => ({})) as { synced?: number; skipped?: number; error?: string }
+      if (res.ok) {
+        showToast(`Imported ${data.synced ?? 0} customer${data.synced !== 1 ? 's' : ''} with phone numbers.`)
+      } else {
+        showToast(data.error ?? "Couldn't sync customers from Shopify — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't sync customers from Shopify — check your connection and try again.", false)
+    } finally {
+      setSyncingCustomers(false)
     }
   }
 
@@ -283,14 +309,20 @@ function IntegrationsInner() {
   async function handleDisconnect() {
     if (!confirm(`Disconnect ${store?.shopify_domain}?\n\nAutomations will stop. Your WhatsApp settings, conversations, and analytics are kept.`)) return
     setDisconnecting(true)
-    const res = await fetch('/api/shopify/disconnect', { method: 'POST' })
-    setDisconnecting(false)
-    if (res.ok) {
-      await loadStore()
-      router.refresh()  // re-renders server components so sidebar updates immediately
-      showToast('Shopify disconnected. You can reconnect anytime.')
-    } else {
-      showToast('Failed to disconnect. Please try again.', false)
+    try {
+      const res = await fetch('/api/shopify/disconnect', { method: 'POST' })
+      if (res.ok) {
+        await loadStore()
+        router.refresh()  // re-renders server components so sidebar updates immediately
+        showToast('Shopify disconnected. You can reconnect anytime.')
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't disconnect Shopify — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't disconnect Shopify — check your connection and try again.", false)
+    } finally {
+      setDisconnecting(false)
     }
   }
 

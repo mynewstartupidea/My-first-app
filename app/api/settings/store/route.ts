@@ -62,7 +62,10 @@ export async function PATCH(request: Request) {
   }
 
   const { error } = await service.from('stores').update(updates).eq('id', store.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[settings/store] save failed:', error.message)
+    return NextResponse.json({ error: "Couldn't save your changes — please try again." }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -59,7 +59,10 @@ export async function PUT(request: Request) {
     { store_id: store.id, content, updated_at: new Date().toISOString() },
     { onConflict: 'store_id' },
   )
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[ai/knowledge-base] upsert error:', error.message)
+    return NextResponse.json({ error: "Couldn't save your knowledge base. Please try again." }, { status: 500 })
+  }
 
   return NextResponse.json({ content })
 }

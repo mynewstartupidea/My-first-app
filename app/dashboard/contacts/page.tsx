@@ -344,12 +344,20 @@ export default function ContactsPage() {
       if (contactsRes.ok) {
         const data = await contactsRes.json() as { contacts: Contact[] }
         setContacts(data.contacts ?? [])
+      } else {
+        // Previously left contacts untouched with no feedback at all on
+        // failure — on first load that showed an empty "No contacts yet"
+        // state indistinguishable from a merchant who genuinely has none.
+        const d = await contactsRes.json().catch(() => ({})) as { error?: string }
+        setBanner({ type: 'error', msg: d.error ?? "Couldn't load your contacts. Please refresh the page." })
       }
       if (campaignsRes.ok) {
         const data = await campaignsRes.json() as { campaigns: Campaign[] }
         setCampaigns(data.campaigns ?? [])
       }
-    } catch { /* keep current UI */ }
+    } catch {
+      setBanner({ type: 'error', msg: 'Network error — check your connection and try again.' })
+    }
     setLoading(false)
     setHasLoadedOnce(true)
   }, [])

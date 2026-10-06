@@ -273,7 +273,7 @@ export async function POST(request: Request) {
       .upsert(toInsert, { onConflict: 'store_id,phone', ignoreDuplicates: true })
     if (upsertError) {
       console.error('[contacts/upload] upsert error:', upsertError.message, 'store_id:', store!.id)
-      return NextResponse.json({ error: 'Failed to save contacts: ' + upsertError.message }, { status: 500 })
+      return NextResponse.json({ error: "Couldn't save these contacts right now. Please try again in a moment." }, { status: 500 })
     }
     saved = toInsert.length - skipped
   }

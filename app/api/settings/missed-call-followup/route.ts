@@ -51,6 +51,9 @@ export async function PATCH(request: Request) {
     .from('user_profiles')
     .upsert({ id: ownerId, missed_call_followup_enabled: body.enabled }, { onConflict: 'id' })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[settings/missed-call-followup] save failed:', error.message)
+    return NextResponse.json({ error: "Couldn't save your missed-call follow-up setting — please try again." }, { status: 500 })
+  }
   return NextResponse.json({ ok: true, enabled: body.enabled })
 }

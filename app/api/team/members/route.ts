@@ -39,7 +39,10 @@ export async function DELETE(request: Request) {
     .eq('id', id)
     .eq('organization_id', org.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[team/members] remove failed:', error.message)
+    return NextResponse.json({ error: "Couldn't remove this team member — please try again." }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }
 
@@ -67,6 +70,9 @@ export async function PATCH(request: Request) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[team/members] role update failed:', error.message)
+    return NextResponse.json({ error: "Couldn't update this member's role — please try again." }, { status: 500 })
+  }
   return NextResponse.json({ member: data })
 }

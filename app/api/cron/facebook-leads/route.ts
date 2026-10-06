@@ -36,12 +36,40 @@ export async function GET(request: Request) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token as string
     const since = form.last_lead_fetch as string | null
 
-    const { leads: fbLeads, ok: fetchOk } = await getFormLeads(form.form_id as string, token, since)
+    const { leads: fbLeads, ok: fetchOk, accessLost } = await getFormLeads(form.form_id as string, token, since)
     if (!fetchOk) {
       // Fetch actually failed — do NOT advance last_lead_fetch, or any lead
       // submitted during this outage is lost forever (the next run only
       // looks for leads created after the watermark).
       console.error(`[cron/facebook-leads] getFormLeads failed for form ${form.form_id}, leaving last_lead_fetch untouched`)
+
+      // This cron has no UI of its own — without surfacing this somewhere a
+      // merchant would actually look, a dead page token meant every lead
+      // submitted on that page silently vanished (never synced, never
+      // messaged) with nothing anywhere to tell the merchant why. Same
+      // code-190 "access lost" detection as lib/facebook.ts / lib/facebook-sync.ts;
+      // deduped to once per connection per day so a 5-minute cron tick
+      // doesn't spam a notification every run while the page stays disconnected.
+      if (accessLost) {
+        const today = new Date().toISOString().split('T')[0]
+        const { count: alreadyNotified } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', form.user_id)
+          .eq('type', 'fb_access_lost')
+          .eq('link', `/dashboard/leads?page_id=${conn.page_id}`)
+          .gte('created_at', `${today}T00:00:00.000Z`)
+        if (!alreadyNotified) {
+          await supabase.from('notifications').insert({
+            user_id: form.user_id,
+            type:    'fb_access_lost',
+            title:   '⚠️ Facebook page access lost',
+            body:    `You no longer have access to "${form.form_name}" — please reconnect it from Integrations.`,
+            link:    `/dashboard/leads?page_id=${conn.page_id}`,
+            is_read: false,
+          })
+        }
+      }
       continue
     }
     if (!fbLeads.length) {

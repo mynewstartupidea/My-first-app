@@ -27,6 +27,9 @@ export async function PATCH(request: Request) {
     .eq('id', leadId)
     .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[leads/tag] update failed:', error.message)
+    return NextResponse.json({ error: "Couldn't update this lead's status. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

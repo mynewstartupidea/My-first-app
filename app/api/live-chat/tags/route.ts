@@ -51,6 +51,9 @@ export async function PATCH(request: Request) {
     .eq('user_id', ownerId)
     .eq('phone', phone)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[live-chat/tags] update failed:', error.message)
+    return NextResponse.json({ error: "Couldn't save this tag — please try again." }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

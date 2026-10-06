@@ -44,7 +44,18 @@ function ShopifyVerifyInner() {
     setResendMsg('')
     const { error } = await supabase.auth.resend({ type: 'signup', email })
     setVerifying(false)
-    if (error) { setVerifyError(error.message); return }
+    if (error) {
+      // Same SMTP/email-provider failure case handled on /signup — this
+      // resend hits the same email pathway, so a raw backend string
+      // ("Error sending confirmation email") shouldn't reach the user here
+      // either.
+      setVerifyError(
+        /error sending.*email/i.test(error.message)
+          ? "We couldn't send the code right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
+          : error.message
+      )
+      return
+    }
     setResendMsg('New code sent — check your email.')
   }
 

@@ -23,7 +23,9 @@ export default function DeveloperPage() {
   const [showKey,     setShowKey]     = useState(false)
   const [copied,      setCopied]      = useState<string | null>(null)
   const [loading,     setLoading]     = useState(true)
+  const [loadError,   setLoadError]   = useState('')
   const [rotating,    setRotating]    = useState(false)
+  const [rotateError, setRotateError] = useState('')
   const [showCurl,    setShowCurl]    = useState(false)
   const [showHtml,    setShowHtml]    = useState(false)
   const [showJs,      setShowJs]      = useState(false)
@@ -31,10 +33,18 @@ export default function DeveloperPage() {
 
   const loadKey = useCallback(async () => {
     setLoading(true)
-    const r = await fetch('/api/developer/key')
-    const d = await r.json() as { api_key?: string }
-    if (d.api_key) setApiKey(d.api_key)
-    setLoading(false)
+    setLoadError('')
+    try {
+      const r = await fetch('/api/developer/key')
+      if (!r.ok) { setLoadError("Couldn't load your API key — refresh the page to try again."); return }
+      const d = await r.json().catch(() => ({})) as { api_key?: string }
+      if (d.api_key) setApiKey(d.api_key)
+      else setLoadError("Couldn't load your API key — refresh the page to try again.")
+    } catch {
+      setLoadError("Couldn't load your API key — check your connection and refresh the page.")
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { loadKey() }, [loadKey])
@@ -42,10 +52,18 @@ export default function DeveloperPage() {
   async function rotateKey() {
     if (!confirm('Rotate your API key? Any landing pages using the old key will stop working until updated.')) return
     setRotating(true)
-    const r = await fetch('/api/developer/key', { method: 'POST' })
-    const d = await r.json() as { api_key?: string }
-    if (d.api_key) { setApiKey(d.api_key); setShowKey(true) }
-    setRotating(false)
+    setRotateError('')
+    try {
+      const r = await fetch('/api/developer/key', { method: 'POST' })
+      if (!r.ok) { setRotateError("Couldn't rotate your API key — please try again."); return }
+      const d = await r.json().catch(() => ({})) as { api_key?: string }
+      if (d.api_key) { setApiKey(d.api_key); setShowKey(true) }
+      else setRotateError("Couldn't rotate your API key — please try again.")
+    } catch {
+      setRotateError("Couldn't rotate your API key — check your connection and try again.")
+    } finally {
+      setRotating(false)
+    }
   }
 
   function copy(text: string, id: string) {
@@ -137,6 +155,10 @@ const { success, lead_id } = await res.json()
           <div className="flex items-center gap-2 text-slate-400 text-sm py-3">
             <Loader2 size={14} className="animate-spin" /> Loading key…
           </div>
+        ) : loadError ? (
+          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+            <AlertCircle size={14} className="flex-shrink-0" /> {loadError}
+          </div>
         ) : (
           <>
             <div className="flex items-center gap-2 bg-slate-900 rounded-xl px-4 py-3">
@@ -163,6 +185,11 @@ const { success, lead_id } = await res.json()
                 <AlertCircle size={11} /> Send from your server, not browser JS
               </div>
             </div>
+            {rotateError && (
+              <p className="flex items-center gap-1.5 text-xs text-red-600 mt-2">
+                <AlertCircle size={11} className="flex-shrink-0" /> {rotateError}
+              </p>
+            )}
           </>
         )}
       </div>

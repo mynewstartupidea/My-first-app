@@ -120,6 +120,7 @@ export default function AdminPage() {
   const [ticketExp,   setTicketExp]   = useState<string | null>(null)
   const [ticketNotes, setTicketNotes] = useState<Record<string, string>>({})
   const [savingNote,  setSavingNote]  = useState<string | null>(null)
+  const [ticketError, setTicketError] = useState<Record<string, string>>({})
 
   const router   = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -206,11 +207,21 @@ export default function AdminPage() {
   async function updateTicket(id: string, status: string) {
     const notes = ticketNotes[id] ?? ''
     setSavingNote(id)
-    await fetch(`/api/support/${id}`, {
+    setTicketError(prev => ({ ...prev, [id]: '' }))
+    // Was never checking the response — a failed save (network blip, RLS
+    // error, bad id) looked identical to a successful one: the button just
+    // stopped spinning with no indication the note/status never saved.
+    const res = await fetch(`/api/support/${id}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ status, admin_notes: notes || undefined }),
     })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setTicketError(prev => ({ ...prev, [id]: body.error ?? `Couldn't save — HTTP ${res.status}. Try again.` }))
+      setSavingNote(null)
+      return
+    }
     await load()
     setSavingNote(null)
   }
@@ -824,6 +835,9 @@ export default function AdminPage() {
                                   </button>
                                 ))}
                               </div>
+                              {ticketError[t.id] && (
+                                <p className="text-red-400 text-xs mt-2">{ticketError[t.id]}</p>
+                              )}
                             </div>
                           </div>
                         )}

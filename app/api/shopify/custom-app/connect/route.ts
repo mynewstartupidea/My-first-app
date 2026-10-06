@@ -112,11 +112,17 @@ export async function POST(request: Request) {
     let storeId: string
     if (existing) {
       const { data, error } = await service.from('stores').update(payload).eq('id', existing.id).select('id').single()
-      if (error || !data) throw new ShopifyConnectionError('SHOPIFY_API_ERROR', error?.message ?? 'Could not save store.')
+      if (error || !data) {
+        console.error('[shopify/custom-app/connect] store update failed:', error?.message)
+        throw new ShopifyConnectionError('SHOPIFY_API_ERROR', 'Connected to Shopify, but could not save your store. Please try again.')
+      }
       storeId = data.id
     } else {
       const { data, error } = await service.from('stores').insert({ user_id: ownerId, ...payload }).select('id').single()
-      if (error || !data) throw new ShopifyConnectionError('SHOPIFY_API_ERROR', error?.message ?? 'Could not save store.')
+      if (error || !data) {
+        console.error('[shopify/custom-app/connect] store insert failed:', error?.message)
+        throw new ShopifyConnectionError('SHOPIFY_API_ERROR', 'Connected to Shopify, but could not save your store. Please try again.')
+      }
       storeId = data.id
     }
 
@@ -159,11 +165,23 @@ export async function POST(request: Request) {
     })
   } catch (err) {
     if (err instanceof ShopifyConnectionError) {
-      return NextResponse.json({ connected: false, error: err.code, message: err.message }, { status: 400 })
+      // INVALID_CREDENTIALS / SHOP_NOT_PERMITTED / MISSING_SCOPE messages are
+      // already written for a merchant to read. TOKEN_REQUEST_FAILED and
+      // SHOPIFY_API_ERROR can carry a raw fetch/HTTP error from lib/shopify-
+      // custom-app.ts (e.g. "GraphQL request failed: TypeError: fetch failed")
+      // — log the real detail for debugging, but never show that to the user.
+      console.error('[shopify/custom-app/connect]', err.code, err.message)
+      const safeMessage =
+        err.code === 'TOKEN_REQUEST_FAILED' ? "Couldn't get an access token from Shopify. Double-check the client ID and secret from your custom app, then try again." :
+        err.code === 'SHOPIFY_API_ERROR'    ? err.message.startsWith('Connected to Shopify')
+          ? err.message
+          : "Couldn't verify the connection with Shopify. Please try again." :
+        err.message
+      return NextResponse.json({ connected: false, error: err.code, message: safeMessage }, { status: 400 })
     }
     console.error('[shopify/custom-app/connect] unexpected error:', err)
     return NextResponse.json(
-      { connected: false, error: 'SHOPIFY_API_ERROR', message: 'Something went wrong connecting to Shopify.' },
+      { connected: false, error: 'SHOPIFY_API_ERROR', message: 'Something went wrong connecting to Shopify. Please try again.' },
       { status: 500 },
     )
   }

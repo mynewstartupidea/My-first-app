@@ -101,7 +101,7 @@ async function processMetaCode(
 
   if (insertErr) {
     console.error('[Meta callback] DB insert failed:', insertErr.message)
-    return { ok: false, error: `Database error: ${insertErr.message}` }
+    return { ok: false, error: 'Your WhatsApp account connected with Meta, but saving it to your Wapaci account failed. Please try connecting again — if this keeps happening, contact support.' }
   }
 
   if (store) {

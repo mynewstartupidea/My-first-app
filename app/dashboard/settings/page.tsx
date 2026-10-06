@@ -331,7 +331,7 @@ function SettingsInner() {
       showToast('Shopify store connected successfully!')
       loadData()
     }
-    if (urlError) showToast(SHOPIFY_ERROR_MESSAGES[urlError] ?? 'Something went wrong.', false)
+    if (urlError) showToast(SHOPIFY_ERROR_MESSAGES[urlError] ?? 'Could not connect your Shopify store. Please try again.', false)
     if (err) showToast(decodeURIComponent(err), false)
   }, [urlError, urlSuccess, showToast, searchParams, loadData])
 
@@ -348,35 +348,40 @@ function SettingsInner() {
   async function handleSubscribe(planId: string) {
     setBillingError('')
     setSubscribingPlan(planId)
-    const res = await fetch('/api/billing/razorpay/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId }),
-    })
-    const data = await res.json() as {
-      subscriptionId?: string; keyId?: string; prefill?: { name: string; email: string }; error?: string
-    }
-    if (!res.ok || !data.subscriptionId || !data.keyId) {
-      setBillingError(data.error ?? 'Could not start checkout — please try again.')
+    try {
+      const res = await fetch('/api/billing/razorpay/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId }),
+      })
+      const data = await res.json().catch(() => ({})) as {
+        subscriptionId?: string; keyId?: string; prefill?: { name: string; email: string }; error?: string
+      }
+      if (!res.ok || !data.subscriptionId || !data.keyId) {
+        setBillingError(data.error ?? 'Could not start checkout — please try again.')
+        setSubscribingPlan(null)
+        return
+      }
+      if (!razorpayReady || !window.Razorpay) {
+        setBillingError('Payment widget is still loading — try again in a moment.')
+        setSubscribingPlan(null)
+        return
+      }
+      const rzp = new window.Razorpay({
+        key: data.keyId,
+        subscription_id: data.subscriptionId,
+        name: 'Wapaci',
+        description: `${LEAD_PLANS.find(p => p.id === planId)?.name ?? planId} plan`,
+        prefill: data.prefill,
+        theme: { color: '#25D366' },
+        handler: () => { loadBilling(); setSubscribingPlan(null) },
+        modal: { ondismiss: () => setSubscribingPlan(null) },
+      })
+      rzp.open()
+    } catch {
+      setBillingError('Could not start checkout — check your connection and try again.')
       setSubscribingPlan(null)
-      return
     }
-    if (!razorpayReady || !window.Razorpay) {
-      setBillingError('Payment widget is still loading — try again in a moment.')
-      setSubscribingPlan(null)
-      return
-    }
-    const rzp = new window.Razorpay({
-      key: data.keyId,
-      subscription_id: data.subscriptionId,
-      name: 'Wapaci',
-      description: `${LEAD_PLANS.find(p => p.id === planId)?.name ?? planId} plan`,
-      prefill: data.prefill,
-      theme: { color: '#25D366' },
-      handler: () => { loadBilling(); setSubscribingPlan(null) },
-      modal: { ondismiss: () => setSubscribingPlan(null) },
-    })
-    rzp.open()
   }
 
   async function handleCancel() {
@@ -386,22 +391,26 @@ function SettingsInner() {
     }
     setCancelError('')
     setCancelling(true)
-    const res = await fetch('/api/billing/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: cancelReason, detail: cancelDetail }),
-    })
-    const data = await res.json() as { ok?: boolean; error?: string }
-    if (!res.ok || !data.ok) {
-      setCancelError(data.error ?? 'Could not cancel — please try again.')
+    try {
+      const res = await fetch('/api/billing/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: cancelReason, detail: cancelDetail }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        setCancelError(data.error ?? 'Could not cancel — please try again.')
+        return
+      }
+      setShowCancelModal(false)
+      setCancelReason('')
+      setCancelDetail('')
+      loadBilling()
+    } catch {
+      setCancelError('Could not cancel — check your connection and try again.')
+    } finally {
       setCancelling(false)
-      return
     }
-    setCancelling(false)
-    setShowCancelModal(false)
-    setCancelReason('')
-    setCancelDetail('')
-    loadBilling()
   }
 
   // Runs on mount, not gated by activeTab — the TABS filter below needs the
@@ -512,56 +521,71 @@ function SettingsInner() {
   async function saveWhatsApp() {
     if (!store) return
     setSavingWA(true)
-    const res = await fetch('/api/settings/store', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ whatsapp_number: waNumber || null, whatsapp_api_key: waApiKey || null }),
-    })
-    setSavingWA(false)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string }
-      showToast(data.error ?? 'Failed to save settings', false)
-      return
+    try {
+      const res = await fetch('/api/settings/store', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ whatsapp_number: waNumber || null, whatsapp_api_key: waApiKey || null }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't save your WhatsApp settings — please try again.", false)
+        return
+      }
+      showToast('WhatsApp settings saved!')
+    } catch {
+      showToast("Couldn't save your WhatsApp settings — check your connection and try again.", false)
+    } finally {
+      setSavingWA(false)
     }
-    showToast('WhatsApp settings saved!')
   }
 
   async function saveStoreName() {
     if (!store || !storeNameEdit.trim()) return
     setSavingStore(true)
-    const res = await fetch('/api/settings/store', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop_name: storeNameEdit.trim() }),
-    })
-    setSavingStore(false)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string }
-      showToast(data.error ?? 'Failed to save store name', false)
-      return
+    try {
+      const res = await fetch('/api/settings/store', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shop_name: storeNameEdit.trim() }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't save your store name — please try again.", false)
+        return
+      }
+      setStore(prev => prev ? { ...prev, shop_name: storeNameEdit.trim() } : prev)
+      showToast('Store name saved!')
+      router.refresh()  // re-renders server components (sidebar footer shows this name) so it updates immediately
+    } catch {
+      showToast("Couldn't save your store name — check your connection and try again.", false)
+    } finally {
+      setSavingStore(false)
     }
-    setStore(prev => prev ? { ...prev, shop_name: storeNameEdit.trim() } : prev)
-    showToast('Store name saved!')
-    router.refresh()  // re-renders server components (sidebar footer shows this name) so it updates immediately
   }
 
   async function setBusinessType(type: 'ecommerce' | 'lead_gen') {
     if (!store || store.business_type === type) return
     setSavingBusinessType(true)
-    const res = await fetch('/api/settings/store', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ business_type: type }),
-    })
-    setSavingBusinessType(false)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string }
-      showToast(data.error ?? 'Failed to save business type', false)
-      return
+    try {
+      const res = await fetch('/api/settings/store', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_type: type }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't save your dashboard view — please try again.", false)
+        return
+      }
+      setStore(prev => prev ? { ...prev, business_type: type } : prev)
+      showToast('Business type saved!')
+      router.refresh()  // re-renders server components (dashboard reads business_type) so it updates immediately
+    } catch {
+      showToast("Couldn't save your dashboard view — check your connection and try again.", false)
+    } finally {
+      setSavingBusinessType(false)
     }
-    setStore(prev => prev ? { ...prev, business_type: type } : prev)
-    showToast('Business type saved!')
-    router.refresh()  // re-renders server components (dashboard reads business_type) so it updates immediately
   }
 
   async function toggleSection(key: string) {
@@ -585,19 +609,24 @@ function SettingsInner() {
       return
     }
     setSavingSectionKey(key)
-    const res = await fetch('/api/settings/store', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ visible_sections: next }),
-    })
-    setSavingSectionKey(null)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string }
-      showToast(data.error ?? 'Failed to save', false)
-      return
+    try {
+      const res = await fetch('/api/settings/store', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visible_sections: next }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't save your sidebar sections — please try again.", false)
+        return
+      }
+      setStore(prev => prev ? { ...prev, visible_sections: next } : prev)
+      router.refresh()  // re-renders server components (sidebar/mobile nav read this) so it updates immediately
+    } catch {
+      showToast("Couldn't save your sidebar sections — check your connection and try again.", false)
+    } finally {
+      setSavingSectionKey(null)
     }
-    setStore(prev => prev ? { ...prev, visible_sections: next } : prev)
-    router.refresh()  // re-renders server components (sidebar/mobile nav read this) so it updates immediately
   }
 
   async function disconnectStore() {
@@ -605,30 +634,38 @@ function SettingsInner() {
     if (!connectedStore?.shopify_domain) return
     if (!confirm(`Disconnect ${connectedStore.shop_name ?? connectedStore.shopify_domain ?? 'this store'}? Automations will stop, but your Wapaci store and WhatsApp settings are kept.`)) return
 
-    const res = await fetch('/api/shopify/disconnect', { method: 'POST' })
-    const data = await res.json().catch(() => ({})) as { error?: string }
-    if (!res.ok) {
-      showToast(data.error ?? 'Failed to disconnect Shopify', false)
-      return
+    try {
+      const res = await fetch('/api/shopify/disconnect', { method: 'POST' })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        showToast(data.error ?? "Couldn't disconnect Shopify — please try again.", false)
+        return
+      }
+      setShopifyDomain('')
+      await loadData()
+      router.refresh()  // re-renders server components so sidebar updates immediately
+      showToast('Shopify store disconnected')
+    } catch {
+      showToast("Couldn't disconnect Shopify — check your connection and try again.", false)
     }
-
-    setShopifyDomain('')
-    await loadData()
-    router.refresh()  // re-renders server components so sidebar updates immediately
-    showToast('Shopify store disconnected')
   }
 
   async function syncProducts() {
     if (!store?.shopify_domain) return
     setSyncingProducts(true)
-    const res  = await fetch('/api/shopify/sync-products', { method: 'POST' })
-    const data = await res.json() as { count?: number; error?: string }
-    setSyncingProducts(false)
-    if (res.ok && data.count !== undefined) {
-      showToast(`${data.count} product${data.count !== 1 ? 's' : ''} found in your store`)
-      setStore(prev => prev ? { ...prev, product_count: data.count! } : prev)
-    } else {
-      showToast(data.error ?? 'Sync failed', false)
+    try {
+      const res  = await fetch('/api/shopify/sync-products', { method: 'POST' })
+      const data = await res.json().catch(() => ({})) as { count?: number; error?: string }
+      if (res.ok && data.count !== undefined) {
+        showToast(`${data.count} product${data.count !== 1 ? 's' : ''} found in your store`)
+        setStore(prev => prev ? { ...prev, product_count: data.count! } : prev)
+      } else {
+        showToast(data.error ?? "Couldn't sync products from Shopify — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't sync products from Shopify — check your connection and try again.", false)
+    } finally {
+      setSyncingProducts(false)
     }
   }
 
@@ -636,17 +673,22 @@ function SettingsInner() {
   async function sendTestWhatsApp() {
     if (!testPhone.trim()) return
     setSendingTest(true)
-    const res  = await fetch('/api/whatsapp/test', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ phone: testPhone.trim() }),
-    })
-    const data = await res.json() as { success: boolean; messageId?: string; error?: string; phone?: string }
-    setSendingTest(false)
-    if (data.success) {
-      showToast(`✓ Message sent to ${data.phone ?? testPhone.trim()}${data.messageId ? ` (ID: ${data.messageId.slice(0, 16)}…)` : ''}`)
-    } else {
-      showToast(data.error ?? 'Send failed', false)
+    try {
+      const res  = await fetch('/api/whatsapp/test', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ phone: testPhone.trim() }),
+      })
+      const data = await res.json().catch(() => ({})) as { success?: boolean; messageId?: string; error?: string; phone?: string }
+      if (data.success) {
+        showToast(`✓ Message sent to ${data.phone ?? testPhone.trim()}${data.messageId ? ` (ID: ${data.messageId.slice(0, 16)}…)` : ''}`)
+      } else {
+        showToast(data.error ?? "Couldn't send the test message — check your WhatsApp connection and try again.", false)
+      }
+    } catch {
+      showToast("Couldn't send the test message — check your connection and try again.", false)
+    } finally {
+      setSendingTest(false)
     }
   }
 
@@ -655,15 +697,15 @@ function SettingsInner() {
     const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
     const appId    = process.env.NEXT_PUBLIC_META_APP_ID
 
-    if (!appId) { showToast('META_APP_ID not configured', false); return }
+    if (!appId) { showToast('WhatsApp connection via Meta is not set up yet for this account. Please contact support.', false); return }
 
     const w  = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string } | null; status?: string }) => void, opts: object) => void } }
     const FB = w.FB
 
-    if (!FB) { showToast('Facebook SDK not loaded — refresh and try again.', false); return }
+    if (!FB) { showToast("Facebook's connection SDK hasn't loaded yet — refresh the page and try again.", false); return }
 
     if (!configId) {
-      showToast('Embedded Signup not configured. NEXT_PUBLIC_META_CONFIG_ID is missing.', false)
+      showToast('WhatsApp connection via Meta is not fully set up for this account. Please contact support.', false)
       return
     }
 
@@ -758,7 +800,7 @@ function SettingsInner() {
         const status = response.status ?? ''
         // 'unknown' = user closed without completing; don't show an error for that
         if (status !== 'unknown' && status !== '') {
-          showToast(`Meta sign-in cancelled (status: ${status})`, false)
+          showToast('Facebook sign-in was cancelled before WhatsApp could connect. Please try again.', false)
         }
         return
       }
@@ -834,36 +876,45 @@ function SettingsInner() {
   async function saveManualConnect() {
     if (!manualWabaId.trim() || !manualPhoneId.trim() || !manualToken.trim()) return
     setSavingManual(true)
-    const res  = await fetch('/api/meta/manual-connect', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ wabaId: manualWabaId.trim(), phoneNumberId: manualPhoneId.trim(), accessToken: manualToken.trim() }),
-    })
-    const data = await res.json() as { ok: boolean; phone?: string; error?: string }
-    setSavingManual(false)
-    if (data.ok) {
-      setScopeError(null)
-      setShowManual(false)
-      showToast(`WhatsApp connected! Number: ${data.phone ?? ''}`)
-      loadData()
-    } else {
-      showToast(data.error ?? 'Manual connect failed', false)
+    try {
+      const res  = await fetch('/api/meta/manual-connect', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ wabaId: manualWabaId.trim(), phoneNumberId: manualPhoneId.trim(), accessToken: manualToken.trim() }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; phone?: string; error?: string }
+      if (data.ok) {
+        setScopeError(null)
+        setShowManual(false)
+        showToast(`WhatsApp connected! Number: ${data.phone ?? ''}`)
+        loadData()
+      } else {
+        showToast(data.error ?? "Couldn't connect manually — double-check the WABA ID, Phone Number ID, and access token.", false)
+      }
+    } catch {
+      showToast("Couldn't connect manually — check your connection and try again.", false)
+    } finally {
+      setSavingManual(false)
     }
   }
 
   // ── Disconnect Meta WhatsApp ───────────────────────────────────────────────────
   async function disconnectMeta() {
     if (!confirm('Disconnect WhatsApp? Your automations will stop sending real messages.')) return
-    const res = await fetch('/api/meta/disconnect', { method: 'POST' })
-    if (res.ok) {
-      setWaConnected(false)
-      setWaDisplayPhone('')
-      setWaTokenType(null)
-      setShowSysUserGuide(false)
-      showToast('WhatsApp disconnected')
-      await loadData()
-    } else {
-      showToast('Failed to disconnect', false)
+    try {
+      const res = await fetch('/api/meta/disconnect', { method: 'POST' })
+      if (res.ok) {
+        setWaConnected(false)
+        setWaDisplayPhone('')
+        setWaTokenType(null)
+        setShowSysUserGuide(false)
+        showToast('WhatsApp disconnected')
+        await loadData()
+      } else {
+        showToast("Couldn't disconnect WhatsApp — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't disconnect WhatsApp — check your connection and try again.", false)
     }
   }
 
@@ -875,59 +926,75 @@ function SettingsInner() {
     // trip instead of only after the bogus row is already in the DB.
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Invalid email address', false); return }
     setSendingInvite(true)
-    const res = await fetch('/api/team/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
-    })
-    const data = await res.json()
-    setSendingInvite(false)
-    if (!res.ok) { showToast(data.error ?? 'Failed to send invite', false); return }
-    setInviteEmail('')
-    if (data.alreadyActive) {
-      // Re-inviting someone who already has a confirmed account (e.g. after
-      // removing and re-adding them) — no email needed, they're already in.
-      showToast(data.message)
-    } else if (data.warning) {
-      showToast(data.warning, false)
-    } else {
-      showToast(`Invite email sent to ${data.invite.email}`)
+    try {
+      const res = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string; alreadyActive?: boolean; message?: string; warning?: string; invite?: { email: string } }
+      if (!res.ok) { showToast(data.error ?? "Couldn't send the invite — please try again.", false); return }
+      setInviteEmail('')
+      if (data.alreadyActive) {
+        // Re-inviting someone who already has a confirmed account (e.g. after
+        // removing and re-adding them) — no email needed, they're already in.
+        showToast(data.message ?? 'Team member added back.')
+      } else if (data.warning) {
+        showToast(data.warning, false)
+      } else {
+        showToast(`Invite email sent to ${data.invite?.email}`)
+      }
+      await loadMembers()
+    } catch {
+      showToast("Couldn't send the invite — check your connection and try again.", false)
+    } finally {
+      setSendingInvite(false)
     }
-    await loadMembers()
   }
 
   async function handleRemoveMember(id: string, email: string) {
     if (!confirm(`Remove ${email} from your team?`)) return
     setRemovingId(id)
-    const res = await fetch('/api/team/members', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
-    const data = await res.json()
-    setRemovingId(null)
-    if (!res.ok) { showToast(data.error ?? 'Failed to remove member', false); return }
-    showToast('Member removed')
-    setMembers(prev => prev.filter(m => m.id !== id))
+    try {
+      const res = await fetch('/api/team/members', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) { showToast(data.error ?? "Couldn't remove this team member — please try again.", false); return }
+      showToast('Member removed')
+      setMembers(prev => prev.filter(m => m.id !== id))
+    } catch {
+      showToast("Couldn't remove this team member — check your connection and try again.", false)
+    } finally {
+      setRemovingId(null)
+    }
   }
 
   async function handleChangeRole(id: string, role: string) {
     const prev = members.find(m => m.id === id)?.role
     setChangingRoleId(id)
     setMembers(list => list.map(m => m.id === id ? { ...m, role } : m)) // optimistic
-    const res = await fetch('/api/team/members', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, role }),
-    })
-    setChangingRoleId(null)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      showToast(data.error ?? 'Failed to update role', false)
+    try {
+      const res = await fetch('/api/team/members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, role }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't update this member's role — please try again.", false)
+        if (prev) setMembers(list => list.map(m => m.id === id ? { ...m, role: prev } : m)) // revert
+        return
+      }
+      showToast('Role updated')
+    } catch {
+      showToast("Couldn't update this member's role — check your connection and try again.", false)
       if (prev) setMembers(list => list.map(m => m.id === id ? { ...m, role: prev } : m)) // revert
-      return
+    } finally {
+      setChangingRoleId(null)
     }
-    showToast('Role updated')
   }
 
   // Changes the password directly for an already-authenticated user — no
@@ -945,34 +1012,55 @@ function SettingsInner() {
     if (newPassword !== confirmNewPassword) { showToast("New passwords don't match", false); return }
 
     setChangingPassword(true)
-    const { error: verifyErr } = await supabase.auth.signInWithPassword({ email: userEmail, password: currentPassword })
-    if (verifyErr) {
+    try {
+      const { error: verifyErr } = await supabase.auth.signInWithPassword({ email: userEmail, password: currentPassword })
+      if (verifyErr) {
+        showToast('Current password is incorrect', false)
+        return
+      }
+
+      const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateErr) {
+        // Supabase auth messages here are already written for end users (e.g.
+        // "New password should be different from the old password.") — pass
+        // them through, but fall back to something clear if it's ever an
+        // unrecognized/technical string instead.
+        const readable = /password/i.test(updateErr.message)
+        showToast(readable ? updateErr.message : "Couldn't change your password — please try again.", false)
+        return
+      }
+
+      setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword('')
+      showToast('Password changed')
+    } catch {
+      showToast("Couldn't change your password — check your connection and try again.", false)
+    } finally {
       setChangingPassword(false)
-      showToast('Current password is incorrect', false)
-      return
     }
-
-    const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
-    setChangingPassword(false)
-    if (updateErr) { showToast(updateErr.message, false); return }
-
-    setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword('')
-    showToast('Password changed')
   }
 
   async function saveDist() {
     setSavingDist(true)
-    const res = await fetch('/api/settings/lead-distribution', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode: distMode,
-        distribution_members: distMembers.map(({ user_id, weight }) => ({ user_id, weight })),
-      }),
-    })
-    setSavingDist(false)
-    if (res.ok) showToast('Distribution settings saved!')
-    else showToast('Failed to save distribution settings', false)
+    try {
+      const res = await fetch('/api/settings/lead-distribution', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: distMode,
+          distribution_members: distMembers.map(({ user_id, weight }) => ({ user_id, weight })),
+        }),
+      })
+      if (res.ok) {
+        showToast('Distribution settings saved!')
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        showToast(data.error ?? "Couldn't save your lead distribution settings — please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't save your lead distribution settings — check your connection and try again.", false)
+    } finally {
+      setSavingDist(false)
+    }
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────

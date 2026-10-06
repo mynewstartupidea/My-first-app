@@ -94,7 +94,18 @@ export default function SignupPage() {
     setResendMsg('')
     const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: email.trim() })
     setVerifying(false)
-    if (resendErr) { setVerifyError(resendErr.message); return }
+    if (resendErr) {
+      // Same SMTP/email-provider failure as the initial signUp() call above
+      // can happen here too — resending a code hits the exact same email
+      // pathway, so it needs the same translation instead of leaking the
+      // raw backend message.
+      setVerifyError(
+        /error sending.*email/i.test(resendErr.message)
+          ? "We couldn't send the code right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
+          : resendErr.message
+      )
+      return
+    }
     setResendMsg('New code sent — check your email.')
   }
 

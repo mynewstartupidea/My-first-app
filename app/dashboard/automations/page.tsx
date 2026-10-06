@@ -278,9 +278,10 @@ function AutomationCard({
   )
 }
 
-function MissedCallCard({ whatsappConnected, onNeedsWhatsapp }: {
+function MissedCallCard({ whatsappConnected, onNeedsWhatsapp, showToast }: {
   whatsappConnected: boolean
   onNeedsWhatsapp: () => void
+  showToast: (msg: string, ok?: boolean) => void
 }) {
   const [enabled, setEnabled]   = useState(false)
   const [loading, setLoading]   = useState(true)
@@ -311,7 +312,12 @@ function MissedCallCard({ whatsappConnected, onNeedsWhatsapp }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: newVal }),
     })
-    if (!res.ok) setEnabled(!newVal) // revert on failure
+    if (!res.ok) {
+      // Previously reverted the toggle silently — the switch snapped back
+      // with no explanation, which just looked like a UI glitch.
+      setEnabled(!newVal)
+      showToast("Couldn't save this setting. Please try again.", false)
+    }
     setSaving(false)
   }
 
@@ -555,7 +561,14 @@ export default function AutomationsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
-    if (!res.ok) { showToast('Failed to save', false); return }
+    if (!res.ok) {
+      // Previously always showed a bare "Failed to save" — hid real reasons
+      // like a permission check failing (session changed roles) or the
+      // request not reaching the server at all.
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't save this automation. Please try again.", false)
+      return
+    }
     showToast('Saved successfully!')
     await load()
   }
@@ -654,6 +667,7 @@ export default function AutomationsPage() {
             <MissedCallCard
               whatsappConnected={whatsappConnected}
               onNeedsWhatsapp={() => setShowWaPopup(true)}
+              showToast={showToast}
             />
           </div>
 

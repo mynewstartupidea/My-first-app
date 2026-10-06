@@ -70,6 +70,9 @@ export async function POST(request: Request) {
     ? await service.from('automations').update(body).eq('id', existing.id)
     : await service.from('automations').insert({ ...body, store_id: store.id, template: body.template ?? '' })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[automations/save] write error:', error.message)
+    return NextResponse.json({ error: "Couldn't save this automation. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

@@ -169,7 +169,17 @@ function LoginForm() {
         redirectTo: `${getAppUrl()}/auth/callback?next=/dashboard&flow=recovery`,
       })
       setLoading(false)
-      if (error) { setError(error.message); return }
+      if (error) {
+        // Same SMTP/email-provider failure signup/signin already translate
+        // ("Error sending confirmation email") can happen on this send too —
+        // resetPasswordForEmail() goes through the same email pathway.
+        setError(
+          /error sending.*email/i.test(error.message)
+            ? "We couldn't send the reset code right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
+            : error.message
+        )
+        return
+      }
       setOtpSent(true)
       return
     }
@@ -234,7 +244,14 @@ function LoginForm() {
       redirectTo: `${getAppUrl()}/auth/callback?next=/dashboard&flow=recovery`,
     })
     setResendingCode(false)
-    if (error) { setError(error.message); return }
+    if (error) {
+      setError(
+        /error sending.*email/i.test(error.message)
+          ? "We couldn't send the reset code right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
+          : error.message
+      )
+      return
+    }
     setSuccess('New code sent — check your email.')
   }
 

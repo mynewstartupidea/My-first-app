@@ -41,7 +41,10 @@ export async function POST(request: Request) {
   }
 
   const { error } = await service.from('stores').update({ ai_reply_enabled: enabled }).eq('id', store.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[ai/toggle] update error:', error.message)
+    return NextResponse.json({ error: `Couldn't turn AI replies ${enabled ? 'on' : 'off'}. Please try again.` }, { status: 500 })
+  }
 
   return NextResponse.json({ enabled })
 }

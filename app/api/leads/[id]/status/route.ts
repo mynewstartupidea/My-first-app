@@ -32,7 +32,14 @@ export async function PATCH(
 
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await service.from('leads').update({ lead_status: body.status }).eq('id', id)
+  // Previously this didn't check the result at all — a failed update (RLS,
+  // dropped connection, etc.) still returned { ok: true }, so the client had
+  // no way to know the status tag it just applied was never actually saved.
+  const { error } = await service.from('leads').update({ lead_status: body.status }).eq('id', id)
+  if (error) {
+    console.error('[leads/status] update error:', error.message)
+    return NextResponse.json({ error: "Couldn't update this lead's status. Please try again." }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -55,7 +55,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { data: updatedRows, error } = await query.select('id')
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[leads/assign] update error:', error.message)
+    return NextResponse.json({ error: "Couldn't assign this lead. Please try again." }, { status: 500 })
+  }
   if (isSelfClaim && (!updatedRows || updatedRows.length === 0)) {
     return NextResponse.json({ error: 'This lead was just claimed by someone else.' }, { status: 409 })
   }
@@ -85,6 +88,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     .update({ assigned_to: null, assigned_name: null })
     .eq('id', id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[leads/unassign] update error:', error.message)
+    return NextResponse.json({ error: "Couldn't unassign this lead. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

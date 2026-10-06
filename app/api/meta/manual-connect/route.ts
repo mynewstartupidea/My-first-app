@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const data = await res.json() as { display_phone_number?: string; verified_name?: string; error?: { message: string } }
     console.log('[Meta manual] phone number verify HTTP:', res.status, JSON.stringify(data))
     if (data.error) {
-      return NextResponse.json({ ok: false, error: `Meta API error: ${data.error.message}` })
+      return NextResponse.json({ ok: false, error: `Meta rejected these credentials — double-check the Phone Number ID and access token were copied correctly. (Meta said: ${data.error.message})` })
     }
     if (data.display_phone_number) verifiedPhone = data.display_phone_number
   } catch (e) {
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
 
   if (insertErr) {
     console.error('[Meta manual] DB insert failed:', insertErr.message)
-    return NextResponse.json({ ok: false, error: `Database error: ${insertErr.message}` })
+    return NextResponse.json({ ok: false, error: "Meta verified your credentials, but saving the connection failed. Please try again — if this keeps happening, contact support." })
   }
 
   if (store) {

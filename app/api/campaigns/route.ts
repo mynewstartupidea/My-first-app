@@ -41,7 +41,10 @@ export async function GET() {
     .eq('store_id', store.id)
     .order('created_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[campaigns/list] query error:', error.message)
+    return NextResponse.json({ error: "Couldn't load your campaigns right now. Please refresh the page." }, { status: 500 })
+  }
   return NextResponse.json({ campaigns: data })
 }
 
@@ -87,6 +90,9 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[campaigns/create] insert error:', error.message)
+    return NextResponse.json({ error: "Couldn't create this campaign. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ campaign: data })
 }

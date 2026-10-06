@@ -57,9 +57,17 @@ export default function SupportPage() {
   const [expanded,  setExpanded]  = useState<string | null>(null)
 
   const loadTickets = useCallback(async () => {
-    const res = await fetch('/api/support')
-    const data = await res.json()
-    setTickets(data.tickets ?? [])
+    try {
+      const res = await fetch('/api/support')
+      const data = await res.json().catch(() => ({})) as { tickets?: Ticket[]; error?: string }
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't load your previous tickets — refresh the page to try again.")
+        return
+      }
+      setTickets(data.tickets ?? [])
+    } catch {
+      setError("Couldn't load your previous tickets — refresh the page to try again.")
+    }
   }, [])
 
   useEffect(() => { loadTickets() }, [loadTickets])
@@ -72,21 +80,26 @@ export default function SupportPage() {
       return
     }
     setSubmitting(true)
-    const res = await fetch('/api/support', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ subject, category, message, priority }),
-    })
-    const data = await res.json()
-    setSubmitting(false)
-    if (!res.ok) { setError(data.error ?? 'Failed to submit. Try again.'); return }
-    setSuccess(true)
-    setSubject('')
-    setMessage('')
-    setPriority('normal')
-    setCategory('general')
-    loadTickets()
-    setTimeout(() => setSuccess(false), 4000)
+    try {
+      const res = await fetch('/api/support', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ subject, category, message, priority }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) { setError(data.error ?? "Couldn't submit your request — please try again."); return }
+      setSuccess(true)
+      setSubject('')
+      setMessage('')
+      setPriority('normal')
+      setCategory('general')
+      loadTickets()
+      setTimeout(() => setSuccess(false), 4000)
+    } catch {
+      setError("Couldn't submit your request — check your connection and try again.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

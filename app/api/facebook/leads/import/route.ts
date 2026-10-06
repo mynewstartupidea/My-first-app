@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const token = (conn.user_access_token as string | null) ?? conn.page_access_token
 
   // Fetch leads in the date range (paginated, up to 500)
-  const { leads: fbLeads } = await getFormLeads(
+  const { leads: fbLeads, ok: fetchOk, accessLost } = await getFormLeads(
     body.formId,
     token,
     `${body.fromDate}T00:00:00.000Z`,
@@ -48,6 +48,18 @@ export async function POST(request: Request) {
     `${body.toDate}T23:59:59.999Z`,
     500,
   )
+
+  // A failed fetch also returns an empty leads array — without this check,
+  // a dead access token looked exactly like "0 historical leads in this
+  // range" (reported back as a normal {imported: 0} success) instead of the
+  // real problem.
+  if (!fetchOk) {
+    return NextResponse.json({
+      error: accessLost
+        ? 'You no longer have access to this Facebook page — please reconnect it from Integrations.'
+        : 'Could not fetch leads from Facebook right now. Please try again in a moment.',
+    }, { status: 502 })
+  }
 
   if (!fbLeads.length) return NextResponse.json({ imported: 0, total: 0 })
 

@@ -92,9 +92,20 @@ export async function POST(request: Request) {
   // Users must explicitly trigger a campaign to reach historical leads.
   // Only leads arriving AFTER activation get WhatsApp messages automatically.
   let leadsFetched = 0
+  let fbWarning: string | undefined
   if (isNew && body.isEnabled) {
     const token = (conn.user_access_token as string | null) ?? conn.page_access_token
-    const { leads: fbLeads } = await getFormLeads(body.formId, token, null, 100, null, 500)
+    const { leads: fbLeads, ok: fetchOk, accessLost } = await getFormLeads(body.formId, token, null, 100, null, 500)
+
+    // getFormLeads returns an empty array on a failed fetch too — without
+    // this, a dead access token looked identical to "no historical leads
+    // on this form yet" (activation still reported leadsFetched: 0 as a
+    // normal success) instead of telling the merchant the real problem.
+    if (!fetchOk) {
+      fbWarning = accessLost
+        ? 'You no longer have access to this Facebook page — please reconnect it from Integrations.'
+        : 'Could not fetch historical leads from Facebook right now. New leads will still sync going forward.'
+    }
 
     if (fbLeads.length > 0) {
       const rows = fbLeads.map(fl => {
@@ -130,5 +141,5 @@ export async function POST(request: Request) {
       .then(null, () => null)
   }
 
-  return NextResponse.json({ ok: true, colorIndex, leadsFetched, leadsQueued: 0, isNew })
+  return NextResponse.json({ ok: true, colorIndex, leadsFetched, leadsQueued: 0, isNew, warning: fbWarning })
 }

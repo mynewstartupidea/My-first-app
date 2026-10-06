@@ -3211,15 +3211,15 @@ export default function AdminAdsPage() {
     }]))
   )
   // Per-ad download state — each ad tracks its own, so multiple can encode in parallel
-  type AdDlPhase = 'idle' | 'encoding' | 'done'
+  type AdDlPhase = 'idle' | 'encoding' | 'done' | 'error'
   type ExpertPhase = 'idle' | 'generating' | 'encoding' | 'done' | 'error'
-  const [adDls,      setAdDls]      = useState<Record<number, { phase: AdDlPhase; pct: number }>>({})
+  const [adDls,      setAdDls]      = useState<Record<number, { phase: AdDlPhase; pct: number; error: string | null }>>({})
   const [expertAdDls, setExpertAdDls] = useState<Record<number, { phase: ExpertPhase; pct: number; error: string | null; label: string }>>({})
 
-  const getAdDl      = (id: number) => adDls[id]      ?? { phase: 'idle' as AdDlPhase, pct: 0 }
+  const getAdDl      = (id: number) => adDls[id]      ?? { phase: 'idle' as AdDlPhase, pct: 0, error: null }
   const getExpertAdDl = (id: number) => expertAdDls[id] ?? { phase: 'idle' as ExpertPhase, pct: 0, error: null, label: '' }
 
-  const patchAdDl      = (id: number, p: Partial<{ phase: AdDlPhase; pct: number }>) =>
+  const patchAdDl      = (id: number, p: Partial<{ phase: AdDlPhase; pct: number; error: string | null }>) =>
     setAdDls(prev => ({ ...prev, [id]: { ...getAdDl(id), ...p } }))
   const patchExpertAdDl = (id: number, p: Partial<{ phase: ExpertPhase; pct: number; error: string | null; label: string }>) =>
     setExpertAdDls(prev => ({ ...prev, [id]: { ...getExpertAdDl(id), ...p } }))
@@ -3373,7 +3373,7 @@ export default function AdminAdsPage() {
     const recordCanvas = recordRefs.current[ad.id]
     if (!recordCanvas) { alert('Canvas not ready — please refresh.'); return }
 
-    patchAdDl(ad.id, { phase: 'encoding', pct: 0 })
+    patchAdDl(ad.id, { phase: 'encoding', pct: 0, error: null })
     try {
       const blob = await fastEncodeToBlob(
         recordCanvas, RENDERERS[ad.id], ad.id,
@@ -3384,8 +3384,12 @@ export default function AdminAdsPage() {
       patchAdDl(ad.id, { phase: 'done', pct: 100 })
       setTimeout(() => patchAdDl(ad.id, { phase: 'idle', pct: 0 }), 3000)
     } catch (e) {
+      // Was silently resetting to 'idle' with only a console.error — looked
+      // identical to the button never having been clicked, so a real
+      // encode/export failure (e.g. WebCodecs unsupported, out of memory)
+      // gave zero indication anything went wrong.
       console.error('encode failed:', e)
-      patchAdDl(ad.id, { phase: 'idle', pct: 0 })
+      patchAdDl(ad.id, { phase: 'error', pct: 0, error: e instanceof Error ? e.message : 'Video export failed — please try again.' })
     }
   }, [voices, adDls])
 
@@ -3558,6 +3562,8 @@ export default function AdminAdsPage() {
                           ? <><Loader2 size={13} className="animate-spin" /> Encoding… {adDl.pct}%</>
                           : adDl.phase === 'done'
                           ? <><CheckCircle2 size={13} /> Downloaded!</>
+                          : adDl.phase === 'error'
+                          ? <><AlertCircle size={13} /> Retry download</>
                           : <><Download size={13} /> {v?.status === 'ready' ? 'Download with Voiceover' : 'Download MP4'}</>
                         }
                       </button>
@@ -3581,6 +3587,13 @@ export default function AdminAdsPage() {
                         {isEx ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
                     </div>
+
+                    {adDl.phase === 'error' && (
+                      <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                        <AlertCircle size={13} className="text-red-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-red-400 text-xs">{adDl.error}</p>
+                      </div>
+                    )}
 
                     {/* Expert Voice Download — per-line direction for new ads, single-call for legacy */}
                     {hasExpert && (

@@ -129,7 +129,10 @@ export async function POST(request: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[leads/call-logs] insert error:', error.message)
+    return NextResponse.json({ error: "Couldn't save this call log. Please try again." }, { status: 500 })
+  }
 
   // Update lead's followup_at and/or tag if provided
   const updates: Record<string, unknown> = {}

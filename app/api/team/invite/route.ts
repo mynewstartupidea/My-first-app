@@ -99,7 +99,13 @@ export async function POST(request: Request) {
     .select('*')
     .single()
 
-  if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
+  if (invErr) {
+    console.error('[team/invite] insert failed:', invErr.message)
+    const duplicate = invErr.code === '23505' || /duplicate key/i.test(invErr.message)
+    return NextResponse.json({
+      error: duplicate ? 'An invite already exists for this email.' : "Couldn't create the invite — please try again.",
+    }, { status: duplicate ? 409 : 500 })
+  }
 
   // Send actual invitation email via Supabase Auth Admin
   const { error: emailErr } = await service.auth.admin.inviteUserByEmail(email, {
@@ -143,7 +149,7 @@ export async function POST(request: Request) {
     console.error('[Invite] email send failed:', emailErr.message)
     return NextResponse.json({
       invite,
-      warning: `Invite saved but email failed: ${emailErr.message}`,
+      warning: `Invite saved, but the invite email to ${email} could not be sent. Ask them to sign up at the Wapaci login page with this email — they'll be added to your team automatically.`,
     })
   }
 

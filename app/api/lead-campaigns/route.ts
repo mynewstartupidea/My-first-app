@@ -75,6 +75,9 @@ export async function POST(request: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[lead-campaigns/create] insert error:', error.message)
+    return NextResponse.json({ error: "Couldn't create this lead campaign. Please try again." }, { status: 500 })
+  }
   return NextResponse.json({ campaign })
 }

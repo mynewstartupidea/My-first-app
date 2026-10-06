@@ -103,7 +103,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, metaName, status: 'PENDING' })
   }
 
-  return NextResponse.json({ ok: false, error: data.error?.message ?? 'Meta submission failed' }, { status: 400 })
+  return NextResponse.json({
+    ok: false,
+    error: data.error?.message
+      ? `Meta rejected this template: ${data.error.message}`
+      : 'Meta rejected this template for an unknown reason. Please check the wording and try submitting again.',
+  }, { status: 400 })
 }
 
 // GET — sync live Meta approval status for all user's submitted custom templates

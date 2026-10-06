@@ -122,11 +122,13 @@ export async function POST(request: Request) {
 
   const result = gqlData.data?.appSubscriptionCreate
   if (result?.userErrors?.length) {
-    return NextResponse.json({ error: result.userErrors[0].message }, { status: 400 })
+    console.error('[billing/create] Shopify userErrors:', result.userErrors)
+    return NextResponse.json({ error: `Shopify couldn't set up billing for this plan: ${result.userErrors[0].message}` }, { status: 400 })
   }
 
   if (!result?.confirmationUrl) {
-    return NextResponse.json({ error: 'No confirmation URL returned' }, { status: 502 })
+    console.error('[billing/create] no confirmationUrl in response:', JSON.stringify(gqlData))
+    return NextResponse.json({ error: "Shopify didn't return a payment link. Please try again." }, { status: 502 })
   }
 
   return NextResponse.json({

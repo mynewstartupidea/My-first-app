@@ -35,6 +35,7 @@ function AIAssistantInner() {
   const [toggling, setToggling] = useState(false)
   const [savedAt, setSavedAt]   = useState<number | null>(null)
   const [toggleError, setToggleError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -62,6 +63,7 @@ function AIAssistantInner() {
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
     const res = await fetch('/api/ai/knowledge-base', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -71,6 +73,13 @@ function AIAssistantInner() {
       setSavedContent(content)
       setSavedAt(Date.now())
       setToggleError(null)
+    } else {
+      // Previously did nothing on failure — the button just stopped
+      // spinning and silently reverted to "Unsaved changes" with no
+      // indication the knowledge base the AI uses to reply to customers
+      // was never actually saved.
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setSaveError(d.error ?? "Couldn't save your knowledge base. Please try again.")
     }
     setSaving(false)
   }
@@ -90,6 +99,11 @@ function AIAssistantInner() {
     } else if (data.error === 'needs_knowledge_base') {
       setToggleError(data.message ?? 'Please fill in some information about your business first.')
       textareaRef.current?.focus()
+    } else {
+      // Previously fell through with no feedback at all for any other
+      // failure (expired session, no store connected, a save error) — the
+      // switch just silently stayed put with nothing telling the user why.
+      setToggleError(data.message ?? data.error ?? "Couldn't update this setting. Please try again.")
     }
     setToggling(false)
   }
@@ -236,6 +250,12 @@ function AIAssistantInner() {
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
+          {saveError && (
+            <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
+              <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+              <p className="text-xs text-red-600">{saveError}</p>
+            </div>
+          )}
         </div>
       </div>
 

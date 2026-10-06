@@ -70,7 +70,17 @@ export async function POST(req: NextRequest) {
   const result = await queueCampaignAudience(service, campaign)
   if (!result.success) {
     await service.from('campaigns').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('id', campaign_id)
-    return NextResponse.json({ error: result.error }, { status: result.error.startsWith('No eligible') ? 400 : 500 })
+    const noEligible = result.error.startsWith('No eligible')
+    // queueCampaignAudience (lib/campaign-queue.ts) prefixes its other failure
+    // strings with the raw Postgres error message (e.g. "Failed to build
+    // audience: <pg error>") — only the "no eligible customers" case is
+    // actually written for an end user, so translate everything else instead
+    // of forwarding raw DB text.
+    const message = noEligible
+      ? 'No customers match this audience segment yet — try a different audience.'
+      : "Couldn't send this campaign right now. Please try again in a moment."
+    if (!noEligible) console.error('[campaigns/send] queueCampaignAudience failed:', result.error)
+    return NextResponse.json({ error: message }, { status: noEligible ? 400 : 500 })
   }
 
   return NextResponse.json({ success: true, queued: result.queued })

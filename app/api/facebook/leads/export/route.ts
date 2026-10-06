@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
   const token = (conn.user_access_token as string | null) ?? conn.page_access_token as string
 
-  const { leads: fbLeads } = await getFormLeads(
+  const { leads: fbLeads, ok: fetchOk, accessLost } = await getFormLeads(
     formId,
     token,
     fromDate ? `${fromDate}T00:00:00.000Z` : undefined,
@@ -43,6 +43,19 @@ export async function GET(request: Request) {
     toDate   ? `${toDate}T23:59:59.999Z`   : undefined,
     2000,
   )
+
+  // getFormLeads returns an empty array on a failed fetch, same as a
+  // genuinely empty date range — this used to return {leads: [], total: 0}
+  // either way, so a dead access token looked identical to "no leads in
+  // this range" and the merchant would export an empty CSV with no idea
+  // the connection was actually broken.
+  if (!fetchOk) {
+    return NextResponse.json({
+      error: accessLost
+        ? 'You no longer have access to this Facebook page — please reconnect it from Integrations.'
+        : 'Could not fetch leads from Facebook right now. Please try again in a moment.',
+    }, { status: 502 })
+  }
 
   const leads = fbLeads.map(fl => {
     const { name, email, phone } = parseLeadFields(fl.field_data ?? [])
