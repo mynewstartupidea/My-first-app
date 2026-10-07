@@ -464,15 +464,20 @@ function StarterCard({ tmpl, onCopy }: {
             <Icon className={cn('w-5 h-5', iconCfg.color)} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-slate-800 text-sm">{tmpl.description}</p>
-              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-                {categoryLabel}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap mt-1">
+            {/* Title gets its own line, free to wrap for longer descriptions
+                — previously shared a flex-wrap row with the category badge,
+                so the badge (and everything below it) landed at a different
+                height on every card depending on exactly where each title's
+                text happened to wrap, with no consistent rule. All badges
+                now live together in one row below the title instead, so
+                "Pending review" lines up the same way card to card. */}
+            <p className="font-semibold text-slate-800 text-sm leading-snug">{tmpl.description}</p>
+            <div className="flex items-center gap-2 flex-wrap mt-1.5">
               <span className={cn('text-[10px] font-medium border px-1.5 py-0.5 rounded-full', statusCfg.cls)}>
                 {statusCfg.label}
+              </span>
+              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                {categoryLabel}
               </span>
               <span className="text-[10px] font-mono text-slate-300">{tmpl.name}</span>
             </div>
