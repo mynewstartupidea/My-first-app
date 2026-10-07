@@ -34,7 +34,12 @@ export default function WaHealthBadge({ variant = 'dark' }: { variant?: 'dark' |
 
   if (!health?.connected) return null
   const rating = health.quality_rating ?? 'GREEN'
-  if (rating === 'GREEN') return null
+  // Meta returns the literal string "UNKNOWN" (not GREEN/YELLOW/RED) for a
+  // brand-new number that hasn't sent enough messages yet to be rated —
+  // normal and expected, not a sign of dropping quality. Treating it the
+  // same as YELLOW showed a "WA Quality ↓" warning on day one for every new
+  // connection, before the account had done anything at all.
+  if (rating === 'GREEN' || rating === 'UNKNOWN') return null
 
   const isRed = rating === 'RED'
 
