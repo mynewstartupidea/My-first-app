@@ -190,6 +190,21 @@ function Testimonials() {
 
 type FormStep = 'form' | 'submitting' | 'checkout_pending' | 'saved_no_checkout' | 'paid'
 
+// Razorpay's checkout modal locks body scroll while open and doesn't always
+// restore the original scroll position on close — dismissing (or completing)
+// it could leave the page scrolled to the top, right back at the Hero's own
+// "Get started" button, making it look like the submission never happened
+// even though the lead was already saved and this section has updated to
+// show that. Closing the modal doesn't re-render anything here (the section
+// below already shows the right state via `step`), so this only needs to
+// physically scroll back to it — the small delay gives Razorpay's own
+// cleanup/animation a moment to finish first so it can't override this.
+function scrollToGetStarted() {
+  setTimeout(() => {
+    document.getElementById('get-started')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, 150)
+}
+
 function GetStarted() {
   const [step, setStep] = useState<FormStep>('form')
   const [name, setName] = useState('')
@@ -248,8 +263,8 @@ function GetStarted() {
       description: 'Lead Response Plan — ₹1,999/month',
       prefill: data.prefill,
       theme: { color: '#25D366' },
-      handler: () => setStep('paid'),
-      modal: { ondismiss: () => setStep('checkout_pending') },
+      handler: () => { setStep('paid'); scrollToGetStarted() },
+      modal: { ondismiss: () => { setStep('checkout_pending'); scrollToGetStarted() } },
     })
     rzp.open()
     setStep('checkout_pending')
