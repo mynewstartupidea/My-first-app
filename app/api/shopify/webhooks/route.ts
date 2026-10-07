@@ -344,24 +344,24 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     }
   }
 
-  // Revenue attribution — attribute order value to last WhatsApp message within 24h
-  const orderValue = parseFloat(String(order.total_price ?? '0'))
-  if (orderValue > 0) {
-    await attributeRevenue(supabase, store.id, phone, orderValue, order.id).catch(() => null)
-  }
-
-  // increment_customer_order_stats must only ever run once per real order —
-  // unlike automation_jobs (deduped via automationJobExists above), this had
-  // no such guard: a retried orders/create webhook (Shopify's delivery is
-  // "at least once", not exactly-once) would increment total_orders/
-  // total_spent a second time for the same order, permanently inflating a
-  // customer's stats with no periodic correction (the periodic orders sync
-  // only ever re-runs once, at connect time or on a manual Sync Now click).
-  // Checking whether shopify_orders already has this order is what tells us
-  // whether this is a genuinely new order or a replayed webhook.
+  // increment_customer_order_stats (and revenue attribution, right below) must
+  // only ever run once per real order — unlike automation_jobs (deduped via
+  // automationJobExists above), neither had such a guard: a retried
+  // orders/create webhook (Shopify's delivery is "at least once", not
+  // exactly-once) would increment total_orders/total_spent, and separately
+  // double-count revenue_recovered/carts_recovered in analytics_daily, a
+  // second time for the same order. Checking whether shopify_orders already
+  // has this order is what tells us whether this is a genuinely new order or
+  // a replayed webhook.
   const shopifyOrderGid = toGid('Order', order.id)
   const { data: existingOrder } = await supabase
     .from('shopify_orders').select('id').eq('store_id', store.id).eq('shopify_order_id', shopifyOrderGid).maybeSingle()
+
+  // Revenue attribution — attribute order value to last WhatsApp message within 24h
+  const orderValue = parseFloat(String(order.total_price ?? '0'))
+  if (orderValue > 0 && !existingOrder) {
+    await attributeRevenue(supabase, store.id, phone, orderValue, order.id).catch(() => null)
+  }
 
   let customerRow: { id: string } | null = null
   if (!existingOrder) {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
-import { renderTemplate } from '@/lib/utils'
+import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 
 export const maxDuration = 60
 
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   // only created when is_enabled = true.
   const { data: forms } = await supabase
     .from('lead_form_automations')
-    .select('id, user_id, store_id, connection_id, form_id, form_name, message_template, is_enabled, last_lead_fetch')
+    .select('id, user_id, store_id, connection_id, form_id, form_name, message_template, is_enabled, last_lead_fetch, wa_template_name, wa_template_language')
 
   let synced = 0
 
@@ -117,13 +117,22 @@ export async function GET(request: Request) {
 
     // Only queue WhatsApp jobs when automation is enabled for this form
     if (form.is_enabled && savedRows?.length && form.message_template) {
+      // This periodic polling sync's select() never carried wa_template_name/
+      // wa_template_language (unlike the real-time webhook path in
+      // lib/facebook-sync.ts, which this mirrors), so a job queued through
+      // THIS path for an automation configured to use an approved Meta
+      // template was sent as free-form text instead — which Meta rejects
+      // outside the 24h customer-service window, exactly the case for a
+      // brand-new lead who hasn't messaged the business first.
+      const waTemplateName = (form.wa_template_name as string | null) || null
+      const waTemplateLang = (form.wa_template_language as string | null) || 'en'
       const jobs = savedRows
         .filter(s => s.phone)
         .map(s => {
           const fields = (s.fields as Record<string, string>) ?? {}
-          const message = renderTemplate(form.message_template as string, {
-            ...fields, name: s.name ?? 'there', email: fields.email ?? '', phone: s.phone,
-          })
+          const vars = { ...fields, name: s.name ?? 'there', email: fields.email ?? '', phone: s.phone as string }
+          const message = renderTemplate(form.message_template as string, vars)
+          const waParams = waTemplateName ? extractTemplateParams(form.message_template as string, vars) : undefined
           return {
             store_id:       form.store_id,
             automation_id:  null,
@@ -131,7 +140,10 @@ export async function GET(request: Request) {
             customer_phone: s.phone,
             customer_name:  s.name ?? 'Lead',
             message,
-            context:        { lead_id: s.id, form_id: form.form_id },
+            context: {
+              lead_id: s.id, form_id: form.form_id,
+              ...(waTemplateName ? { wa_template_name: waTemplateName, wa_template_language: waTemplateLang, wa_template_params: waParams } : {}),
+            },
             status:         'pending',
             scheduled_at:   new Date().toISOString(),
           }

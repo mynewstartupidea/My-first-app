@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { renderTemplate } from '@/lib/utils'
+import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 const VALID_OUTCOMES = new Set(['connected', 'no_answer', 'voicemail', 'callback', 'busy'])
@@ -153,10 +153,17 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (lead?.phone && lead?.store_id) {
-      const message = renderTemplate(tmpl.body, {
+      const vars = {
         name: lead.name ?? 'there',
         phone: lead.phone,
-      })
+      }
+      const message = renderTemplate(tmpl.body, vars)
+      // Must use the wa_template_* keys — the cron processor (app/api/cron/route.ts)
+      // only reads ctx.wa_template_name, not the `template_name` key this used to
+      // write. Without it, this job was sent as free-form text instead of the
+      // approved Meta template, which fails outside the 24h customer-service
+      // window — exactly the case here, since the lead just missed a call and
+      // never messaged first.
       await service.from('automation_jobs').insert({
         store_id: lead.store_id,
         automation_id: null,
@@ -169,7 +176,9 @@ export async function POST(request: Request) {
           form_id: lead.form_id,
           manual: true,
           missed_call_followup: true,
-          template_name: tmpl.name,
+          wa_template_name: tmpl.name,
+          wa_template_language: 'en',
+          wa_template_params: extractTemplateParams(tmpl.body, vars),
         },
         status: 'pending',
         scheduled_at: new Date().toISOString(),
