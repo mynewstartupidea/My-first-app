@@ -154,7 +154,12 @@ export default async function DashboardPage() {
       .not('followup_at', 'is', null)
       .lte('followup_at', new Date().toISOString())
       .not('lead_status', 'in', '("converted","lost","junk")')
-    if (defaultPageId) followupQuery = followupQuery.eq('page_id', defaultPageId)
+    // defaultPageId is null when the account has no Facebook page connected
+    // at all — scope to leads that never had a page_id (manual, CSV import,
+    // website-form ingest), not every lead across every page the account has
+    // EVER connected, including ones tied to a page that's since been
+    // disconnected. Mirrors the same no_page fix in /api/facebook/leads.
+    followupQuery = defaultPageId ? followupQuery.eq('page_id', defaultPageId) : followupQuery.is('page_id', null)
     const { data: followupLeads } = await followupQuery
       .order('followup_at', { ascending: true })
       .limit(5)
@@ -215,12 +220,18 @@ export default async function DashboardPage() {
     store ? service.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? service.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? service.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
+    // defaultPageId/defaultConnectionId are null when the account has no
+    // Facebook page connected at all — scope to leads/automations that never
+    // had a page_id/connection_id (page-less leads; orphaned automation
+    // rows don't apply), not everything the account has EVER had across
+    // every page/connection it has ever connected and since disconnected.
+    // Mirrors the same no_page fix in /api/facebook/leads.
     isEcommerce ? Promise.resolve({ data: [] }) : defaultPageId
       ? service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).eq('page_id', defaultPageId)
-      : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId),
+      : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).is('page_id', null),
     isEcommerce ? Promise.resolve({ data: [] }) : defaultConnectionId
       ? service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).eq('connection_id', defaultConnectionId)
-      : service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId),
+      : service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).is('connection_id', null),
     // Deliberately per-viewer (not owner-scoped) — each teammate has their own
     // user_profiles row and their own missed-call-followup preference.
     isEcommerce ? Promise.resolve({ data: null }) : supabase.from('user_profiles').select('missed_call_followup_enabled').eq('id', user.id).maybeSingle(),

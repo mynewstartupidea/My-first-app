@@ -2331,12 +2331,16 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
     setLoading(true)
     const p = new URLSearchParams({ sort: 'followup_all', limit: '500' })
     // pageId is null for an account with no Facebook pages connected at all
-    // (the empty-state screen's own Follow-ups tab) — omitting page_id/form_id
-    // entirely makes the backend return every one of the owner's leads
-    // regardless of source, same as fetchNoPageLeads already relies on.
+    // (the empty-state screen's own Follow-ups tab) — no_page scopes to
+    // leads that never had a page_id/form_id (manual, CSV import, website-
+    // form), not every lead the account has ever had including ones tied to
+    // a page that's since been disconnected (see /api/facebook/leads's
+    // no_page comment).
     if (pageId) {
       if (selectedFormId !== 'all' && selectedFormId !== '__forms') p.set('form_id', selectedFormId)
       else p.set('page_id', pageId)
+    } else {
+      p.set('no_page', 'true')
     }
     const r = await fetch(`/api/facebook/leads?${p}`)
     const d = await r.json() as { leads?: Lead[] }
@@ -3267,11 +3271,13 @@ function LeadsContent() {
     return p
   }, [])
 
-  // Used only by the "no Facebook pages connected" empty state — the backend
-  // (/api/facebook/leads) already returns every one of the owner's leads when
-  // called with no page_id/form_id/source, so this needs no new API route.
+  // Used only by the "no Facebook pages connected" empty state. no_page scopes
+  // to leads that never had a page_id/form_id (manual, CSV import, website-
+  // form ingest) — calling with no params at all used to return every lead
+  // the account has ever had, including stale ones tied to a page that's
+  // since been disconnected, which is not what this empty state means to show.
   const fetchNoPageLeads = useCallback(async () => {
-    const r = await fetch('/api/facebook/leads?limit=20')
+    const r = await fetch('/api/facebook/leads?limit=20&no_page=true')
     const d = await r.json() as { leads?: Lead[] }
     setNoPageLeads(d.leads ?? [])
     setNoPageLeadsLoaded(true)
@@ -3435,14 +3441,17 @@ function LeadsContent() {
   // Fetch follow-up urgent count (overdue + today) — used for the tab badge.
   // Also runs with no page_id at all once we've confirmed there are zero
   // Facebook pages connected (pages.length === 0) — that's the no-pages
-  // empty state's own Follow-ups tab, which needs the same badge count
-  // across every lead regardless of source. Skipped while pages.length > 0
-  // but selectedPageId hasn't been picked yet (still initializing).
+  // empty state's own Follow-ups tab, which needs the same badge count but
+  // scoped to genuinely page-less leads (no_page), not every lead the
+  // account has ever had including ones tied to a since-disconnected page.
+  // Skipped while pages.length > 0 but selectedPageId hasn't been picked
+  // yet (still initializing).
   useEffect(() => {
     if (!pagesLoaded) return
     if (pages.length > 0 && !selectedPageId) return
     const p = new URLSearchParams({ sort: 'followup_due', limit: '1' })
     if (selectedPageId) p.set('page_id', selectedPageId)
+    else p.set('no_page', 'true')
     fetch(`/api/facebook/leads?${p}`)
       .then(r => r.json() as Promise<{ total?: number }>)
       .then(d => setFollowupUrgentCount(d.total ?? 0))

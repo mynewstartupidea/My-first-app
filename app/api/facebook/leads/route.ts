@@ -21,6 +21,14 @@ export async function GET(request: Request) {
   // scoping is how they surface at all, since selectedPageId is otherwise
   // always set once any Facebook page is connected.
   const source      = searchParams.get('source')
+  // Used only by the dashboard and Leads page's "no Facebook page connected"
+  // states. Without it, calling this route with none of source/form_id/
+  // page_id applies NO filter at all beyond ownership — it returns every
+  // lead the account has ever had, including ones tied to a page that was
+  // later disconnected. That's wrong for "nothing is connected right now":
+  // this scopes to leads that never had a Facebook page at all (manual, CSV
+  // import, website-form ingest), not stale leads from a defunct connection.
+  const noPage      = searchParams.get('no_page') === 'true'
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -94,6 +102,8 @@ export async function GET(request: Request) {
       query = query.eq('form_id', formId)
     } else if (pageId) {
       query = query.eq('page_id', pageId)
+    } else if (noPage) {
+      query = query.is('page_id', null).is('form_id', null)
     }
     if (fromDate) query = query.gte('created_at', `${fromDate}T00:00:00.000Z`)
     if (toDate)   query = query.lte('created_at', `${toDate}T23:59:59.999Z`)
