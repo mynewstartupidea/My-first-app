@@ -12,6 +12,11 @@ export interface StarterTemplate {
   name:        string        // Meta template name (lowercase, underscores only)
   language:    string        // BCP-47 language code
   category:    'MARKETING' | 'UTILITY'
+  // Which app/dashboard/templates/page.tsx section this belongs in ("Lead Ad
+  // Templates" vs "Ecommerce Automation Templates") — both are submitted to
+  // Meta together by the same "Update on Meta" button, this only controls
+  // where each one is grouped/labeled and counted on that page.
+  type:        'lead' | 'ecommerce'
   description: string        // shown in the Wapaci UI picker
   body:        string        // exact Meta template body with {{1}}, {{2}}, …
   bodyPreview: string        // Wapaci-style preview with {{name}}, {{phone}}, …
@@ -24,6 +29,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_lead_greeting',
     language:    'en',
     category:    'MARKETING',
+    type:        'lead',
     description: 'Simple greeting — works for any lead form',
     body:        'Hi {{1}}! 👋 Thanks for your interest. We\'ll be in touch soon. Reply here if you have any questions!',
     bodyPreview: 'Hi {{name}}! 👋 Thanks for your interest. We\'ll be in touch soon. Reply here if you have any questions!',
@@ -34,6 +40,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_lead_callback',
     language:    'en',
     category:    'MARKETING',
+    type:        'lead',
     description: 'Promises a callback on the lead\'s phone number',
     body:        'Hi {{1}}! We\'ll call you at {{2}} soon. If you\'d like to talk now, just reply to this message! 😊',
     bodyPreview: 'Hi {{name}}! We\'ll call you at {{phone}} soon. If you\'d like to talk now, just reply to this message! 😊',
@@ -44,6 +51,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_lead_confirm',
     language:    'en',
     category:    'UTILITY',
+    type:        'lead',
     description: 'Utility confirmation — higher deliverability, lower cost',
     body:        'Hi {{1}}! We got your request. Someone from our team will reach out shortly. Reply here anytime!',
     bodyPreview: 'Hi {{name}}! We got your request. Someone from our team will reach out shortly. Reply here anytime!',
@@ -54,6 +62,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_lead_service',
     language:    'en',
     category:    'MARKETING',
+    type:        'lead',
     description: 'Mentions the business service category',
     body:        'Hi {{1}}! Thanks for your interest. We\'ll call {{2}} within 24 hours. Feel free to reply here if you have questions!',
     bodyPreview: 'Hi {{name}}! Thanks for your interest. We\'ll call {{phone}} within 24 hours. Feel free to reply here if you have questions!',
@@ -64,6 +73,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_missed_call',
     language:    'en',
     category:    'UTILITY',
+    type:        'lead',
     description: 'Missed call follow-up — send after a No Answer to re-engage the lead',
     body:        'Hi {{1}}, we tried calling you. Feel free to reply here whenever you\'re free.',
     bodyPreview: 'Hi {{name}}, we tried calling you. Feel free to reply here whenever you\'re free.',
@@ -74,6 +84,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_voicemail_followup',
     language:    'en',
     category:    'UTILITY',
+    type:        'lead',
     description: 'Voicemail follow-up — send after leaving a voicemail to open a chat',
     body:        'Hi {{1}}, we left you a voicemail. You can also reply here anytime and we\'ll get back to you.',
     bodyPreview: 'Hi {{name}}, we left you a voicemail. You can also reply here anytime and we\'ll get back to you.',
@@ -94,6 +105,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_abandoned_cart',
     language:    'en',
     category:    'MARKETING',
+    type:        'ecommerce',
     description: 'Abandoned cart recovery — nudge a customer back to checkout',
     body:        'Hi {{1}}! 👋 You left something in your cart at {{2}}. Your items are waiting — complete your purchase here: {{3}}',
     bodyPreview: 'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}.\n\nYour items are waiting! Complete your purchase here:\n{{cart_url}}\n\nHurry — items may sell out!',
@@ -104,6 +116,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_cod_verification',
     language:    'en',
     category:    'UTILITY',
+    type:        'ecommerce',
     description: 'COD order verification — confirm before dispatch to reduce RTO',
     body:        'Hi {{1}}! Your COD order #{{2}} for ₹{{3}} at {{4}} is confirmed. Please reply YES to confirm or NO to cancel before dispatch. Thank you!',
     bodyPreview: 'Hi {{name}}! 🛍️ Your COD order #{{order_number}} for ₹{{amount}} at {{shop_name}} is confirmed.\n\nPlease reply *YES* to confirm or *NO* to cancel before dispatch.\n\nThank you!',
@@ -114,6 +127,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_order_confirmation',
     language:    'en',
     category:    'UTILITY',
+    type:        'ecommerce',
     description: 'Order confirmation — instant WhatsApp receipt when an order is placed',
     body:        'Hi {{1}}! 🎉 Your order #{{2}} is confirmed at {{3}}. We will notify you once it ships. Track your order: {{4}}',
     bodyPreview: 'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}.\n\nWe\'ll send you shipping details soon. Track your order:\n{{order_url}}\n\nThank you for shopping with us!',
@@ -124,6 +138,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_shipping_update',
     language:    'en',
     category:    'UTILITY',
+    type:        'ecommerce',
     description: 'Shipping update — notify with tracking once an order is fulfilled',
     body:        'Hi {{1}}! 📦 Your order #{{2}} from {{3}} has been shipped! Track it here: {{4}}',
     bodyPreview: 'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped!\n\nTrack your delivery:\n{{tracking_url}}\n\nExpected delivery in 3–5 business days.',
@@ -134,6 +149,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_post_purchase_upsell',
     language:    'en',
     category:    'MARKETING',
+    type:        'ecommerce',
     description: 'Post-purchase upsell — suggested picks sent after fulfillment',
     body:        'Hi {{1}}! Thank you for your order at {{2}} ❤️. Customers who bought this also loved these picks — check them out on our store!',
     bodyPreview: 'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved these picks — check them out on our store!',
@@ -144,6 +160,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name:        'wapaci_review_request',
     language:    'en',
     category:    'UTILITY',
+    type:        'ecommerce',
     description: 'Review request — ask for a review a few days after delivery',
     body:        'Hi {{1}}! Hope you are loving your purchase from {{2}} 😊. Would you mind leaving us a quick review? It takes just 2 minutes and really helps us!',
     bodyPreview: 'Hi {{name}}! Hope you\'re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot and takes just 2 minutes!\n\nThank you!',

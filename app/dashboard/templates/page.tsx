@@ -742,23 +742,35 @@ export default function TemplatesPage() {
   const matchSaved    = (t: SavedTemplate)     => !q || t.name.toLowerCase().includes(q) || t.body.toLowerCase().includes(q)
   const matchStarter  = (t: StarterTemplate)   => !q || t.description.toLowerCase().includes(q) || t.bodyPreview.toLowerCase().includes(q)
 
-  const showEcommerce   = chip === 'all' || chip === 'ecommerce'
-  const showLead        = chip === 'all' || chip === 'lead' || chip === 'pre_approved'
+  // starterTmpl mixes two different groups (lib/whatsapp-templates.ts's
+  // `type` field: lead vs ecommerce) that used to all get shown under one
+  // "Lead Ad Templates" header regardless of which one each actually was —
+  // after Shopify automation templates were added to the same array, that
+  // section (and the "Lead Ad" chip's count) silently started including
+  // ecommerce templates like abandoned-cart/shipping-update under
+  // lead-ad-flavored copy ("ready for cold outreach"). Split by type instead.
+  const leadStarter = starterTmpl.filter(t => t.type === 'lead')
+  const ecomStarter = starterTmpl.filter(t => t.type === 'ecommerce')
+
+  const showLeadStarter = chip === 'all' || chip === 'lead' || chip === 'pre_approved'
+  const showEcomStarter = chip === 'all' || chip === 'ecommerce' || chip === 'pre_approved'
+  const showBuiltin     = chip === 'all' || chip === 'ecommerce'
   const showMy          = chip === 'all' || chip === 'my_templates'
 
-  const visibleBuiltin  = showEcommerce ? BUILTIN_TEMPLATES.filter(matchBuiltin) : []
-  const visibleStarter  = showLead
-    ? starterTmpl.filter(t => chip === 'pre_approved' ? t.status === 'APPROVED' : true).filter(matchStarter)
-    : []
-  const visibleSaved    = showMy ? saved.filter(t => !t.is_archived).filter(matchSaved) : []
+  const approveFilter = (t: StarterTemplate & { status: string }) => chip === 'pre_approved' ? t.status === 'APPROVED' : true
+
+  const visibleStarterLead = showLeadStarter ? leadStarter.filter(approveFilter).filter(matchStarter) : []
+  const visibleStarterEcom = showEcomStarter ? ecomStarter.filter(approveFilter).filter(matchStarter) : []
+  const visibleBuiltin     = showBuiltin ? BUILTIN_TEMPLATES.filter(matchBuiltin) : []
+  const visibleSaved       = showMy ? saved.filter(t => !t.is_archived).filter(matchSaved) : []
 
   const approvedCount   = starterTmpl.filter(t => t.status === 'APPROVED').length
-  const totalVisible    = visibleBuiltin.length + visibleStarter.length + visibleSaved.length
+  const totalVisible    = visibleStarterLead.length + visibleStarterEcom.length + visibleBuiltin.length + visibleSaved.length
 
   const chips: { key: FilterChip; label: string; count?: number }[] = [
     { key: 'all',          label: 'All Templates',    count: BUILTIN_TEMPLATES.length + starterTmpl.length + saved.filter(t => !t.is_archived).length },
-    { key: 'ecommerce',    label: 'Ecommerce',         count: BUILTIN_TEMPLATES.length },
-    { key: 'lead',         label: 'Lead Ad',           count: starterTmpl.length },
+    { key: 'ecommerce',    label: 'Ecommerce',         count: BUILTIN_TEMPLATES.length + ecomStarter.length },
+    { key: 'lead',         label: 'Lead Ad',           count: leadStarter.length },
     { key: 'pre_approved', label: 'Pre-approved',      count: approvedCount },
     { key: 'my_templates', label: 'Custom Templates',   count: saved.filter(t => !t.is_archived).length },
   ]
@@ -807,13 +819,18 @@ export default function TemplatesPage() {
             className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] bg-white shadow-sm"
           />
         </div>
+        {/* Re-checks live Meta approval status for every starter template
+            (GET /api/whatsapp/templates always queries Meta fresh, never
+            cached) — visible label, not just an icon + tooltip, so it's
+            unmistakably "check if Meta approved my templates yet." */}
         <button
           onClick={() => { loadStarter(); loadSaved() }}
           disabled={loadingStarter}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 bg-white px-3 py-2.5 rounded-xl transition shadow-sm"
-          title="Refresh status"
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 bg-white px-3 py-2.5 rounded-xl transition shadow-sm flex-shrink-0"
+          title="Check Meta approval status"
         >
           <RefreshCw className={cn('w-4 h-4', loadingStarter && 'animate-spin')} />
+          <span className="hidden sm:inline">{loadingStarter ? 'Checking…' : 'Refresh status'}</span>
         </button>
       </div>
 
@@ -852,13 +869,18 @@ export default function TemplatesPage() {
         </div>
       )}
 
-      {/* ── Lead Ad Templates section ─────────────────────────────────── */}
-      {visibleStarter.length > 0 && (
-        <div className="mb-8">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <MessageSquare className="w-4 h-4 text-blue-500 flex-shrink-0" />
-            <h2 className="text-sm font-semibold text-slate-700">Lead Ad Templates</h2>
-            <span className="hidden sm:inline text-xs text-slate-400">— pre-approved by Meta, ready for cold outreach</span>
+      {/* ── Wapaci starter templates (Lead Ad + Ecommerce Automation) ───
+          One "Update on Meta" button for both — it really does push both
+          groups to Meta together (lib/whatsapp-templates.ts's single
+          STARTER_TEMPLATES array) — but each group gets its own clearly
+          labeled sub-section instead of both being shown under one
+          "Lead Ad" header that doesn't describe the ecommerce ones. */}
+      {(visibleStarterLead.length > 0 || visibleStarterEcom.length > 0) && (
+        <div className="mb-8 space-y-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Sparkles className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <h2 className="text-sm font-semibold text-slate-700">Wapaci Starter Templates</h2>
+            <span className="hidden sm:inline text-xs text-slate-400">— pre-approved by Meta, ready to use</span>
             <div className="ml-auto flex items-center gap-2">
               {starterTmpl.every(t => t.status === 'whatsapp_not_connected') ? (
                 <a href="/dashboard/settings?tab=whatsapp" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
@@ -878,22 +900,47 @@ export default function TemplatesPage() {
               )}
             </div>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {visibleStarter.map(t => (
-              <StarterCard key={t.name} tmpl={t} onCopy={copyTemplateName} />
-            ))}
-          </div>
+
+          {visibleStarterLead.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <MessageSquare className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Lead Ad Templates</h3>
+                <span className="hidden sm:inline text-xs text-slate-400 normal-case">— ready for cold outreach</span>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visibleStarterLead.map(t => (
+                  <StarterCard key={t.name} tmpl={t} onCopy={copyTemplateName} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {visibleStarterEcom.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <ShoppingCart className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ecommerce Automation Templates</h3>
+                <span className="hidden sm:inline text-xs text-slate-400 normal-case">— abandoned cart, COD, shipping &amp; more</span>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visibleStarterEcom.map(t => (
+                  <StarterCard key={t.name} tmpl={t} onCopy={copyTemplateName} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── Ecommerce Templates section ───────────────────────────────── */}
+      {/* ── Ecommerce Templates section (static examples — clone to use) ── */}
       {visibleBuiltin.length > 0 && (
         <div className="mb-8">
-          {(showLead && visibleStarter.length > 0 || showMy && visibleSaved.length > 0) && (
+          {totalVisible > visibleBuiltin.length && (
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <ShoppingCart className="w-4 h-4 text-orange-500 flex-shrink-0" />
-              <h2 className="text-sm font-semibold text-slate-700">Ecommerce Templates</h2>
-              <span className="hidden sm:inline text-xs text-slate-400">— clone &amp; customise for your store</span>
+              <h2 className="text-sm font-semibold text-slate-700">Example Templates</h2>
+              <span className="hidden sm:inline text-xs text-slate-400">— clone &amp; customise for your store (not yet on Meta)</span>
             </div>
           )}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
