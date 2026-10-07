@@ -625,6 +625,118 @@ function AddLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (sou
   )
 }
 
+// ── SendTemplateModal ────────────────────────────────────────────────────────
+// Leads with no matching Facebook form automation (manual/walk-in/CSV import/
+// landing-page leads, or any lead whose form never had a message template set
+// up) had nothing to send — POST /api/facebook/leads fell through to an empty
+// `message` and returned "No message template found for this form," a dead
+// end with no way to actually message the lead. WhatsApp also requires an
+// approved template for a first message outside the 24h customer-service
+// window anyway, so free text isn't a valid fallback here regardless — this
+// lets the user pick one of their actually Meta-approved templates instead.
+function SendTemplateModal({ lead, onClose, onSent }: {
+  lead: Lead
+  onClose: () => void
+  onSent: () => void
+}) {
+  const [templates, setTemplates]     = useState<(StarterTemplate & { status: string })[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [sendingName, setSendingName] = useState<string | null>(null)
+  const [error, setError]             = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/whatsapp/templates')
+      .then(r => r.json())
+      .then((d: { templates?: (StarterTemplate & { status: string })[] }) => setTemplates(d.templates ?? []))
+      .catch(() => setTemplates([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const approved = templates.filter(t => t.status === 'APPROVED')
+
+  function preview(t: StarterTemplate) {
+    return t.bodyPreview
+      .replace(/\{\{name\}\}/g, lead.name || 'there')
+      .replace(/\{\{phone\}\}/g, lead.phone || '')
+      .replace(/\{\{email\}\}/g, lead.email || '')
+  }
+
+  const send = async (t: StarterTemplate) => {
+    setSendingName(t.name)
+    setError(null)
+    const res = await fetch('/api/facebook/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: lead.id, waTemplateName: t.name, waTemplateLanguage: t.language }),
+    })
+    setSendingName(null)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setError(d.error ?? "Couldn't send this template. Please try again.")
+      return
+    }
+    onSent()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900 truncate pr-2">Send WhatsApp to {lead.name || lead.phone}</h2>
+          <button onClick={onClose} className="p-2 -mr-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0">
+            <X className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" />
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          This lead isn&apos;t tied to a Facebook form with a message set up, so there&apos;s nothing to send automatically.
+          WhatsApp also requires an approved template to message someone for the first time — pick one below.
+        </p>
+
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
+        ) : approved.length === 0 ? (
+          <div className="text-center py-8 space-y-3">
+            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-700">No approved templates yet</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+                Submit a template in Templates and wait for Meta&apos;s approval (usually just a few minutes) before you can message a new lead.
+              </p>
+            </div>
+            <a href="/dashboard/templates" className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700">
+              Go to Templates <ChevronRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {approved.map(t => (
+              <div key={t.name} className="border border-gray-200 rounded-xl p-3.5">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <p className="text-sm font-semibold text-gray-800">{t.description}</p>
+                  <button onClick={() => send(t)} disabled={sendingName !== null}
+                    className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex-shrink-0">
+                    {sendingName === t.name ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    Send
+                  </button>
+                </div>
+                <div className="bg-[#e5ddd5] rounded-lg p-2.5">
+                  <div className="bg-[#DCF8C6] rounded-lg rounded-tl-sm px-2.5 py-2 inline-block max-w-full">
+                    <p className="text-[13px] text-gray-800 whitespace-pre-wrap">{preview(t)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {error && <p className="text-xs text-red-500 mt-3">{error}</p>}
+      </div>
+    </div>
+  )
+}
+
 // ── CsvImportModal ────────────────────────────────────────────────────────────
 // Minimal hand-rolled CSV parser — handles quoted fields and commas inside
 // quotes, which covers typical lead-export CSVs. Doesn't handle embedded
@@ -3220,6 +3332,7 @@ function LeadsContent() {
   const [importingForm,  setImportingForm]  = useState<ActiveForm | null>(null)
   const [togglingId,     setTogglingId]     = useState<string | null>(null)
   const [callLogLead,    setCallLogLead]    = useState<Lead | null>(null)
+  const [templateLead,   setTemplateLead]   = useState<Lead | null>(null)
   const [teamMembers,    setTeamMembers]    = useState<TeamMember[]>([])
   const [syncToast,      setSyncToast]      = useState(false)
   const [waConnected,    setWaConnected]    = useState<boolean | null>(null)
@@ -3608,7 +3721,11 @@ function LeadsContent() {
       body: JSON.stringify({ leadId: lead.id, message: '' }),
     })
     if (!r.ok) {
-      const d = await r.json() as { error?: string }
+      const d = await r.json() as { error?: string; code?: string }
+      // No form automation matched this lead (manual/walk-in/CSV import/
+      // landing-page leads, or a form that never got a message set up) —
+      // instead of a dead-end error, let them pick an approved template.
+      if (d.code === 'no_template') { setTemplateLead(lead); return }
       setBanner({ type: 'error', msg: d.error ?? 'Failed to queue WhatsApp message' })
       return
     }
@@ -4510,6 +4627,19 @@ function LeadsContent() {
           teamMembers={teamMembers}
           onClose={() => setCallLogLead(null)}
           onUpdate={handleLeadUpdate}
+        />
+      )}
+      {templateLead && (
+        <SendTemplateModal
+          lead={templateLead}
+          onClose={() => setTemplateLead(null)}
+          onSent={() => {
+            const sentLead = templateLead
+            setTemplateLead(null)
+            setLeads(prev => prev.map(l => l.id === sentLead.id ? { ...l, wa_status: 'pending' } : l))
+            if (selectedPageId) fetchStats(selectedPageId)
+            setBanner({ type: 'success', msg: `WhatsApp queued for ${sentLead.name ?? sentLead.phone ?? 'lead'}` })
+          }}
         />
       )}
     </>

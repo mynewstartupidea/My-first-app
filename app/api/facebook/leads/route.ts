@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { renderTemplate } from '@/lib/utils'
+import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { STARTER_TEMPLATES } from '@/lib/whatsapp-templates'
 
 // GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD&sort=followup_due
 export async function GET(request: Request) {
@@ -131,7 +132,9 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { leadId, message } = await request.json() as { leadId: string; message: string }
+  const { leadId, message, waTemplateName, waTemplateLanguage } = await request.json() as {
+    leadId: string; message: string; waTemplateName?: string; waTemplateLanguage?: string
+  }
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
 
@@ -142,6 +145,36 @@ export async function POST(request: Request) {
   if (!lead?.phone) return NextResponse.json({ error: 'Lead not found or has no phone' }, { status: 400 })
   if (!lead.store_id) return NextResponse.json({ error: 'No store connected' }, { status: 400 })
 
+  const vars = {
+    ...(lead.fields as Record<string, string> ?? {}),
+    name: lead.name ?? 'there',
+    email: lead.email ?? '',
+    phone: lead.phone,
+  }
+
+  // Explicit template pick (from SendTemplateModal, app/dashboard/leads/page.tsx)
+  // — used when there's no form automation to fall back to, e.g. a manually
+  // added/CSV-imported/walk-in lead that was never tied to a Facebook form.
+  if (waTemplateName) {
+    const starter = STARTER_TEMPLATES.find(t => t.name === waTemplateName)
+    if (!starter) return NextResponse.json({ error: 'Unknown template' }, { status: 400 })
+
+    await service.from('automation_jobs').insert({
+      store_id: lead.store_id, automation_id: null,
+      type: 'lead_ad', customer_phone: lead.phone, customer_name: lead.name ?? 'Lead',
+      message: renderTemplate(starter.bodyPreview, vars),
+      context: {
+        lead_id: leadId, form_id: lead.form_id, manual: true,
+        wa_template_name: starter.name,
+        wa_template_language: waTemplateLanguage || starter.language,
+        wa_template_params: extractTemplateParams(starter.bodyPreview, vars),
+      },
+      status: 'pending', scheduled_at: new Date().toISOString(),
+    })
+    await service.from('leads').update({ wa_status: 'pending' }).eq('id', leadId)
+    return NextResponse.json({ ok: true })
+  }
+
   // Render template with lead fields if the caller didn't already do it
   // Look up template by the lead owner's user_id — team members don't own the automation
   const { data: auto } = await service
@@ -151,17 +184,17 @@ export async function POST(request: Request) {
     .eq('user_id', lead.user_id)
     .maybeSingle()
 
-  const finalMessage = auto?.message_template
-    ? renderTemplate(auto.message_template, {
-        ...(lead.fields as Record<string, string> ?? {}),
-        name: lead.name ?? 'there',
-        email: lead.email ?? '',
-        phone: lead.phone,
-      })
-    : message
+  const finalMessage = auto?.message_template ? renderTemplate(auto.message_template, vars) : message
 
   if (!finalMessage.trim()) {
-    return NextResponse.json({ error: 'No message template found for this form. Edit the form template first.' }, { status: 400 })
+    // code: 'no_template' lets the caller (app/dashboard/leads/page.tsx)
+    // distinguish this specific, recoverable case — no automation matched —
+    // from a real failure, and offer the SendTemplateModal picker instead of
+    // just surfacing an error.
+    return NextResponse.json({
+      error: 'No message template found for this form. Edit the form template first.',
+      code: 'no_template',
+    }, { status: 400 })
   }
 
   await service.from('automation_jobs').insert({
