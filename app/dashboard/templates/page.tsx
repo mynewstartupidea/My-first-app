@@ -674,9 +674,15 @@ export default function TemplatesPage() {
       const r = await fetch('/api/whatsapp/templates', { method: 'POST' })
       const d = await r.json() as { results?: { name: string; status: string }[]; error?: string }
       if (d.error) { showToast(d.error, false); return }
-      const failed = d.results?.filter(x => x.status === 'failed') ?? []
+      const failed     = d.results?.filter(x => x.status === 'failed') ?? []
+      // Meta's own delete hadn't finished propagating yet for this template
+      // when the re-submit ran — not a real failure, and not a WhatsApp
+      // connection problem. Clicking Update on Meta again shortly resolves it.
+      const retryLater = d.results?.filter(x => x.status === 'retry_later') ?? []
       if (failed.length) {
         showToast(`${failed.length} template(s) failed to update. Check WhatsApp connection.`, false)
+      } else if (retryLater.length) {
+        showToast(`${retryLater.length} template(s) are still finishing a previous update on Meta's side — try again in a minute.`, false)
       } else {
         showToast('Templates updated on Meta! Re-review usually takes a few minutes.')
       }

@@ -169,7 +169,7 @@ export const ECOM_TEMPLATE_BY_TYPE: Record<string, string> = {
 
 export interface TemplateProvisionResult {
   name:    string
-  status:  'submitted' | 'already_exists' | 'updated' | 'failed'
+  status:  'submitted' | 'already_exists' | 'updated' | 'failed' | 'retry_later'
   error?:  string
 }
 
@@ -221,22 +221,43 @@ export async function provisionStarterTemplates(
   return results
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 // Delete existing templates and re-submit with current body text.
 // Use this when the template copy changes and you need Meta to re-review.
-export async function updateStarterTemplates(
-  wabaId: string,
-  token:  string,
-): Promise<TemplateProvisionResult[]> {
-  const results: TemplateProvisionResult[] = []
+//
+// Two things made the old version of this look broken from the UI (the
+// "Update on Meta" button in app/dashboard/templates/page.tsx): it ran all
+// ~14 templates SEQUENTIALLY (delete+re-submit is 2 network round-trips per
+// template, each a few seconds — ~60-90s+ total is enough to hit Vercel's
+// default function timeout before a response is ever sent, leaving the
+// button stuck on "Updating…" with no toast either way), and Meta's delete
+// doesn't always finish propagating before the immediate re-submit — the
+// re-submit then fails with error_subcode 2388023 ("still being deleted"),
+// which got reported as a generic 'failed' pointing the merchant at their
+// WhatsApp connection, when the real cause was just needing to wait.
+// Running every template in parallel fixes the first; a short bounded
+// retry on that specific error code covers the common case of the second
+// without risking the request hanging indefinitely on Meta's own, observed
+// to sometimes run well past their stated "less than 1 minute" guidance —
+// a template that's still stuck after this comes back 'retry_later' so the
+// UI can say something accurate instead of blaming the connection.
+async function deleteAndResubmit(
+  wabaId: string, token: string, tmpl: StarterTemplate,
+): Promise<TemplateProvisionResult> {
   const base = 'https://graph.facebook.com/v21.0'
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
-  for (const tmpl of STARTER_TEMPLATES) {
-    try {
-      // Step 1: delete by name (removes all language variants)
-      await fetch(`${base}/${wabaId}/message_templates?name=${tmpl.name}`, { method: 'DELETE', headers })
+  try {
+    // Step 1: delete by name (removes all language variants)
+    await fetch(`${base}/${wabaId}/message_templates?name=${tmpl.name}`, { method: 'DELETE', headers })
 
-      // Step 2: re-submit with updated body
+    // Step 2: re-submit with updated body — retried a few times if Meta's
+    // delete is still propagating (error_subcode 2388023), with increasing
+    // delay. Bounded (~21s worst case) so one slow template can't blow out
+    // the whole request's duration.
+    const delays = [3000, 6000, 12000]
+    for (let attempt = 0; ; attempt++) {
       const res  = await fetch(`${base}/${wabaId}/message_templates`, {
         method: 'POST',
         headers,
@@ -247,22 +268,36 @@ export async function updateStarterTemplates(
           components: [{ type: 'BODY', text: tmpl.body, example: { body_text: [tmpl.example[0]] } }],
         }),
       })
-      const data = await res.json() as { id?: string; error?: { code: number; message: string } }
+      const data = await res.json() as { id?: string; error?: { code: number; error_subcode?: number; message: string } }
 
       if (res.ok && data.id) {
-        results.push({ name: tmpl.name, status: 'updated' })
         console.log(`[WA Templates] updated ${tmpl.name} → id=${data.id}`)
-      } else {
-        results.push({ name: tmpl.name, status: 'failed', error: data.error?.message ?? 'Unknown error' })
-        console.warn(`[WA Templates] update failed for ${tmpl.name}:`, data.error)
+        return { name: tmpl.name, status: 'updated' }
       }
-    } catch (e) {
-      results.push({ name: tmpl.name, status: 'failed', error: String(e) })
-      console.warn(`[WA Templates] update exception for ${tmpl.name}:`, e)
-    }
-  }
 
-  return results
+      const stillDeleting = data.error?.error_subcode === 2388023
+      if (stillDeleting && attempt < delays.length) {
+        await sleep(delays[attempt])
+        continue
+      }
+      if (stillDeleting) {
+        console.warn(`[WA Templates] ${tmpl.name} still mid-delete on Meta's side after retries — try again shortly`)
+        return { name: tmpl.name, status: 'retry_later', error: 'Meta is still finishing a previous update to this template' }
+      }
+      console.warn(`[WA Templates] update failed for ${tmpl.name}:`, data.error)
+      return { name: tmpl.name, status: 'failed', error: data.error?.message ?? 'Unknown error' }
+    }
+  } catch (e) {
+    console.warn(`[WA Templates] update exception for ${tmpl.name}:`, e)
+    return { name: tmpl.name, status: 'failed', error: String(e) }
+  }
+}
+
+export async function updateStarterTemplates(
+  wabaId: string,
+  token:  string,
+): Promise<TemplateProvisionResult[]> {
+  return Promise.all(STARTER_TEMPLATES.map(tmpl => deleteAndResubmit(wabaId, token, tmpl)))
 }
 
 // Fetch approval status of all Wapaci starter templates for a WABA.

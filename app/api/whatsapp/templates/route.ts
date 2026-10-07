@@ -3,6 +3,14 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { STARTER_TEMPLATES, getTemplateStatuses, updateStarterTemplates } from '@/lib/whatsapp-templates'
 
+// updateStarterTemplates now runs every template in parallel (a few seconds
+// typically), but a template whose delete is slow to propagate on Meta's
+// side can retry for up to ~21s — give this real headroom instead of
+// risking Vercel's default timeout killing the request before a response
+// is ever sent (that looked like the "Update on Meta" button hanging
+// forever with no toast, when actually the function just got cut off).
+export const maxDuration = 60
+
 // GET /api/whatsapp/templates
 // Returns Wapaci starter templates with their Meta approval status.
 export async function GET() {
