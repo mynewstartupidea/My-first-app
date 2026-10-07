@@ -1,8 +1,26 @@
 import { NextResponse } from 'next/server'
 import { verifyShopifyWebhook, customerToE164 } from '@/lib/shopify'
 import { createServiceClient } from '@/lib/supabase/server'
-import { renderTemplate } from '@/lib/utils'
+import { renderTemplate, extractTemplateParams } from '@/lib/utils'
 import { decrypt } from '@/lib/encryption'
+
+// Builds the wa_template_* context fields for an automation_jobs insert.
+// `auto.wa_template_name` is only ever set (see app/api/automations/route.ts)
+// when `auto.template` is still byte-identical to that template's known
+// default text, which is exactly the text `vars` was just rendered against
+// here — so extracting positional params from it is safe. Any merchant edit
+// clears wa_template_name to null server-side, which makes this a no-op and
+// the job falls back to sending `message` as free-form text, same as before
+// templates existed.
+function waTemplateFields(auto: { wa_template_name?: string | null; wa_template_language?: string | null } | null, template: string, vars: Record<string, string>) {
+  const name = auto?.wa_template_name
+  if (!name) return {}
+  return {
+    wa_template_name:     name,
+    wa_template_language: auto?.wa_template_language ?? 'en',
+    wa_template_params:   extractTemplateParams(template, vars),
+  }
+}
 
 // REST webhook payloads give plain numeric ids (order.id, line_item.id, ...)
 // while the periodic GraphQL sync (lib/shopify-sync.ts) stores everything as
@@ -227,7 +245,7 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     customer_phone: phone,
     customer_name:  firstName,
     message,
-    context:        { checkout_id: checkout.id, line_items: lineItems.length, checkout_url: checkoutUrl },
+    context:        { checkout_id: checkout.id, line_items: lineItems.length, checkout_url: checkoutUrl, ...waTemplateFields(auto, auto.template, vars) },
     status:         'pending',
     scheduled_at:   scheduledAt,
   })
@@ -311,15 +329,16 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     .eq('store_id', store.id).eq('type', 'order_confirmation').eq('is_enabled', true).maybeSingle()
 
   if (confirmAuto && !(await automationJobExists(supabase, store.id, 'order_confirmation', order.id))) {
-    const msg = renderTemplate(confirmAuto.template, {
+    const confirmVars = {
       name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
       order_url: String(order.order_status_url ?? ''),
-    })
+    }
+    const msg = renderTemplate(confirmAuto.template, confirmVars)
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: confirmAuto.id, type: 'order_confirmation',
       customer_phone: phone, customer_name: firstName, message: msg,
       // Store order_id as string so JSONB @> queries match at query time
-      context: { order_id: String(order.id), order_number: orderNumber },
+      context: { order_id: String(order.id), order_number: orderNumber, ...waTemplateFields(confirmAuto, confirmAuto.template, confirmVars) },
       status: 'pending', scheduled_at: new Date().toISOString(),
     })
   }
@@ -331,14 +350,15 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
       .eq('store_id', store.id).eq('type', 'cod_verification').eq('is_enabled', true).maybeSingle()
 
     if (codAuto && !(await automationJobExists(supabase, store.id, 'cod_verification', order.id))) {
-      const msg = renderTemplate(codAuto.template, {
+      const codVars = {
         name: firstName, order_number: orderNumber, amount: totalPrice, shop_name: store.shop_name ?? 'our store',
-      })
+      }
+      const msg = renderTemplate(codAuto.template, codVars)
       const scheduledAt = new Date(Date.now() + codAuto.delay_minutes * 60 * 1000).toISOString()
       await supabase.from('automation_jobs').insert({
         store_id: store.id, automation_id: codAuto.id, type: 'cod_verification',
         customer_phone: phone, customer_name: firstName, message: msg,
-        context: { order_id: String(order.id), order_number: orderNumber, total_price: totalPrice },
+        context: { order_id: String(order.id), order_number: orderNumber, total_price: totalPrice, ...waTemplateFields(codAuto, codAuto.template, codVars) },
         status: 'pending', scheduled_at: scheduledAt,
       })
     }
@@ -445,14 +465,15 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
     .eq('store_id', store.id).eq('type', 'shipping_update').eq('is_enabled', true).maybeSingle()
 
   if (shipAuto && !(await automationJobExists(supabase, store.id, 'shipping_update', order.id))) {
-    const msg = renderTemplate(shipAuto.template, {
+    const shipVars = {
       name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
       tracking_url: trackingUrl,
-    })
+    }
+    const msg = renderTemplate(shipAuto.template, shipVars)
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: shipAuto.id, type: 'shipping_update',
       customer_phone: customerPhone, customer_name: firstName, message: msg,
-      context: { order_id: String(order.id), tracking_url: trackingUrl },
+      context: { order_id: String(order.id), tracking_url: trackingUrl, ...waTemplateFields(shipAuto, shipAuto.template, shipVars) },
       status: 'pending', scheduled_at: new Date().toISOString(),
     })
   }
@@ -464,14 +485,16 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
 
   if (upsellAuto && !(await automationJobExists(supabase, store.id, 'post_purchase_upsell', order.id))) {
     const delay = (upsellAuto.delay_minutes ?? 1440) * 60 * 1000
-    const msg = renderTemplate(upsellAuto.template ?? DEFAULT_UPSELL_TEMPLATE, {
+    const upsellTemplate = upsellAuto.template ?? DEFAULT_UPSELL_TEMPLATE
+    const upsellVars = {
       name: firstName, shop_name: store.shop_name ?? 'our store',
       order_number: orderNumber,
-    })
+    }
+    const msg = renderTemplate(upsellTemplate, upsellVars)
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: upsellAuto.id, type: 'post_purchase_upsell',
       customer_phone: customerPhone, customer_name: firstName, message: msg,
-      context: { order_id: String(order.id) },
+      context: { order_id: String(order.id), ...waTemplateFields(upsellAuto, upsellTemplate, upsellVars) },
       status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
     })
   }
@@ -483,13 +506,15 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
 
   if (reviewAuto && !(await automationJobExists(supabase, store.id, 'review_request', order.id))) {
     const delay = (reviewAuto.delay_minutes ?? 7200) * 60 * 1000
-    const msg = renderTemplate(reviewAuto.template ?? DEFAULT_REVIEW_TEMPLATE, {
+    const reviewTemplate = reviewAuto.template ?? DEFAULT_REVIEW_TEMPLATE
+    const reviewVars = {
       name: firstName, shop_name: store.shop_name ?? 'our store',
-    })
+    }
+    const msg = renderTemplate(reviewTemplate, reviewVars)
     await supabase.from('automation_jobs').insert({
       store_id: store.id, automation_id: reviewAuto.id, type: 'review_request',
       customer_phone: customerPhone, customer_name: firstName, message: msg,
-      context: { order_id: String(order.id) },
+      context: { order_id: String(order.id), ...waTemplateFields(reviewAuto, reviewTemplate, reviewVars) },
       status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
     })
   }
@@ -540,10 +565,17 @@ async function handleOrderUpdated(supabase: ReturnType<typeof createServiceClien
   }).eq('store_id', store.id).eq('shopify_order_id', toGid('Order', order.id))
 }
 
-// ─── Win-back: triggered by cron, not a webhook event ────────────────────────
-// Win-back jobs are created by the nightly cron scanning for inactive customers.
-// See /api/cron for implementation.
+// win_back/repeat_purchase have no trigger implementation anywhere in this
+// codebase (no cron, no webhook) despite being toggleable in
+// app/dashboard/automations/page.tsx — see that file's comment for why
+// they're rendered as not-yet-available rather than a live toggle.
 
-const DEFAULT_UPSELL_TEMPLATE = 'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved these picks — check them out!\n\nUse code THANKYOU10 for 10% off your next order!'
+// Matches STARTER_TEMPLATES's wapaci_post_purchase_upsell bodyPreview in
+// lib/whatsapp-templates.ts exactly — this text is what extractTemplateParams
+// runs against to build that template's positional params, so it must stay
+// byte-identical. No discount code mentioned: nothing in this codebase wires
+// a code like this to a real Shopify discount, so don't promise one that
+// doesn't exist (same reasoning as abandoned_cart's discount_code below).
+const DEFAULT_UPSELL_TEMPLATE = 'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved these picks — check them out on our store!'
 
 const DEFAULT_REVIEW_TEMPLATE = 'Hi {{name}}! Hope you\'re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot and takes just 2 minutes!\n\nThank you!'

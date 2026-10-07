@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 
 type LiveType = 'abandoned_cart' | 'cod_verification' | 'order_confirmation' | 'shipping_update'
-  | 'post_purchase_upsell' | 'win_back' | 'review_request' | 'repeat_purchase'
+  | 'post_purchase_upsell' | 'review_request'
 
 interface Automation {
   id: string
@@ -63,6 +63,14 @@ const LIVE_TYPES: Record<LiveType, {
     defaultDelay: 0,
     defaultTemplate: 'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped!\n\nTrack your delivery:\n{{tracking_url}}\n\nExpected delivery in 3–5 business days.',
   },
+  // Text below must stay byte-identical to wapaci_post_purchase_upsell's
+  // bodyPreview in lib/whatsapp-templates.ts — app/api/automations/route.ts
+  // matches a saved template against that exact string to decide whether
+  // it's safe to send as the approved Meta template. No [PRODUCT_LINK]-style
+  // bracket placeholder (that's not a real {{var}} token renderTemplate
+  // substitutes — it used to go out to customers completely literally,
+  // as the text "[PRODUCT_LINK]") and no THANKYOU10 code (nothing in this
+  // codebase wires a code like this to a real Shopify discount).
   post_purchase_upsell: {
     icon: TrendingUp, label: 'Post-Purchase Upsell',
     description: 'Send a personalized product recommendation 24h after order delivery.',
@@ -70,17 +78,11 @@ const LIVE_TYPES: Record<LiveType, {
     color: 'text-pink-600', bg: 'bg-pink-50',
     trigger: 'orders/fulfilled + 24h delay',
     defaultDelay: 1440,
-    defaultTemplate: 'Hi {{name}}! ❤️ Thank you for your order at {{shop_name}}!\n\nCustomers who bought this also loved these products. Check them out:\n[PRODUCT_LINK]\n\nUse code THANKYOU10 for 10% off your next order!',
+    defaultTemplate: 'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved these picks — check them out on our store!',
   },
-  win_back: {
-    icon: Repeat, label: 'Win-back Campaign',
-    description: 'Re-engage customers who haven\'t ordered in 45+ days with a special offer.',
-    impact: 'Recovers 12% of inactive customers',
-    color: 'text-red-600', bg: 'bg-red-50',
-    trigger: 'Nightly scan (inactive 45+ days)',
-    defaultDelay: 0,
-    defaultTemplate: 'Hi {{name}}! 👋 We miss you at {{shop_name}}!\n\nIt\'s been a while since your last order. Here\'s a special gift — 15% off just for you:\n\nCode: COMEBACK15\nShop now: [SHOP_LINK]\n\nValid for 48 hours only!',
-  },
+  // Matches wapaci_review_request's bodyPreview exactly — same reasoning
+  // as post_purchase_upsell above. [REVIEW_LINK] had the identical
+  // literal-placeholder bug.
   review_request: {
     icon: Star, label: 'Review Request',
     description: 'Ask customers for a review 5 days after their order is delivered.',
@@ -88,20 +90,19 @@ const LIVE_TYPES: Record<LiveType, {
     color: 'text-amber-600', bg: 'bg-amber-50',
     trigger: 'orders/fulfilled + 5d delay',
     defaultDelay: 7200,
-    defaultTemplate: 'Hi {{name}}! 😊 Hope you\'re loving your purchase from {{shop_name}}!\n\nWould you mind leaving us a quick review? It takes just 2 minutes and really helps us:\n[REVIEW_LINK]\n\nThank you so much!',
-  },
-  repeat_purchase: {
-    icon: Gift, label: 'Repeat Purchase Reminder',
-    description: 'Remind customers to reorder based on average order cycle.',
-    impact: 'Increases LTV by 30%',
-    color: 'text-indigo-600', bg: 'bg-indigo-50',
-    trigger: 'Scheduled based on order history',
-    defaultDelay: 43200,
-    defaultTemplate: 'Hi {{name}}! 🔁 Running low on your favourites from {{shop_name}}?\n\nTime to restock! Shop your previous items:\n[SHOP_LINK]\n\nUse code REPEAT10 for 10% off!',
+    defaultTemplate: 'Hi {{name}}! Hope you\'re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot and takes just 2 minutes!\n\nThank you!',
   },
 }
 
+// Win-back/Repeat Purchase used to render as fully live, toggleable
+// AutomationCards (same "Live" badge as the real Shopify automations above)
+// even though no cron or webhook anywhere in this codebase ever creates a
+// job for either type — enabling them did nothing, silently. Listed here
+// instead until a real trigger (a nightly inactive-customer scan for
+// win_back, an order-cycle scheduler for repeat_purchase) actually exists.
 const COMING_SOON = [
+  { icon: Repeat,       label: 'Win-back Campaign',      desc: 'Re-engage customers who haven\'t ordered in 45+ days', soon: 'Coming soon' },
+  { icon: Gift,         label: 'Repeat Purchase Reminder', desc: 'Remind customers to reorder based on order cycle',   soon: 'Coming soon' },
   { icon: Tag,          label: 'Browse Abandonment',    desc: 'Send when customer browses but doesn\'t add to cart',         soon: 'Q3 2025' },
   { icon: TrendingUp,   label: 'Price Drop Alert',       desc: 'Notify wishlist customers when product price drops',          soon: 'Q3 2025' },
   { icon: Package,      label: 'Back in Stock Alert',    desc: 'Alert customers when out-of-stock product is available',      soon: 'Q3 2025' },

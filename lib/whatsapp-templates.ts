@@ -80,7 +80,92 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     vars:        ['name'],
     example:     [['John']],
   },
+
+  // ─── Ecommerce (Shopify) automations ────────────────────────────────────────
+  // bodyPreview below must stay byte-identical to the matching defaultTemplate
+  // in app/dashboard/automations/page.tsx (and, for abandoned_cart, the seed
+  // text in create_default_automations) — ECOM_TEMPLATE_BY_TYPE and
+  // app/api/automations/route.ts match a saved automation's `template` text
+  // against this exact string to decide whether it's still the untouched
+  // default (safe to send as this approved template) or merchant-edited
+  // (falls back to free-form text, same safety rule the lead-gen template
+  // picker enforces client-side by clearing wa_template_name on any edit).
+  {
+    name:        'wapaci_abandoned_cart',
+    language:    'en',
+    category:    'MARKETING',
+    description: 'Abandoned cart recovery — nudge a customer back to checkout',
+    body:        'Hi {{1}}! 👋 You left something in your cart at {{2}}. Your items are waiting — complete your purchase here: {{3}}',
+    bodyPreview: 'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}.\n\nYour items are waiting! Complete your purchase here:\n{{cart_url}}\n\nHurry — items may sell out!',
+    vars:        ['name', 'shop_name', 'cart_url'],
+    example:     [['John', "Priya's Boutique", 'yourstore.com/cart/abc123']],
+  },
+  {
+    name:        'wapaci_cod_verification',
+    language:    'en',
+    category:    'UTILITY',
+    description: 'COD order verification — confirm before dispatch to reduce RTO',
+    body:        'Hi {{1}}! Your COD order #{{2}} for ₹{{3}} at {{4}} is confirmed. Please reply YES to confirm or NO to cancel before dispatch. Thank you!',
+    bodyPreview: 'Hi {{name}}! 🛍️ Your COD order #{{order_number}} for ₹{{amount}} at {{shop_name}} is confirmed.\n\nPlease reply *YES* to confirm or *NO* to cancel before dispatch.\n\nThank you!',
+    vars:        ['name', 'order_number', 'amount', 'shop_name'],
+    example:     [['John', '1234', '1299', "Priya's Boutique"]],
+  },
+  {
+    name:        'wapaci_order_confirmation',
+    language:    'en',
+    category:    'UTILITY',
+    description: 'Order confirmation — instant WhatsApp receipt when an order is placed',
+    body:        'Hi {{1}}! 🎉 Your order #{{2}} is confirmed at {{3}}. We will notify you once it ships. Track your order: {{4}}',
+    bodyPreview: 'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}.\n\nWe\'ll send you shipping details soon. Track your order:\n{{order_url}}\n\nThank you for shopping with us!',
+    vars:        ['name', 'order_number', 'shop_name', 'order_url'],
+    example:     [['John', '1234', "Priya's Boutique", 'yourstore.com/orders/1234']],
+  },
+  {
+    name:        'wapaci_shipping_update',
+    language:    'en',
+    category:    'UTILITY',
+    description: 'Shipping update — notify with tracking once an order is fulfilled',
+    body:        'Hi {{1}}! 📦 Your order #{{2}} from {{3}} has been shipped! Track it here: {{4}}',
+    bodyPreview: 'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped!\n\nTrack your delivery:\n{{tracking_url}}\n\nExpected delivery in 3–5 business days.',
+    vars:        ['name', 'order_number', 'shop_name', 'tracking_url'],
+    example:     [['John', '1234', "Priya's Boutique", 'track.link/xyz']],
+  },
+  {
+    name:        'wapaci_post_purchase_upsell',
+    language:    'en',
+    category:    'MARKETING',
+    description: 'Post-purchase upsell — suggested picks sent after fulfillment',
+    body:        'Hi {{1}}! Thank you for your order at {{2}} ❤️. Customers who bought this also loved these picks — check them out on our store!',
+    bodyPreview: 'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved these picks — check them out on our store!',
+    vars:        ['name', 'shop_name'],
+    example:     [['John', "Priya's Boutique"]],
+  },
+  {
+    name:        'wapaci_review_request',
+    language:    'en',
+    category:    'UTILITY',
+    description: 'Review request — ask for a review a few days after delivery',
+    body:        'Hi {{1}}! Hope you are loving your purchase from {{2}} 😊. Would you mind leaving us a quick review? It takes just 2 minutes and really helps us!',
+    bodyPreview: 'Hi {{name}}! Hope you\'re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot and takes just 2 minutes!\n\nThank you!',
+    vars:        ['name', 'shop_name'],
+    example:     [['John', "Priya's Boutique"]],
+  },
 ]
+
+// Maps a Shopify automation's `type` to the starter template that's safe to
+// attach when the automation's `template` text is still exactly the known
+// default (see app/api/automations/route.ts). win_back/repeat_purchase are
+// deliberately absent — no backend trigger creates jobs for those types yet
+// (see app/dashboard/automations/page.tsx), so there's nothing to attach a
+// template to.
+export const ECOM_TEMPLATE_BY_TYPE: Record<string, string> = {
+  abandoned_cart:       'wapaci_abandoned_cart',
+  cod_verification:     'wapaci_cod_verification',
+  order_confirmation:   'wapaci_order_confirmation',
+  shipping_update:      'wapaci_shipping_update',
+  post_purchase_upsell: 'wapaci_post_purchase_upsell',
+  review_request:       'wapaci_review_request',
+}
 
 export interface TemplateProvisionResult {
   name:    string

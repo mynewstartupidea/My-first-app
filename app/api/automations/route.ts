@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { getUserRole } from '@/lib/get-user-role'
+import { STARTER_TEMPLATES, ECOM_TEMPLATE_BY_TYPE } from '@/lib/whatsapp-templates'
 
 // Backs the Automations page — previously loaded (and saved) via direct
 // client-side queries against stores/whatsapp_accounts/automations, all
@@ -57,11 +58,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'You don\'t have access to Automations.' }, { status: 403 })
   }
 
-  const body = await request.json().catch(() => ({})) as Record<string, unknown> & { type?: string }
+  const body = await request.json().catch(() => ({})) as Record<string, unknown> & { type?: string; template?: string }
   if (!body.type) return NextResponse.json({ error: 'type is required' }, { status: 400 })
 
   const { service, store } = await resolveContext(user.id)
   if (!store) return NextResponse.json({ error: 'No active store' }, { status: 400 })
+
+  // Auto-attach the matching approved Meta template whenever the saved
+  // message is still byte-identical to that template's known default text —
+  // the only case where we can be sure the positional params a real send
+  // will build from this text line up with what Meta approved. Any edit at
+  // all (rewording, re-ordering a variable, adding a new one) clears the
+  // binding back to null, which sends as free-form text instead — the same
+  // "edit clears the template" safety rule the lead-gen picker enforces
+  // client-side (see insertVar in app/dashboard/leads/page.tsx), just
+  // enforced here server-side so it can't be bypassed or missed.
+  if (typeof body.template === 'string' && body.type in ECOM_TEMPLATE_BY_TYPE) {
+    const starterName = ECOM_TEMPLATE_BY_TYPE[body.type]
+    const starter = STARTER_TEMPLATES.find(t => t.name === starterName)
+    const isUntouchedDefault = starter && body.template.trim() === starter.bodyPreview.trim()
+    body.wa_template_name     = isUntouchedDefault ? starter.name : null
+    body.wa_template_language = isUntouchedDefault ? starter.language : null
+  }
 
   const { data: existing } = await service
     .from('automations').select('id').eq('store_id', store.id).eq('type', body.type).maybeSingle()

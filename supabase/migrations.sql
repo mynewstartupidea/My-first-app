@@ -1022,3 +1022,105 @@ WHERE business_type IS NULL;
 -- current sidebar unchanged until they actively customize it.
 ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS visible_sections TEXT[];
+
+-- ─── automations.wa_template_name / wa_template_language ──────────────────────
+-- Shopify-side automations (abandoned_cart, cod_verification,
+-- order_confirmation, shipping_update, post_purchase_upsell, review_request)
+-- had no way to attach an approved Meta template at all — every one of them
+-- sent as free-form text, which Meta rejects outside the 24h customer-service
+-- window. That's exactly the common case here: a shopper who just abandoned a
+-- cart, or just placed a first order, has usually never messaged the business
+-- on WhatsApp before. app/api/automations/route.ts now attaches the matching
+-- starter template automatically whenever a saved `template` is still
+-- byte-identical to that template's known default text; any edit clears it
+-- back to NULL (free text) — the same safety rule the existing lead-gen
+-- template picker already enforces client-side (see insertVar in
+-- app/dashboard/leads/page.tsx), just enforced here server-side.
+ALTER TABLE automations
+  ADD COLUMN IF NOT EXISTS wa_template_name     TEXT,
+  ADD COLUMN IF NOT EXISTS wa_template_language TEXT DEFAULT 'en';
+
+-- Re-seed defaults for NEW stores going forward: unify abandoned_cart's
+-- wording with the already-nicer phrasing app/dashboard/automations/page.tsx
+-- shows, dropping the {{#discount}} section entirely — discount_code is
+-- always '' in app/api/shopify/webhooks/route.ts (no Shopify discount/
+-- price-rule API integration exists yet to issue a real code), so that
+-- section never actually rendered anything, only dead markup risk. Also
+-- attach each type's approved template name/language directly at creation.
+CREATE OR REPLACE FUNCTION create_default_automations(p_store_id UUID)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO automations (store_id, type, is_enabled, delay_minutes, template, wa_template_name, wa_template_language) VALUES
+  (
+    p_store_id, 'abandoned_cart', false, 30,
+    E'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}.\n\nYour items are waiting! Complete your purchase here:\n{{cart_url}}\n\nHurry — items may sell out!',
+    'wapaci_abandoned_cart', 'en'
+  ),
+  (
+    p_store_id, 'cod_verification', false, 5,
+    E'Hi {{name}}! 🛍️ Your COD order #{{order_number}} for ₹{{amount}} at {{shop_name}} is confirmed.\n\nPlease reply *YES* to confirm or *NO* to cancel before dispatch.\n\nThank you!',
+    'wapaci_cod_verification', 'en'
+  ),
+  (
+    p_store_id, 'order_confirmation', false, 0,
+    E'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}.\n\nWe''ll send you shipping details soon. Track your order:\n{{order_url}}\n\nThank you for shopping with us!',
+    'wapaci_order_confirmation', 'en'
+  ),
+  (
+    p_store_id, 'shipping_update', false, 0,
+    E'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped!\n\nTrack your delivery:\n{{tracking_url}}\n\nExpected delivery in 3–5 business days.',
+    'wapaci_shipping_update', 'en'
+  )
+  ON CONFLICT (store_id, type) DO NOTHING;
+END;
+$$;
+
+-- Backfill: existing automations rows that are still exactly the untouched
+-- old default get the new wording + template attached. Deliberately an exact
+-- match, not a LIKE/replace — anything a merchant customized (even by one
+-- character) is left completely alone, same as any other automation edit,
+-- and keeps sending as free-form text exactly as it does today (no
+-- regression either way).
+UPDATE automations SET
+  template = E'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}.\n\nYour items are waiting! Complete your purchase here:\n{{cart_url}}\n\nHurry — items may sell out!',
+  wa_template_name = 'wapaci_abandoned_cart', wa_template_language = 'en', updated_at = NOW()
+WHERE type = 'abandoned_cart' AND wa_template_name IS NULL
+  AND template = 'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}. Your items are waiting for you! Complete your purchase here: {{cart_url}}{{#discount}} Use code {{discount_code}} for {{discount_value}}% off!{{/discount}}';
+
+UPDATE automations SET
+  template = E'Hi {{name}}! 🛍️ Your COD order #{{order_number}} for ₹{{amount}} at {{shop_name}} is confirmed.\n\nPlease reply *YES* to confirm or *NO* to cancel before dispatch.\n\nThank you!',
+  wa_template_name = 'wapaci_cod_verification', wa_template_language = 'en', updated_at = NOW()
+WHERE type = 'cod_verification' AND wa_template_name IS NULL
+  AND template = 'Hi {{name}}! Your order #{{order_number}} for ₹{{amount}} has been placed at {{shop_name}}. Please reply YES to confirm your COD order or NO to cancel. Thank you!';
+
+UPDATE automations SET
+  template = E'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}.\n\nWe''ll send you shipping details soon. Track your order:\n{{order_url}}\n\nThank you for shopping with us!',
+  wa_template_name = 'wapaci_order_confirmation', wa_template_language = 'en', updated_at = NOW()
+WHERE type = 'order_confirmation' AND wa_template_name IS NULL
+  AND template = 'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}. We will notify you once it ships. Track your order: {{order_url}}';
+
+UPDATE automations SET
+  template = E'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped!\n\nTrack your delivery:\n{{tracking_url}}\n\nExpected delivery in 3–5 business days.',
+  wa_template_name = 'wapaci_shipping_update', wa_template_language = 'en', updated_at = NOW()
+WHERE type = 'shipping_update' AND wa_template_name IS NULL
+  AND template = 'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped! Track it here: {{tracking_url}}';
+
+-- post_purchase_upsell/review_request were never seeded by
+-- create_default_automations — these only exist if a merchant explicitly
+-- added one via the Automations page, in which case the stored text is
+-- whatever app/dashboard/automations/page.tsx's defaultTemplate was AT THE
+-- TIME, including the now-fixed version with a literal "[PRODUCT_LINK]" /
+-- "[REVIEW_LINK]" string that was never a real {{var}} renderTemplate
+-- substitutes — it went out to customers completely literally. Matching
+-- rows get both the text fix and the template attached.
+UPDATE automations SET
+  template = E'Hi {{name}}! Thank you for your order at {{shop_name}} ❤️\n\nCustomers who bought this also loved these picks — check them out on our store!',
+  wa_template_name = 'wapaci_post_purchase_upsell', wa_template_language = 'en', updated_at = NOW()
+WHERE type = 'post_purchase_upsell' AND wa_template_name IS NULL
+  AND template = E'Hi {{name}}! ❤️ Thank you for your order at {{shop_name}}!\n\nCustomers who bought this also loved these products. Check them out:\n[PRODUCT_LINK]\n\nUse code THANKYOU10 for 10% off your next order!';
+
+UPDATE automations SET
+  template = E'Hi {{name}}! Hope you''re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot and takes just 2 minutes!\n\nThank you!',
+  wa_template_name = 'wapaci_review_request', wa_template_language = 'en', updated_at = NOW()
+WHERE type = 'review_request' AND wa_template_name IS NULL
+  AND template = E'Hi {{name}}! 😊 Hope you''re loving your purchase from {{shop_name}}!\n\nWould you mind leaving us a quick review? It takes just 2 minutes and really helps us:\n[REVIEW_LINK]\n\nThank you so much!';
