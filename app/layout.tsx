@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import FacebookPixel from '@/components/facebook-pixel'
 
 // Self-hosted via next/font instead of the old @import from fonts.googleapis.com —
 // that was a render-blocking external request on every page load (extra DNS/TLS
@@ -48,7 +49,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body>{children}</body>
+      <body>
+        <FacebookPixel />
+        {children}
+      </body>
     </html>
   )
 }

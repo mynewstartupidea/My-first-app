@@ -147,6 +147,16 @@ export default function SignupPage() {
       return
     }
 
+    // This is the actual conversion point for every landing page that funnels
+    // through /signup rather than its own embedded form (coaching/gym/
+    // real-estate/restaurant all just link here with a UTM-tagged CTA — see
+    // their UTM constant). Meta attributes this back to whichever ad/LP the
+    // visitor arrived from via the _fbp cookie the pixel set there, since
+    // components/facebook-pixel.tsx loads the same pixel on every public
+    // page including this one. Fires on every successful signup regardless
+    // of source — a direct/organic signup just won't carry an ad attribution.
+    window.fbq?.('track', 'Lead')
+
     // Best-effort — there's no session yet (email isn't confirmed), so this
     // upsert runs unauthenticated and may be blocked by RLS depending on
     // config. Not fatal: provisionStore() falls back to user_metadata for

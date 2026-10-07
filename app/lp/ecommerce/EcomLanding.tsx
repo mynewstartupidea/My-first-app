@@ -262,6 +262,11 @@ function GetStarted() {
       return
     }
 
+    // Saved server-side as soon as the request succeeds — same reasoning as
+    // the leads landing page (app/lp/leads/LeadsLanding.tsx): fire Lead here,
+    // once per real submission, not gated on completing Razorpay checkout.
+    window.fbq?.('track', 'Lead')
+
     if (data.error === 'saved_no_checkout') {
       setStep('saved_no_checkout')
       return
