@@ -12,11 +12,36 @@ import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
 
 const PRICE = 1999
+const FB_PIXEL_ID = '1482890805828892'
 
 declare global {
   interface Window {
     Razorpay: new (options: Record<string, unknown>) => { open: () => void }
+    fbq?: (...args: unknown[]) => void
   }
+}
+
+// Standard Meta Pixel base code — fires PageView on load. The Lead event
+// fires separately in GetStarted's handleSubmit, right when the backend
+// confirms the lead is saved (see comment there for why that specific
+// moment, not payment success).
+function FacebookPixel() {
+  return (
+    <Script id="fb-pixel" strategy="afterInteractive" dangerouslySetInnerHTML={{
+      __html: `
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '${FB_PIXEL_ID}');
+        fbq('track', 'PageView');
+      `,
+    }} />
+  )
 }
 
 function Header() {
@@ -221,6 +246,14 @@ function GetStarted() {
       return
     }
 
+    // The lead is saved server-side as soon as the request succeeds —
+    // /api/landing/subscribe writes to landing_leads BEFORE it ever touches
+    // Razorpay, so it's already saved here regardless of whether checkout
+    // opens, gets dismissed, or completes below. Firing Lead here (not on
+    // payment success) counts it once per real form submission, matching
+    // what "form submission is done" actually means on this page.
+    window.fbq?.('track', 'Lead')
+
     if (data.error === 'saved_no_checkout') {
       setStep('saved_no_checkout')
       return
@@ -314,6 +347,7 @@ function GetStarted() {
 export default function LeadsLanding() {
   return (
     <div className="relative bg-[#030812] min-h-screen overflow-x-hidden">
+      <FacebookPixel />
       <AuroraBg />
       <ScrollProgress />
       <Header />
