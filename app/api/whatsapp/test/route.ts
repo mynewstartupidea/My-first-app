@@ -4,6 +4,8 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { STARTER_TEMPLATES, getTemplateStatuses } from '@/lib/whatsapp-templates'
+import { extractTemplateParams } from '@/lib/utils'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -29,13 +31,15 @@ export async function POST(request: Request) {
   // Try merchant's own connected WhatsApp account first
   let merchantToken: string | undefined
   let merchantPhoneNumberId: string | undefined
+  let merchantWabaId: string | undefined
   const { data: wa } = await service
     .from('whatsapp_accounts')
-    .select('phone_number_id, access_token')
+    .select('phone_number_id, waba_id, access_token')
     .eq('user_id', ownerId)
     .maybeSingle()
   if (wa?.phone_number_id) {
     merchantPhoneNumberId = wa.phone_number_id
+    merchantWabaId        = wa.waba_id ?? undefined
     merchantToken         = wa.access_token ?? store?.whatsapp_api_key ?? undefined
   }
 
@@ -50,8 +54,33 @@ export async function POST(request: Request) {
     })
   }
 
-  // Always send hello_world template for tests — free-form text requires
-  // an active 24h conversation window which may not exist.
+  // hello_world is a special template Meta pre-approves for every account,
+  // but it can ONLY be sent from Meta's own Public Test Numbers (the
+  // temporary number in Meta App Dashboard → API Setup) — Meta rejects it
+  // outright from a real, registered business number with "Hello World
+  // templates can only be sent from the Public Test Numbers." It only ever
+  // worked here when falling back to platform env-var credentials (which
+  // point at that test number); for a real merchant connection it always
+  // failed. Use one of the merchant's own Meta-approved templates instead.
+  let templateName = 'hello_world'
+  let templateLanguage = 'en_US'
+  let templateParams: string[] = []
+
+  if (merchantPhoneNumberId && merchantWabaId) {
+    const statuses = await getTemplateStatuses(merchantWabaId, token)
+    const approved = STARTER_TEMPLATES.find(t => statuses[t.name] === 'APPROVED')
+    if (!approved) {
+      return NextResponse.json({
+        success: false,
+        error: "You don't have any Meta-approved templates yet, so a test message can't be sent to open a new conversation. Check the Templates page for approval status — this usually takes a few hours for a new WhatsApp number — or message this number from your own WhatsApp first to open a conversation window.",
+      })
+    }
+    templateName     = approved.name
+    templateLanguage = approved.language
+    const vars = { name: 'Test', phone, email: '' }
+    templateParams = extractTemplateParams(approved.bodyPreview, vars)
+  }
+
   const metaRes = await fetch(`https://graph.facebook.com/v25.0/${phoneId}/messages`, {
     method:  'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -59,7 +88,11 @@ export async function POST(request: Request) {
       messaging_product: 'whatsapp',
       to:                phone,
       type:              'template',
-      template: { name: 'hello_world', language: { code: 'en_US' } },
+      template: {
+        name: templateName,
+        language: { code: templateLanguage },
+        ...(templateParams.length ? { components: [{ type: 'body', parameters: templateParams.map(text => ({ type: 'text', text })) }] } : {}),
+      },
     }),
   })
 
@@ -83,10 +116,10 @@ export async function POST(request: Request) {
       customer_phone: phone,
       customer_name:  'Test',
       type:           'test',
-      message:        'hello_world template',
+      message:        `${templateName} template`,
       status:         'sent',
       bsp_message_id: messageId,
-      metadata:       { test: true, template: 'hello_world' },
+      metadata:       { test: true, template: templateName },
     }).then(() => null)
   }
 
