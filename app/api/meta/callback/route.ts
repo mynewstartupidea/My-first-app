@@ -5,7 +5,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { assignSystemUserToWABA, exchangeMetaCode, subscribeWABAWebhooks } from '@/lib/whatsapp'
+import { assignSystemUserToWABA, exchangeMetaCode, registerPhoneNumber, subscribeWABAWebhooks } from '@/lib/whatsapp'
 import { provisionStarterTemplates } from '@/lib/whatsapp-templates'
 import type { MetaDebugInfo, MetaSessionInfo } from '@/lib/whatsapp'
 import { getUserRole } from '@/lib/get-user-role'
@@ -46,12 +46,22 @@ async function processMetaCode(
   console.log(`[Meta callback] exchange OK — wabaId=${info.wabaId} phone=${info.displayPhoneNumber} biz=${info.businessId}`)
 
   const systemUserToken = process.env.META_SYSTEM_USER_ACCESS_TOKEN
-  const [assignedSystemUser, webhooksSubscribed] = await Promise.all([
+  const [assignedSystemUser, webhooksSubscribed, phoneRegistered] = await Promise.all([
     assignSystemUserToWABA(info.wabaId, info.accessToken),
     subscribeWABAWebhooks(info.wabaId, systemUserToken ?? info.accessToken),
+    // Without this, the number stays at Meta's `status: PENDING` forever —
+    // Embedded Signup's in-popup flow only verifies phone OWNERSHIP, not
+    // messaging readiness. Every send (test message, automation, campaign)
+    // against a PENDING number fails with "Account not registered"
+    // (code 133010) regardless of anything else being correctly connected.
+    registerPhoneNumber(info.phoneNumberId, info.accessToken),
   ])
 
-  console.log(`[Meta callback] systemUser=${assignedSystemUser} webhooks=${webhooksSubscribed}`)
+  console.log(`[Meta callback] systemUser=${assignedSystemUser} webhooks=${webhooksSubscribed} phoneRegistered=${phoneRegistered}`)
+
+  if (!phoneRegistered) {
+    console.error(`[Meta callback] CRITICAL: phone registration failed for phoneNumberId=${info.phoneNumberId} — this number cannot send or receive messages until registered.`)
+  }
 
   const tokenType: 'user_token' | 'system_user_token' =
     systemUserToken && assignedSystemUser ? 'system_user_token' : 'user_token'

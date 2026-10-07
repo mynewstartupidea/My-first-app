@@ -255,6 +255,40 @@ export async function subscribeWABAWebhooks(wabaId: string, token: string): Prom
   }
 }
 
+// Registers a phone number for Cloud API messaging — the final, separate
+// step Meta requires after Embedded Signup's OAuth exchange + phone OTP
+// verification, before the number can actually send or receive a single
+// message. Embedded Signup's in-popup flow verifies phone OWNERSHIP
+// (code_verification_status becomes VERIFIED), but leaves the number's own
+// `status` at PENDING until this endpoint is called — every send against a
+// PENDING number fails with Meta's "Account not registered" error
+// (code 133010), regardless of template approval or anything else being
+// correct. This was missing entirely from processMetaCode below, so every
+// merchant who completed Embedded Signup ended up with a WABA connection
+// that looked fully "Live" in Settings but could not send a single real
+// message. The PIN sets up WhatsApp's required two-step verification for
+// the number; Wapaci controls it entirely via API and never needs to
+// recall this specific value again, so it's generated fresh and not stored.
+export async function registerPhoneNumber(phoneNumberId: string, token: string): Promise<boolean> {
+  try {
+    const pin = String(Math.floor(100000 + Math.random() * 900000))
+    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/register`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+    })
+    const data = await res.json() as { success?: boolean; error?: { message: string } }
+    if (!res.ok) {
+      console.error('[Meta] registerPhoneNumber failed:', data.error?.message)
+      return false
+    }
+    return data.success === true
+  } catch (e) {
+    console.error('[Meta] registerPhoneNumber exception:', e)
+    return false
+  }
+}
+
 // ─── Typed result for exchangeMetaCode ───────────────────────────────────────
 
 export interface MetaDebugInfo {
