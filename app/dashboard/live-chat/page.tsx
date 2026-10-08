@@ -198,6 +198,7 @@ export default function LiveChatPage() {
   const [deleting, setDeleting]         = useState(false)
   const [toast, setToast]               = useState<{ msg: string; ok: boolean } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const prevMsgCountRef = useRef(0)
 
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok })
@@ -250,12 +251,15 @@ export default function LiveChatPage() {
   // — those tables' RLS is USING (auth.uid() = user_id) with no team-member
   // carve-out, so a teammate always saw "No conversations" here regardless
   // of the org's real chat history.
-  const loadThreads = useCallback(async () => {
-    setLoading(true)
+  // `opts.silent` backs the background polling below — no loading spinner,
+  // no error toast, so a routine refresh in the background never flickers
+  // the UI or interrupts someone mid-reply.
+  const loadThreads = useCallback(async (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true)
     try {
       const res = await fetch('/api/live-chat/threads')
       if (!res.ok) {
-        showToast("Couldn't load your conversations — refresh the page to try again.", false)
+        if (!opts.silent) showToast("Couldn't load your conversations — refresh the page to try again.", false)
         return
       }
       const data = await res.json() as { storeId: string | null; threads: Thread[] }
@@ -263,31 +267,63 @@ export default function LiveChatPage() {
       setStoreId(data.storeId)
       setThreads(data.threads)
     } catch {
-      showToast("Couldn't load your conversations — check your connection and try again.", false)
+      if (!opts.silent) showToast("Couldn't load your conversations — check your connection and try again.", false)
     } finally {
-      setLoading(false)
+      if (!opts.silent) setLoading(false)
     }
   }, [showToast])
 
-  const loadThread = useCallback(async (phone: string) => {
+  const loadThread = useCallback(async (phone: string, opts: { silent?: boolean } = {}) => {
     if (!storeId) return
-    setLoadingThread(true)
+    if (!opts.silent) setLoadingThread(true)
     try {
       const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(phone)}`)
       const data = res.ok ? await res.json() as { messages: ChatMsg[]; customer: Customer | null } : { messages: [], customer: null }
-      if (!res.ok) showToast("Couldn't load this conversation — please try again.", false)
+      if (!res.ok) {
+        if (!opts.silent) showToast("Couldn't load this conversation — please try again.", false)
+        return
+      }
+      const grew = data.messages.length > prevMsgCountRef.current
+      prevMsgCountRef.current = data.messages.length
       setMessages(data.messages)
       setCustomer(data.customer)
+      // Only yank the scroll position on a background refresh if a new
+      // message actually arrived — otherwise someone reading older history
+      // during a silent poll would get bumped back to the bottom.
+      if (!opts.silent || grew) {
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+      }
     } catch {
-      showToast("Couldn't load this conversation — check your connection and try again.", false)
+      if (!opts.silent) showToast("Couldn't load this conversation — check your connection and try again.", false)
     } finally {
-      setLoadingThread(false)
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+      if (!opts.silent) setLoadingThread(false)
     }
   }, [storeId, showToast])
 
   useEffect(() => { loadThreads() }, [loadThreads])
   useEffect(() => { if (selected) loadThread(selected) }, [selected, loadThread])
+
+  // Live Chat has no realtime subscription — Supabase RLS on messages/
+  // inbound_messages has no team-member carve-out (see threads/route.ts),
+  // so a direct client-side postgres_changes subscription would silently
+  // see nothing for anyone but the store owner. Short background polling is
+  // what actually keeps this feeling like a live chat instead of a page
+  // that needs a manual refresh every time a reply comes in. Paused while
+  // the tab isn't visible so it doesn't run forever in a background tab.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') loadThreads({ silent: true })
+    }, 4000)
+    return () => clearInterval(id)
+  }, [loadThreads])
+
+  useEffect(() => {
+    if (!selected) return
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') loadThread(selected, { silent: true })
+    }, 2500)
+    return () => clearInterval(id)
+  }, [selected, loadThread])
 
   async function sendReply() {
     if (!reply.trim() || !selected || sending) return
@@ -418,7 +454,7 @@ export default function LiveChatPage() {
                   AI {aiEnabled ? 'On' : 'Off'}
                 </button>
               )}
-              <button onClick={loadThreads} className="text-slate-400 hover:text-slate-600 transition">
+              <button onClick={() => loadThreads()} className="text-slate-400 hover:text-slate-600 transition">
                 <RefreshCw size={14} />
               </button>
             </div>
