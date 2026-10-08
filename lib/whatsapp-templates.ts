@@ -324,10 +324,18 @@ export async function getTemplateStatuses(
   token:  string,
 ): Promise<Record<string, string>> {
   try {
-    const names  = STARTER_TEMPLATES.map(t => t.name).join(',')
-    const url    = `https://graph.facebook.com/v21.0/${wabaId}/message_templates?fields=name,status&limit=20&name=${names}`
-    const res    = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    const data   = await res.json() as { data?: { name: string; status: string }[] }
+    // Meta's name= filter matches exactly ONE template name — passing a
+    // comma-joined list of all STARTER_TEMPLATES names here silently
+    // matched zero templates (HTTP 200, empty data[]), so every starter
+    // template showed "Pending review" in the UI forever regardless of its
+    // real Meta status, and "Pre-approved" was always 0 for every
+    // merchant — confirmed live: the exact query below with name=<comma
+    // list> returns {"data": []} even when 8/8 templates are actually
+    // APPROVED. Fetch without a name filter and match client-side by name
+    // instead.
+    const url  = `https://graph.facebook.com/v21.0/${wabaId}/message_templates?fields=name,status&limit=100`
+    const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    const data = await res.json() as { data?: { name: string; status: string }[] }
     const result: Record<string, string> = {}
     for (const t of data.data ?? []) result[t.name] = t.status
     return result
