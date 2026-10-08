@@ -6,7 +6,7 @@ import {
   Search, Send, RefreshCw, Phone, X, CheckCheck,
   Check, Loader2, MessageCircle, User, ShoppingBag,
   Tag, ChevronDown, MoreVertical, Inbox, Circle, AlertTriangle, ChevronLeft,
-  Sparkles, Trash2, CheckCircle2, AlertCircle,
+  Sparkles, Trash2, CheckCircle2, AlertCircle, Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo, formatCurrency } from '@/lib/utils'
@@ -67,6 +67,7 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
+  sending:   <Clock size={11} className="text-slate-300" />,
   sent:      <Check size={12} className="text-slate-400" />,
   delivered: <CheckCheck size={12} className="text-slate-400" />,
   read:      <CheckCheck size={12} className="text-[#25D366]" />,
@@ -186,7 +187,6 @@ export default function LiveChatPage() {
   const [loading, setLoading]           = useState(true)
   const [loadingThread, setLoadingThread] = useState(false)
   const [reply, setReply]               = useState('')
-  const [sending, setSending]           = useState(false)
   const [storeId, setStoreId]           = useState<string | null>(null)
   const [tagFilter, setTagFilter]       = useState<LeadStatus | null>(null)
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
@@ -326,8 +326,25 @@ export default function LiveChatPage() {
   }, [selected, loadThread])
 
   async function sendReply() {
-    if (!reply.trim() || !selected || sending) return
-    setSending(true)
+    if (!reply.trim() || !selected) return
+    const text = reply.trim()
+    const phone = selected
+
+    // Optimistic send — the message appears in the thread and the input
+    // clears immediately, the way an actual chat app behaves, instead of
+    // locking the UI behind a spinner for however long the real WhatsApp
+    // round-trip takes. A 'sending' bubble (small clock icon, same spot the
+    // sent/delivered/read ticks go) shows it hasn't been confirmed yet;
+    // the background poll (or the sync right after this call resolves)
+    // replaces it with the real row, or flips it to a failed/red X on error.
+    const tempId = `temp-${Date.now()}`
+    setMessages(prev => [...prev, {
+      id: tempId, text, type: 'manual_reply', status: 'sending',
+      direction: 'out', created_at: new Date().toISOString(),
+    }])
+    setReply('')
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
     try {
       // /api/live-chat/send — a dedicated route (was /api/whatsapp/test, which
       // always sends a fixed hello_world template and silently ignored the
@@ -335,18 +352,19 @@ export default function LiveChatPage() {
       const res = await fetch('/api/live-chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: selected, message: reply.trim() }),
+        body: JSON.stringify({ phone, message: text }),
       })
       if (res.ok) {
-        setReply(''); await loadThread(selected); await loadThreads()
+        await loadThread(phone, { silent: true })
+        loadThreads({ silent: true })
       } else {
         const data = await res.json().catch(() => ({})) as { error?: string }
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m))
         showToast(data.error ?? "Couldn't send your message — please try again.", false)
       }
     } catch {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m))
       showToast("Couldn't send your message — check your connection and try again.", false)
-    } finally {
-      setSending(false)
     }
   }
 
@@ -678,9 +696,9 @@ export default function LiveChatPage() {
                   className="w-full bg-transparent text-base text-slate-800 placeholder:text-slate-400 resize-none focus:outline-none"
                 />
               </div>
-              <button onClick={sendReply} disabled={!reply.trim() || sending}
+              <button onClick={sendReply} disabled={!reply.trim()}
                 className="w-10 h-10 flex items-center justify-center bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-40 text-white rounded-full transition flex-shrink-0 shadow-sm">
-                {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
+                <Send size={15} />
               </button>
             </div>
             <p className="text-[10px] text-slate-400 mt-2 px-1">

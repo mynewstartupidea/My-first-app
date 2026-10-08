@@ -63,6 +63,14 @@ export async function GET() {
       })
     } else {
       ex.count++
+      // Messages are scanned newest-first, so the thread's name would
+      // otherwise permanently lock onto whichever message happened to be
+      // most recent — a manual reply, AI reply, or lead-qualifying message
+      // never carries customer_name, so the moment one of those became the
+      // latest outbound message it nulled out a name an earlier automated
+      // message (e.g. the lead-ad greeting) had correctly set. Keep any
+      // non-null name seen, regardless of which message it came from.
+      if (!ex.name && m.customer_name) ex.name = m.customer_name
       if (m.created_at > ex.lastTime) {
         ex.lastMsg = m.message; ex.lastTime = m.created_at
         ex.status = m.status; ex.type = m.type
