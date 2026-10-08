@@ -152,6 +152,10 @@ function SettingsInner() {
   const [waPhotoFile, setWaPhotoFile]         = useState<File | null>(null)
   const [waPhotoPreview, setWaPhotoPreview]   = useState<string | null>(null)
   const [waPhotoUploading, setWaPhotoUploading] = useState(false)
+  // Starts read-only (same edit-icon pattern as the workspace name above) —
+  // only switches to an editable form once the merchant explicitly clicks
+  // Edit, and goes back to read-only automatically once Save succeeds.
+  const [waProfileEditing, setWaProfileEditing] = useState(false)
 
   // WhatsApp test message
   const [testPhone, setTestPhone]             = useState('')
@@ -753,6 +757,7 @@ function SettingsInner() {
         showToast(data.warning ?? 'Business profile updated!', !data.warning)
         if (data.warning) setWaAbout(waProfile?.about ?? '') // revert the input — that part didn't actually save
         setWaProfile(prev => ({ ...prev, about: data.warning ? prev?.about : waAbout, description: waDescription, email: waEmail, address: waAddress, websites: [waWebsite], vertical: waVertical }))
+        setWaProfileEditing(false)
       } else {
         showToast(data.error ?? "Couldn't update your business profile. Please try again.", false)
       }
@@ -761,6 +766,18 @@ function SettingsInner() {
     } finally {
       setWaProfileSaving(false)
     }
+  }
+
+  function cancelWaProfileEdit() {
+    setWaAbout(waProfile?.about ?? '')
+    setWaDescription(waProfile?.description ?? '')
+    setWaEmail(waProfile?.email ?? '')
+    setWaAddress(waProfile?.address ?? '')
+    setWaWebsite(waProfile?.websites?.[0] ?? '')
+    setWaVertical(waProfile?.vertical ?? '')
+    setWaPhotoFile(null)
+    setWaPhotoPreview(null)
+    setWaProfileEditing(false)
   }
 
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1711,17 +1728,61 @@ function SettingsInner() {
               once actually connected: nothing to configure before that. */}
           {waConnected && (
             <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
-              <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
-                <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Briefcase className="w-3.5 h-3.5 text-purple-600" />
-                </div>
-                Business Profile
-              </h3>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <Briefcase className="w-3.5 h-3.5 text-purple-600" />
+                  </div>
+                  Business Profile
+                </h3>
+                {!waProfileLoading && !waProfileEditing && (
+                  <button onClick={() => setWaProfileEditing(true)}
+                    title="Edit business profile"
+                    className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg transition">
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                )}
+              </div>
               <p className="text-slate-400 text-xs mb-4 ml-9">How your business looks when someone opens a chat with you on WhatsApp</p>
 
               {waProfileLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                </div>
+              ) : !waProfileEditing ? (
+                // ── Read-only view — everything grayed out until Edit is clicked ──
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 border border-slate-200">
+                      {waProfile?.profile_picture_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={waProfile.profile_picture_url} alt="Business profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera className="w-6 h-6 text-slate-300" />
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">{waProfile?.profile_picture_url ? 'Logo set' : 'No logo set yet'}</p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-x-4 gap-y-3">
+                    {([
+                      ['Website', waProfile?.websites?.[0]],
+                      ['Business Email', waProfile?.email],
+                      ['About', waProfile?.about],
+                      ['Address', waProfile?.address],
+                      ['Category', WA_VERTICALS.find(v => v.value === waProfile?.vertical)?.label],
+                    ] as const).map(([label, value]) => (
+                      <div key={label}>
+                        <p className="text-xs font-medium text-slate-400 mb-0.5">{label}</p>
+                        <p className={cn('text-sm', value ? 'text-slate-600' : 'text-slate-300 italic')}>{value || 'Not set'}</p>
+                      </div>
+                    ))}
+                    {waProfile?.description && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs font-medium text-slate-400 mb-0.5">Description</p>
+                        <p className="text-sm text-slate-600">{waProfile.description}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1793,11 +1854,17 @@ function SettingsInner() {
                       options={WA_VERTICALS.map(v => ({ value: v.value, label: v.label }))} />
                   </div>
 
-                  <button onClick={saveWaProfile} disabled={waProfileSaving}
-                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
-                    {waProfileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {waProfileSaving ? 'Saving…' : 'Save Business Profile'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={saveWaProfile} disabled={waProfileSaving}
+                      className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+                      {waProfileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      {waProfileSaving ? 'Saving…' : 'Save Business Profile'}
+                    </button>
+                    <button onClick={cancelWaProfileEdit} disabled={waProfileSaving}
+                      className="text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-60 px-3 py-2.5 transition">
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </section>
