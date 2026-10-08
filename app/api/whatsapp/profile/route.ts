@@ -67,12 +67,20 @@ export async function POST(request: Request) {
   }
 
   // Meta's endpoint takes a `websites` array (up to 2) — this UI only
-  // collects one, so wrap it. An empty string clears the field (Meta treats
-  // a present-but-empty value as "remove this"), so only trimmed, non-empty
-  // values get sent as real values; anything else is passed through as ''
-  // to let the merchant intentionally clear a field.
+  // collects one, so wrap it. description/email/address/websites all
+  // accept an empty value to clear the field — verified directly against
+  // a real WABA. `about` is the one exception: Meta rejects an empty
+  // string for it with a generic, unhelpful 500 ("Something went wrong"),
+  // confirmed the same way. So an empty `about` is never sent at all —
+  // clearing that specific field isn't something Meta's API supports, and
+  // the merchant gets told that directly instead of a cryptic failure.
+  let aboutWarning: string | undefined
   const payload: Record<string, unknown> = { messaging_product: 'whatsapp' }
-  if (body.about       !== undefined) payload.about       = body.about.trim()
+  if (body.about !== undefined) {
+    const trimmed = body.about.trim()
+    if (trimmed) payload.about = trimmed
+    else aboutWarning = "WhatsApp doesn't support clearing the About field once set — leave it as is, or replace it with new text."
+  }
   if (body.description !== undefined) payload.description = body.description.trim()
   if (body.email        !== undefined) payload.email       = body.email.trim()
   if (body.address      !== undefined) payload.address     = body.address.trim()
@@ -88,5 +96,5 @@ export async function POST(request: Request) {
   if (!res.ok || !data.success) {
     return NextResponse.json({ error: data.error?.message ?? 'Meta rejected this update — check the website is a valid URL.' }, { status: 500 })
   }
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, warning: aboutWarning })
 }

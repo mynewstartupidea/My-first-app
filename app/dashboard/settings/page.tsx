@@ -748,10 +748,11 @@ function SettingsInner() {
           address: waAddress, website: waWebsite, vertical: waVertical,
         }),
       })
-      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string }
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; warning?: string }
       if (data.ok) {
-        showToast('Business profile updated!')
-        setWaProfile(prev => ({ ...prev, about: waAbout, description: waDescription, email: waEmail, address: waAddress, websites: [waWebsite], vertical: waVertical }))
+        showToast(data.warning ?? 'Business profile updated!', !data.warning)
+        if (data.warning) setWaAbout(waProfile?.about ?? '') // revert the input — that part didn't actually save
+        setWaProfile(prev => ({ ...prev, about: data.warning ? prev?.about : waAbout, description: waDescription, email: waEmail, address: waAddress, websites: [waWebsite], vertical: waVertical }))
       } else {
         showToast(data.error ?? "Couldn't update your business profile. Please try again.", false)
       }
