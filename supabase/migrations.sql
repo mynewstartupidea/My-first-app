@@ -1124,3 +1124,35 @@ UPDATE automations SET
   wa_template_name = 'wapaci_review_request', wa_template_language = 'en', updated_at = NOW()
 WHERE type = 'review_request' AND wa_template_name IS NULL
   AND template = E'Hi {{name}}! 😊 Hope you''re loving your purchase from {{shop_name}}!\n\nWould you mind leaving us a quick review? It takes just 2 minutes and really helps us:\n[REVIEW_LINK]\n\nThank you so much!';
+
+-- ─── try_increment_messages_used: also gate on subscription status ────────────
+-- Every send path (cron automations, campaigns, Live Chat replies, AI
+-- auto-reply, test sends) funnels through this one function, but it only
+-- ever checked messages_used < messages_limit — billing.status (correctly
+-- set to 'cancelled'/'past_due' by the Razorpay webhook on cancellation or
+-- payment failure) was never actually checked anywhere. A merchant who
+-- cancelled, or whose card failed, could keep sending real WhatsApp
+-- messages indefinitely as long as they had any unused quota headroom left
+-- from before the cancellation — cancelling billing didn't actually stop
+-- service. Now blocks unless status is 'active' or 'trialing'.
+CREATE OR REPLACE FUNCTION try_increment_messages_used(p_user_id UUID)
+RETURNS BOOLEAN LANGUAGE plpgsql AS $$
+DECLARE
+  v_rows INTEGER;
+BEGIN
+  INSERT INTO billing (user_id, messages_used, messages_limit, updated_at)
+  VALUES (p_user_id, 0, 500, NOW())
+  ON CONFLICT (user_id) DO NOTHING;
+
+  PERFORM 1 FROM billing WHERE user_id = p_user_id FOR UPDATE;
+
+  UPDATE billing
+  SET messages_used = COALESCE(messages_used, 0) + 1, updated_at = NOW()
+  WHERE user_id = p_user_id
+    AND COALESCE(messages_used, 0) < COALESCE(messages_limit, 500)
+    AND status IN ('active', 'trialing');
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  RETURN v_rows > 0;
+END;
+$$;

@@ -42,9 +42,16 @@ export async function GET(request: Request) {
   }
   const ownerId = orgOwnerId ?? user.id
 
-  const visibilityFilter = (orgOwnerId && distMode === 'open_pool')
+  // assigned_to is only trusted for a currently active team member (a
+  // removed teammate has no memberRow, same fallback as the real owner's
+  // case) — see isActiveOrgMember's docstring in lib/resolve-owner-user-id.ts.
+  // The owner loses nothing: user_id.eq.ownerId already covers their org.
+  const activeMember = !!memberRow
+  const visibilityFilter = (orgOwnerId && distMode === 'open_pool' && activeMember)
     ? `assigned_to.eq.${user.id},and(user_id.eq.${ownerId},assigned_to.is.null)`
-    : `user_id.eq.${ownerId},assigned_to.eq.${user.id}`
+    : activeMember
+      ? `user_id.eq.${ownerId},assigned_to.eq.${user.id}`
+      : `user_id.eq.${ownerId}`
 
   // Scoped to the currently connected Facebook page, same as the Leads page's
   // own default and the campaign audience count — without this, an account

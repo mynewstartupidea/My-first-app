@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate, extractTemplateParams } from '@/lib/utils'
-import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { resolveOwnerUserId, isActiveOrgMember } from '@/lib/resolve-owner-user-id'
 import { STARTER_TEMPLATES } from '@/lib/whatsapp-templates'
 
 // GET /api/facebook/leads?form_id=xxx&page_id=xxx&limit=50&offset=0&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD&sort=followup_due
@@ -66,13 +66,23 @@ export async function GET(request: Request) {
   // instead of the whole org's, with no "All leads" tab actually showing all.
   const ownerId = orgOwnerId ?? user.id
 
+  // assigned_to.eq is only trusted for a currently active team member — a
+  // removed teammate has no memberRow anymore (ownerId falls back to their
+  // own id, same as the real owner's case), and without this gate they'd
+  // keep indefinite read access to every lead still assigned to them. The
+  // real owner loses nothing from this: user_id.eq.ownerId already matches
+  // every lead in their org regardless.
+  const activeMember = !!memberRow
+
   const buildQuery = (countOnly = false) => {
     // In open_pool mode, a team member sees only their own assigned leads
     // plus unclaimed pool leads — NOT a blanket "all org leads" match, since
     // that's the whole point of that distribution mode.
-    const visibilityFilter = (orgOwnerId && distMode === 'open_pool')
+    const visibilityFilter = (orgOwnerId && distMode === 'open_pool' && activeMember)
       ? `assigned_to.eq.${user.id},and(user_id.eq.${ownerId},assigned_to.is.null)`
-      : `user_id.eq.${ownerId},assigned_to.eq.${user.id}`
+      : activeMember
+        ? `user_id.eq.${ownerId},assigned_to.eq.${user.id}`
+        : `user_id.eq.${ownerId}`
 
     let query = service
       .from('leads')
@@ -138,9 +148,14 @@ export async function POST(request: Request) {
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
 
+  // This sends a real WhatsApp message — assigned_to is only trusted for a
+  // currently active org member, so a removed teammate can't use a stale
+  // assignment to message a lead. See isActiveOrgMember's docstring.
+  const activeMember = await isActiveOrgMember(service, user.id)
+  const accessFilter = activeMember ? `user_id.eq.${ownerId},assigned_to.eq.${user.id}` : `user_id.eq.${ownerId}`
   const { data: lead } = await service
     .from('leads').select('*').eq('id', leadId)
-    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`).maybeSingle()
+    .or(accessFilter).maybeSingle()
 
   if (!lead?.phone) return NextResponse.json({ error: 'Lead not found or has no phone' }, { status: 400 })
   if (!lead.store_id) return NextResponse.json({ error: 'No store connected' }, { status: 400 })

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { renderTemplate, extractTemplateParams } from '@/lib/utils'
-import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { resolveOwnerUserId, isActiveOrgMember } from '@/lib/resolve-owner-user-id'
 
 const VALID_OUTCOMES = new Set(['connected', 'no_answer', 'voicemail', 'callback', 'busy'])
 const VALID_STATUSES = new Set(['hot', 'warm', 'cold', 'lost', 'converted', 'junk', 'resolved'])
@@ -22,6 +22,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
+  // assigned_to is only trusted for a currently active org member — see
+  // isActiveOrgMember's docstring for why.
+  const activeMember = await isActiveOrgMember(service, user.id)
+  const accessFilter = activeMember ? `user_id.eq.${ownerId},assigned_to.eq.${user.id}` : `user_id.eq.${ownerId}`
 
   // Batch mode: return most recent log per lead
   const leadIdsParam = searchParams.get('lead_ids')
@@ -31,7 +35,7 @@ export async function GET(request: Request) {
 
     // Only return logs for leads visible to this user — owned by the org, or assigned to them
     const { data: ownedLeads } = await service
-      .from('leads').select('id').in('id', leadIds).or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
+      .from('leads').select('id').in('id', leadIds).or(accessFilter)
     const ownedIds = (ownedLeads ?? []).map(l => l.id)
     if (ownedIds.length === 0) return NextResponse.json({ notes: {} })
 
@@ -56,7 +60,7 @@ export async function GET(request: Request) {
     .from('leads')
     .select('id')
     .eq('id', leadId)
-    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
+    .or(accessFilter)
     .maybeSingle()
 
   if (!lead) return NextResponse.json({ logs: [] })
@@ -95,13 +99,15 @@ export async function POST(request: Request) {
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
+  const activeMember = await isActiveOrgMember(service, user.id)
+  const accessFilter = activeMember ? `user_id.eq.${ownerId},assigned_to.eq.${user.id}` : `user_id.eq.${ownerId}`
 
   // Verify the lead is visible to the requesting user before writing any data
   const { data: ownedLead } = await service
     .from('leads')
     .select('id')
     .eq('id', body.leadId)
-    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
+    .or(accessFilter)
     .maybeSingle()
 
   if (!ownedLead) {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { resolveOwnerUserId, isActiveOrgMember } from '@/lib/resolve-owner-user-id'
 
 // PATCH /api/leads/[id]/assign
 // Body (all optional): { userId, userName }
@@ -21,11 +21,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // Previously this updated by lead id alone, with no ownership check at all —
   // any signed-in user who knew (or guessed) a lead id could reassign it,
   // regardless of which org it belonged to.
+  //
+  // The assigned_to branch is only trusted for a currently active org
+  // member — otherwise a removed teammate (resolveOwnerUserId falls back to
+  // returning their own id once they're no longer active, same as a real
+  // solo owner) would keep indefinite access to every lead that was ever
+  // assigned to them before removal, since nothing clears assigned_to on
+  // removal.
+  const activeMember = await isActiveOrgMember(service, user.id)
+  const accessFilter = activeMember ? `user_id.eq.${ownerId},assigned_to.eq.${user.id}` : `user_id.eq.${ownerId}`
   const { data: lead } = await service
     .from('leads')
     .select('id')
     .eq('id', id)
-    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
+    .or(accessFilter)
     .maybeSingle()
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -75,11 +84,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
 
+  const activeMember = await isActiveOrgMember(service, user.id)
+  const accessFilter = activeMember ? `user_id.eq.${ownerId},assigned_to.eq.${user.id}` : `user_id.eq.${ownerId}`
   const { data: lead } = await service
     .from('leads')
     .select('id')
     .eq('id', id)
-    .or(`user_id.eq.${ownerId},assigned_to.eq.${user.id}`)
+    .or(accessFilter)
     .maybeSingle()
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
