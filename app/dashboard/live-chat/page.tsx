@@ -199,6 +199,7 @@ export default function LiveChatPage() {
   const [toast, setToast]               = useState<{ msg: string; ok: boolean } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMsgCountRef = useRef(0)
+  const sendInFlightRef = useRef(false)
 
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok })
@@ -320,7 +321,12 @@ export default function LiveChatPage() {
   useEffect(() => {
     if (!selected) return
     const id = setInterval(() => {
-      if (document.visibilityState === 'visible') loadThread(selected, { silent: true })
+      // Skip while a send is in flight for this thread — the real WhatsApp
+      // round-trip can take a second or more, and this poll firing mid-send
+      // would overwrite the screen with server data that doesn't have the
+      // new message yet, wiping the optimistic bubble until the next tick
+      // picked it back up (the "message disappears for 2s" bug).
+      if (document.visibilityState === 'visible' && !sendInFlightRef.current) loadThread(selected, { silent: true })
     }, 2500)
     return () => clearInterval(id)
   }, [selected, loadThread])
@@ -345,6 +351,7 @@ export default function LiveChatPage() {
     setReply('')
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
 
+    sendInFlightRef.current = true
     try {
       // /api/live-chat/send — a dedicated route (was /api/whatsapp/test, which
       // always sends a fixed hello_world template and silently ignored the
@@ -365,6 +372,8 @@ export default function LiveChatPage() {
     } catch {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m))
       showToast("Couldn't send your message — check your connection and try again.", false)
+    } finally {
+      sendInFlightRef.current = false
     }
   }
 
