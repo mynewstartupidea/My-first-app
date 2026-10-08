@@ -10,9 +10,32 @@ import {
   CreditCard, Users, Shield,
   UserPlus, Mail, Lock, RefreshCw, XCircle, ArrowUpRight,
   BarChart2, Phone, Target, LayoutDashboard, Pencil, X,
+  Globe, Camera, Briefcase,
 } from 'lucide-react'
 import { SIDEBAR_SECTIONS, SIDEBAR_SECTION_KEYS } from '@/lib/sidebar-sections'
 import type { UserRole } from '@/lib/user-role'
+// Meta's fixed category enum for a WhatsApp Business Profile — these exact
+// values are what the whatsapp_business_profile API accepts for `vertical`.
+const WA_VERTICALS = [
+  { value: 'RETAIL',         label: 'Retail' },
+  { value: 'ECOMMERCE',      label: 'Ecommerce' },
+  { value: 'APPAREL',        label: 'Apparel & Fashion' },
+  { value: 'BEAUTY',         label: 'Beauty, Spa & Salon' },
+  { value: 'GROCERY',        label: 'Grocery' },
+  { value: 'RESTAURANT',     label: 'Restaurant' },
+  { value: 'HOTEL',          label: 'Hotel & Lodging' },
+  { value: 'TRAVEL',         label: 'Travel & Transportation' },
+  { value: 'EDU',            label: 'Education' },
+  { value: 'FINANCE',        label: 'Finance & Banking' },
+  { value: 'HEALTH',         label: 'Medical & Health' },
+  { value: 'PROF_SERVICES',  label: 'Professional Services' },
+  { value: 'AUTO',           label: 'Automotive' },
+  { value: 'EVENT_PLAN',     label: 'Event Planning' },
+  { value: 'ENTERTAIN',      label: 'Entertainment' },
+  { value: 'NONPROFIT',      label: 'Non-profit' },
+  { value: 'GOVT',           label: 'Government' },
+  { value: 'OTHER',          label: 'Other' },
+] as const
 // Lead-ads billing plans (Razorpay)
 const LEAD_PLANS = [
   { id: 'starter',    name: 'Starter',    price: '₹2,499', messages: 5000,      description: 'Best for getting started',        recommended: false },
@@ -109,6 +132,26 @@ function SettingsInner() {
   const [storeNameEdit, setStoreNameEdit]     = useState('')
   const [editingName, setEditingName]         = useState(false)
   const [showGuide, setShowGuide]             = useState(false)
+
+  // WhatsApp Business Profile — about/description/website/photo shown when
+  // someone opens a chat with this number. Loaded lazily (only once the
+  // WhatsApp tab is actually open and connected) since it's its own extra
+  // round-trip to Meta, not needed for the rest of this page.
+  const [waProfile, setWaProfile]             = useState<{
+    about?: string; description?: string; email?: string; address?: string
+    websites?: string[]; vertical?: string; profile_picture_url?: string
+  } | null>(null)
+  const [waProfileLoading, setWaProfileLoading] = useState(false)
+  const [waProfileSaving, setWaProfileSaving]   = useState(false)
+  const [waAbout, setWaAbout]                 = useState('')
+  const [waDescription, setWaDescription]     = useState('')
+  const [waEmail, setWaEmail]                 = useState('')
+  const [waAddress, setWaAddress]             = useState('')
+  const [waWebsite, setWaWebsite]             = useState('')
+  const [waVertical, setWaVertical]           = useState('')
+  const [waPhotoFile, setWaPhotoFile]         = useState<File | null>(null)
+  const [waPhotoPreview, setWaPhotoPreview]   = useState<string | null>(null)
+  const [waPhotoUploading, setWaPhotoUploading] = useState(false)
 
   // WhatsApp test message
   const [testPhone, setTestPhone]             = useState('')
@@ -244,6 +287,28 @@ function SettingsInner() {
   }, [supabase])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Business Profile is its own round-trip to Meta — only load it once the
+  // WhatsApp tab's own connection state resolves to actually connected,
+  // not on every settings page load.
+  useEffect(() => {
+    if (!waConnected) return
+    setWaProfileLoading(true)
+    fetch('/api/whatsapp/profile')
+      .then(r => r.json())
+      .then((d: { profile?: typeof waProfile; error?: string }) => {
+        if (!d.profile) return
+        setWaProfile(d.profile)
+        setWaAbout(d.profile.about ?? '')
+        setWaDescription(d.profile.description ?? '')
+        setWaEmail(d.profile.email ?? '')
+        setWaAddress(d.profile.address ?? '')
+        setWaWebsite(d.profile.websites?.[0] ?? '')
+        setWaVertical(d.profile.vertical ?? '')
+      })
+      .catch(() => {})
+      .finally(() => setWaProfileLoading(false))
+  }, [waConnected])
 
   // Closes the per-row role picker (a compact pill, not a bordered box, so it
   // doesn't use the shared CustomSelect component) when clicking outside it —
@@ -668,6 +733,60 @@ function SettingsInner() {
       showToast("Couldn't sync products from Shopify — check your connection and try again.", false)
     } finally {
       setSyncingProducts(false)
+    }
+  }
+
+// ── WhatsApp Business Profile ─────────────────────────────────────────────────
+  async function saveWaProfile() {
+    setWaProfileSaving(true)
+    try {
+      const res  = await fetch('/api/whatsapp/profile', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          about: waAbout, description: waDescription, email: waEmail,
+          address: waAddress, website: waWebsite, vertical: waVertical,
+        }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string }
+      if (data.ok) {
+        showToast('Business profile updated!')
+        setWaProfile(prev => ({ ...prev, about: waAbout, description: waDescription, email: waEmail, address: waAddress, websites: [waWebsite], vertical: waVertical }))
+      } else {
+        showToast(data.error ?? "Couldn't update your business profile. Please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't update your business profile. Please try again.", false)
+    } finally {
+      setWaProfileSaving(false)
+    }
+  }
+
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setWaPhotoFile(file)
+    setWaPhotoPreview(URL.createObjectURL(file))
+  }
+
+  async function uploadWaPhoto() {
+    if (!waPhotoFile) return
+    setWaPhotoUploading(true)
+    try {
+      const form = new FormData()
+      form.append('photo', waPhotoFile)
+      const res  = await fetch('/api/whatsapp/profile/photo', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string }
+      if (data.ok) {
+        showToast('Profile photo updated! It can take a few minutes to show up on WhatsApp.')
+        setWaPhotoFile(null)
+      } else {
+        showToast(data.error ?? "Couldn't update your profile photo. Please try again.", false)
+      }
+    } catch {
+      showToast("Couldn't update your profile photo. Please try again.", false)
+    } finally {
+      setWaPhotoUploading(false)
     }
   }
 
@@ -1583,6 +1702,103 @@ function SettingsInner() {
                 )}
               </div>
 
+            </section>
+          )}
+
+          {/* Business Profile — about/description/website/photo shown when a
+              customer opens a chat with this number on WhatsApp. Only shown
+              once actually connected: nothing to configure before that. */}
+          {waConnected && (
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
+              <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+                <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Briefcase className="w-3.5 h-3.5 text-purple-600" />
+                </div>
+                Business Profile
+              </h3>
+              <p className="text-slate-400 text-xs mb-4 ml-9">How your business looks when someone opens a chat with you on WhatsApp</p>
+
+              {waProfileLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 border border-slate-200">
+                      {waPhotoPreview || waProfile?.profile_picture_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={waPhotoPreview ?? waProfile?.profile_picture_url} alt="Business profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera className="w-6 h-6 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer transition">
+                          <Camera className="w-4 h-4" /> Choose photo
+                          <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handlePhotoSelect} />
+                        </label>
+                        {waPhotoFile && (
+                          <button onClick={uploadWaPhoto} disabled={waPhotoUploading}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-60 px-3 py-2 rounded-xl transition">
+                            {waPhotoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            {waPhotoUploading ? 'Uploading…' : 'Save photo'}
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1.5">JPEG or PNG, up to 5MB — this is your logo shown on WhatsApp.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Website</label>
+                      <div className="relative">
+                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <input value={waWebsite} onChange={e => setWaWebsite(e.target.value)} placeholder="https://yourstore.com"
+                          className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Business Email</label>
+                      <input value={waEmail} onChange={e => setWaEmail(e.target.value)} placeholder="hello@yourstore.com"
+                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">About</label>
+                    <input value={waAbout} onChange={e => setWaAbout(e.target.value.slice(0, 139))} placeholder="A short status line, e.g. Fast replies, 9am–7pm"
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Description</label>
+                    <textarea value={waDescription} onChange={e => setWaDescription(e.target.value)} rows={2}
+                      placeholder="A short description of what your business does"
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Address</label>
+                    <input value={waAddress} onChange={e => setWaAddress(e.target.value)} placeholder="Shop address (optional)"
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Category</label>
+                    <CustomSelect value={waVertical} onChange={setWaVertical} placeholder="Select a category…"
+                      options={WA_VERTICALS.map(v => ({ value: v.value, label: v.label }))} />
+                  </div>
+
+                  <button onClick={saveWaProfile} disabled={waProfileSaving}
+                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+                    {waProfileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {waProfileSaving ? 'Saving…' : 'Save Business Profile'}
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
