@@ -3,7 +3,7 @@
 // form's automation, one freeform message at a time, and save each answer.
 
 import { createServiceClient } from '@/lib/supabase/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendStoreWhatsAppText } from '@/lib/send-store-message'
 
 type ServiceClient = ReturnType<typeof createServiceClient>
 
@@ -15,9 +15,9 @@ function last10Digits(phone: string): string {
 
 export async function advanceQualifyingFlow(
   service: ServiceClient,
-  params: { storeId: string; phone: string; text: string },
+  params: { storeId: string; userId: string; phone: string; text: string },
 ): Promise<void> {
-  const { storeId, phone, text } = params
+  const { storeId, userId, phone, text } = params
   const phoneSuffix = last10Digits(phone)
   if (!phoneSuffix) return
 
@@ -30,18 +30,19 @@ export async function advanceQualifyingFlow(
     .maybeSingle()
 
   if (progress) {
-    await continueFlow(service, storeId, phone, progress as {
+    await continueFlow(service, storeId, userId, phone, progress as {
       id: string; lead_id: string; question_index: number; answers: unknown
     }, text)
     return
   }
 
-  await maybeStartFlow(service, storeId, phone, phoneSuffix, text)
+  await maybeStartFlow(service, storeId, userId, phone, phoneSuffix, text)
 }
 
 async function maybeStartFlow(
   service: ServiceClient,
   storeId: string,
+  userId: string,
   phone: string,
   phoneSuffix: string,
   firstReplyText: string,
@@ -90,7 +91,9 @@ async function maybeStartFlow(
   })
   if (insertErr) return // lost the race (or a genuine error) — either way, don't send
 
-  const sendResult = await sendWhatsAppMessage({ to: phone, message: questions[0] })
+  const sendResult = await sendStoreWhatsAppText(service, {
+    storeId, userId, phone, message: questions[0], type: 'lead_qualifying',
+  })
   if (!sendResult.success) {
     console.error('[Qualifying flow] failed to send first question:', sendResult.error)
   }
@@ -102,6 +105,7 @@ async function maybeStartFlow(
 async function continueFlow(
   service: ServiceClient,
   storeId: string,
+  userId: string,
   phone: string,
   progress: { id: string; lead_id: string; question_index: number; answers: unknown },
   answerText: string,
@@ -152,7 +156,9 @@ async function continueFlow(
     }).eq('id', progress.id).eq('question_index', askedIndex).select('id')
     if (!claimed || claimed.length === 0) return
 
-    const sendResult = await sendWhatsAppMessage({ to: phone, message: questions[nextIndex] })
+    const sendResult = await sendStoreWhatsAppText(service, {
+      storeId, userId, phone, message: questions[nextIndex], type: 'lead_qualifying',
+    })
     if (!sendResult.success) {
       console.error('[Qualifying flow] failed to send next question:', sendResult.error)
     }
@@ -164,6 +170,6 @@ async function continueFlow(
     }).eq('id', progress.id).eq('question_index', askedIndex).select('id')
     if (!claimed || claimed.length === 0) return
 
-    await sendWhatsAppMessage({ to: phone, message: CLOSING_MESSAGE })
+    await sendStoreWhatsAppText(service, { storeId, userId, phone, message: CLOSING_MESSAGE, type: 'lead_qualifying' })
   }
 }

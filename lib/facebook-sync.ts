@@ -6,6 +6,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, getLeadForms, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate, extractTemplateParams } from '@/lib/utils'
+import { assignRoundRobin } from '@/lib/lead-assignment'
 
 type ServiceClient = ReturnType<typeof createServiceClient>
 
@@ -101,40 +102,6 @@ export async function syncFacebookPageLeads(
 
   if (!forms.length) return { synced: 0, newLeads: 0 }
 
-  // ── Round-robin distribution setup ─────────────────────────────────────────
-  // rr_current_pos itself is now read-and-advanced atomically per batch via
-  // advance_round_robin_position (see below) — no local position tracking
-  // needed here anymore.
-  let rrMembersWithEmail: Array<{ user_id: string; email: string }> = []
-  let orgId: string | null = null
-
-  const { data: orgRow } = await service
-    .from('organizations')
-    .select('id, lead_distribution_mode, distribution_members')
-    .eq('owner_id', ownerId)
-    .maybeSingle()
-
-  if (orgRow?.lead_distribution_mode === 'round_robin') {
-    const distMembers = (orgRow.distribution_members ?? []) as Array<{ user_id: string }>
-    orgId = orgRow.id as string
-
-    if (distMembers.length > 0) {
-      const { data: tmRows } = await service
-        .from('team_members')
-        .select('user_id, email')
-        .eq('organization_id', orgRow.id)
-        .eq('status', 'active')
-        .in('user_id', distMembers.map(m => m.user_id))
-
-      rrMembersWithEmail = distMembers
-        .map(m => {
-          const tm = tmRows?.find(t => t.user_id === m.user_id)
-          return tm ? { user_id: m.user_id!, email: tm.email as string } : null
-        })
-        .filter(Boolean) as Array<{ user_id: string; email: string }>
-    }
-  }
-
   let synced     = 0
   let newLeads   = 0
   let accessLost = false
@@ -195,24 +162,7 @@ export async function syncFacebookPageLeads(
 
     synced += fbLeads.length
 
-    // ── Round-robin auto-assign newly imported leads ────────────────────────
-    // advance_round_robin_position atomically reads+advances rr_current_pos
-    // and returns the position to start THIS batch from — see the migration
-    // comment for why the old read-once/advance-locally/write-once-at-end
-    // pattern was a race under concurrent syncs for the same org.
-    if (rrMembersWithEmail.length > 0 && saved?.length && orgId) {
-      const { data: batchStartPos } = await service.rpc('advance_round_robin_position', {
-        p_org_id: orgId, p_count: saved.length, p_member_count: rrMembersWithEmail.length,
-      })
-      const startPos = batchStartPos ?? 0
-      for (let idx = 0; idx < saved.length; idx++) {
-        const member = rrMembersWithEmail[(startPos + idx) % rrMembersWithEmail.length]
-        await service.from('leads')
-          .update({ assigned_to: member.user_id, assigned_name: member.email })
-          .eq('id', saved[idx].id)
-          .is('assigned_to', null)
-      }
-    }
+    await assignRoundRobin(service, ownerId, (saved ?? []).map(s => s.id as string))
 
     // Only queue WhatsApp jobs when automation is enabled AND WhatsApp is connected
     if (whatsappConnected && form.is_enabled && saved?.length && form.message_template) {

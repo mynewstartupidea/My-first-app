@@ -42,15 +42,17 @@ function toGid(resource: string, id: unknown): string {
 // actual thing that must not repeat: "order confirmation for order X."
 async function automationJobExists(
   supabase: ReturnType<typeof createServiceClient>, storeId: string, type: string, orderId: unknown,
+  opts: { idField?: string; status?: string } = {},
 ): Promise<boolean> {
-  const { data } = await supabase
+  const { idField = 'order_id', status } = opts
+  let query = supabase
     .from('automation_jobs')
     .select('id')
     .eq('store_id', storeId)
     .eq('type', type)
-    .contains('context', { order_id: String(orderId) })
-    .limit(1)
-    .maybeSingle()
+    .contains('context', { [idField]: String(orderId) })
+  if (status) query = query.eq('status', status)
+  const { data } = await query.limit(1).maybeSingle()
   return !!data
 }
 
@@ -229,6 +231,18 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
   const message = renderTemplate(auto.template, vars)
   const scheduledAt = new Date(Date.now() + auto.delay_minutes * 60 * 1000).toISOString()
 
+  // checkouts/create and checkouts/update fire on every cart edit, so the
+  // cancel-pending-then-insert cycle below is intentional (reschedules with
+  // the latest cart contents). But Shopify's "at least once" delivery means
+  // the SAME event can be redelivered after its job already fired — without
+  // this check that redelivery just inserts another pending job and sends a
+  // second abandoned-cart message for a cart that's already been messaged
+  // about once. Scoped to status: 'sent' specifically so it only blocks a
+  // redelivered duplicate, not the normal update-before-it-ever-sent flow.
+  const alreadySent = checkout.id
+    ? await automationJobExists(supabase, store.id, 'abandoned_cart', checkout.id, { idField: 'checkout_id', status: 'sent' })
+    : false
+
   // Cancel previous pending abandoned cart jobs for this phone
   await supabase
     .from('automation_jobs')
@@ -238,17 +252,22 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
     .eq('type', 'abandoned_cart')
     .eq('status', 'pending')
 
-  await supabase.from('automation_jobs').insert({
-    store_id:       store.id,
-    automation_id:  auto.id,
-    type:           'abandoned_cart',
-    customer_phone: phone,
-    customer_name:  firstName,
-    message,
-    context:        { checkout_id: checkout.id, line_items: lineItems.length, checkout_url: checkoutUrl, ...waTemplateFields(auto, auto.template, vars) },
-    status:         'pending',
-    scheduled_at:   scheduledAt,
-  })
+  if (!alreadySent) {
+    await supabase.from('automation_jobs').insert({
+      store_id:       store.id,
+      automation_id:  auto.id,
+      type:           'abandoned_cart',
+      customer_phone: phone,
+      customer_name:  firstName,
+      message,
+      // Stored as a string (not the raw JSON number) so the .contains()
+      // dedup check above — which always compares against String(id) —
+      // actually matches it; JSONB containment is type-sensitive.
+      context:        { checkout_id: String(checkout.id), line_items: lineItems.length, checkout_url: checkoutUrl, ...waTemplateFields(auto, auto.template, vars) },
+      status:         'pending',
+      scheduled_at:   scheduledAt,
+    })
+  }
 }
 
 async function attributeRevenue(
@@ -259,12 +278,17 @@ async function attributeRevenue(
   orderId: unknown,
 ) {
   // Find the most recent WhatsApp message sent to this phone in the last 24h
+  // that hasn't already been credited with revenue — without this filter,
+  // two orders from the same customer within 24h of one message (e.g. one
+  // abandoned-cart nudge, two separate purchases) both attributed their
+  // revenue to that same single message, double-counting it in analytics.
   const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: recentMsg } = await supabase
     .from('messages')
     .select('id, type, job_id, metadata')
     .eq('store_id', storeId)
     .eq('customer_phone', customerPhone)
+    .eq('revenue_attributed', 0)
     .gte('created_at', windowStart)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -307,9 +331,15 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
   ).toUpperCase()
   const phone = customerToE164(rawPhone, countryCode)
 
+  // financial_status: 'pending' used to be treated as COD on its own — but
+  // that's also the normal, transient status for plenty of non-COD gateways
+  // right when orders/create fires (bank transfer, UPI/Razorpay awaiting
+  // capture, etc.), so it was telling customers who'd already paid online
+  // to "confirm your Cash on Delivery order." Shopify's own COD gateway
+  // name is literally "Cash on Delivery (COD)", which the name checks below
+  // already catch — the financial_status fallback was never needed for that.
   const isCOD        = String((order.payment_gateway_names as string[])?.[0] ?? '').toLowerCase().includes('cod') ||
-                       String(order.payment_gateway ?? '').toLowerCase().includes('cod') ||
-                       String(order.financial_status ?? '').toLowerCase() === 'pending'
+                       String(order.payment_gateway ?? '').toLowerCase().includes('cod')
   const firstName    = String((order.customer as Record<string, unknown>)?.first_name ?? (order.shipping_address as Record<string, unknown>)?.first_name ?? 'there')
   const orderNumber  = String(order.order_number ?? order.name ?? '')
   const totalPrice   = String(order.total_price ?? '0')

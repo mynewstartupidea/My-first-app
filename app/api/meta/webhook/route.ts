@@ -342,7 +342,7 @@ export async function POST(request: Request) {
         // follow-up questions. Wrapped so a flow bug never breaks the webhook ack.
         if (waAccount?.store_id && msg.type === 'text' && msgBody) {
           try {
-            await advanceQualifyingFlow(supabase, { storeId: waAccount.store_id as string, phone: fromPhone, text: msgBody })
+            await advanceQualifyingFlow(supabase, { storeId: waAccount.store_id as string, userId: waAccount.user_id as string, phone: fromPhone, text: msgBody })
           } catch (e) {
             console.error('[Meta webhook] qualifying flow error:', e)
           }

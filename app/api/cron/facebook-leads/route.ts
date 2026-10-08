@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFormLeads, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate, extractTemplateParams } from '@/lib/utils'
+import { assignRoundRobin } from '@/lib/lead-assignment'
 
 export const maxDuration = 60
 
@@ -114,6 +115,12 @@ export async function GET(request: Request) {
       .select('id, phone, name, fields')
 
     synced += fbLeads.length
+
+    // This is the main lead-ingestion path in production (runs every 5
+    // minutes per vercel.json) — round-robin assignment used to live only
+    // in lib/facebook-sync.ts's manual "Sync Now" path, so an org with
+    // round-robin distribution enabled saw every real lead land unassigned.
+    await assignRoundRobin(supabase, form.user_id as string, (savedRows ?? []).map(s => s.id as string))
 
     // Only queue WhatsApp jobs when automation is enabled for this form
     if (form.is_enabled && savedRows?.length && form.message_template) {

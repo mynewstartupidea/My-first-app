@@ -70,12 +70,28 @@ export async function POST(request: Request) {
 
   const message = renderTemplate(auto.template, testVars)
 
+  // Gate BEFORE sending, not after — this used to call the legacy
+  // unconditional `increment_messages_used` only once a send already
+  // succeeded, with nothing checking the limit first. A merchant already at
+  // or over their plan's message cap could keep firing test sends
+  // indefinitely, each one a real WhatsApp send that just kept pushing
+  // messages_used further past the limit. try_increment_messages_used
+  // (supabase/migrations.sql) is the same atomic check-and-increment gate
+  // the cron/campaign send paths already use.
+  const { data: quotaOk } = await service.rpc('try_increment_messages_used', { p_user_id: ownerId })
+  if (!quotaOk) {
+    return NextResponse.json({ error: 'Monthly message limit reached. Upgrade your plan to send more messages.' }, { status: 403 })
+  }
+
   const result = await sendWhatsAppMessage({
     to:     testPhone,
     message,
     bsp:    store.whatsapp_bsp ?? 'mock',
     apiKey: store.whatsapp_api_key ?? undefined,
   })
+  if (!result.success) {
+    await service.rpc('decrement_messages_used', { p_user_id: ownerId }).then(() => null, () => null)
+  }
 
   const { data: msg } = await service.from('messages').insert({
     store_id:       store.id,
@@ -99,13 +115,6 @@ export async function POST(request: Request) {
       { store_id: store.id, date: today, messages_sent: 1 },
       { onConflict: 'store_id,date' }
     )
-  }
-
-  // Track usage in billing (increment messages_used) — against the org
-  // owner's usage counter, not the caller's, so an admin teammate sending
-  // this doesn't silently create a stray usage row under their own id.
-  if (result.success) {
-    await service.rpc('increment_messages_used', { p_user_id: ownerId }).then(null, () => null)
   }
 
   return NextResponse.json({

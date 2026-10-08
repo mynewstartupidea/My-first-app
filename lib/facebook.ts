@@ -1,3 +1,5 @@
+import { normalizeIndianPhone } from '@/lib/utils'
+
 const FB_API_VERSION = 'v21.0'
 const FB_BASE = `https://graph.facebook.com/${FB_API_VERSION}`
 
@@ -179,9 +181,20 @@ export function parseLeadFields(fieldData: { name: string; values: string[] }[])
   const first = get('firstname')
   const last  = get('lastname')
   const full  = get('fullname', 'name')
+  const rawPhone = get('phone', 'phonenumber', 'mobile')
+  // Meta's form config controls how a lead's phone field is captured (with
+  // spaces, a leading 0, a country code, or none), so it arrives in whatever
+  // shape the form happened to use. Everywhere else a lead can come from
+  // (app/api/leads/ingest, bulk-import, manual) normalizes to a bare
+  // 10-digit number at the point of storage — this was the one source that
+  // didn't, so a Facebook-sourced lead's `leads.phone` could fail an exact-
+  // match lookup (e.g. bulk-import/manual's dedupe-by-phone) against the
+  // same person entered another way. Sending still worked regardless since
+  // lib/whatsapp.ts normalizes at send time.
+  const phone = rawPhone ? (normalizeIndianPhone(rawPhone) ?? rawPhone) : null
   return {
     name:  full ?? (first && last ? `${first} ${last}` : first ?? last),
     email: get('email'),
-    phone: get('phone', 'phonenumber', 'mobile'),
+    phone,
   }
 }

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFBLead, parseLeadFields, extractAllFields } from '@/lib/facebook'
 import { renderTemplate, extractTemplateParams } from '@/lib/utils'
+import { assignRoundRobin } from '@/lib/lead-assignment'
 
 // Facebook webhook verification
 export async function GET(request: Request) {
@@ -96,6 +97,16 @@ export async function POST(request: Request) {
       }, { onConflict: 'user_id,facebook_lead_id' }).select('id').single()
 
       if (saveErr) { console.error('[FB webhook] save lead error:', saveErr); continue }
+
+      // Round-robin assignment is independent of WhatsApp automation, so it
+      // runs regardless of phone/store/automation status below. This upsert
+      // (unlike the batched one in lib/facebook-sync.ts) updates on conflict
+      // rather than ignoring it, so `saved` is also populated on a
+      // redelivery of the same leadgen_id — but assignRoundRobin's own
+      // `.is('assigned_to', null)` guard means that's a harmless no-op
+      // rather than reassigning an already-routed lead.
+      if (saved) await assignRoundRobin(supabase, conn.user_id as string, [saved.id as string])
+
       if (!phone || !conn.store_id || !saved) continue
 
       // Check automation is enabled for this form
