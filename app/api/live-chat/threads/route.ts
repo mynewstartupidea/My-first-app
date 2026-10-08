@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
+import { normalizePhone } from '@/lib/whatsapp'
 
 // Backs the Live Chat thread list — previously loaded via direct client-side
 // queries against stores/messages/inbound_messages, all blocked by RLS
@@ -41,12 +42,21 @@ export async function GET() {
     service.from('leads').select('phone, lead_status').eq('user_id', ownerId).not('lead_status', 'is', null),
   ])
 
+  // Outbound (automation_jobs → messages.customer_phone) and inbound
+  // (webhook → inbound_messages.from_phone) store phone numbers in
+  // different formats — outbound keeps whatever raw format the lead was
+  // entered in (e.g. "9695447829"), while Meta's webhook always sends its
+  // own format (e.g. "919695447829"). Grouping by the raw string split the
+  // same real contact into two separate threads the moment they ever
+  // replied. Normalizing both to the same E.164 form before using them as
+  // the map key (and as the thread's own canonical `phone`) merges them.
   const map = new Map<string, Thread>()
   for (const m of msgs ?? []) {
-    const ex = map.get(m.customer_phone)
+    const phone = normalizePhone(m.customer_phone)
+    const ex = map.get(phone)
     if (!ex) {
-      map.set(m.customer_phone, {
-        phone: m.customer_phone, name: m.customer_name,
+      map.set(phone, {
+        phone, name: m.customer_name,
         lastMsg: m.message, lastTime: m.created_at,
         count: 1, status: m.status, unread: m.status === 'sent',
         type: m.type, tag: null,
@@ -60,11 +70,12 @@ export async function GET() {
     }
   }
   for (const m of inbound ?? []) {
-    const ex = map.get(m.from_phone)
+    const phone = normalizePhone(m.from_phone)
+    const ex = map.get(phone)
     const body = m.body ?? `[${m.message_type ?? 'message'}]`
     if (!ex) {
-      map.set(m.from_phone, {
-        phone: m.from_phone, name: null,
+      map.set(phone, {
+        phone, name: null,
         lastMsg: body, lastTime: m.received_at,
         count: 1, status: 'received', unread: true,
         type: m.message_type ?? 'text', tag: null,
@@ -79,7 +90,7 @@ export async function GET() {
     }
   }
 
-  const tagByPhone = new Map((tagRows ?? []).map(r => [r.phone, r.lead_status as string]))
+  const tagByPhone = new Map((tagRows ?? []).map(r => [normalizePhone(r.phone), r.lead_status as string]))
   const threads = Array.from(map.values())
     .map(t => ({ ...t, tag: tagByPhone.get(t.phone) ?? null }))
     .sort((a, b) => b.lastTime.localeCompare(a.lastTime))

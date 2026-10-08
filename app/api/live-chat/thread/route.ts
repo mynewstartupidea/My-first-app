@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { getUserRole } from '@/lib/get-user-role'
+import { normalizePhone } from '@/lib/whatsapp'
 
 // GET /api/live-chat/thread?phone=+91xxx — full message history + customer
 // record for one conversation. See app/api/live-chat/threads/route.ts for
@@ -28,23 +29,32 @@ export async function GET(request: Request) {
   const store = pickPreferredStore(stores)
   if (!store) return NextResponse.json({ messages: [], customer: null })
 
+  // Matched by normalized phone, not an exact DB-level string filter —
+  // outbound (messages.customer_phone) and inbound (inbound_messages.
+  // from_phone) store numbers in different raw formats depending on where
+  // they originated (see threads/route.ts), so an exact .eq() against
+  // whichever format `phone` happens to be in silently drops the other
+  // side's history. normalizePhone makes both sides comparable.
+  const target = normalizePhone(phone)
   const [msgsRes, inboundRes, custRes] = await Promise.all([
-    service.from('messages').select('*').eq('store_id', store.id)
-      .eq('customer_phone', phone).order('created_at', { ascending: true }),
-    service.from('inbound_messages').select('*').eq('store_id', store.id)
-      .eq('from_phone', phone).order('received_at', { ascending: true }),
+    service.from('messages').select('*').eq('store_id', store.id).order('created_at', { ascending: true }),
+    service.from('inbound_messages').select('*').eq('store_id', store.id).order('received_at', { ascending: true }),
     service.from('customers').select('*').eq('store_id', store.id)
       .eq('phone', phone).maybeSingle(),
   ])
 
-  const out = (msgsRes.data ?? []).map(m => ({
-    id: m.id, text: m.message, type: m.type, status: m.status,
-    direction: 'out' as const, created_at: m.created_at,
-  }))
-  const inb = (inboundRes.data ?? []).map(m => ({
-    id: m.id, text: m.body ?? `[${m.message_type ?? 'message'}]`, type: m.message_type ?? 'text',
-    status: 'received', direction: 'in' as const, created_at: m.received_at,
-  }))
+  const out = (msgsRes.data ?? [])
+    .filter(m => normalizePhone(m.customer_phone) === target)
+    .map(m => ({
+      id: m.id, text: m.message, type: m.type, status: m.status,
+      direction: 'out' as const, created_at: m.created_at,
+    }))
+  const inb = (inboundRes.data ?? [])
+    .filter(m => normalizePhone(m.from_phone) === target)
+    .map(m => ({
+      id: m.id, text: m.body ?? `[${m.message_type ?? 'message'}]`, type: m.message_type ?? 'text',
+      status: 'received', direction: 'in' as const, created_at: m.received_at,
+    }))
   const messages = [...out, ...inb].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   return NextResponse.json({ messages, customer: custRes.data ?? null })
@@ -84,9 +94,21 @@ export async function DELETE(request: Request) {
   const store = pickPreferredStore(stores)
   if (!store) return NextResponse.json({ error: 'No store found' }, { status: 404 })
 
+  // Same normalized-match reasoning as the GET handler above — an exact
+  // .eq() here would only ever delete whichever raw format `phone` happens
+  // to be in, silently leaving the other side's rows (and the conversation
+  // still showing up) behind.
+  const target = normalizePhone(phone)
+  const [{ data: outRows }, { data: inRows }] = await Promise.all([
+    service.from('messages').select('id, customer_phone').eq('store_id', store.id),
+    service.from('inbound_messages').select('id, from_phone').eq('store_id', store.id),
+  ])
+  const outIds = (outRows ?? []).filter(m => normalizePhone(m.customer_phone) === target).map(m => m.id)
+  const inIds  = (inRows ?? []).filter(m => normalizePhone(m.from_phone) === target).map(m => m.id)
+
   const [outRes, inRes] = await Promise.all([
-    service.from('messages').delete().eq('store_id', store.id).eq('customer_phone', phone),
-    service.from('inbound_messages').delete().eq('store_id', store.id).eq('from_phone', phone),
+    outIds.length ? service.from('messages').delete().in('id', outIds) : Promise.resolve({ error: null }),
+    inIds.length  ? service.from('inbound_messages').delete().in('id', inIds)  : Promise.resolve({ error: null }),
   ])
   if (outRes.error || inRes.error) {
     console.error('[live-chat/thread] delete failed:', outRes.error?.message, inRes.error?.message)
