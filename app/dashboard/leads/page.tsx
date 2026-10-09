@@ -3375,6 +3375,14 @@ function LeadsContent() {
   // the first screen on mobile. See conversation: rep opens Leads, should land on
   // what needs action, not a connections dashboard.
   const isRep = role === 'member'
+  const canManageOrg = role === 'owner' || role === 'admin'
+
+  // Leads tied to a page that's no longer connected (see
+  // app/api/facebook/leads/orphaned/route.ts) — surfaced only in "All
+  // Leads" mode, where they're otherwise invisible as a distinct group.
+  const [orphanedCount,   setOrphanedCount]   = useState<number | null>(null)
+  const [deletingOrphans, setDeletingOrphans] = useState(false)
+  const [confirmDeleteOrphans, setConfirmDeleteOrphans] = useState(false)
 
   const showSyncToast = useCallback(() => {
     setSyncToast(true)
@@ -3563,11 +3571,16 @@ function LeadsContent() {
       setPagesLoaded(true)
 
       if (p.length > 0) {
-        // Restore the previously selected page if it still exists; otherwise fall back to first.
-        // ALL_PAGES_ID is always "valid" — it's not a real page, so it'd never
-        // appear in `p`, but that doesn't mean the cached selection is stale.
+        // Restore the previously selected page if it still exists; otherwise
+        // default to All Leads — not "first page in the list," which was an
+        // arbitrary pick that silently hid every other page's (and every
+        // manually-added) lead the moment the account had more than one
+        // connection, with no indication anything was being left out.
+        // ALL_PAGES_ID is always "valid" — it's not a real page, so it'd
+        // never appear in `p`, but that doesn't mean the cached selection is
+        // stale (also covers a page that WAS cached but got disconnected).
         const savedPageIsValid = cachedPageId === ALL_PAGES_ID || (cachedPageId && p.some(pg => pg.page_id === cachedPageId))
-        const pageId = savedPageIsValid ? cachedPageId! : p[0].page_id
+        const pageId = savedPageIsValid ? cachedPageId! : ALL_PAGES_ID
         setSelectedPageId(pageId)
         try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
         if (pageId !== cachedPageId) {
@@ -3607,6 +3620,39 @@ function LeadsContent() {
       .then(d => setFollowupUrgentCount(d.total ?? 0))
       .catch(() => {})
   }, [selectedPageId, pagesLoaded, pages.length])
+
+  // Orphaned-leads count — only meaningful in "All Leads" mode (in any
+  // single-page view, every visible lead already belongs to a connected
+  // page by definition) and only something an owner/admin can act on.
+  useEffect(() => {
+    if (selectedPageId !== ALL_PAGES_ID || !canManageOrg) { setOrphanedCount(null); return }
+    fetch('/api/facebook/leads/orphaned')
+      .then(r => r.json() as Promise<{ count?: number }>)
+      .then(d => setOrphanedCount(d.count ?? 0))
+      .catch(() => {})
+  }, [selectedPageId, canManageOrg])
+
+  const handleDeleteOrphanedLeads = async () => {
+    setDeletingOrphans(true)
+    try {
+      const r = await fetch('/api/facebook/leads/orphaned', { method: 'DELETE' })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({})) as { error?: string }
+        setBanner({ type: 'error', msg: d.error ?? "Couldn't delete these leads. Please try again." })
+        return
+      }
+      setConfirmDeleteOrphans(false)
+      setOrphanedCount(0)
+      setBanner({ type: 'success', msg: 'Leads from disconnected pages deleted.' })
+      // Refresh whatever's currently on screen — the deleted rows were part
+      // of this same "All Leads" view.
+      setLoadingLeads(true)
+      await Promise.all([fetchLeads('all', ALL_PAGES_ID, 1, perPage, leadSearch), fetchStats(ALL_PAGES_ID)])
+      setLoadingLeads(false)
+    } finally {
+      setDeletingOrphans(false)
+    }
+  }
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -4336,6 +4382,47 @@ function LeadsContent() {
           </div>
         ))}
       </div>
+      )}
+
+      {/* Orphaned-leads notice — only in "All Leads" mode, only for
+          owner/admin (matches the DELETE route's own role gate). Disconnecting
+          a page never deletes its leads (same convention every CRM follows —
+          the integration is just the sync pipe, not data ownership), so this
+          is the one deliberate, explicit way to actually clear them out. */}
+      {selectedPageId === ALL_PAGES_ID && canManageOrg && !!orphanedCount && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+          <span className="text-amber-800">
+            <span className="font-semibold tabular-nums">{orphanedCount}</span> of these leads are from Facebook pages that aren&apos;t connected anymore.
+          </span>
+          <button
+            onClick={() => setConfirmDeleteOrphans(true)}
+            className="flex-shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2"
+          >
+            Delete them
+          </button>
+        </div>
+      )}
+
+      {confirmDeleteOrphans && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
+            <h3 className="font-semibold text-gray-900 text-base">Delete {orphanedCount} leads?</h3>
+            <p className="text-gray-500 text-sm mt-2 leading-relaxed">
+              These leads came from Facebook pages you&apos;re no longer connected to. This permanently deletes them — it can&apos;t be undone.
+            </p>
+            <div className="flex items-center gap-2 mt-5">
+              <button onClick={() => setConfirmDeleteOrphans(false)} disabled={deletingOrphans}
+                className="flex-1 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-4 py-2.5 rounded-xl transition disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={handleDeleteOrphanedLeads} disabled={deletingOrphans}
+                className="flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
+                {deletingOrphans ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Automation setup notice — was a full-width banner with its own icon
