@@ -3383,6 +3383,7 @@ function LeadsContent() {
   const [orphanedCount,   setOrphanedCount]   = useState<number | null>(null)
   const [deletingOrphans, setDeletingOrphans] = useState(false)
   const [confirmDeleteOrphans, setConfirmDeleteOrphans] = useState(false)
+  const [deleteOrphansConfirmText, setDeleteOrphansConfirmText] = useState('')
 
   const showSyncToast = useCallback(() => {
     setSyncToast(true)
@@ -3633,6 +3634,7 @@ function LeadsContent() {
   }, [selectedPageId, canManageOrg])
 
   const handleDeleteOrphanedLeads = async () => {
+    if (deleteOrphansConfirmText !== 'DELETE') return // belt-and-suspenders — button is already disabled until this matches
     setDeletingOrphans(true)
     try {
       const r = await fetch('/api/facebook/leads/orphaned', { method: 'DELETE' })
@@ -3642,6 +3644,7 @@ function LeadsContent() {
         return
       }
       setConfirmDeleteOrphans(false)
+      setDeleteOrphansConfirmText('')
       setOrphanedCount(0)
       setBanner({ type: 'success', msg: 'Leads from disconnected pages deleted.' })
       // Refresh whatever's currently on screen — the deleted rows were part
@@ -4395,7 +4398,7 @@ function LeadsContent() {
             <span className="font-semibold tabular-nums">{orphanedCount}</span> of these leads are from Facebook pages that aren&apos;t connected anymore.
           </span>
           <button
-            onClick={() => setConfirmDeleteOrphans(true)}
+            onClick={() => { setDeleteOrphansConfirmText(''); setConfirmDeleteOrphans(true) }}
             className="flex-shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2"
           >
             Delete them
@@ -4410,13 +4413,30 @@ function LeadsContent() {
             <p className="text-gray-500 text-sm mt-2 leading-relaxed">
               These leads came from Facebook pages you&apos;re no longer connected to. This permanently deletes them — it can&apos;t be undone.
             </p>
-            <div className="flex items-center gap-2 mt-5">
-              <button onClick={() => setConfirmDeleteOrphans(false)} disabled={deletingOrphans}
+            {/* A single click is too cheap a price for a bulk, irreversible
+                delete of real lead records — typing the word out is the same
+                "make it deliberately a little harder to do by accident"
+                pattern GitHub uses for repo deletion, scaled to this size of
+                action (891+ leads here). */}
+            <label className="block mt-4">
+              <span className="text-xs font-medium text-gray-500">Type <span className="font-mono font-semibold text-gray-700">DELETE</span> to confirm</span>
+              <input
+                type="text"
+                value={deleteOrphansConfirmText}
+                onChange={e => setDeleteOrphansConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+                autoFocus
+                className="mt-1 w-full px-3 py-2 text-base border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300"
+              />
+            </label>
+            <div className="flex items-center gap-2 mt-4">
+              <button onClick={() => { setConfirmDeleteOrphans(false); setDeleteOrphansConfirmText('') }} disabled={deletingOrphans}
                 className="flex-1 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-4 py-2.5 rounded-xl transition disabled:opacity-50">
                 Cancel
               </button>
-              <button onClick={handleDeleteOrphanedLeads} disabled={deletingOrphans}
-                className="flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
+              <button onClick={handleDeleteOrphanedLeads} disabled={deletingOrphans || deleteOrphansConfirmText !== 'DELETE'}
+                className="flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2.5 rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed">
                 {deletingOrphans ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 Delete
               </button>
