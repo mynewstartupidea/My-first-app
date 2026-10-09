@@ -31,6 +31,15 @@ interface Page {
   store_id: string | null
 }
 
+// Sentinel selectedPageId value for "every lead I own, regardless of page" —
+// not a real Facebook page id. Reconnecting to a different page replaces the
+// single facebook_connections row, so any lead from a page connected before
+// that becomes unreachable through the normal per-page selector even though
+// the data is still there — this is the way back to it. Picked instead of
+// `null` because null already means something else here (no page_id picked
+// yet while initializing, or genuinely zero pages ever connected).
+const ALL_PAGES_ID = '__all_pages__'
+
 interface FBForm {
   id: string
   name: string
@@ -150,16 +159,18 @@ function SyncingScreen() {
 
 // ── PageDropdown ──────────────────────────────────────────────────────────────
 
-function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnect }: {
+function PageDropdown({ pages, selectedId, onSelect, onSelectAll, onDisconnectAll, onReconnect }: {
   pages: Page[]
   selectedId: string | null
   onSelect: (p: Page) => void
+  onSelectAll: () => void
   onDisconnectAll: () => void
   onReconnect: () => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const selected = pages.find(p => p.page_id === selectedId)
+  const isAll = selectedId === ALL_PAGES_ID
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
@@ -176,12 +187,21 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
         <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
           <Facebook className="w-3 h-3 text-blue-600" />
         </div>
-        <span className="truncate">{selected?.page_name ?? 'Select page'}</span>
+        <span className="truncate">{isAll ? 'All Leads' : selected?.page_name ?? 'Select page'}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden">
           <div className="py-1 max-h-52 overflow-y-auto">
+            <button onClick={() => { onSelectAll(); setOpen(false) }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition ${isAll ? 'bg-blue-50' : ''}`}>
+              <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Users className="w-3.5 h-3.5 text-gray-500" />
+              </div>
+              <span className={`flex-1 truncate ${isAll ? 'font-medium text-blue-700' : 'text-gray-700'}`}>All Leads <span className="text-gray-400 font-normal">· every page</span></span>
+              {isAll && <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+            </button>
+            <div className="border-t border-gray-100 my-1" />
             {pages.map(p => (
               <button key={p.page_id} onClick={() => { onSelect(p); setOpen(false) }}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition ${selectedId === p.page_id ? 'bg-blue-50' : ''}`}>
@@ -216,10 +236,11 @@ function PageDropdown({ pages, selectedId, onSelect, onDisconnectAll, onReconnec
 // filters that are rarely touched — one pill, one popover with both
 // sections, sharing its row with the View picker instead of owning two rows.
 
-function PageSourceDropdown({ pages, selectedPageId, onSelectPage, onDisconnectAll, onReconnect, sourceValue, onSourceChange }: {
+function PageSourceDropdown({ pages, selectedPageId, onSelectPage, onSelectAllPages, onDisconnectAll, onReconnect, sourceValue, onSourceChange }: {
   pages: Page[]
   selectedPageId: string | null
   onSelectPage: (p: Page) => void
+  onSelectAllPages: () => void
   onDisconnectAll: () => void
   onReconnect: () => void
   sourceValue: string | null
@@ -228,6 +249,7 @@ function PageSourceDropdown({ pages, selectedPageId, onSelectPage, onDisconnectA
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const selectedPage = pages.find(p => p.page_id === selectedPageId)
+  const isAll = selectedPageId === ALL_PAGES_ID
   const sourceOptions = [
     { value: null as string | null, label: 'Facebook' },
     ...Object.entries(SOURCE_META).filter(([k]) => k !== 'facebook_lead_ad').map(([k, m]) => ({ value: k as string | null, label: m.label })),
@@ -246,12 +268,17 @@ function PageSourceDropdown({ pages, selectedPageId, onSelectPage, onDisconnectA
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-1.5 px-3 h-10 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700"
       >
-        <span className="flex-1 min-w-0 truncate text-left">{selectedPage?.page_name ?? 'Select page'} · {selectedSource.label}</span>
+        <span className="flex-1 min-w-0 truncate text-left">{isAll ? 'All Leads' : selectedPage?.page_name ?? 'Select page'} · {selectedSource.label}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden max-h-80 overflow-y-auto">
           <div className="px-3.5 pt-3 pb-1.5 text-[11px] font-semibold text-gray-400 tracking-wide">PAGE</div>
+          <button onClick={() => { onSelectAllPages(); setOpen(false) }}
+            className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left hover:bg-gray-50 transition ${isAll ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}>
+            <span className="truncate">All Leads <span className="text-gray-400 font-normal">· every page</span></span>
+            {isAll && <CheckCircle className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+          </button>
           {pages.map(p => (
             <button key={p.page_id} onClick={() => { onSelectPage(p); setOpen(false) }}
               className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left hover:bg-gray-50 transition ${selectedPageId === p.page_id ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}>
@@ -290,12 +317,13 @@ function PageSourceDropdown({ pages, selectedPageId, onSelectPage, onDisconnectA
 // (handleTabChange / the Follow-ups toggle) behind one compact trigger
 // instead of a row that scrolls off-screen with forms cut off at the edge.
 
-function ViewDropdown({ activeView, selectedFormId, total, followupUrgentCount, enabledForms, onSelectAll, onToggleFollowups, onSelectForm, onSelectAllForms }: {
+function ViewDropdown({ activeView, selectedFormId, total, followupUrgentCount, enabledForms, hideFormsTab, onSelectAll, onToggleFollowups, onSelectForm, onSelectAllForms }: {
   activeView: 'leads' | 'followups'
   selectedFormId: string
   total: number
   followupUrgentCount: number
   enabledForms: ActiveForm[]
+  hideFormsTab?: boolean
   onSelectAll: () => void
   onToggleFollowups: () => void
   onSelectForm: (formId: string) => void
@@ -364,12 +392,14 @@ function ViewDropdown({ activeView, selectedFormId, total, followupUrgentCount, 
               </button>
             )
           })}
-          <div className="border-t border-gray-100 mt-1 pt-1">
-            <button onClick={() => { onSelectAllForms(); setOpen(false) }}
-              className={`w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition ${selectedFormId === '__forms' ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
-              <FileText className="w-3.5 h-3.5" /> All forms
-            </button>
-          </div>
+          {!hideFormsTab && (
+            <div className="border-t border-gray-100 mt-1 pt-1">
+              <button onClick={() => { onSelectAllForms(); setOpen(false) }}
+                className={`w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition ${selectedFormId === '__forms' ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
+                <FileText className="w-3.5 h-3.5" /> All forms
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2448,7 +2478,9 @@ function FollowUpsView({ pageId, selectedFormId, onCallLog }: {
     // form), not every lead the account has ever had including ones tied to
     // a page that's since been disconnected (see /api/facebook/leads's
     // no_page comment).
-    if (pageId) {
+    if (pageId === ALL_PAGES_ID) {
+      // deliberately no page_id/form_id/no_page param — every lead I own.
+    } else if (pageId) {
       if (selectedFormId !== 'all' && selectedFormId !== '__forms') p.set('form_id', selectedFormId)
       else p.set('page_id', pageId)
     } else {
@@ -3409,7 +3441,7 @@ function LeadsContent() {
 
   const fetchStats = useCallback(async (pageId: string, pSource: string | null = sourceFilterRef.current) => {
     const token = ++fetchStatsTokenRef.current
-    const p = pSource ? `source=${pSource}` : `page_id=${pageId}`
+    const p = pSource ? `source=${pSource}` : pageId === ALL_PAGES_ID ? 'all=true' : `page_id=${pageId}`
     const r = await fetch(`/api/facebook/leads/stats?${p}`)
     const d = await r.json() as { total?: number; withPhone?: number; sent?: number; pending?: number }
     if (fetchStatsTokenRef.current !== token) return // superseded by a newer call
@@ -3434,9 +3466,11 @@ function LeadsContent() {
       p.set('source', pSource)
     } else if (formId !== 'all' && formId !== '__forms') {
       p.set('form_id', formId)
-    } else {
+    } else if (pageId !== ALL_PAGES_ID) {
       p.set('page_id', pageId)
     }
+    // else: ALL_PAGES_ID — deliberately no page_id/form_id/source param at
+    // all, which /api/facebook/leads already treats as "every lead I own."
     if (search.trim()) p.set('q', search.trim())
     if (sort === 'followup_due') p.set('sort', 'followup_due')
     const token = ++fetchLeadsTokenRef.current
@@ -3529,8 +3563,10 @@ function LeadsContent() {
       setPagesLoaded(true)
 
       if (p.length > 0) {
-        // Restore the previously selected page if it still exists; otherwise fall back to first
-        const savedPageIsValid = cachedPageId && p.some(pg => pg.page_id === cachedPageId)
+        // Restore the previously selected page if it still exists; otherwise fall back to first.
+        // ALL_PAGES_ID is always "valid" — it's not a real page, so it'd never
+        // appear in `p`, but that doesn't mean the cached selection is stale.
+        const savedPageIsValid = cachedPageId === ALL_PAGES_ID || (cachedPageId && p.some(pg => pg.page_id === cachedPageId))
         const pageId = savedPageIsValid ? cachedPageId! : p[0].page_id
         setSelectedPageId(pageId)
         try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
@@ -3563,7 +3599,8 @@ function LeadsContent() {
     if (!pagesLoaded) return
     if (pages.length > 0 && !selectedPageId) return
     const p = new URLSearchParams({ sort: 'followup_due', limit: '1' })
-    if (selectedPageId) p.set('page_id', selectedPageId)
+    if (selectedPageId === ALL_PAGES_ID) { /* every lead I own — no param */ }
+    else if (selectedPageId) p.set('page_id', selectedPageId)
     else p.set('no_page', 'true')
     fetch(`/api/facebook/leads?${p}`)
       .then(r => r.json() as Promise<{ total?: number }>)
@@ -3600,6 +3637,25 @@ function LeadsContent() {
       showSyncToast()
     }
 
+    setLoadingLeads(false)
+  }
+
+  // "All Leads" — browses every lead the account owns, including ones from
+  // a Facebook page that was connected before the current one and has since
+  // been replaced (facebook_connections only keeps the current row, so
+  // those leads have no page in the per-page selector to be found under).
+  // No Facebook sync call here (unlike handlePageChange) — there's no
+  // single page to sync against.
+  const handleSelectAllPages = async () => {
+    setSelectedPageId(ALL_PAGES_ID)
+    setSelectedFormId('all')
+    setCurrentPage(1)
+    setLeadSearch('')
+    setLeads([])
+    setActiveForms([])
+    setLoadingLeads(true)
+    try { sessionStorage.setItem('_wpl_pid', ALL_PAGES_ID) } catch {}
+    await Promise.all([fetchLeads('all', ALL_PAGES_ID, 1, perPage, ''), fetchStats(ALL_PAGES_ID)])
     setLoadingLeads(false)
   }
 
@@ -3767,7 +3823,9 @@ function LeadsContent() {
   }
 
   const handleRefresh = async () => {
-    if (!selectedPageId || refreshing) return
+    // Nothing to sync against in "All Leads" mode — there's no single
+    // Facebook page/connection it maps to.
+    if (!selectedPageId || selectedPageId === ALL_PAGES_ID || refreshing) return
     setRefreshing(true)
     setCurrentPage(1)
     const r = await fetch(`/api/facebook/sync?page_id=${selectedPageId}`, { method: 'POST' })
@@ -3847,7 +3905,7 @@ function LeadsContent() {
     const nextPage = currentPage + 1
     const p = new URLSearchParams({ limit: String(perPage), offset: String((nextPage - 1) * perPage) })
     if (selectedFormId !== 'all' && selectedFormId !== '__forms') p.set('form_id', selectedFormId)
-    else p.set('page_id', selectedPageId)
+    else if (selectedPageId !== ALL_PAGES_ID) p.set('page_id', selectedPageId)
     if (leadSearch.trim()) p.set('q', leadSearch.trim())
     try {
       const r = await fetch(`/api/facebook/leads?${p}`)
@@ -4133,7 +4191,7 @@ function LeadsContent() {
         <div className="md:hidden flex items-center gap-2 flex-shrink-0">
           <button
             onClick={handleRefresh}
-            disabled={refreshing}
+            disabled={refreshing || selectedPageId === ALL_PAGES_ID}
             aria-label="Sync new leads from Facebook"
             className="flex items-center justify-center w-10 h-10 text-gray-600 border border-gray-200 bg-white rounded-full hover:bg-gray-50 transition disabled:opacity-50"
           >
@@ -4146,14 +4204,15 @@ function LeadsContent() {
             pages={pages}
             selectedId={selectedPageId}
             onSelect={handlePageChange}
+            onSelectAll={handleSelectAllPages}
             onDisconnectAll={handleDisconnectAll}
             onReconnect={() => { window.location.href = '/api/facebook/auth' }}
           />
           <button
             onClick={handleRefresh}
-            disabled={refreshing}
+            disabled={refreshing || selectedPageId === ALL_PAGES_ID}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
-            title="Sync new leads from Facebook"
+            title={selectedPageId === ALL_PAGES_ID ? 'Select a specific page to sync' : 'Sync new leads from Facebook'}
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             <span>{refreshing ? 'Syncing…' : 'Refresh'}</span>
@@ -4210,6 +4269,7 @@ function LeadsContent() {
             pages={pages}
             selectedPageId={selectedPageId}
             onSelectPage={handlePageChange}
+            onSelectAllPages={handleSelectAllPages}
             onDisconnectAll={handleDisconnectAll}
             onReconnect={() => { window.location.href = '/api/facebook/auth' }}
             sourceValue={sourceFilter}
@@ -4223,6 +4283,7 @@ function LeadsContent() {
             total={total}
             followupUrgentCount={followupUrgentCount}
             enabledForms={enabledForms}
+            hideFormsTab={selectedPageId === ALL_PAGES_ID}
             onSelectAll={() => handleTabChange('all')}
             onToggleFollowups={goToFollowups}
             onSelectForm={formId => handleTabChange(formId)}
@@ -4352,16 +4413,20 @@ function LeadsContent() {
             )
           })}
 
-          {/* All forms tab — separated by a divider */}
-          <div className="flex-shrink-0 border-l border-gray-100 flex items-stretch ml-auto">
-            <button
-              onClick={() => handleTabChange('__forms')}
-              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedFormId === '__forms' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              All forms
-            </button>
-          </div>
+          {/* All forms tab — separated by a divider. Forms always belong to
+              one specific Facebook page's connection, so this doesn't apply
+              in "All Leads" mode. */}
+          {selectedPageId !== ALL_PAGES_ID && (
+            <div className="flex-shrink-0 border-l border-gray-100 flex items-stretch ml-auto">
+              <button
+                onClick={() => handleTabChange('__forms')}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedFormId === '__forms' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                All forms
+              </button>
+            </div>
+          )}
         </div>
         {/* Static fade, not scroll-position-aware — cheap and never wrong: a sliver
             of white-to-transparent at the trailing edge reads as "keep scrolling"

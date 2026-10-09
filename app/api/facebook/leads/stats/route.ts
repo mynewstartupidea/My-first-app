@@ -9,7 +9,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const pageId = searchParams.get('page_id')
   const source = searchParams.get('source')
-  if (!pageId && !source) return NextResponse.json({ total: 0, withPhone: 0, sent: 0, pending: 0 })
+  // "every lead regardless of page" mode — see ALL_PAGES_ID in the Leads
+  // page for why this exists (leads from a page connected before the
+  // current one would otherwise have no way to be counted or browsed at all).
+  const all = searchParams.get('all') === 'true'
+  if (!pageId && !source && !all) return NextResponse.json({ total: 0, withPhone: 0, sent: 0, pending: 0 })
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -55,8 +59,8 @@ export async function GET(request: Request) {
       : `user_id.eq.${ownerId}`
 
   const base = () => {
-    let q = service.from('leads').select('id', { count: 'exact', head: true }).or(visibilityFilter)
-    return source ? q.eq('source', source) : q.eq('page_id', pageId as string)
+    const q = service.from('leads').select('id', { count: 'exact', head: true }).or(visibilityFilter)
+    return source ? q.eq('source', source) : all ? q : q.eq('page_id', pageId as string)
   }
 
   const [totalRes, withPhoneRes, sentRes, pendingRes] = await Promise.all([
