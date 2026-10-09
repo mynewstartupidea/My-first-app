@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { normalizeIndianPhone, renderTemplate, extractTemplateParams } from '@/lib/utils'
+import { normalizeIndianPhone } from '@/lib/utils'
+import { triggerLeadSourceAutomation } from '@/lib/lead-source-automation'
 
 const STANDARD_KEYS = new Set(['name', 'email', 'phone', 'source', 'full_name', 'first_name', 'last_name'])
 
@@ -76,54 +77,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to save lead' }, { status: 500 })
   }
 
-  // Auto-trigger WhatsApp if there is an enabled automation for this source/store
+  // Auto-trigger WhatsApp if the merchant has the Landing Page source
+  // automation turned on (configured from /dashboard/automations, same
+  // place as the Facebook Lead Ad Response card).
   if (normalizedPhone) {
-    const sourceName = source || 'Landing Page'
-
-    // Find automation matching source name, or any enabled one as fallback
-    const { data: autos } = await supabase
-      .from('lead_form_automations')
-      .select('message_template, wa_template_name, wa_template_language, form_name')
-      .eq('store_id', store.id)
-      .eq('is_enabled', true)
-
-    const auto = autos?.find(a => a.form_name?.toLowerCase() === sourceName.toLowerCase())
-      ?? autos?.find(a => a.form_name?.toLowerCase() === 'landing page')
-
-    if (auto) {
-      const { data: wa } = await supabase
-        .from('whatsapp_accounts')
-        .select('id')
-        .eq('user_id', store.user_id)
-        .eq('status', 'connected')
-        .maybeSingle()
-
-      if (wa) {
-        const vars = { ...fields, name: name ?? 'there', email: email ?? '', phone: normalizedPhone }
-        const message = renderTemplate(auto.message_template, vars)
-        const waTemplateName = (auto.wa_template_name as string | null) || null
-        const waTemplateLang = (auto.wa_template_language as string | null) || 'en'
-        const waParams = waTemplateName ? extractTemplateParams(auto.message_template, vars) : undefined
-
-        await supabase.from('automation_jobs').insert({
-          store_id:       store.id,
-          automation_id:  null,
-          type:           'lead_ad',
-          customer_phone: normalizedPhone,
-          customer_name:  name ?? 'Lead',
-          message,
-          context: {
-            lead_id: saved.id,
-            source: sourceName,
-            ...(waTemplateName ? { wa_template_name: waTemplateName, wa_template_language: waTemplateLang, wa_template_params: waParams } : {}),
-          },
-          status:       'pending',
-          scheduled_at: new Date().toISOString(),
-        })
-
-        await supabase.from('leads').update({ wa_status: 'pending' }).eq('id', saved.id)
-      }
-    }
+    await triggerLeadSourceAutomation(supabase, {
+      storeId: store.id, ownerId: store.user_id, leadId: saved.id,
+      source: 'landing_page', phone: normalizedPhone, name: name || null, fields,
+    })
   }
 
   return NextResponse.json({ success: true, lead_id: saved.id })

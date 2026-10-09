@@ -5,7 +5,7 @@ import {
   ShoppingCart, Package, CheckCircle2, Truck, Loader2, Save,
   AlertCircle, Zap, RefreshCw, Gift, X, Send, Star, Repeat,
   MessageSquare, Clock, TrendingUp, ArrowRight, Plus, Tag,
-  Facebook, Users, Phone,
+  Facebook, Users, Phone, Globe, UserPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -411,23 +411,107 @@ function MissedCallCard({ whatsappConnected, onNeedsWhatsapp, showToast }: {
   )
 }
 
-function LeadAdCard() {
+type SourceAutomationState = { isEnabled: boolean; messageTemplate: string }
+const SOURCE_META: Record<string, { label: string; icon: typeof Globe; trigger: string }> = {
+  landing_page: { label: 'Landing Page / Website Form', icon: Globe,     trigger: 'Someone submits your website form' },
+  manual:       { label: 'Manually Added Leads',        icon: UserPlus, trigger: 'A rep adds a lead by hand' },
+}
+
+// One row per non-Facebook source — a toggle plus its own message template,
+// same shape as MissedCallCard's self-contained editor above. Kept separate
+// from the Facebook forms list since these aren't tied to any Facebook
+// connection at all (see lib/lead-source-automation.ts).
+function SourceAutomationRow({ source, state, onSaved, showToast }: {
+  source: string
+  state: SourceAutomationState
+  onSaved: (source: string, next: SourceAutomationState) => void
+  showToast: (msg: string, ok?: boolean) => void
+}) {
+  const meta = SOURCE_META[source]
+  const [open, setOpen]         = useState(false)
+  const [enabled, setEnabled]   = useState(state.isEnabled)
+  const [template, setTemplate] = useState(state.messageTemplate)
+  const [saving, setSaving]     = useState(false)
+
+  useEffect(() => { setEnabled(state.isEnabled); setTemplate(state.messageTemplate) }, [state.isEnabled, state.messageTemplate])
+
+  const save = async (nextEnabled: boolean, nextTemplate: string) => {
+    if (nextEnabled && !nextTemplate.trim()) {
+      showToast('Write a message template before turning this on.', false)
+      setOpen(true)
+      return
+    }
+    setSaving(true)
+    const res = await fetch('/api/leads/source-automation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source, isEnabled: nextEnabled, messageTemplate: nextTemplate }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      showToast(d.error ?? "Couldn't save this automation. Please try again.", false)
+      setEnabled(state.isEnabled)
+      return
+    }
+    onSaved(source, { isEnabled: nextEnabled, messageTemplate: nextTemplate })
+    showToast('Saved')
+  }
+
+  const Icon = meta.icon
+  return (
+    <div className={cn('rounded-xl border transition-colors', enabled ? 'border-[#25D366]/30 bg-[#25D366]/5' : 'border-slate-100 bg-slate-50')}>
+      <div className="flex items-center gap-3 px-3.5 py-2.5">
+        <Icon size={15} className={enabled ? 'text-[#25D366]' : 'text-slate-400'} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-slate-700 truncate">{meta.label}</p>
+          <p className="text-[10px] text-slate-400">{meta.trigger}</p>
+        </div>
+        <button onClick={() => setOpen(v => !v)} className="text-[11px] font-medium text-slate-500 hover:text-slate-700 px-2">
+          {open ? 'Close' : enabled ? 'Edit' : 'Set up'}
+        </button>
+        <button onClick={() => { const next = !enabled; setEnabled(next); save(next, template) }} disabled={saving}
+          className={cn('relative h-5 w-9 rounded-full transition-colors flex-shrink-0 disabled:opacity-70', enabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
+          <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', enabled ? 'left-4' : 'left-0.5')} />
+        </button>
+      </div>
+      {open && (
+        <div className="border-t border-slate-100 px-3.5 py-3 space-y-2">
+          <textarea rows={3} value={template} onChange={e => setTemplate(e.target.value)}
+            placeholder="Hi {{name}}! Thanks for your interest — someone from our team will reach out shortly."
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 resize-none font-mono leading-relaxed" />
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-slate-400">Variables: {'{{name}}'} {'{{email}}'} {'{{phone}}'}</p>
+            <button onClick={() => save(enabled, template)} disabled={saving}
+              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LeadAdCard({ showToast }: { showToast: (msg: string, ok?: boolean) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [forms, setForms]       = useState<{ form_id: string; form_name: string; is_enabled: boolean; lead_count: number }[] | null>(null)
   const [loading, setLoading]   = useState(false)
+  const [sources, setSources]   = useState<Record<string, SourceAutomationState> | null>(null)
 
   useEffect(() => {
     if (!expanded || forms !== null) return
     setLoading(true)
-    fetch('/api/facebook/active-forms')
-      .then(r => r.json())
-      .then((d: { forms?: typeof forms }) => setForms(d.forms ?? []))
-      .catch(() => setForms([]))
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch('/api/facebook/active-forms').then(r => r.json()).then((d: { forms?: typeof forms }) => setForms(d.forms ?? [])).catch(() => setForms([])),
+      fetch('/api/leads/source-automation').then(r => r.json()).then((d: { sources?: Record<string, SourceAutomationState> }) => setSources(d.sources ?? {})).catch(() => setSources({})),
+    ]).finally(() => setLoading(false))
   }, [expanded, forms])
 
-  const activeForms = (forms ?? []).filter(f => f.is_enabled)
-  const isLive      = activeForms.length > 0
+  const activeForms  = (forms ?? []).filter(f => f.is_enabled)
+  const activeSources = Object.values(sources ?? {}).filter(s => s.isEnabled)
+  const isLive = activeForms.length > 0 || activeSources.length > 0
 
   return (
     <div className={cn('bg-white rounded-2xl border-2 shadow-sm transition-all',
@@ -446,22 +530,28 @@ function LeadAdCard() {
             )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5 truncate">
-            Auto-send a WhatsApp message the moment someone submits a Facebook Lead Ad form.
+            Auto-send a WhatsApp message the moment someone becomes a lead — Facebook form, website form, or added by hand.
           </p>
           <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-            <Clock size={10} /> Facebook Lead Ad form submission
+            <Clock size={10} /> New lead captured
           </p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg font-medium">
             <TrendingUp size={11} /> Converts leads 5× faster
           </div>
-          <a href="/dashboard/leads"
+          {/* Opens this same card instead of always jumping to /dashboard/leads
+              — that page is Facebook-specific furniture (page picker, form
+              activation) with nothing relevant to set up for an account
+              whose leads come from a landing page or manual entry instead. */}
+          <button onClick={() => setExpanded(true)}
             className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition whitespace-nowrap">
             <Users size={11} />
-            {activeForms.length > 0 ? `${activeForms.length} form${activeForms.length > 1 ? 's' : ''} active` : 'Set up'}
+            {activeForms.length + activeSources.length > 0
+              ? `${activeForms.length + activeSources.length} active`
+              : 'Set up'}
             <ArrowRight size={10} />
-          </a>
+          </button>
           <button onClick={() => setExpanded(v => !v)}
             className="text-slate-400 hover:text-slate-600 transition p-2.5 rounded-lg hover:bg-slate-100">
             {expanded ? <X size={15} /> : <Plus size={15} />}
@@ -504,11 +594,33 @@ function LeadAdCard() {
             </div>
           )}
 
+          {/* Non-Facebook sources — each is its own toggle + template, set up
+              right here instead of requiring a Facebook form to exist at all. */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Other lead sources</p>
+            {loading || !sources ? (
+              <div className="flex justify-center py-4">
+                <Loader2 size={16} className="animate-spin text-slate-300" />
+              </div>
+            ) : (
+              Object.keys(SOURCE_META).map(key => (
+                <SourceAutomationRow
+                  key={key}
+                  source={key}
+                  state={sources[key] ?? { isEnabled: false, messageTemplate: '' }}
+                  onSaved={(src, next) => setSources(prev => ({ ...(prev ?? {}), [src]: next }))}
+                  showToast={showToast}
+                />
+              ))
+            )}
+          </div>
+
           <div className="bg-blue-50 rounded-xl p-3.5">
             <p className="text-xs font-semibold text-blue-900">How it works</p>
             <p className="text-[11px] text-blue-600 mt-0.5 leading-relaxed">
-              Activate a form in Lead Ads → write a message template → every new lead gets an instant WhatsApp reply.
-              Per-form templates let you personalise messages for each campaign.
+              Facebook: activate a form below → write a message template → every new lead gets an instant WhatsApp reply.
+              Landing page or manual entry: turn on the matching row above and write its message the same way.
+              Bulk CSV imports aren&apos;t included here — use the Message button on the Leads page to reach an imported list when you&apos;re ready.
             </p>
           </div>
 
@@ -664,7 +776,7 @@ export default function AutomationsPage() {
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
               <Facebook size={13} className="text-blue-500" /> Lead Ads
             </h2>
-            <LeadAdCard />
+            <LeadAdCard showToast={showToast} />
             <MissedCallCard
               whatsappConnected={whatsappConnected}
               onNeedsWhatsapp={() => setShowWaPopup(true)}

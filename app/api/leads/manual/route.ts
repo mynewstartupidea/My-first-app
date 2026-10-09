@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { normalizeIndianPhone } from '@/lib/utils'
+import { triggerLeadSourceAutomation } from '@/lib/lead-source-automation'
 
 const SOURCE_LABELS: Record<string, string> = {
   facebook_lead_ad: 'Facebook',
@@ -89,6 +90,15 @@ export async function POST(request: Request) {
   if (error || !saved) {
     console.error('[leads/manual] insert error:', error)
     return NextResponse.json({ error: 'Failed to save lead' }, { status: 500 })
+  }
+
+  // Auto-trigger WhatsApp if the merchant has the Manually Added Leads
+  // source automation turned on (configured from /dashboard/automations).
+  if (normalizedPhone && store?.id) {
+    await triggerLeadSourceAutomation(service, {
+      storeId: store.id, ownerId, leadId: saved.id,
+      source: 'manual', phone: normalizedPhone, name: body.name?.trim() || null,
+    })
   }
 
   return NextResponse.json({ ok: true, lead_id: saved.id })
