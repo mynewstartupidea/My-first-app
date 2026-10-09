@@ -220,15 +220,17 @@ export default async function DashboardPage() {
     store ? service.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? service.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? service.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
-    // defaultPageId/defaultConnectionId are null when the account has no
-    // Facebook page connected at all — scope to leads/automations that never
-    // had a page_id/connection_id (page-less leads; orphaned automation
-    // rows don't apply), not everything the account has EVER had across
-    // every page/connection it has ever connected and since disconnected.
-    // Mirrors the same no_page fix in /api/facebook/leads.
-    isEcommerce ? Promise.resolve({ data: [] }) : defaultPageId
-      ? service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).eq('page_id', defaultPageId)
-      : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).is('page_id', null),
+    // Deliberately NOT scoped to defaultPageId, unlike followupQuery/
+    // leadFormsRes below — this feeds the "Total Leads" KPI card plus Hot
+    // Leads/Response Rate/Conversion Rate/Lead Outcomes, and a manually-
+    // added lead (or one from CSV import, a website form, walk-in, referral)
+    // has no page_id at all. Scoping this to one connected Facebook page
+    // silently excluded every one of them — "Total Leads" showed 0 right
+    // after adding a lead by hand, with a real Facebook page connected.
+    // Same reasoning leadSourcesRes below already documents for the same
+    // class of query.
+    isEcommerce ? Promise.resolve({ data: [] })
+      : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId),
     isEcommerce ? Promise.resolve({ data: [] }) : defaultConnectionId
       ? service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).eq('connection_id', defaultConnectionId)
       : service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).is('connection_id', null),
