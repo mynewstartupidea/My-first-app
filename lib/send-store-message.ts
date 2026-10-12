@@ -31,10 +31,23 @@ export async function sendStoreWhatsAppText(
     .eq('user_id', userId)
     .maybeSingle()
 
+  // The stored access_token is a 60-day merchant user token even when a
+  // permanent system-user assignment succeeded at connect time (the system
+  // user token is the platform's own, never substituted into this row —
+  // see lib/whatsapp.ts's exchangeMetaCode comments). Every other Meta-
+  // calling path in this codebase (cron automation sends, campaign sends,
+  // templates, profile, contacts upload) prioritizes the permanent env var
+  // first; this one didn't, so AI auto-reply, manual Live Chat replies, and
+  // the qualifying flow would all start failing with a Meta auth error
+  // ~60 days after connect, specifically while cron-driven sends kept
+  // working fine — a confusing "some messages work, some don't" split with
+  // no obvious cause.
+  const apiKey = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? wa?.access_token ?? undefined
+
   const result = await sendWhatsAppMessage({
     to: phone,
     message,
-    apiKey: wa?.access_token ?? undefined,
+    apiKey,
     phoneNumberId: wa?.phone_number_id ?? undefined,
     bsp: wa?.provider ?? undefined,
   })
@@ -45,6 +58,13 @@ export async function sendStoreWhatsAppText(
     await service.rpc('decrement_messages_used', { p_user_id: userId }).then(() => null, () => null)
   }
 
+  // A failed send's reason used to only ever reach the one-time toast the
+  // caller showed right after this returned — reloading the thread (or the
+  // background poll picking it up moments later) re-fetched from DB with
+  // nothing but a bare 'failed' status, so the real reason vanished
+  // permanently. Same metadata.delivery_error shape the Meta status
+  // webhook already uses, so Live Chat's existing errorDetail display
+  // (app/api/live-chat/thread/route.ts) picks this up with no UI change.
   await service.from('messages').insert({
     store_id: storeId,
     customer_phone: phone,
@@ -52,6 +72,7 @@ export async function sendStoreWhatsAppText(
     message,
     status: result.success ? 'sent' : 'failed',
     bsp_message_id: result.messageId ?? null,
+    metadata: result.success || !result.error ? null : { delivery_error: { details: result.error } },
   })
 
   return result

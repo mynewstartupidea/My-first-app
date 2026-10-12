@@ -813,10 +813,15 @@ function SettingsInner() {
     if (!testPhone.trim()) return
     setSendingTest(true)
     try {
+      // The backend fully supports sending whatever's typed here as free
+      // text (falling back to a template only if there's no open 24h
+      // window) — but this call never actually included it, so the field
+      // did nothing and every test send used a template regardless of
+      // what was typed, with no indication why.
       const res  = await fetch('/api/whatsapp/test', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ phone: testPhone.trim() }),
+        body:    JSON.stringify({ phone: testPhone.trim(), message: testMsg.trim() || undefined }),
       })
       const data = await res.json().catch(() => ({})) as { success?: boolean; messageId?: string; error?: string; phone?: string }
       if (data.success) {

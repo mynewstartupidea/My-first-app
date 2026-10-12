@@ -99,6 +99,13 @@ async function sendViaMeta(params: SendMessageParams): Promise<SendResult> {
       code === 130429 ? 'WhatsApp rate limit reached — will retry' :
       code === 131021 ? `Invalid phone number format: ${phone}` :
       code === 131000 ? 'WhatsApp service error — will retry' :
+      // 133010 is the defining failure mode of a phone number that was
+      // never registered for the Cloud API (the whole "Account not
+      // registered" saga this session) — worth its own actionable message
+      // instead of falling through to the generic "code 133010" below,
+      // same as every other code here that tells the merchant what to do.
+      code === 133010 ? 'This WhatsApp number is not registered for sending yet — reconnect it from Settings.' :
+      code === 130472 ? 'Meta restricted this message (experiment/holdout group)' :
       data.error?.message ?? `Meta API error (code ${code ?? 'unknown'})`
     return { success: false, error: humanError }
   } catch (e) {
@@ -181,6 +188,16 @@ export function normalizePhone(phone: string): string {
 
   // 12-digit with 91 prefix (Indian with country code, no +)
   if (digits.startsWith('91') && digits.length === 12) return `+${digits}`
+
+  // 11-digit Indian mobile with the domestic trunk-prefix 0 (e.g. a number
+  // copied straight out of a local contacts app/CRM export as
+  // "09876543210") — matched neither branch above and fell through to the
+  // catch-all below, producing the invalid "+09876543210" (Meta rejects
+  // this outright, 131021) for a number that's actually perfectly
+  // deliverable once the trunk 0 is stripped.
+  if (digits.length === 11 && digits.startsWith('0') && !digits.slice(1).startsWith('0')) {
+    return `+91${digits.slice(1)}`
+  }
 
   // Anything else: assume the caller supplied the full country code
   return `+${digits}`

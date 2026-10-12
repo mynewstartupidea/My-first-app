@@ -101,6 +101,23 @@ export async function GET(request: Request) {
 
     if (!claimed || claimed.length === 0) continue
 
+    // Stuck-'processing' reclaim (below, this file) can't tell "crashed
+    // before the send happened" from "the Meta API call actually
+    // succeeded, but the function was hard-killed before the status:'sent'
+    // write landed" — updated_at is stamped at claim time, before the send
+    // round-trip, so a kill in that narrow gap leaves the job reclaimable
+    // and it would otherwise get resent on a later tick: a second, real
+    // message hitting the customer's phone. A `messages` row only ever
+    // gets written right after a real send attempt resolves (success or
+    // permanent failure, both insert one), so its existence for this
+    // job_id is reliable proof this job already ran once.
+    const { data: alreadySent } = await supabase
+      .from('messages').select('id').eq('job_id', job.id).limit(1).maybeSingle()
+    if (alreadySent) {
+      await supabase.from('automation_jobs').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', job.id)
+      continue
+    }
+
     // Quota check used to read get_messages_remaining once per invocation
     // and decrement a local in-memory cache as jobs sent — this and
     // app/api/cron/campaign-send (bulk campaigns) are two independent
@@ -110,7 +127,12 @@ export async function GET(request: Request) {
     // try_increment_messages_used (supabase/migrations.sql) checks and
     // increments atomically, so this is the actual gate now, evaluated
     // fresh per message rather than cached per invocation.
-    let quotaOk = true
+    // Fails closed, not open — an orphaned job (store row deleted/missing,
+    // a race with store deletion) used to leave ownerId undefined and skip
+    // the RPC entirely while quotaOk's initial default stayed true, sending
+    // the message with the billing/quota gate completely bypassed. A
+    // billing-relevant gate should never default to "allowed."
+    let quotaOk = false
     if (ownerId) {
       const { data: allowed } = await supabase.rpc('try_increment_messages_used', { p_user_id: ownerId })
       quotaOk = !!allowed
@@ -174,16 +196,28 @@ export async function GET(request: Request) {
 
     const ctx = (job.context as Record<string, unknown> | null) ?? {}
 
-    const result = await sendWhatsAppMessage({
-      to:               job.customer_phone,
-      message:          job.message,
-      bsp:              store?.whatsapp_bsp,
-      apiKey:           apiKeyOverride,
-      phoneNumberId:    phoneNumberIdOverride,
-      templateName:     (ctx.wa_template_name as string | undefined) || undefined,
-      templateLanguage: (ctx.wa_template_language as string | undefined) || undefined,
-      templateParams:   (ctx.wa_template_params as string[] | undefined) || undefined,
-    })
+    // whatsapp_bsp defaults to 'mock' for every newly-created store
+    // (supabase/schema.sql) and nothing in any job-creation path (Shopify
+    // webhooks, Facebook lead ingestion, etc.) checks whether WhatsApp is
+    // actually connected before queuing a job — a merchant with Shopify
+    // live but WhatsApp not set up yet had every automation job silently
+    // hit sendWhatsAppMessage's 'mock' branch, which returns success after
+    // only a console.log. Jobs got marked 'sent', a messages row said
+    // 'sent', quota got spent — while zero real messages ever went out,
+    // and the merchant's dashboard showed everything working. Real
+    // providers only; 'mock' is for local dev, never a live job.
+    const result = store?.whatsapp_bsp && store.whatsapp_bsp !== 'mock'
+      ? await sendWhatsAppMessage({
+          to:               job.customer_phone,
+          message:          job.message,
+          bsp:              store.whatsapp_bsp,
+          apiKey:           apiKeyOverride,
+          phoneNumberId:    phoneNumberIdOverride,
+          templateName:     (ctx.wa_template_name as string | undefined) || undefined,
+          templateLanguage: (ctx.wa_template_language as string | undefined) || undefined,
+          templateParams:   (ctx.wa_template_params as string[] | undefined) || undefined,
+        })
+      : { success: false, error: 'WhatsApp is not connected for this store yet.' }
 
     const now = new Date().toISOString()
 
@@ -244,8 +278,19 @@ export async function GET(request: Request) {
         await supabase.rpc('decrement_messages_used', { p_user_id: ownerId }).then(null, () => null)
       }
 
+      // lib/whatsapp.ts's own error messages literally say "— will retry"
+      // for WhatsApp rate-limit (130429) and transient service (131000)
+      // errors — app/api/cron/campaign-send already keys off that same
+      // text to decide whether to retry. This cron (which processes every
+      // Shopify/lead_ad one-off send) didn't: it retried EVERY failure up
+      // to 3 times, including permanent ones like "not registered on
+      // WhatsApp" or a missing/unapproved template, wasting quota-spend/
+      // refund cycles and delaying the merchant seeing an unrecoverable
+      // reason by up to 15 minutes (3 × 5-minute delay) for something a
+      // retry could never fix.
+      const isRetryable = /will retry/i.test(result.error ?? '')
       const retryCount = (job.retry_count ?? 0) + 1
-      const permanentlyFailed = retryCount >= 3
+      const permanentlyFailed = !isRetryable || retryCount >= 3
       await supabase
         .from('automation_jobs')
         .update({

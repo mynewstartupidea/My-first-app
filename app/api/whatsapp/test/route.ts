@@ -54,6 +54,17 @@ export async function POST(request: Request) {
     })
   }
 
+  // Every other send path in this codebase (cron, campaign-send,
+  // lib/send-store-message.ts, the one-off /api/test/send-message) was
+  // hardened with this atomic quota gate this session — this one was
+  // missed, so a merchant at or over their plan cap could keep clicking
+  // "Send Test" indefinitely, each one a real, billed Meta API call with
+  // zero quota enforcement.
+  const { data: quotaOk } = await service.rpc('try_increment_messages_used', { p_user_id: ownerId })
+  if (!quotaOk) {
+    return NextResponse.json({ success: false, error: 'Monthly message limit reached. Upgrade your plan to send more messages.' })
+  }
+
   type MetaSendResult = { messages?: { id: string }[]; error?: { message: string; code?: number; error_data?: { details: string } } }
   const sendToMeta = (payload: Record<string, unknown>) =>
     fetch(`https://graph.facebook.com/v25.0/${phoneId}/messages`, {
@@ -89,6 +100,7 @@ export async function POST(request: Request) {
     // is a real error worth surfacing directly rather than masking behind
     // a template attempt that would fail for the same underlying reason.
     else if (metaData.error?.code !== 131047) {
+      await service.rpc('decrement_messages_used', { p_user_id: ownerId }).then(() => null, () => null)
       return NextResponse.json({ success: false, error: describeError(metaData, metaRes.status), phone })
     }
   }
@@ -110,6 +122,7 @@ export async function POST(request: Request) {
       const statuses = await getTemplateStatuses(merchantWabaId, token)
       const approved = STARTER_TEMPLATES.find(t => statuses[t.name] === 'APPROVED')
       if (!approved) {
+        await service.rpc('decrement_messages_used', { p_user_id: ownerId }).then(() => null, () => null)
         return NextResponse.json({
           success: false,
           error: "You don't have any Meta-approved templates yet, so a test message can't be sent to open a new conversation. Check the Templates page for approval status — this usually takes a few hours for a new WhatsApp number — or message this number from your own WhatsApp first, then it can send your typed message as plain text instead.",
@@ -136,6 +149,10 @@ export async function POST(request: Request) {
   const messageId = metaData.messages?.[0]?.id
   const success   = !!sentAs && !!messageId
   const errorMsg  = success ? undefined : describeError(metaData, metaRes?.status ?? 500)
+
+  if (!success) {
+    await service.rpc('decrement_messages_used', { p_user_id: ownerId }).then(() => null, () => null)
+  }
 
   if (success && store) {
     await service.from('messages').insert({

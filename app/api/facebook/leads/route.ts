@@ -160,6 +160,24 @@ export async function POST(request: Request) {
   if (!lead?.phone) return NextResponse.json({ error: 'Lead not found or has no phone' }, { status: 400 })
   if (!lead.store_id) return NextResponse.json({ error: 'No store connected' }, { status: 400 })
 
+  // The Leads UI shows this as a clickable "Resend WhatsApp" button the
+  // moment wa_status is 'pending' — i.e. while a job for this exact lead
+  // may already be queued or mid-send, not yet actually resolved. Without
+  // this check, clicking it before the cron has picked up the first job
+  // queued a second automation_jobs row with no dedup at the data layer
+  // either (no uniqueness constraint on automation_jobs), so both
+  // eventually send — a real duplicate WhatsApp message and a double
+  // quota charge for one logical send.
+  const { data: inFlight } = await service
+    .from('automation_jobs').select('id')
+    .eq('store_id', lead.store_id).eq('type', 'lead_ad')
+    .in('status', ['pending', 'processing'])
+    .contains('context', { lead_id: leadId })
+    .limit(1).maybeSingle()
+  if (inFlight) {
+    return NextResponse.json({ error: 'A message to this lead is already queued — give it a moment before sending another.' }, { status: 409 })
+  }
+
   const vars = {
     ...(lead.fields as Record<string, string> ?? {}),
     name: lead.name ?? 'there',
