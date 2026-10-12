@@ -193,6 +193,18 @@ export async function GET(request: Request) {
         .update({ status: 'sent', sent_at: now })
         .eq('id', job.id)
 
+      // lead_ad jobs set leads.wa_status = 'pending' the moment they're
+      // queued, but nothing ever advanced it from there — every Facebook/
+      // landing-page/manual lead stayed stuck showing "Queued" in the Leads
+      // table forever, even long after the message actually sent (and the
+      // lead replied). Every type other than lead_ad has no lead_id in
+      // context and never touches the leads table at all, so this is a
+      // no-op for them.
+      const leadId = ctx.lead_id as string | undefined
+      if (leadId) {
+        await supabase.from('leads').update({ wa_status: 'sent' }).eq('id', leadId)
+      }
+
       await supabase.from('messages').insert({
         store_id:       job.store_id,
         job_id:         job.id,
@@ -256,6 +268,11 @@ export async function GET(request: Request) {
           bsp_message_id: null,
           metadata:       { ...(job.context ?? {}), error: result.error ?? 'Unknown error' },
         })
+
+        const leadId = ctx.lead_id as string | undefined
+        if (leadId) {
+          await supabase.from('leads').update({ wa_status: 'failed' }).eq('id', leadId)
+        }
       }
 
       failed++
