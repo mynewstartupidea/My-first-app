@@ -302,7 +302,27 @@ export default function LiveChatPage() {
       }
       const grew = data.messages.length > prevMsgCountRef.current
       prevMsgCountRef.current = data.messages.length
-      setMessages(data.messages)
+      // The earlier token guard only fixed a STALE response overwriting
+      // newer state — it doesn't help when this response is simply the
+      // LATEST one but still genuinely doesn't contain a message that's
+      // still mid-flight. That happens for real whenever something else
+      // writes to this same conversation while a send is outstanding: a
+      // second message sent before the first one's round trip finishes, or
+      // (now that AI auto-reply runs server-side via a webhook this page
+      // has no visibility into) an AI reply landing in the same window. A
+      // wholesale setMessages(data.messages) would just wipe the
+      // still-pending bubble out until the next poll catches up — merge
+      // instead, keeping any 'sending' bubble this response doesn't yet
+      // account for.
+      setMessages(prev => {
+        const stillPending = prev.filter(m =>
+          m.status === 'sending' &&
+          !data.messages.some(d => d.direction === 'out' && d.text === m.text && d.status !== 'sending')
+        )
+        return stillPending.length
+          ? [...data.messages, ...stillPending].sort((a, b) => a.created_at.localeCompare(b.created_at))
+          : data.messages
+      })
       setCustomer(data.customer)
       // Only yank the scroll position on a background refresh if a new
       // message actually arrived — otherwise someone reading older history
