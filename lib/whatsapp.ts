@@ -94,7 +94,13 @@ async function sendViaMeta(params: SendMessageParams): Promise<SendResult> {
     const humanError =
       code === 131026 ? `${phone} is not registered on WhatsApp` :
       code === 131047 ? 'No approved template set — customer must message you first, or configure a WhatsApp template name in form settings' :
-      code === 132000 ? `Template "${templateName}" not found or not approved yet` :
+      // No "will retry" suffix here used to mean this failed permanently on
+      // attempt 1 (app/api/cron/route.ts's retry check is text-based) even
+      // though "not approved YET" is often genuinely transient — a merchant
+      // enabling a brand-new automation the same day its starter template
+      // was submitted could have their first real send hard-fail while Meta
+      // was still mid-approval (typically minutes, not instant).
+      code === 132000 ? `Template "${templateName}" not found or not approved yet — will retry` :
       code === 132001 ? `Template "${templateName}" — wrong number of parameters` :
       code === 130429 ? 'WhatsApp rate limit reached — will retry' :
       code === 131021 ? `Invalid phone number format: ${phone}` :

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { provisionStarterTemplates } from '@/lib/whatsapp-templates'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vaibhavsin9574395@gmail.com'
 
@@ -18,6 +19,28 @@ export async function POST(request: Request) {
   const service = createServiceClient()
   const body = await request.json()
   const { action, user_id, plan } = body as { action: string; user_id: string; plan?: string }
+
+  // One-off: push the new lifecycle-automation starter templates (added for
+  // win_back/repeat_purchase/replenishment_reminder/vip_milestone/
+  // welcome_series_1/welcome_series_2/cross_sell) to every connected WABA.
+  // provisionStarterTemplates() is add-only — it already treats Meta's
+  // "already exists" error as a graceful skip (lib/whatsapp-templates.ts),
+  // so this is safe to run against accounts that already have the original
+  // 6 ecommerce templates approved; only the 7 new ones actually submit.
+  // No user_id needed — runs against every connected account, not one.
+  if (action === 'provision_lifecycle_templates') {
+    const { data: accounts } = await service
+      .from('whatsapp_accounts').select('user_id, waba_id, access_token').eq('status', 'connected')
+    const results: Record<string, unknown>[] = []
+    for (const acc of accounts ?? []) {
+      if (!acc.waba_id) continue
+      const apiKey = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? acc.access_token
+      if (!apiKey) continue
+      const r = await provisionStarterTemplates(acc.waba_id, apiKey)
+      results.push({ user_id: acc.user_id, waba_id: acc.waba_id, results: r })
+    }
+    return NextResponse.json({ success: true, results })
+  }
 
   if (!user_id) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
 

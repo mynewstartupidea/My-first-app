@@ -1156,3 +1156,124 @@ BEGIN
   RETURN v_rows > 0;
 END;
 $$;
+
+-- ─── Lifecycle automations: win-back, repeat purchase, replenishment, VIP ──
+-- milestone, welcome series, cross-sell. The type enum already allowed
+-- win_back/repeat_purchase (added once before, never wired to a trigger —
+-- see app/dashboard/automations/page.tsx's COMING_SOON comment) plus 5 new
+-- values for the rest.
+ALTER TABLE automations DROP CONSTRAINT IF EXISTS automations_type_check;
+ALTER TABLE automations ADD CONSTRAINT automations_type_check
+  CHECK (type IN (
+    'abandoned_cart','cod_verification','order_confirmation','shipping_update',
+    'post_purchase_upsell','win_back','review_request','repeat_purchase',
+    'replenishment_reminder','vip_milestone','welcome_series_1','welcome_series_2','cross_sell'
+  ));
+
+-- win_back nightly-scan guard: "reset on reorder", not a fixed cooldown — a
+-- customer becomes re-eligible once they place ANOTHER order since the last
+-- win-back sent (sent_at < last_order_at). NULL = never sent.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_winback_sent_at TIMESTAMPTZ;
+
+-- Shared guard for repeat_purchase AND replenishment_reminder — this IS the
+-- cross-type dedupe: both read the same candidates and claim the same
+-- column, so whichever fires first for a customer in a cycle blocks the
+-- other for that same cycle (see claim_reorder_reminder below).
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_reorder_reminder_sent_at TIMESTAMPTZ;
+
+-- One-time "already celebrated" ledger, JSONB (not a single bool) so future
+-- milestones can be added without another migration. Shape:
+-- {"vip_milestone": "<ISO timestamp>"}.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS milestones_sent JSONB DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS customers_lifecycle_scan_idx
+  ON customers(store_id, last_order_at) WHERE whatsapp_opt_in = true;
+CREATE INDEX IF NOT EXISTS shopify_orders_customer_idx
+  ON shopify_orders(customer_id, shopify_created_at);
+
+-- Atomic claim for win-back candidates — UPDATE...RETURNING under row lock
+-- so the "still eligible" check and the "mark as sent" stamp happen as one
+-- statement, not read-then-write (two concurrent cron ticks could otherwise
+-- both pass the check before either commits the stamp).
+CREATE OR REPLACE FUNCTION claim_winback_candidates(p_store_id UUID, p_limit INT DEFAULT 500)
+RETURNS TABLE(id UUID, name TEXT, phone TEXT, last_order_at TIMESTAMPTZ)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE customers c SET last_winback_sent_at = NOW()
+  WHERE c.id IN (
+    SELECT c2.id FROM customers c2
+    WHERE c2.store_id = p_store_id AND c2.whatsapp_opt_in = true
+      AND c2.last_order_at IS NOT NULL
+      AND c2.last_order_at <= NOW() - INTERVAL '45 days'
+      AND (c2.last_winback_sent_at IS NULL OR c2.last_winback_sent_at < c2.last_order_at)
+    LIMIT p_limit FOR UPDATE SKIP LOCKED
+  )
+  RETURNING c.id, c.name, c.phone, c.last_order_at;
+END;
+$$;
+
+-- Reorder-cycle candidates: estimate each customer's average days-between-
+-- orders from real order history (needs >=2 real orders to have a gap at
+-- all), flag overdue against a grace window (20% of their own cycle,
+-- floored at 2 days, capped at 14 — a tunable heuristic, not a product
+-- requirement).
+CREATE OR REPLACE FUNCTION get_reorder_candidates(p_store_id UUID, p_limit INT DEFAULT 500)
+RETURNS TABLE(customer_id UUID, name TEXT, phone TEXT, last_order_at TIMESTAMPTZ, avg_cycle_days NUMERIC)
+LANGUAGE sql AS $$
+  WITH gaps AS (
+    SELECT customer_id,
+           shopify_created_at - LAG(shopify_created_at) OVER (PARTITION BY customer_id ORDER BY shopify_created_at) AS gap
+    FROM shopify_orders
+    WHERE store_id = p_store_id AND customer_id IS NOT NULL AND cancelled_at IS NULL
+  ),
+  cycles AS (
+    SELECT customer_id, AVG(EXTRACT(EPOCH FROM gap) / 86400.0) AS avg_cycle_days
+    FROM gaps WHERE gap IS NOT NULL GROUP BY customer_id
+  )
+  SELECT c.id, c.name, c.phone, c.last_order_at, cy.avg_cycle_days
+  FROM customers c JOIN cycles cy ON cy.customer_id = c.id
+  WHERE c.store_id = p_store_id AND c.whatsapp_opt_in = true
+    AND c.last_order_at + (cy.avg_cycle_days * INTERVAL '1 day')
+          + (GREATEST(2, LEAST(14, cy.avg_cycle_days * 0.2)) * INTERVAL '1 day') <= NOW()
+    AND (c.last_reorder_reminder_sent_at IS NULL OR c.last_reorder_reminder_sent_at < c.last_order_at)
+  LIMIT p_limit;
+$$;
+
+-- Per-candidate atomic claim — returns true only if THIS call is the one
+-- that gets to send. Shared between repeat_purchase and
+-- replenishment_reminder: whichever type's scan reaches a given customer
+-- first wins the claim, the other sees false and skips them for this cycle.
+CREATE OR REPLACE FUNCTION claim_reorder_reminder(p_customer_id UUID, p_last_order_at TIMESTAMPTZ)
+RETURNS BOOLEAN LANGUAGE plpgsql AS $$
+DECLARE v_rows INT;
+BEGIN
+  UPDATE customers SET last_reorder_reminder_sent_at = NOW()
+  WHERE id = p_customer_id
+    AND (last_reorder_reminder_sent_at IS NULL OR last_reorder_reminder_sent_at < p_last_order_at);
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  RETURN v_rows > 0;
+END;
+$$;
+
+-- VIP milestone: reuses the exact threshold already live in
+-- lib/campaign-queue.ts (total_spent>=5000 OR total_orders>=2) for
+-- consistency with the Campaigns dashboard's own VIP segment. The jsonb
+-- key-exists check (`?`) is what makes this a one-time-ever celebration
+-- rather than re-firing every night a customer stays VIP.
+CREATE OR REPLACE FUNCTION claim_vip_milestone_candidates(p_store_id UUID, p_limit INT DEFAULT 500)
+RETURNS TABLE(id UUID, name TEXT, phone TEXT)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE customers c SET milestones_sent = milestones_sent || jsonb_build_object('vip_milestone', NOW())
+  WHERE c.id IN (
+    SELECT c2.id FROM customers c2
+    WHERE c2.store_id = p_store_id AND c2.whatsapp_opt_in = true
+      AND (c2.total_spent >= 5000 OR c2.total_orders >= 2)
+      AND NOT (c2.milestones_sent ? 'vip_milestone')
+    LIMIT p_limit FOR UPDATE SKIP LOCKED
+  )
+  RETURNING c.id, c.name, c.phone;
+END;
+$$;

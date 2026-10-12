@@ -12,7 +12,7 @@ import { decrypt } from '@/lib/encryption'
 // clears wa_template_name to null server-side, which makes this a no-op and
 // the job falls back to sending `message` as free-form text, same as before
 // templates existed.
-function waTemplateFields(auto: { wa_template_name?: string | null; wa_template_language?: string | null } | null, template: string, vars: Record<string, string>) {
+export function waTemplateFields(auto: { wa_template_name?: string | null; wa_template_language?: string | null } | null, template: string, vars: Record<string, string>) {
   const name = auto?.wa_template_name
   if (!name) return {}
   return {
@@ -431,6 +431,32 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
     customerRow = match ?? null
   }
 
+  // Welcome Series — fires off this order only if it's genuinely this
+  // customer's FIRST order (total_orders just became 1). Same "N types, one
+  // trigger, different delay" shape as post_purchase_upsell/review_request
+  // below, just off orders/create instead of orders/fulfilled — no new
+  // Shopify webhook subscription needed.
+  if (!existingOrder && customerRow) {
+    const { data: custCheck } = await supabase.from('customers').select('total_orders').eq('id', customerRow.id).maybeSingle()
+    if (custCheck?.total_orders === 1) {
+      for (const [type, defaultDelay] of [['welcome_series_1', 0], ['welcome_series_2', 2880]] as const) {
+        const { data: auto } = await supabase.from('automations').select('*')
+          .eq('store_id', store.id).eq('type', type).eq('is_enabled', true).maybeSingle()
+        if (auto && !(await automationJobExists(supabase, store.id, type, order.id))) {
+          const vars = { name: firstName, shop_name: store.shop_name ?? 'our store' }
+          const msg = renderTemplate(auto.template, vars)
+          const delay = (auto.delay_minutes ?? defaultDelay) * 60 * 1000
+          await supabase.from('automation_jobs').insert({
+            store_id: store.id, automation_id: auto.id, type,
+            customer_phone: phone, customer_name: firstName, message: msg,
+            context: { order_id: String(order.id), ...waTemplateFields(auto, auto.template, vars) },
+            status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
+          })
+        }
+      }
+    }
+  }
+
   // Mirror into shopify_orders immediately instead of waiting for the next
   // periodic sync (app/api/cron/shopify-sync) — that's what the Store page's
   // "Recent Orders" list reads from, and it used to only pick up an order
@@ -548,6 +574,78 @@ async function handleOrderFulfilled(supabase: ReturnType<typeof createServiceCli
       status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
     })
   }
+
+  // Cross-sell — unlike handleOrderCreate above, this function never looks
+  // up the customer row (only derives customerPhone from the raw payload),
+  // so the recommendation query needs its own lookup first.
+  const { data: crossAuto } = await supabase
+    .from('automations').select('*')
+    .eq('store_id', store.id).eq('type', 'cross_sell').eq('is_enabled', true).maybeSingle()
+
+  if (crossAuto && !(await automationJobExists(supabase, store.id, 'cross_sell', order.id))) {
+    const { data: custRow } = await supabase.from('customers').select('id')
+      .eq('store_id', store.id).eq('phone', customerPhone).maybeSingle()
+    const rec = await findCrossSellRecommendation(supabase, store.id, custRow?.id ?? null, (order.line_items as Record<string, unknown>[]) ?? [])
+    if (rec) {
+      const delay = (crossAuto.delay_minutes ?? 4320) * 60 * 1000
+      const crossVars = { name: firstName, shop_name: store.shop_name ?? 'our store', product_name: rec.title }
+      const msg = renderTemplate(crossAuto.template, crossVars)
+      await supabase.from('automation_jobs').insert({
+        store_id: store.id, automation_id: crossAuto.id, type: 'cross_sell',
+        customer_phone: customerPhone, customer_name: firstName, message: msg,
+        context: { order_id: String(order.id), recommended_product_id: rec.shopify_product_id, ...waTemplateFields(crossAuto, crossAuto.template, crossVars) },
+        status: 'pending', scheduled_at: new Date(Date.now() + delay).toISOString(),
+      })
+    }
+    // No recommendation found (single-product-type store, or customer
+    // already owns everything in that product_type) — silently skip, no
+    // job, no error. Expected, not a failure.
+  }
+}
+
+// Cross-sell heuristic — needs no new schema, just what's already synced by
+// lib/shopify-sync.ts: for the first line item that resolves to a known
+// product, recommend the best-selling OTHER product (by total quantity
+// sold) in the same product_type, excluding anything this customer has
+// already bought. Products with no product_type set are excluded from the
+// candidate pool — a known v1 gap for stores that never filled in that
+// Shopify field, acceptable as a silent skip rather than a guess.
+async function findCrossSellRecommendation(
+  supabase: ReturnType<typeof createServiceClient>, storeId: string, customerId: string | null,
+  lineItems: Record<string, unknown>[],
+): Promise<{ shopify_product_id: string; title: string } | null> {
+  for (const li of lineItems) {
+    if (!li.product_id) continue
+    const gid = toGid('Product', li.product_id)
+    const { data: product } = await supabase.from('shopify_products')
+      .select('product_type').eq('store_id', storeId).eq('shopify_product_id', gid).maybeSingle()
+    if (!product?.product_type) continue
+
+    const owned = customerId
+      ? ((await supabase.from('shopify_order_line_items')
+          .select('shopify_product_id, shopify_orders!inner(customer_id)')
+          .eq('shopify_orders.customer_id', customerId)
+        ).data ?? []).map(r => r.shopify_product_id as string)
+      : []
+
+    const { data: candidates } = await supabase.from('shopify_order_line_items')
+      .select('shopify_product_id, title, quantity, shopify_products!inner(product_type, status, store_id)')
+      .eq('shopify_products.store_id', storeId)
+      .eq('shopify_products.product_type', product.product_type)
+      .eq('shopify_products.status', 'active')
+
+    const tally = new Map<string, { title: string; qty: number }>()
+    for (const row of candidates ?? []) {
+      const pid = row.shopify_product_id as string
+      if (!pid || owned.includes(pid)) continue
+      const e = tally.get(pid) ?? { title: row.title as string, qty: 0 }
+      e.qty += (row.quantity as number) ?? 0
+      tally.set(pid, e)
+    }
+    const best = [...tally.entries()].sort((a, b) => b[1].qty - a[1].qty)[0]
+    if (best) return { shopify_product_id: best[0], title: best[1].title }
+  }
+  return null
 }
 
 // ─── orders/updated ──────────────────────────────────────────────────────────

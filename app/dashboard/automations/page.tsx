@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 
 type LiveType = 'abandoned_cart' | 'cod_verification' | 'order_confirmation' | 'shipping_update'
   | 'post_purchase_upsell' | 'review_request'
+  | 'win_back' | 'repeat_purchase' | 'replenishment_reminder' | 'vip_milestone'
+  | 'welcome_series_1' | 'welcome_series_2' | 'cross_sell'
 
 interface Automation {
   id: string
@@ -92,24 +94,83 @@ const LIVE_TYPES: Record<LiveType, {
     defaultDelay: 7200,
     defaultTemplate: 'Hi {{name}}! Hope you\'re loving your purchase from {{shop_name}} 😊\n\nWould you mind leaving us a quick review? It helps us a lot and takes just 2 minutes!\n\nThank you!',
   },
+  win_back: {
+    icon: Repeat, label: 'Win-back Campaign',
+    description: 'Re-engage customers who haven\'t ordered in 45+ days.',
+    impact: 'Recovers dormant customers',
+    color: 'text-rose-600', bg: 'bg-rose-50',
+    trigger: 'Nightly scan: 45+ days since last order',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! We miss you at {{shop_name}} 👋\n\nIt\'s been a while since your last order — come back and see what\'s new, just for you!',
+  },
+  repeat_purchase: {
+    icon: Gift, label: 'Repeat Purchase Reminder',
+    description: 'Remind customers to reorder based on their own purchase cycle.',
+    impact: 'Drives predictable repeat revenue',
+    color: 'text-indigo-600', bg: 'bg-indigo-50',
+    trigger: 'Nightly scan: overdue vs. predicted reorder date',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! Based on your last order from {{shop_name}}, it might be time to restock.\n\nReorder your favorites today — we\'re just a tap away!',
+  },
+  replenishment_reminder: {
+    icon: Clock, label: 'Replenishment Reminder',
+    description: 'Remind customers to reorder consumable products.',
+    impact: 'Same reorder-cycle logic as Repeat Purchase',
+    color: 'text-cyan-600', bg: 'bg-cyan-50',
+    trigger: 'Nightly scan: overdue vs. predicted reorder date',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! You\'re probably due for a refill based on your last order from {{shop_name}}.\n\nReorder now so you don\'t run out — we\'ll have it ready for you!',
+  },
+  vip_milestone: {
+    icon: Star, label: 'VIP Milestone',
+    description: 'Celebrate customer milestones and reward loyalty.',
+    impact: 'Builds loyalty with top customers',
+    color: 'text-amber-600', bg: 'bg-amber-50',
+    trigger: 'Nightly scan: crosses VIP threshold (one-time)',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! 🎉 You\'ve officially become a VIP customer at {{shop_name}}!\n\nThank you for your loyalty — keep an eye out, we\'ve got something special for you soon.',
+  },
+  welcome_series_1: {
+    icon: MessageSquare, label: 'Welcome Series — Message 1',
+    description: 'First message in a multi-message welcome flow for new customers.',
+    impact: 'First impression that converts',
+    color: 'text-emerald-600', bg: 'bg-emerald-50',
+    trigger: 'orders/create (first order)',
+    defaultDelay: 0,
+    defaultTemplate: 'Hi {{name}}! Welcome to {{shop_name}} 🎉\n\nThank you for your first order — we\'re thrilled to have you with us! If you need anything, just reply here.',
+  },
+  welcome_series_2: {
+    icon: Send, label: 'Welcome Series — Message 2',
+    description: 'Follow-up welcome message a couple of days after the first order.',
+    impact: 'Keeps new customers engaged',
+    color: 'text-teal-600', bg: 'bg-teal-50',
+    trigger: 'orders/create (first order) + 2d delay',
+    defaultDelay: 2880,
+    defaultTemplate: 'Hi {{name}}! Hope you\'re settling in with {{shop_name}} 😊\n\nHave a question about your order, or want tips on getting the most out of it? Just reply here — we\'re happy to help!',
+  },
+  cross_sell: {
+    icon: ArrowRight, label: 'Cross-sell Campaign',
+    description: 'Suggest complementary products after purchase.',
+    impact: 'Increases average order value',
+    color: 'text-fuchsia-600', bg: 'bg-fuchsia-50',
+    trigger: 'orders/fulfilled + 3d delay',
+    defaultDelay: 4320,
+    defaultTemplate: 'Hi {{name}}! Since you shopped with {{shop_name}}, customers often pair that with {{product_name}}.\n\nCheck it out — you might love it too!',
+  },
 }
 
-// Win-back/Repeat Purchase used to render as fully live, toggleable
-// AutomationCards (same "Live" badge as the real Shopify automations above)
-// even though no cron or webhook anywhere in this codebase ever creates a
-// job for either type — enabling them did nothing, silently. Listed here
-// instead until a real trigger (a nightly inactive-customer scan for
-// win_back, an order-cycle scheduler for repeat_purchase) actually exists.
+// Win-back, Repeat Purchase, Replenishment Reminder, VIP Milestone, Welcome
+// Series, and Cross-sell Campaign all shipped as real LIVE_TYPES above (new
+// nightly cron for the first four, orders/create + orders/fulfilled for the
+// last two). The remaining 3 genuinely can't work yet — each needs a
+// brand-new Shopify storefront signup widget (wishlist / notify-me) that
+// doesn't exist anywhere in this codebase, a separate project from this
+// dashboard. Left here honestly disabled rather than a toggle that does
+// nothing, same treatment win_back/repeat_purchase got before they shipped.
 const COMING_SOON = [
-  { icon: Repeat,       label: 'Win-back Campaign',      desc: 'Re-engage customers who haven\'t ordered in 45+ days', soon: 'Coming soon' },
-  { icon: Gift,         label: 'Repeat Purchase Reminder', desc: 'Remind customers to reorder based on order cycle',   soon: 'Coming soon' },
-  { icon: Tag,          label: 'Browse Abandonment',    desc: 'Send when customer browses but doesn\'t add to cart',         soon: 'Q3 2025' },
-  { icon: TrendingUp,   label: 'Price Drop Alert',       desc: 'Notify wishlist customers when product price drops',          soon: 'Q3 2025' },
-  { icon: Package,      label: 'Back in Stock Alert',    desc: 'Alert customers when out-of-stock product is available',      soon: 'Q3 2025' },
-  { icon: MessageSquare,label: 'Welcome Series',         desc: 'Multi-message welcome flow for new customers',               soon: 'Q3 2025' },
-  { icon: Clock,        label: 'Replenishment Reminder', desc: 'Remind customers to reorder consumable products',             soon: 'Q4 2025' },
-  { icon: Star,         label: 'VIP Milestone',          desc: 'Celebrate customer milestones and reward loyalty',            soon: 'Q4 2025' },
-  { icon: Repeat,       label: 'Cross-sell Campaign',    desc: 'Suggest complementary products after purchase',               soon: 'Q4 2025' },
+  { icon: Tag,          label: 'Browse Abandonment',    desc: 'Send when customer browses but doesn\'t add to cart',         soon: 'Needs storefront widget' },
+  { icon: TrendingUp,   label: 'Price Drop Alert',       desc: 'Notify wishlist customers when product price drops',          soon: 'Needs storefront widget' },
+  { icon: Package,      label: 'Back in Stock Alert',    desc: 'Alert customers when out-of-stock product is available',      soon: 'Needs storefront widget' },
 ]
 
 function AutomationCard({
@@ -252,7 +313,7 @@ function AutomationCard({
             <textarea rows={5} value={template} onChange={e => setTemplate(e.target.value)}
               className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 resize-none font-mono leading-relaxed" />
             <p className="text-[10px] text-slate-400 mt-1">
-              Variables: {'{{name}}'} {'{{shop_name}}'} {'{{order_number}}'} {'{{cart_url}}'} {'{{tracking_url}}'}
+              Variables: {'{{name}}'} {'{{shop_name}}'} {'{{order_number}}'} {'{{cart_url}}'} {'{{tracking_url}}'} {'{{product_name}}'}
             </p>
           </div>
 
@@ -263,10 +324,20 @@ function AutomationCard({
               <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">
                 {template.replace(/\{\{name\}\}/g, 'Priya').replace(/\{\{shop_name\}\}/g, 'Your Store')
                   .replace(/\{\{order_number\}\}/g, '#1234').replace(/\{\{amount\}\}/g, '₹1,299')
-                  .replace(/\{\{cart_url\}\}/g, 'yourstore.com/cart').replace(/\{\{tracking_url\}\}/g, 'track.link/xyz')}
+                  .replace(/\{\{cart_url\}\}/g, 'yourstore.com/cart').replace(/\{\{tracking_url\}\}/g, 'track.link/xyz')
+                  .replace(/\{\{product_name\}\}/g, 'Classic Leather Wallet')}
               </p>
             </div>
           </div>
+
+          {type === 'replenishment_reminder' && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl p-3">
+              <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                If Repeat Purchase Reminder is also turned on, that one takes priority per customer — this won&apos;t double-message the same reorder cycle.
+              </p>
+            </div>
+          )}
 
           <button onClick={save} disabled={saving}
             className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition active:scale-[0.97]">
