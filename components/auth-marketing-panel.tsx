@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, ShoppingCart, CreditCard, Package, BarChart3 } from 'lucide-react'
+import { MessageCircle, ShoppingCart, Zap, Package, BarChart3 } from 'lucide-react'
 
 // Real numbers already live on the homepage (components/landing/social-proof.tsx,
 // components/landing/hero.tsx) — reused here rather than inventing new ones,
@@ -11,15 +11,17 @@ const STATS = [
   { value: '1.2M+', label: 'Messages sent' },
 ]
 
-// Condensed from components/landing/features.tsx — four of the six, trimmed
-// to one line each. This panel is a trust/context aside next to a form,
-// not the full features section, so it doesn't need all six or the longer
-// copy that section uses.
+// Condensed from components/landing/features.tsx, swapping one ecommerce-only
+// entry (Appointment Reminders) for a lead-gen one — the signup form's own
+// "What best describes your business?" step offers Ecommerce and Lead
+// Generation as equal options, but every line here used to be ecommerce-only
+// copy, which read as "this isn't for me" to a lead-gen signup. The speed-
+// to-lead stat matches the one already used on the Automations page banner.
 const FEATURES = [
-  { icon: ShoppingCart, title: 'Abandoned Cart Recovery', desc: 'Automatic follow-ups that bring shoppers back.' },
-  { icon: CreditCard,   title: 'Appointment Reminders',   desc: 'Cut no-shows with automatic WhatsApp reminders.' },
-  { icon: Package,      title: 'Broadcasts & Promotions', desc: 'Reach your whole list in one click.' },
-  { icon: BarChart3,    title: 'Live Analytics',          desc: 'Messages, replies and revenue in one view.' },
+  { icon: Zap,          title: 'Instant Lead Follow-up',  desc: 'Leads messaged within 5 min convert up to 9x more.' },
+  { icon: ShoppingCart, title: 'Abandoned Cart Recovery',  desc: 'Automatic follow-ups that bring shoppers back.' },
+  { icon: Package,      title: 'Broadcasts & Promotions',  desc: 'Reach your whole list in one click.' },
+  { icon: BarChart3,    title: 'Live Analytics',           desc: 'Messages, replies and revenue in one view.' },
 ]
 
 // Shared left-side marketing panel for /signup and /login — desktop/laptop
@@ -44,7 +46,7 @@ export default function AuthMarketingPanel() {
           Turn WhatsApp into <span className="italic text-green-100">your best</span> salesperson
         </h2>
         <p className="mt-4 text-green-100/80 text-[15px] leading-relaxed max-w-sm">
-          Automate cart recovery, reminders, broadcasts and win-backs — no code, live in minutes.
+          Automate lead follow-ups, cart recovery, broadcasts and win-backs — no code, live in minutes.
         </p>
 
         <div className="flex items-center gap-8 mt-10">
