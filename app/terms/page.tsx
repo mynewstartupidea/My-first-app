@@ -42,7 +42,7 @@ export default function TermsPage() {
         <div className="mb-12">
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">Legal</span>
           <h1 className="mt-3 text-4xl font-extrabold text-white">Terms of Service</h1>
-          <p className="mt-3 text-slate-500 text-sm">Last updated: June 2025</p>
+          <p className="mt-3 text-slate-500 text-sm">Last updated: October 2026</p>
         </div>
 
         <div className="bg-white/3 border border-white/8 rounded-2xl p-6 mb-10">
@@ -69,9 +69,9 @@ export default function TermsPage() {
         </Section>
 
         <Section title="3. Fees">
-          <p>Wapaci is currently free to use. We do not charge a Wapaci subscription fee or collect app payments outside Shopify.</p>
+          <p>Wapaci offers paid subscription plans, billed monthly via Razorpay for accounts signed up directly through wapaci.com. Current pricing is shown at <a href="/pricing" className="text-[#25D366] hover:underline">wapaci.com/pricing</a>. Subscriptions renew automatically each month until cancelled.</p>
+          <p>If you install Wapaci through the Shopify App Store, your subscription is instead billed through Shopify App Pricing or the Shopify Billing API, as required by Shopify policy for App Store-distributed apps.</p>
           <p>External services you connect, such as WhatsApp / Meta or your ecommerce platform, may charge their own fees under their own terms.</p>
-          <p>If Wapaci introduces paid app plans in the future, any Shopify App Store distributed version will use Shopify App Pricing or the Shopify Billing API where required by Shopify policy.</p>
         </Section>
 
         <Section title="4. WhatsApp and Meta Compliance">

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { scrollToSection } from '@/lib/scroll-to-section'
 
 const NAV_LINKS = [
   { href: '#features', label: 'Features' },
@@ -23,23 +24,9 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Plain <a href="#hash"> anchors relied on the browser's native hash-scroll,
-  // which never accounted for this header being position:fixed — the target
-  // section's own heading landed hidden right underneath it, especially
-  // noticeable scrolling UP to an earlier section (Use Cases) after FAQ,
-  // where the browser's default jump is already instant/unanimated and the
-  // user had no scroll motion to even confirm something happened. Explicit
-  // scroll with a header-height offset, same pattern already used for the
-  // pricing section's own scroll-back-to-self behavior (components/landing/
-  // pricing.tsx's scrollToPricing).
-  function scrollToSection(id: string, e: React.MouseEvent) {
-    e.preventDefault()
+  function handleSectionClick(id: string, e: React.MouseEvent) {
     setOpen(false)
-    const el = document.getElementById(id)
-    if (!el) return
-    const top = el.getBoundingClientRect().top + window.scrollY - 80
-    window.scrollTo({ top, behavior: 'smooth' })
-    window.history.replaceState(null, '', `#${id}`)
+    scrollToSection(id, e)
   }
 
   return (
@@ -62,7 +49,7 @@ export default function Navbar() {
                 {label}
               </Link>
             ) : (
-              <a key={href} href={href} onClick={e => scrollToSection(href.slice(1), e)} className="text-slate-400 hover:text-white text-sm font-medium transition">
+              <a key={href} href={href} onClick={e => handleSectionClick(href.slice(1), e)} className="text-slate-400 hover:text-white text-sm font-medium transition">
                 {label}
               </a>
             )
@@ -86,6 +73,8 @@ export default function Navbar() {
         <button
           className="md:hidden text-white"
           onClick={() => setOpen(!open)}
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-expanded={open}
         >
           {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -100,7 +89,7 @@ export default function Navbar() {
                 {label}
               </Link>
             ) : (
-              <a key={href} href={href} onClick={e => scrollToSection(href.slice(1), e)} className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition">
+              <a key={href} href={href} onClick={e => handleSectionClick(href.slice(1), e)} className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition">
                 {label}
               </a>
             )

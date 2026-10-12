@@ -217,15 +217,27 @@ function GetStarted() {
     setError('')
     setStep('submitting')
 
-    const res = await fetch('/api/landing/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, company, phone, email, source: 'lp_leads' }),
-    })
-    const data = await res.json() as {
+    // No try/catch here previously — a network failure or non-JSON error
+    // response threw unhandled, leaving `step` stuck at 'submitting'
+    // forever (button disabled, spinner, no error, no way to retry short of
+    // reloading).
+    let res: Response
+    let data: {
       leadId?: string; subscriptionId?: string; keyId?: string
       prefill?: { name: string; email: string; contact: string }
       error?: string; message?: string
+    }
+    try {
+      res = await fetch('/api/landing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, company, phone, email, source: 'lp_leads' }),
+      })
+      data = await res.json()
+    } catch {
+      setError("Couldn't reach the server — check your connection and try again.")
+      setStep('form')
+      return
     }
 
     if (!res.ok) {
@@ -320,7 +332,7 @@ function GetStarted() {
 
                 <button type="submit" disabled={step === 'submitting'}
                   className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
-                  {step === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Create Account <ArrowRight className="w-4 h-4" /></>}
+                  {step === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Get Started <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </form>
               <p className="text-slate-600 text-[11px] text-center mt-4">Secure payment via Razorpay. Billed every 30 days.</p>

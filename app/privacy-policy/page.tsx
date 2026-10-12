@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
         <div className="mb-12">
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">Legal</span>
           <h1 className="mt-3 text-4xl font-extrabold text-white">Privacy Policy</h1>
-          <p className="mt-3 text-slate-500 text-sm">Last updated: June 2025</p>
+          <p className="mt-3 text-slate-500 text-sm">Last updated: October 2026</p>
         </div>
 
         <div className="bg-white/3 border border-white/8 rounded-2xl p-6 mb-10">
@@ -80,6 +80,7 @@ export default function PrivacyPolicyPage() {
             <li><strong className="text-slate-300">WhatsApp / Meta Cloud API:</strong> Messages are sent directly via the WhatsApp Cloud API. Wapaci is an official Meta Business Partner — no third-party BSP is involved.</li>
             <li><strong className="text-slate-300">Ecommerce platforms (Shopify, WooCommerce):</strong> We connect to your store via official APIs using OAuth tokens.</li>
             <li><strong className="text-slate-300">Supabase:</strong> Our database and authentication infrastructure. Data is encrypted at rest.</li>
+            <li><strong className="text-slate-300">Razorpay:</strong> Subscription payments for accounts signed up directly through wapaci.com are processed by Razorpay. We share the billing details needed to create and manage your subscription (name, phone, email); Razorpay&apos;s own privacy policy governs how they handle your payment information. Wapaci does not store your card or bank details.</li>
           </ul>
         </Section>
 

@@ -159,7 +159,7 @@ function Hero() {
 }
 
 const statsConfig = [
-  { target: 340, suffix: '+', prefix: '', decimals: 0, label: 'Real estate businesses' },
+  { target: 340, suffix: '+', prefix: '', decimals: 0, label: 'Businesses on Wapaci' },
   { target: 78, suffix: '%', prefix: '', decimals: 0, label: 'Buyers go with first responder' },
   { target: 98, suffix: '%', prefix: '', decimals: 0, label: 'WhatsApp open rate' },
   { target: 10, suffix: 'min', prefix: '', decimals: 0, label: 'Average setup time' },
@@ -394,7 +394,7 @@ function FinalCTA() {
           Every lead that goes cold is<br /><span className="text-red-400">a crore walking out the door.</span>
         </motion.h2>
         <motion.p initial={{ opacity: 0, y: 20 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, delay: 0.2 }} className="mt-5 text-slate-400 text-lg">
-          Join 340+ real estate businesses who respond first, follow up automatically, and close more — on WhatsApp.
+          Join the businesses who respond first, follow up automatically, and close more — on WhatsApp.
         </motion.p>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, delay: 0.3 }} className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href={UTM} className="group inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-8 py-4 rounded-2xl text-lg transition-all duration-200 shadow-2xl shadow-green-500/40 hover:scale-[1.03] active:scale-[0.98]">

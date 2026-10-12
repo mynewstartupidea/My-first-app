@@ -15,8 +15,8 @@ const faqs = [
     a: 'Never. All messages are sent only to customers who have opted in — via checkout, booking flows, or signup forms. We follow WhatsApp\'s strict messaging policies. Your reputation stays intact.',
   },
   {
-    q: 'Is Wapaci free to use?',
-    a: 'Yes. Wapaci is currently free to use, with no Wapaci subscription fee and no off-platform app charge.',
+    q: 'How much does Wapaci cost?',
+    a: '₹1,999/month, billed monthly — no setup fees, cancel anytime. External services you connect (WhatsApp/Meta, your ecommerce platform) may charge their own fees separately.',
   },
   {
     q: 'Which platforms and tools does Wapaci integrate with?',
@@ -67,6 +67,7 @@ export default function FAQ() {
             >
               <button
                 onClick={() => setOpen(open === i ? null : i)}
+                aria-expanded={open === i}
                 className="w-full flex items-center justify-between px-6 py-5 text-left hover:bg-white/5 transition"
               >
                 <span className="text-white font-semibold text-sm md:text-base pr-4">{faq.q}</span>

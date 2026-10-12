@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { scrollToSection } from '@/lib/scroll-to-section'
 
 export default function Footer() {
   return (
@@ -30,6 +33,7 @@ export default function Footer() {
                 <div key={label}>
                   <a
                     href={href}
+                    onClick={href.startsWith('#') ? e => scrollToSection(href.slice(1), e) : undefined}
                     target={href.startsWith('http') ? '_blank' : undefined}
                     rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
                     className="text-slate-500 hover:text-white text-sm transition block"

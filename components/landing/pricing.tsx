@@ -52,15 +52,28 @@ export default function Pricing() {
     setError('')
     setStep('submitting')
 
-    const res = await fetch('/api/landing/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, company, phone, email, source: 'homepage' }),
-    })
-    const data = await res.json() as {
+    // Previously no try/catch here at all — a network failure (offline, DNS,
+    // CORS) or a non-JSON error response threw an unhandled exception,
+    // leaving `step` stuck at 'submitting' forever: the button stayed
+    // disabled with its spinner, no error shown, no way to retry without a
+    // full page reload.
+    let res: Response
+    let data: {
       leadId?: string; subscriptionId?: string; keyId?: string
       prefill?: { name: string; email: string; contact: string }
       error?: string; message?: string
+    }
+    try {
+      res = await fetch('/api/landing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, company, phone, email, source: 'homepage' }),
+      })
+      data = await res.json()
+    } catch {
+      setError("Couldn't reach the server — check your connection and try again.")
+      setStep('form')
+      return
     }
 
     if (!res.ok) {

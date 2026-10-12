@@ -25,7 +25,7 @@ const features = [
     accent: '#3b82f6',
     glow: 'rgba(59,130,246,0.15)',
     border: 'rgba(59,130,246,0.2)',
-    stat: '60% fewer no-shows',
+    stat: '65% fewer no-shows',
   },
   {
     icon: Package,

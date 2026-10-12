@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export const metadata = {
   title: 'Refund Policy - Wapaci',
-  description: 'Wapaci does not currently charge merchants a subscription fee.',
+  description: 'Refund policy for Wapaci subscription plans billed via Razorpay or the Shopify App Store.',
 }
 
 function NavBar() {
@@ -39,30 +39,49 @@ export default function RefundPolicyPage() {
         <div className="mb-12">
           <span className="text-[#25D366] text-xs font-bold uppercase tracking-widest">Legal</span>
           <h1 className="mt-3 text-4xl font-extrabold text-white">Refund Policy</h1>
-          <p className="mt-3 text-slate-500 text-sm">Last updated: July 2026</p>
+          <p className="mt-3 text-slate-500 text-sm">Last updated: October 2026</p>
         </div>
 
         <div className="bg-white/3 border border-white/8 rounded-2xl p-6 mb-10">
           <p className="text-slate-300 text-sm leading-relaxed">
-            Wapaci is currently free to use. We do not charge a Wapaci subscription fee or collect app payments outside Shopify.
+            Wapaci subscription plans are billed monthly in advance, either via Razorpay (for accounts signed up directly through wapaci.com) or via Shopify App Pricing / the Shopify Billing API (for accounts installed through the Shopify App Store).
           </p>
         </div>
 
-        <Section title="1. Wapaci App Fees">
-          <p>Because Wapaci currently has no paid app plan, there are no Wapaci subscription fees to refund.</p>
+        <Section title="1. Subscription Charges">
+          <p>Your subscription renews automatically each month until you cancel. Cancelling stops future renewals — it does not refund the current billing period, which you&apos;ve already had access to.</p>
+          <p>You can cancel anytime from your account settings, or by contacting <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">support@wapaci.com</a>.</p>
         </Section>
 
-        <Section title="2. Third-Party Charges">
+        <Section title="2. Refunds">
+          <p>We don&apos;t offer refunds or credits for partial billing periods, unused messages, or a decision to stop using Wapaci partway through a paid month.</p>
+          <p>If you were charged in error — a duplicate charge, a charge after you&apos;d already cancelled, or a billing issue on our end — contact <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">support@wapaci.com</a> and we&apos;ll investigate and correct it.</p>
+        </Section>
+
+        <Section title="3. Third-Party Charges">
           <p>External services you connect, such as WhatsApp / Meta or your ecommerce platform, may have their own fees. Those charges are billed by those providers under their own terms and are not collected by Wapaci.</p>
         </Section>
 
-        <Section title="3. Contact">
+        <Section title="4. Contact">
           <p>
-            For questions about this policy, contact us at{' '}
+            For questions about this policy or a specific charge, contact us at{' '}
             <a href="mailto:support@wapaci.com" className="text-[#25D366] hover:underline">support@wapaci.com</a>.
           </p>
         </Section>
       </main>
+
+      <footer className="border-t border-white/5 mt-4 py-8">
+        <div className="max-w-6xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-slate-600 text-xs">© {new Date().getFullYear()} Wapaci. All rights reserved.</p>
+          <div className="flex items-center gap-4 text-xs text-slate-600">
+            <Link href="/contact" className="hover:text-slate-400 transition">Contact</Link>
+            <span>·</span>
+            <Link href="/privacy-policy" className="hover:text-slate-400 transition">Privacy Policy</Link>
+            <span>·</span>
+            <Link href="/terms" className="hover:text-slate-400 transition">Terms</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
