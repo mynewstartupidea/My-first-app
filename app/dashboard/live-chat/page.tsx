@@ -201,6 +201,8 @@ export default function LiveChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMsgCountRef = useRef(0)
   const sendInFlightRef = useRef(false)
+  const loadThreadTokenRef = useRef(0)
+  const loadThreadsTokenRef = useRef(0)
 
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok })
@@ -257,9 +259,11 @@ export default function LiveChatPage() {
   // no error toast, so a routine refresh in the background never flickers
   // the UI or interrupts someone mid-reply.
   const loadThreads = useCallback(async (opts: { silent?: boolean } = {}) => {
+    const token = ++loadThreadsTokenRef.current
     if (!opts.silent) setLoading(true)
     try {
       const res = await fetch('/api/live-chat/threads')
+      if (loadThreadsTokenRef.current !== token) return // superseded by a newer call
       if (!res.ok) {
         if (!opts.silent) showToast("Couldn't load your conversations — refresh the page to try again.", false)
         return
@@ -269,18 +273,28 @@ export default function LiveChatPage() {
       setStoreId(data.storeId)
       setThreads(data.threads)
     } catch {
-      if (!opts.silent) showToast("Couldn't load your conversations — check your connection and try again.", false)
+      if (loadThreadsTokenRef.current === token && !opts.silent) showToast("Couldn't load your conversations — check your connection and try again.", false)
     } finally {
-      if (!opts.silent) setLoading(false)
+      if (loadThreadsTokenRef.current === token && !opts.silent) setLoading(false)
     }
   }, [showToast])
 
   const loadThread = useCallback(async (phone: string, opts: { silent?: boolean } = {}) => {
     if (!storeId) return
+    // A poll that started just before an optimistic send (or before a
+    // thread switch) could resolve AFTER it — with no guard, that stale
+    // response's setMessages(data.messages) unconditionally overwrote
+    // whatever newer state had already landed, wiping out a just-added
+    // optimistic bubble for a second or two until the next correct update
+    // fixed it. Only the most-recently-started call is allowed to apply
+    // its result, same token pattern already used for fetchLeads/fetchStats
+    // elsewhere in this codebase.
+    const token = ++loadThreadTokenRef.current
     if (!opts.silent) setLoadingThread(true)
     try {
       const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(phone)}`)
       const data = res.ok ? await res.json() as { messages: ChatMsg[]; customer: Customer | null } : { messages: [], customer: null }
+      if (loadThreadTokenRef.current !== token) return // superseded by a newer call
       if (!res.ok) {
         if (!opts.silent) showToast("Couldn't load this conversation — please try again.", false)
         return
@@ -296,9 +310,9 @@ export default function LiveChatPage() {
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
       }
     } catch {
-      if (!opts.silent) showToast("Couldn't load this conversation — check your connection and try again.", false)
+      if (loadThreadTokenRef.current === token && !opts.silent) showToast("Couldn't load this conversation — check your connection and try again.", false)
     } finally {
-      if (!opts.silent) setLoadingThread(false)
+      if (loadThreadTokenRef.current === token && !opts.silent) setLoadingThread(false)
     }
   }, [storeId, showToast])
 
@@ -345,6 +359,12 @@ export default function LiveChatPage() {
     // the background poll (or the sync right after this call resolves)
     // replaces it with the real row, or flips it to a failed/red X on error.
     const tempId = `temp-${Date.now()}`
+    // Invalidates any loadThread call already in flight (e.g. a poll that
+    // started a moment ago) — without this, that call could still resolve
+    // right after this optimistic add and overwrite it with its
+    // pre-send snapshot, since from its own token's perspective it was
+    // still the latest call at the time it started.
+    loadThreadTokenRef.current++
     setMessages(prev => [...prev, {
       id: tempId, text, type: 'manual_reply', status: 'sending',
       direction: 'out', created_at: new Date().toISOString(),
