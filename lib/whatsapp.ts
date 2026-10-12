@@ -190,6 +190,15 @@ async function sendViaGupshup({ to, message, apiKey, phoneNumberId }: SendMessag
 // Returns E.164 format with + prefix required by Meta API.
 // Handles Indian numbers (10-digit or 91-prefixed), international numbers,
 // and numbers already in E.164 format.
+// The stable core identity across every format normalizePhone produces for
+// a real India mobile number — used wherever two differently-formatted
+// strings need to be recognized as "the same real number" without going
+// through full normalization (e.g. matching a DB-stored customer_phone
+// against Meta's own from_phone format).
+export function last10Digits(phone: string): string {
+  return phone.replace(/\D/g, '').slice(-10)
+}
+
 export function normalizePhone(phone: string): string {
   const trimmed = phone.trim()
   const digits  = trimmed.replace(/\D/g, '')

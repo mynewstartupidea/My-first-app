@@ -3,7 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { getUserRole } from '@/lib/get-user-role'
-import { normalizePhone } from '@/lib/whatsapp'
+import { normalizePhone, last10Digits } from '@/lib/whatsapp'
 import { friendlyInboundBody } from '@/lib/inbound-message-label'
 
 // GET /api/live-chat/thread?phone=+91xxx — full message history + customer
@@ -35,11 +35,19 @@ export async function GET(request: Request) {
   // from_phone) store numbers in different raw formats depending on where
   // they originated (see threads/route.ts), so an exact .eq() against
   // whichever format `phone` happens to be in silently drops the other
-  // side's history. normalizePhone makes both sides comparable.
+  // side's history. Filtering by customer_phone_last10/from_phone_last10
+  // (generated columns, see supabase/migrations.sql) narrows the fetch to
+  // just this conversation at the DB level — this used to fetch and
+  // normalizePhone-filter the store's ENTIRE message history on every
+  // single conversation open, getting slower the more a merchant used the
+  // product, completely independent of how big any one conversation
+  // actually was. normalizePhone is kept below as a defense-in-depth
+  // final check, not the primary filter anymore.
   const target = normalizePhone(phone)
+  const target10 = last10Digits(phone)
   const [msgsRes, inboundRes, custRes] = await Promise.all([
-    service.from('messages').select('*').eq('store_id', store.id).order('created_at', { ascending: true }),
-    service.from('inbound_messages').select('*').eq('store_id', store.id).order('received_at', { ascending: true }),
+    service.from('messages').select('*').eq('store_id', store.id).eq('customer_phone_last10', target10).order('created_at', { ascending: true }),
+    service.from('inbound_messages').select('*').eq('store_id', store.id).eq('from_phone_last10', target10).order('received_at', { ascending: true }),
     service.from('customers').select('*').eq('store_id', store.id)
       .eq('phone', phone).maybeSingle(),
   ])
@@ -107,11 +115,13 @@ export async function DELETE(request: Request) {
   // Same normalized-match reasoning as the GET handler above — an exact
   // .eq() here would only ever delete whichever raw format `phone` happens
   // to be in, silently leaving the other side's rows (and the conversation
-  // still showing up) behind.
+  // still showing up) behind. Narrowed via the same generated last10 columns
+  // instead of fetching every row the store has ever sent/received.
   const target = normalizePhone(phone)
+  const target10 = last10Digits(phone)
   const [{ data: outRows }, { data: inRows }] = await Promise.all([
-    service.from('messages').select('id, customer_phone').eq('store_id', store.id),
-    service.from('inbound_messages').select('id, from_phone').eq('store_id', store.id),
+    service.from('messages').select('id, customer_phone').eq('store_id', store.id).eq('customer_phone_last10', target10),
+    service.from('inbound_messages').select('id, from_phone').eq('store_id', store.id).eq('from_phone_last10', target10),
   ])
   const outIds = (outRows ?? []).filter(m => normalizePhone(m.customer_phone) === target).map(m => m.id)
   const inIds  = (inRows ?? []).filter(m => normalizePhone(m.from_phone) === target).map(m => m.id)

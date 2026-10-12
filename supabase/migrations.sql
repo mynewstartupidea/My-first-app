@@ -1277,3 +1277,26 @@ BEGIN
   RETURNING c.id, c.name, c.phone;
 END;
 $$;
+
+-- ─── Live Chat thread load: stop fetching the entire store's message ──────
+-- history on every conversation open. app/api/live-chat/thread/route.ts
+-- (and its DELETE handler) had no DB-level phone filter at all — outbound
+-- `messages.customer_phone` and inbound `inbound_messages.from_phone` are
+-- stored in different raw formats depending on where they originated, so
+-- the only way to match "same real number" was normalizePhone(), which
+-- can't run inside a Postgres WHERE clause. The existing workaround was to
+-- fetch every row for the whole store and filter client-side in the route
+-- handler — fine at a handful of messages, but it means every single
+-- conversation click gets slower as the store's total history grows,
+-- completely independent of how big that ONE conversation actually is.
+-- A generated column storing just the last 10 digits (the stable identity
+-- across every format normalizePhone produces for an India mobile number —
+-- see last10Digits in lib/whatsapp.ts) lets the query filter at the DB
+-- level directly, fetching only this conversation's own rows.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS customer_phone_last10 TEXT
+  GENERATED ALWAYS AS (right(regexp_replace(customer_phone, '\D', '', 'g'), 10)) STORED;
+CREATE INDEX IF NOT EXISTS messages_store_phone_last10_idx ON messages(store_id, customer_phone_last10);
+
+ALTER TABLE inbound_messages ADD COLUMN IF NOT EXISTS from_phone_last10 TEXT
+  GENERATED ALWAYS AS (right(regexp_replace(from_phone, '\D', '', 'g'), 10)) STORED;
+CREATE INDEX IF NOT EXISTS inbound_messages_store_phone_last10_idx ON inbound_messages(store_id, from_phone_last10);
