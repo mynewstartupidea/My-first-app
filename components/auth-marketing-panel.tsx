@@ -30,10 +30,15 @@ const FEATURES = [
 // the rest of the marketing site already carries.
 export default function AuthMarketingPanel() {
   return (
-    <div className="hidden lg:flex lg:w-[44%] xl:w-[40%] flex-shrink-0 flex-col justify-between bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] p-10 xl:p-12 relative overflow-hidden">
+    <div className="hidden lg:flex lg:w-[44%] xl:w-[40%] flex-shrink-0 flex-col justify-center bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] p-10 xl:p-12 relative overflow-hidden">
       <div className="absolute -top-24 -left-24 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-black/10 rounded-full blur-3xl pointer-events-none" />
 
+      {/* One cohesive block, vertically centered by the parent's
+          justify-center — this used to be two separate blocks pinned to the
+          top and bottom (justify-between), which left a dead stretch of
+          empty space between the stats and the feature list on any screen
+          taller than the content itself. */}
       <div className="relative z-10">
         <Link href="/" className="inline-flex items-center gap-2.5 group">
           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition flex-shrink-0">
@@ -42,14 +47,14 @@ export default function AuthMarketingPanel() {
           <span className="text-white font-bold text-xl">Wapaci</span>
         </Link>
 
-        <h2 className="mt-12 text-4xl xl:text-[2.75rem] font-extrabold text-white leading-[1.12] tracking-tight text-balance">
+        <h2 className="mt-10 text-4xl xl:text-[2.75rem] font-extrabold text-white leading-[1.12] tracking-tight text-balance">
           Turn WhatsApp into <span className="italic text-green-100">your best</span> salesperson
         </h2>
         <p className="mt-4 text-green-100/80 text-[15px] leading-relaxed max-w-sm">
           Automate lead follow-ups, cart recovery, broadcasts and win-backs — no code, live in minutes.
         </p>
 
-        <div className="flex items-center gap-8 mt-10">
+        <div className="flex items-center gap-8 mt-8">
           {STATS.map(s => (
             <div key={s.label}>
               <p className="text-2xl font-extrabold text-white tabular-nums">{s.value}</p>
@@ -57,20 +62,22 @@ export default function AuthMarketingPanel() {
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="relative z-10 space-y-5 mt-12">
-        {FEATURES.map(f => (
-          <div key={f.title} className="flex items-start gap-3">
-            <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-              <f.icon className="w-4 h-4 text-white" />
+        <div className="h-px bg-white/15 mt-10 mb-10" />
+
+        <div className="space-y-5">
+          {FEATURES.map(f => (
+            <div key={f.title} className="flex items-start gap-3">
+              <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <f.icon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-white text-sm font-semibold">{f.title}</p>
+                <p className="text-green-100/70 text-xs mt-0.5">{f.desc}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-white text-sm font-semibold">{f.title}</p>
-              <p className="text-green-100/70 text-xs mt-0.5">{f.desc}</p>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   )
