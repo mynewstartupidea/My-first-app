@@ -13,13 +13,22 @@ function last10Digits(phone: string): string {
   return phone.replace(/\D/g, '').slice(-10)
 }
 
+// Returns true if this inbound message was handled by the qualifying flow
+// (a question or the closing message was sent in response to it) — the
+// caller uses this to skip AI auto-reply for the same message. The flow's
+// own `in_progress` check only protects messages sent WHILE a flow is
+// ongoing; the final answer transitions status straight to 'completed' in
+// the same call that sends the closing message, so without this return
+// value AI auto-reply's separate `in_progress`-only guard doesn't catch
+// that one message and both a closing message and an AI reply go out for
+// it — confirmed real, not just a race condition.
 export async function advanceQualifyingFlow(
   service: ServiceClient,
   params: { storeId: string; userId: string; phone: string; text: string },
-): Promise<void> {
+): Promise<boolean> {
   const { storeId, userId, phone, text } = params
   const phoneSuffix = last10Digits(phone)
-  if (!phoneSuffix) return
+  if (!phoneSuffix) return false
 
   const { data: progress } = await service
     .from('lead_qualifying_progress')
@@ -30,13 +39,12 @@ export async function advanceQualifyingFlow(
     .maybeSingle()
 
   if (progress) {
-    await continueFlow(service, storeId, userId, phone, progress as {
+    return continueFlow(service, storeId, userId, phone, progress as {
       id: string; lead_id: string; question_index: number; answers: unknown
     }, text)
-    return
   }
 
-  await maybeStartFlow(service, storeId, userId, phone, phoneSuffix, text)
+  return maybeStartFlow(service, storeId, userId, phone, phoneSuffix, text)
 }
 
 async function maybeStartFlow(
@@ -46,7 +54,7 @@ async function maybeStartFlow(
   phone: string,
   phoneSuffix: string,
   firstReplyText: string,
-): Promise<void> {
+): Promise<boolean> {
   const { data: leads } = await service
     .from('leads')
     .select('id, form_id, phone')
@@ -55,7 +63,7 @@ async function maybeStartFlow(
     .limit(500)
 
   const lead = (leads ?? []).find(l => last10Digits((l.phone as string) ?? '') === phoneSuffix)
-  if (!lead?.form_id) return
+  if (!lead?.form_id) return false
 
   // Don't restart a flow that already ran (in progress or completed) for this lead.
   const { data: existing } = await service
@@ -63,7 +71,7 @@ async function maybeStartFlow(
     .select('id')
     .eq('lead_id', lead.id as string)
     .maybeSingle()
-  if (existing) return
+  if (existing) return false
 
   const { data: auto } = await service
     .from('lead_form_automations')
@@ -73,7 +81,7 @@ async function maybeStartFlow(
     .maybeSingle()
 
   const questions = (auto?.qualifying_questions as string[] | null) ?? []
-  if (!questions.length) return
+  if (!questions.length) return false
 
   // Claim BEFORE sending, not after — two WhatsApp replies from the same
   // lead arriving close together (or a webhook redelivery landing
@@ -89,7 +97,7 @@ async function maybeStartFlow(
     answers: [],
     status: 'in_progress',
   })
-  if (insertErr) return // lost the race (or a genuine error) — either way, don't send
+  if (insertErr) return false // lost the race (or a genuine error) — either way, don't send
 
   const sendResult = await sendStoreWhatsAppText(service, {
     storeId, userId, phone, message: questions[0], type: 'lead_qualifying',
@@ -100,6 +108,10 @@ async function maybeStartFlow(
   // The lead's very first reply just triggered the first question — it wasn't
   // an answer to anything, so firstReplyText is intentionally not saved.
   void firstReplyText
+  // Claimed this message either way (won the race, started the flow) —
+  // AI auto-reply must not also respond to it, regardless of whether the
+  // send itself succeeded.
+  return true
 }
 
 async function continueFlow(
@@ -109,13 +121,13 @@ async function continueFlow(
   phone: string,
   progress: { id: string; lead_id: string; question_index: number; answers: unknown },
   answerText: string,
-): Promise<void> {
+): Promise<boolean> {
   const { data: lead } = await service
     .from('leads')
     .select('form_id, fields')
     .eq('id', progress.lead_id)
     .maybeSingle()
-  if (!lead?.form_id) return
+  if (!lead?.form_id) return false
 
   const { data: auto } = await service
     .from('lead_form_automations')
@@ -127,7 +139,7 @@ async function continueFlow(
   const questions = (auto?.qualifying_questions as string[] | null) ?? []
   const askedIndex = progress.question_index
   const askedQuestion = questions[askedIndex]
-  if (!askedQuestion) return
+  if (!askedQuestion) return false
 
   const answers = Array.isArray(progress.answers) ? [...(progress.answers as unknown[])] : []
   answers[askedIndex] = { question: askedQuestion, answer: answerText }
@@ -154,7 +166,7 @@ async function continueFlow(
       answers,
       updated_at: new Date().toISOString(),
     }).eq('id', progress.id).eq('question_index', askedIndex).select('id')
-    if (!claimed || claimed.length === 0) return
+    if (!claimed || claimed.length === 0) return false
 
     const sendResult = await sendStoreWhatsAppText(service, {
       storeId, userId, phone, message: questions[nextIndex], type: 'lead_qualifying',
@@ -162,14 +174,16 @@ async function continueFlow(
     if (!sendResult.success) {
       console.error('[Qualifying flow] failed to send next question:', sendResult.error)
     }
+    return true
   } else {
     const { data: claimed } = await service.from('lead_qualifying_progress').update({
       answers,
       status: 'completed',
       updated_at: new Date().toISOString(),
     }).eq('id', progress.id).eq('question_index', askedIndex).select('id')
-    if (!claimed || claimed.length === 0) return
+    if (!claimed || claimed.length === 0) return false
 
     await sendStoreWhatsAppText(service, { storeId, userId, phone, message: CLOSING_MESSAGE, type: 'lead_qualifying' })
+    return true
   }
 }

@@ -34,7 +34,7 @@ export async function POST() {
 
   const { data: store } = await service
     .from('stores')
-    .select('id, shopify_domain, shopify_connection_type, shopify_client_id, shopify_client_secret_enc, shopify_access_token_enc, shopify_token_expires_at')
+    .select('id, shopify_domain, shopify_connection_type, shopify_client_id, shopify_client_secret_enc, shopify_access_token_enc, shopify_access_token, shopify_token_expires_at')
     .eq('user_id', ownerId).eq('is_active', true)
     .not('shopify_domain', 'is', null)
     .maybeSingle()
@@ -45,10 +45,17 @@ export async function POST() {
   // reconnecting a different custom app on the same shop could pile up
   // duplicate webhook subscriptions over repeated connect/disconnect
   // cycles. A failure here must never block the local disconnect itself.
-  if (store?.shopify_domain && store.shopify_connection_type === 'custom_app') {
+  // Gated on custom_app only — an oauth_app store disconnecting left its
+  // Shopify-side webhook subscriptions registered forever (harmless
+  // functionally once shopify_domain is nulled below, since nothing on our
+  // side matches those events anymore, but it's a stale registration leak
+  // and risks Shopify flagging the endpoint for repeated delivery failures).
+  if (store?.shopify_domain && (store.shopify_connection_type === 'custom_app' || store.shopify_connection_type === 'oauth_app')) {
     try {
-      const token = await getValidAccessToken(store)
-      await unregisterWebhooks(store.shopify_domain, token, getShopifyAppUrl())
+      const token = store.shopify_connection_type === 'custom_app'
+        ? await getValidAccessToken(store)
+        : store.shopify_access_token
+      if (token) await unregisterWebhooks(store.shopify_domain, token, getShopifyAppUrl())
     } catch (e) {
       console.error('[Shopify disconnect] webhook unregister failed (continuing):', e)
     }

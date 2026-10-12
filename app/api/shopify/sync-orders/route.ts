@@ -24,7 +24,9 @@ export async function POST() {
     .limit(1)
     .maybeSingle()
 
-  if (!store || store.shopify_connection_type !== 'custom_app') {
+  // See app/api/cron/shopify-sync/route.ts — the job queue now handles
+  // oauth_app connections too, not just custom_app.
+  if (!store || !['custom_app', 'oauth_app'].includes(store.shopify_connection_type ?? '')) {
     return NextResponse.json({ error: 'No Shopify store connected' }, { status: 400 })
   }
 

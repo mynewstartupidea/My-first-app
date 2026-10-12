@@ -21,6 +21,28 @@ function last10Digits(phone: string): string {
   return phone.replace(/\D/g, '').slice(-10)
 }
 
+// Anthropic's Messages API requires strict role alternation (two consecutive
+// 'user' entries is a guaranteed 400) — but the inbound-history query below
+// always includes the message currently being replied to (it's already been
+// upserted into inbound_messages by the webhook before this runs), and that
+// row then gets appended a second time as the explicit current-turn message.
+// Every single call hit this on every inbound message, which is why AI
+// auto-reply never actually sent anything — confirmed live, not a rare edge
+// case. Merging consecutive same-role turns (instead of trying to exclude
+// "the current message" by id, which breaks if someone double-texts before
+// this runs) fixes this and any other source of back-to-back same-role turns.
+function mergeConsecutiveSameRole(
+  messages: { role: 'user' | 'assistant'; content: string }[],
+): { role: 'user' | 'assistant'; content: string }[] {
+  const merged: { role: 'user' | 'assistant'; content: string }[] = []
+  for (const m of messages) {
+    const last = merged[merged.length - 1]
+    if (last && last.role === m.role) last.content += '\n' + m.content
+    else merged.push({ ...m })
+  }
+  return merged
+}
+
 export async function maybeSendAIReply(
   service: ServiceClient,
   params: { storeId: string; userId: string; phone: string; text: string },
@@ -101,7 +123,7 @@ ${knowledge}`
         model: MODEL,
         max_tokens: 300,
         system,
-        messages: [...turns.map(t => ({ role: t.role, content: t.content })), { role: 'user', content: text }],
+        messages: mergeConsecutiveSameRole([...turns.map(t => ({ role: t.role, content: t.content })), { role: 'user', content: text }]),
       }),
     })
     const data = await res.json() as { content?: { type: string; text?: string }[]; error?: { message: string } }

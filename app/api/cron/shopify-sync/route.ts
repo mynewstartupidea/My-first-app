@@ -70,7 +70,7 @@ export async function GET(request: Request) {
 
   const { data: jobs } = await service
     .from('shopify_sync_jobs')
-    .select(`*, stores(shopify_domain, shopify_connection_type, shopify_client_id, shopify_client_secret_enc, shopify_access_token_enc, shopify_token_expires_at, id, user_id)`)
+    .select(`*, stores(shopify_domain, shopify_connection_type, shopify_client_id, shopify_client_secret_enc, shopify_access_token_enc, shopify_access_token, shopify_token_expires_at, id, user_id)`)
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(JOBS_PER_TICK)
@@ -92,13 +92,34 @@ export async function GET(request: Request) {
     const store = job.stores as {
       id: string; user_id: string; shopify_domain: string | null; shopify_connection_type: string | null
       shopify_client_id: string | null; shopify_client_secret_enc: string | null
-      shopify_access_token_enc: string | null; shopify_token_expires_at: string | null
+      shopify_access_token_enc: string | null; shopify_access_token: string | null
+      shopify_token_expires_at: string | null
     } | null
 
+    // This job queue was originally built for custom_app stores only — a
+    // store connected through the classic Shopify App Store OAuth flow
+    // (shopify_connection_type: 'oauth_app') had no historical backfill
+    // mechanism at all, ever (the OAuth callback never enqueued these jobs,
+    // and even if it had, this check rejected them outright). Confirmed
+    // live: 3 of the app's 4 connected Shopify stores are oauth_app, not
+    // custom_app — this wasn't an edge case. An oauth_app store's access
+    // token is a standard long-lived Shopify OAuth token (doesn't expire,
+    // no client_id/secret of its own to refresh with — that's specific to
+    // the custom-app distribution model), so it's used directly instead of
+    // going through getValidAccessToken's refresh flow.
     const syncFn = SYNC_FNS[job.resource]
-    if (!store?.shopify_domain || store.shopify_connection_type !== 'custom_app' || !syncFn) {
+    const isCustomApp = store?.shopify_connection_type === 'custom_app'
+    const isOAuthApp  = store?.shopify_connection_type === 'oauth_app'
+    if (!store?.shopify_domain || !syncFn || !(isCustomApp || isOAuthApp)) {
       await service.from('shopify_sync_jobs').update({
-        status: 'failed', error_message: 'Store not found or not a custom-app connection.', updated_at: new Date().toISOString(),
+        status: 'failed', error_message: 'Store not found or has no usable Shopify connection.', updated_at: new Date().toISOString(),
+      }).eq('id', job.id)
+      failed++
+      continue
+    }
+    if (isOAuthApp && !store.shopify_access_token) {
+      await service.from('shopify_sync_jobs').update({
+        status: 'failed', error_message: 'No Shopify access token saved for this connection.', updated_at: new Date().toISOString(),
       }).eq('id', job.id)
       failed++
       continue
@@ -109,7 +130,7 @@ export async function GET(request: Request) {
     let done = false
 
     try {
-      const token = await getValidAccessToken(store)
+      const token = isCustomApp ? await getValidAccessToken(store) : store.shopify_access_token as string
       while (Date.now() - tickStart < TIME_BUDGET_MS) {
         const result = await syncFn(store.shopify_domain, token, job.store_id, service, pageInfo)
         recordsSynced += result.recordsProcessed
@@ -178,7 +199,7 @@ async function requeueStaleAbandonedCheckoutSync(service: ReturnType<typeof crea
   const { data: stores } = await service
     .from('stores')
     .select('id')
-    .eq('shopify_connection_type', 'custom_app')
+    .in('shopify_connection_type', ['custom_app', 'oauth_app'])
     .eq('is_active', true)
   if (!stores?.length) return
 

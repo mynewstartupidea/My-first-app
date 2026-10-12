@@ -22,6 +22,22 @@ export async function POST(req: Request) {
 
   if (!store) return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
 
+  // This endpoint is public (authenticated only by a long-lived API key that
+  // necessarily ships in client-side landing-page JS, so it's effectively a
+  // semi-public secret) with no rate limiting at all — a scraped key, or a
+  // buggy third-party script looping, could flood the leads table and, since
+  // a successful insert can trigger a real WhatsApp send, run up real
+  // message cost with no cap. Reuses the leads table itself rather than a
+  // new rate-limit store: generous enough (120/min) for genuine landing-page
+  // traffic, including a real traffic spike, while still bounding abuse.
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
+  const { count: recentCount } = await supabase
+    .from('leads').select('id', { count: 'exact', head: true })
+    .eq('store_id', store.id).gte('created_at', oneMinuteAgo)
+  if ((recentCount ?? 0) >= 120) {
+    return NextResponse.json({ error: 'Too many requests — please slow down and try again shortly.' }, { status: 429 })
+  }
+
   let body: Record<string, string>
   try { body = await req.json() }
   catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }

@@ -69,20 +69,42 @@ export default async function ShopifyPage() {
   ] = await Promise.all([
     store ? service.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
     store ? service.from('automations').select('type,is_enabled').eq('store_id', store.id) : Promise.resolve({ data: [] }),
-    store ? service.from('shopify_orders').select('total_price', { count: 'exact' }).eq('store_id', store.id) : Promise.resolve({ data: [], count: 0 }),
-    store ? service.from('shopify_abandoned_checkouts').select('total_price', { count: 'exact' }).eq('store_id', store.id).is('completed_at', null) : Promise.resolve({ data: [], count: 0 }),
+    store ? service.from('shopify_orders').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
+    store ? service.from('shopify_abandoned_checkouts').select('id', { count: 'exact', head: true }).eq('store_id', store.id).is('completed_at', null) : Promise.resolve({ count: 0 }),
     store && isCustomApp ? service.from('shopify_products').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
     store ? service.from('shopify_orders').select('id, order_number, email, phone, total_price, currency, financial_status, fulfillment_status, shopify_created_at').eq('store_id', store.id).order('shopify_created_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
     store ? service.from('shopify_abandoned_checkouts').select('id, email, phone, total_price, currency, recovery_url, abandoned_at').eq('store_id', store.id).is('completed_at', null).order('abandoned_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
+  ])
+
+  // Summed via pagination, not a single unbounded .select() — PostgREST
+  // commonly caps a single request's returned rows at a server-side "Max
+  // Rows" setting (default 1000) regardless of what's asked for. `count`
+  // above stays exact even then, but a plain .reduce() over the (capped)
+  // rows silently understated revenue for any store with more orders than
+  // that cap, with no error surfaced anywhere.
+  async function sumTotalPrice(table: 'shopify_orders' | 'shopify_abandoned_checkouts', onlyOpenCheckouts: boolean): Promise<number> {
+    if (!store) return 0
+    let sum = 0
+    for (let offset = 0; ; offset += 1000) {
+      let q = service.from(table).select('total_price').eq('store_id', store.id)
+      if (onlyOpenCheckouts) q = q.is('completed_at', null)
+      const { data } = await q.range(offset, offset + 999)
+      if (!data?.length) break
+      for (const row of data) sum += (row.total_price as number | null) ?? 0
+      if (data.length < 1000) break
+    }
+    return sum
+  }
+  const [revenue, recoverableValue] = await Promise.all([
+    sumTotalPrice('shopify_orders', false),
+    sumTotalPrice('shopify_abandoned_checkouts', true),
   ])
 
   const customerCount    = custRes.count ?? 0
   const automations      = (autoRes.data ?? []) as Array<{ type: string; is_enabled: boolean }>
   const activeAutos      = automations.filter(a => a.is_enabled).length
   const orderCount       = orderStatsRes.count ?? 0
-  const revenue           = (orderStatsRes.data ?? []).reduce((sum, o) => sum + (o.total_price ?? 0), 0)
   const checkoutCount    = checkoutStatsRes.count ?? 0
-  const recoverableValue = (checkoutStatsRes.data ?? []).reduce((sum, c) => sum + (c.total_price ?? 0), 0)
   const productCount     = productRes.count ?? 0
   const recentOrders     = recentOrdersRes.data ?? []
   const recentCheckouts  = recentCheckoutsRes.data ?? []
@@ -176,8 +198,8 @@ export default async function ShopifyPage() {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
               { label: 'Orders', value: orderCount.toLocaleString(), color: '#6b7280' },
-              { label: 'Revenue', value: formatCurrency(revenue), color: '#10b981' },
-              { label: 'Abandoned Checkouts', value: checkoutCount.toLocaleString(), color: '#f97316', sub: checkoutCount > 0 ? `${formatCurrency(recoverableValue)} recoverable` : undefined },
+              { label: 'Revenue', value: formatCurrency(revenue, store?.currency ?? undefined), color: '#10b981' },
+              { label: 'Abandoned Checkouts', value: checkoutCount.toLocaleString(), color: '#f97316', sub: checkoutCount > 0 ? `${formatCurrency(recoverableValue, store?.currency ?? undefined)} recoverable` : undefined },
               { label: 'Reachable on WhatsApp', value: customerCount.toLocaleString(), color: '#25D366' },
               { label: 'Products', value: productCount.toLocaleString(), color: '#3b82f6' },
             ].map((s, i, arr) => (

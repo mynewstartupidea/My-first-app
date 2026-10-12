@@ -15,9 +15,19 @@ export async function resolveManagedOrg(
     .from('organizations').select('*').eq('owner_id', userId).maybeSingle()
   if (ownedOrg) return ownedOrg
 
+  // Matched by user_id, not email — every other identity resolver in this
+  // codebase (getUserRole, resolveOwnerUserId) keys off user_id, and
+  // team_members.email is always stored lowercased at invite/activation
+  // time while the caller's auth email is passed through as-is. An admin
+  // whose auth email has any uppercase (OAuth-provided casing, e.g.) failed
+  // this exact-match lookup and got 403'd from team management/lead
+  // distribution/team activity/FB pages, while getUserRole (user_id-based)
+  // still correctly reported them as admin everywhere else — a confusing
+  // split-permission state. user_id is reliably populated once a teammate
+  // is active (same assumption resolveOwnerUserId already makes).
   const { data: membership } = await service
     .from('team_members').select('organization_id, role')
-    .eq('email', userEmail).eq('status', 'active').maybeSingle()
+    .eq('user_id', userId).eq('status', 'active').maybeSingle()
   if (membership?.role !== 'admin' || !membership.organization_id) return null
 
   const { data: org } = await service

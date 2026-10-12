@@ -84,7 +84,13 @@ export async function POST(request: Request) {
   if (body.description !== undefined) payload.description = body.description.trim()
   if (body.email        !== undefined) payload.email       = body.email.trim()
   if (body.address      !== undefined) payload.address     = body.address.trim()
-  if (body.vertical     !== undefined) payload.vertical    = body.vertical
+  // Unlike description/email/address, vertical is a Meta-defined enum, not
+  // free text — sending an empty string (the default before a merchant ever
+  // picks a category) gets rejected by Meta, which previously failed the
+  // WHOLE save, including unrelated fields someone was actually trying to
+  // change (website, about, etc.), with the misleading "check the website"
+  // error below. Omit it entirely when unset, same treatment as `about`.
+  if (body.vertical     !== undefined && body.vertical.trim()) payload.vertical = body.vertical
   if (body.website      !== undefined) payload.websites    = body.website.trim() ? [body.website.trim()] : []
 
   const res = await fetch(`https://graph.facebook.com/v21.0/${creds.phoneNumberId}/whatsapp_business_profile`, {

@@ -216,6 +216,7 @@ export default async function DashboardPage() {
   const [
     analyticsRes, messagesRes, campaignsRes, leadsStatsRes, leadFormsRes, profileRes, leadJobsRes, leadSourcesRes,
     custRes, orderStatsRes, checkoutStatsRes, recentOrdersRes, ecomAutosRes,
+    lifetimeCartsRecoveredRes, messagesReadCountRes, messagesDeliveredOrReadCountRes,
   ] = await Promise.all([
     store ? service.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? service.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
@@ -258,10 +259,37 @@ export default async function DashboardPage() {
     // handler for either Shopify connection type, so these aren't gated on
     // isCustomApp the way shopify_products is over there).
     isEcommerce && store ? service.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
-    isEcommerce && store ? service.from('shopify_orders').select('total_price', { count: 'exact' }).eq('store_id', store.id) : Promise.resolve({ data: [], count: 0 }),
-    isEcommerce && store ? service.from('shopify_abandoned_checkouts').select('total_price', { count: 'exact' }).eq('store_id', store.id).is('completed_at', null) : Promise.resolve({ data: [], count: 0 }),
+    isEcommerce && store ? service.from('shopify_orders').select('id', { count: 'exact', head: true }).eq('store_id', store.id) : Promise.resolve({ count: 0 }),
+    isEcommerce && store ? service.from('shopify_abandoned_checkouts').select('id', { count: 'exact', head: true }).eq('store_id', store.id).is('completed_at', null) : Promise.resolve({ count: 0 }),
     isEcommerce && store ? service.from('shopify_orders').select('id, order_number, email, phone, total_price, currency, financial_status, fulfillment_status, shopify_created_at').eq('store_id', store.id).order('shopify_created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
     isEcommerce && store ? service.from('automations').select('type,is_enabled').eq('store_id', store.id) : Promise.resolve({ data: [] }),
+
+    // Cart Recovery Rate's denominator (checkoutStatsRes, still-open
+    // abandoned checkouts) has never been date-scoped — it's every
+    // currently-open checkout ever recorded. The numerator (cartsRecovered,
+    // derived from analyticsRes above) WAS silently 30-day-scoped by
+    // inheriting that query's date filter, which only exists for the
+    // Message Volume chart's sake — producing a rate that divides a 30-day
+    // number by an all-time one. This is a dedicated, unscoped query so the
+    // rate's numerator genuinely matches its denominator's "ever" window,
+    // matching what the surrounding comment already says this rate means.
+    isEcommerce && store
+      ? service.from('analytics_daily').select('carts_recovered').eq('store_id', store.id)
+      : Promise.resolve({ data: [] }),
+    // Read Rate used to be a flat 65%-of-delivery-rate multiplier with no
+    // real read-receipt data behind it at all (analytics_daily has no
+    // messages_read column) — presented to merchants as if it reflected
+    // actual WhatsApp read receipts. messages.status does track real
+    // per-message 'read' state (same field Live Chat's own read ticks use),
+    // so this computes the real figure instead of fabricating one.
+    store
+      ? service.from('messages').select('id', { count: 'exact', head: true })
+          .eq('store_id', store.id).eq('status', 'read').gte('created_at', thirtyDaysAgo)
+      : Promise.resolve({ count: 0 }),
+    store
+      ? service.from('messages').select('id', { count: 'exact', head: true })
+          .eq('store_id', store.id).in('status', ['delivered', 'read']).gte('created_at', thirtyDaysAgo)
+      : Promise.resolve({ count: 0 }),
   ])
 
   const analytics = analyticsRes.data ?? []
@@ -275,9 +303,26 @@ export default async function DashboardPage() {
   // here always match that page exactly.
   const customerCount    = custRes.count ?? 0
   const orderCount       = orderStatsRes.count ?? 0
-  const revenue          = (orderStatsRes.data ?? []).reduce((sum, o) => sum + (o.total_price ?? 0), 0)
   const checkoutCount    = checkoutStatsRes.count ?? 0
-  const recoverableValue = (checkoutStatsRes.data ?? []).reduce((sum, c) => sum + (c.total_price ?? 0), 0)
+  // Summed via pagination, not a single unbounded .select() — see
+  // app/dashboard/shopify/page.tsx's identical helper for why (PostgREST's
+  // row cap silently understated revenue for any store past that cap).
+  async function sumTotalPrice(table: 'shopify_orders' | 'shopify_abandoned_checkouts', onlyOpenCheckouts: boolean): Promise<number> {
+    if (!store) return 0
+    let sum = 0
+    for (let offset = 0; ; offset += 1000) {
+      let q = service.from(table).select('total_price').eq('store_id', store.id)
+      if (onlyOpenCheckouts) q = q.is('completed_at', null)
+      const { data } = await q.range(offset, offset + 999)
+      if (!data?.length) break
+      for (const row of data) sum += (row.total_price as number | null) ?? 0
+      if (data.length < 1000) break
+    }
+    return sum
+  }
+  const [revenue, recoverableValue] = isEcommerce
+    ? await Promise.all([sumTotalPrice('shopify_orders', false), sumTotalPrice('shopify_abandoned_checkouts', true)])
+    : [0, 0]
   const recentOrders     = recentOrdersRes.data ?? []
   const ecomAutomations  = (ecomAutosRes.data ?? []) as Array<{ type: string; is_enabled: boolean }>
   const activeEcomAutos  = ecomAutomations.filter(a => a.is_enabled).length
@@ -285,7 +330,12 @@ export default async function DashboardPage() {
   // Cart/COD rates from analytics_daily's running counters — cartsRecovered is
   // completed-after-reminder checkouts, checkoutCount above is still-open
   // (abandoned) ones, so together they're the full "ever abandoned" pool.
-  const cartsRecoveredTotal = analytics.reduce((sum, r) => sum + (r.carts_recovered ?? 0), 0)
+  // cartsRecoveredTotal is deliberately summed from its own unscoped query
+  // (lifetimeCartsRecoveredRes), not the 30-day-scoped `analytics` array —
+  // that array only carries a date filter for the Message Volume chart's
+  // sake, and using it here silently divided a 30-day numerator by
+  // checkoutCount's all-time denominator.
+  const cartsRecoveredTotal = (lifetimeCartsRecoveredRes.data ?? []).reduce((sum, r) => sum + (r.carts_recovered ?? 0), 0)
   const codVerifiedTotal    = analytics.reduce((sum, r) => sum + (r.cod_verified ?? 0), 0)
   const codCancelledTotal   = analytics.reduce((sum, r) => sum + (r.cod_cancelled ?? 0), 0)
   const cartRecoveryRate = (cartsRecoveredTotal + checkoutCount) > 0
@@ -410,9 +460,20 @@ export default async function DashboardPage() {
     return { day: d.slice(5), val: row?.messages_sent ?? 0, rev: Number(row?.revenue_recovered ?? 0) }
   })
   const maxVal = Math.max(...last14.map(d => d.val), 1)
+  // The card header showed totals.sent (30 days, same array this chart's
+  // data is sliced from) directly above a chart labeled "Last 14 days" —
+  // the two numbers legitimately disagreed since they covered different
+  // windows. This sums the same 14 bars actually drawn, so the header
+  // total always matches what's on screen.
+  const last14Total = last14.reduce((sum, d) => sum + d.val, 0)
 
   const deliveryRate = totals.sent > 0 ? Math.round((totals.delivered / totals.sent) * 100) : 0
-  const readRate = deliveryRate > 0 ? Math.round(deliveryRate * 0.65) : 0
+  // Real figure from messages.status (the same field Live Chat's own read
+  // ticks use) — not a fabricated 65%-of-delivery-rate multiplier with no
+  // actual read-receipt data behind it.
+  const deliveredOrReadCount = messagesDeliveredOrReadCountRes.count ?? 0
+  const readCount = messagesReadCountRes.count ?? 0
+  const readRate = deliveredOrReadCount > 0 ? Math.round((readCount / deliveredOrReadCount) * 100) : 0
 
   // Performance section's last two stats swap by business type — Response/
   // Conversion Rate are lead concepts, Cart Recovery/COD Confirm are ecom ones.
@@ -436,11 +497,11 @@ export default async function DashboardPage() {
         {
           label: 'Orders', value: formatNumber(orderCount),
           icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50',
-          sub: orderCount > 0 ? formatCurrency(revenue) + ' revenue' : 'from Shopify',
+          sub: orderCount > 0 ? formatCurrency(revenue, store?.currency ?? undefined) + ' revenue' : 'from Shopify',
           trend: orderCount > 0,
         },
         {
-          label: 'Revenue', value: formatCurrency(revenue),
+          label: 'Revenue', value: formatCurrency(revenue, store?.currency ?? undefined),
           icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50',
           sub: `${formatNumber(orderCount)} orders`,
           trend: revenue > 0,
@@ -448,7 +509,7 @@ export default async function DashboardPage() {
         {
           label: 'Abandoned Checkouts', value: formatNumber(checkoutCount),
           icon: Package, color: 'text-orange-600', bg: 'bg-orange-50',
-          sub: checkoutCount > 0 ? `${formatCurrency(recoverableValue)} recoverable` : 'none open',
+          sub: checkoutCount > 0 ? `${formatCurrency(recoverableValue, store?.currency ?? undefined)} recoverable` : 'none open',
           trend: checkoutCount > 0,
         },
         {
@@ -460,9 +521,14 @@ export default async function DashboardPage() {
       ]
     : [
         {
+          // All-time (matches this card's own ecommerce-branch siblings —
+          // Orders/Revenue/Reachable-on-WhatsApp above are all-time too,
+          // unlike the Analytics page's own "Total Leads," which is
+          // deliberately windowed (7d/30d/90d) — the two legitimately
+          // mean different things despite sharing a label, so this says so.
           label: 'Total Leads', value: formatNumber(totalLeads),
           icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50',
-          sub: totalLeads > 0 ? `${responseRate}% messaged` : 'from Facebook Lead Ads',
+          sub: totalLeads > 0 ? `${responseRate}% messaged · all time` : 'from Facebook Lead Ads',
           trend: totalLeads > 0,
         },
         {
@@ -692,7 +758,7 @@ export default async function DashboardPage() {
               <h2 className="font-semibold text-slate-800">Message Volume</h2>
               <p className="text-slate-400 text-xs mt-0.5">Last 14 days</p>
             </div>
-            <span className="text-xs font-medium text-slate-400">{formatNumber(totals.sent)} total</span>
+            <span className="text-xs font-medium text-slate-400">{formatNumber(last14Total)} total</span>
           </div>
           {totals.sent > 0 ? (
             <div className="flex items-end gap-1 h-24">
@@ -1065,7 +1131,7 @@ export default async function DashboardPage() {
               {checkoutCount > 0 ? (
                 <>
                   <p className="font-semibold text-sm">
-                    {formatCurrency(recoverableValue)} in abandoned carts
+                    {formatCurrency(recoverableValue, store?.currency ?? undefined)} in abandoned carts
                   </p>
                   <p className="text-green-100 text-xs mt-1 leading-relaxed">
                     {checkoutCount} open checkout{checkoutCount !== 1 ? 's' : ''} right now — a WhatsApp reminder recovers 15–25% on average.

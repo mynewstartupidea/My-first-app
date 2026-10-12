@@ -221,6 +221,22 @@ export async function GET(request: Request) {
       console.error('[Shopify OAuth] customer sync error:', e)
     )
 
+    // 8b. Backfill everything else (orders, products, abandoned checkouts,
+    // discounts, inventory, locations) via the background job queue —
+    // app/api/cron/shopify-sync/route.ts now processes these for an
+    // oauth_app store the same way it already did for custom_app (see that
+    // file's comments). Previously this never happened for an OAuth-
+    // installed store at all: no job was ever enqueued here, and even the
+    // manual "Sync Now" buttons rejected this connection type outright, so
+    // a merchant installing from the Shopify App Store got customers only,
+    // forever — orders/revenue/abandoned-cart numbers stayed at zero unless
+    // every single one happened to arrive via webhook after this moment.
+    const backfillResources = ['locations', 'products', 'orders', 'abandoned_checkouts', 'discounts', 'inventory']
+    const { error: jobsError } = await supabase.from('shopify_sync_jobs').insert(
+      backfillResources.map(resource => ({ store_id: storeId, resource, status: 'pending' as const }))
+    )
+    if (jobsError) console.error('[Shopify OAuth] sync job enqueue error:', jobsError.message)
+
     // 9. Check billing
     const { data: billing } = await supabase
       .from('billing')

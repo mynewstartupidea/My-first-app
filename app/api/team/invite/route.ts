@@ -38,8 +38,11 @@ export async function POST(request: Request) {
   let org = await resolveManagedOrg(service, user.id, user.email ?? '')
 
   if (!org) {
+    // Matched by user_id, not email — same case-sensitivity risk as
+    // resolveManagedOrg (team_members.email is always stored lowercased,
+    // the caller's auth email isn't guaranteed to be).
     const { data: existingMembership } = await service
-      .from('team_members').select('id').eq('email', user.email ?? '').eq('status', 'active').maybeSingle()
+      .from('team_members').select('id').eq('user_id', user.id).eq('status', 'active').maybeSingle()
     if (existingMembership) {
       // An active teammate without invite rights (e.g. a Sales/Support/Manager role) — not a fresh signup.
       return NextResponse.json({ error: 'You do not have permission to invite team members.' }, { status: 403 })

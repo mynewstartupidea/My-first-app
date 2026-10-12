@@ -341,18 +341,25 @@ export async function POST(request: Request) {
         // Qualifying flow: walk the lead through their form's configured
         // follow-up questions. Wrapped so a flow bug never breaks the webhook ack.
         if (waAccount?.store_id && msg.type === 'text' && msgBody) {
+          let handledByQualifyingFlow = false
           try {
-            await advanceQualifyingFlow(supabase, { storeId: waAccount.store_id as string, userId: waAccount.user_id as string, phone: fromPhone, text: msgBody })
+            handledByQualifyingFlow = await advanceQualifyingFlow(supabase, { storeId: waAccount.store_id as string, userId: waAccount.user_id as string, phone: fromPhone, text: msgBody })
           } catch (e) {
             console.error('[Meta webhook] qualifying flow error:', e)
           }
 
-          // AI auto-reply: no-ops unless the merchant has it turned on (and
-          // skips a lead that's mid-qualifying-flow — see maybeSendAIReply).
-          try {
-            await maybeSendAIReply(supabase, { storeId: waAccount.store_id as string, userId: waAccount.user_id as string, phone: fromPhone, text: msgBody })
-          } catch (e) {
-            console.error('[Meta webhook] AI reply error:', e)
+          // AI auto-reply: no-ops unless the merchant has it turned on. Also
+          // skipped whenever the qualifying flow just sent something for
+          // this exact message — its own `in_progress`-only check doesn't
+          // catch the final answer (status flips straight to 'completed' in
+          // the same call that sends the closing message), so without this
+          // both a closing message and an AI reply went out for one message.
+          if (!handledByQualifyingFlow) {
+            try {
+              await maybeSendAIReply(supabase, { storeId: waAccount.store_id as string, userId: waAccount.user_id as string, phone: fromPhone, text: msgBody })
+            } catch (e) {
+              console.error('[Meta webhook] AI reply error:', e)
+            }
           }
         }
       }
