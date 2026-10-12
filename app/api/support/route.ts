@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 
 // POST — submit a support ticket
 export async function POST(request: Request) {
@@ -19,8 +20,9 @@ export async function POST(request: Request) {
   if (!body.message?.trim())  return NextResponse.json({ error: 'Message is required' }, { status: 400 })
 
   const service = createServiceClient()
+  const ownerId = await resolveOwnerUserId(service, user.id)
   const { error } = await service.from('support_tickets').insert({
-    user_id:    user.id,
+    user_id:    ownerId,
     user_email: user.email ?? '',
     subject:    body.subject.trim(),
     category:   body.category?.trim() ?? 'general',
@@ -54,7 +56,8 @@ export async function GET() {
     .order('created_at', { ascending: false })
 
   if (!isAdmin) {
-    query = query.eq('user_id', user.id)
+    const ownerId = await resolveOwnerUserId(service, user.id)
+    query = query.eq('user_id', ownerId)
   }
 
   const { data, error } = await query.limit(100)

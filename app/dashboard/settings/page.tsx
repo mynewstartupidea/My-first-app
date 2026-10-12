@@ -1109,6 +1109,11 @@ function SettingsInner() {
       if (!res.ok) { showToast(data.error ?? "Couldn't remove this team member — please try again.", false); return }
       showToast('Member removed')
       setMembers(prev => prev.filter(m => m.id !== id))
+      // Keep the round-robin distribution list in sync too — it's separate
+      // state (only normally refetched on tab switch), and saving it stale
+      // would put a just-removed teammate back into lead rotation.
+      setDistMembers(prev => prev.filter(m => m.email !== email))
+      setActiveMembers(prev => prev.filter(m => m.email !== email))
     } catch {
       showToast("Couldn't remove this team member — check your connection and try again.", false)
     } finally {

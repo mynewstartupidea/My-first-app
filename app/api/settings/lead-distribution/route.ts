@@ -43,10 +43,23 @@ export async function PATCH(request: Request) {
   if (!org) return NextResponse.json({ error: 'No organization found. Invite a team member first.' }, { status: 404 })
 
   const updates: Record<string, unknown> = {}
-  if (body.mode)                 updates.lead_distribution_mode = body.mode
-  if (body.distribution_members) updates.distribution_members   = body.distribution_members
-  // Reset pointer when member order changes
-  if (body.distribution_members) updates.rr_current_pos = 0
+  if (body.mode) updates.lead_distribution_mode = body.mode
+  if (body.distribution_members) {
+    // Never trust the client's member list as-is — a removed teammate can
+    // still be sitting in state on the Settings page (it's only refetched on
+    // tab switch), and saving that stale list would silently put someone
+    // with no account access back into lead rotation. Filter to members who
+    // are still active in this org right now.
+    const { data: active } = await service
+      .from('team_members')
+      .select('user_id')
+      .eq('organization_id', org.id)
+      .eq('status', 'active')
+    const activeIds = new Set((active ?? []).map(m => m.user_id))
+    updates.distribution_members = body.distribution_members.filter(m => activeIds.has(m.user_id))
+    // Reset pointer when member order changes
+    updates.rr_current_pos = 0
+  }
 
   const { error } = await service
     .from('organizations')
