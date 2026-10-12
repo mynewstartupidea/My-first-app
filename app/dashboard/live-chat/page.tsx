@@ -432,7 +432,7 @@ export default function LiveChatPage() {
       const res = await fetch('/api/live-chat/tags', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, status }),
+        body: JSON.stringify({ phone, status, storeId }),
       })
       if (!res.ok) {
         setThreads(prev => prev.map(t => t.phone === phone ? { ...t, tag: prevTag } : t))
