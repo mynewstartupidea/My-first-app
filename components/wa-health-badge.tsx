@@ -10,6 +10,7 @@ interface WaHealth {
   quality_rating?: string
   messaging_limit_tier?: string
   display_phone_number?: string
+  billingIssue?: boolean
 }
 
 // Business-critical alert — a restricted or degrading WhatsApp account
@@ -39,9 +40,18 @@ export default function WaHealthBadge({ variant = 'dark' }: { variant?: 'dark' |
   // normal and expected, not a sign of dropping quality. Treating it the
   // same as YELLOW showed a "WA Quality ↓" warning on day one for every new
   // connection, before the account had done anything at all.
-  if (rating === 'GREEN' || rating === 'UNKNOWN') return null
+  const qualityIssue = rating !== 'GREEN' && rating !== 'UNKNOWN'
+  if (!health.billingIssue && !qualityIssue) return null
 
-  const isRed = rating === 'RED'
+  // Billing takes priority — a payment-method problem means EVERY message
+  // is blocked, not just a quality concern, and can coexist with any
+  // quality_rating value (Meta doesn't downgrade quality just because the
+  // card failed).
+  const isRed = health.billingIssue || rating === 'RED'
+  const label = health.billingIssue ? 'WA Billing Issue' : (isRed ? 'WA Restricted' : 'WA Quality ↓')
+  const title = health.billingIssue
+    ? 'Your WhatsApp payment method needs attention — messages are not sending. Click for details.'
+    : (isRed ? 'WhatsApp account restricted — click for details' : 'WhatsApp quality dropping — click for details')
 
   return (
     <Link
@@ -52,10 +62,10 @@ export default function WaHealthBadge({ variant = 'dark' }: { variant?: 'dark' |
           ? (isRed ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-amber-400/10 text-amber-400 hover:bg-amber-400/20')
           : cn('mb-5', isRed ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100')
       )}
-      title={isRed ? 'WhatsApp account restricted — click for details' : 'WhatsApp quality dropping — click for details'}
+      title={title}
     >
       <ShieldAlert size={12} className="flex-shrink-0" />
-      <span>{isRed ? 'WA Restricted' : 'WA Quality ↓'}</span>
+      <span>{label}</span>
       <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse ml-auto',
         isRed ? 'bg-red-400' : 'bg-amber-400')} />
     </Link>

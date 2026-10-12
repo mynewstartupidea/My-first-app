@@ -112,6 +112,14 @@ async function sendViaMeta(params: SendMessageParams): Promise<SendResult> {
       // same as every other code here that tells the merchant what to do.
       code === 133010 ? 'This WhatsApp number is not registered for sending yet — reconnect it from Settings.' :
       code === 130472 ? 'Meta restricted this message (experiment/holdout group)' :
+      // No "balance" concept to check proactively for a self-serve WABA —
+      // Meta runs a tab against the attached card and doesn't expose a
+      // running total via API. This is the actual, reactive signal: every
+      // send blocks with this code until the merchant fixes their payment
+      // method in Meta Business Manager. Distinctive "payment method" text
+      // is what app/api/whatsapp/health/route.ts matches on to raise this
+      // proactively instead of only showing up per-message after the fact.
+      code === 131042 ? 'Your WhatsApp payment method needs attention in Meta Business Manager — messages won\'t send until it\'s fixed. Go to Meta Business Suite → WhatsApp Accounts → Billing.' :
       data.error?.message ?? `Meta API error (code ${code ?? 'unknown'})`
     return { success: false, error: humanError }
   } catch (e) {

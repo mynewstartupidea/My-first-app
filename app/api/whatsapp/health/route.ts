@@ -30,6 +30,29 @@ export async function GET() {
     return NextResponse.json({ connected: false })
   }
 
+  // Meta doesn't expose a running balance for a self-serve WABA to check
+  // proactively (it bills the merchant's own attached card directly, not a
+  // prepaid wallet) — the only real signal is error 131042 on an actual
+  // send, which lib/whatsapp.ts maps to a message containing "payment
+  // method". Checking the last 24h of real sends means every failed
+  // message doesn't need its own manual discovery — this shows up the
+  // moment any automated job or reply has actually hit the problem.
+  const { data: store } = await service.from('stores').select('id').eq('user_id', ownerId).eq('is_active', true).maybeSingle()
+  let billingIssue = false
+  if (store) {
+    const { data: recentFailure } = await service
+      .from('messages')
+      .select('id, metadata')
+      .eq('store_id', store.id).eq('status', 'failed')
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20)
+    billingIssue = (recentFailure ?? []).some(m => {
+      const details = (m.metadata as Record<string, unknown> | null)?.delivery_error as { details?: string } | undefined
+      return details?.details?.toLowerCase().includes('payment method')
+    })
+  }
+
   // Fetch fresh health from Meta
   try {
     const url = `https://graph.facebook.com/v21.0/${wa.phone_number_id}?fields=quality_rating,messaging_limit_tier,account_mode&access_token=${wa.access_token}`
@@ -46,6 +69,7 @@ export async function GET() {
       return NextResponse.json({
         connected: true,
         display_phone_number: wa.display_phone_number,
+        billingIssue,
         ...updates,
       })
     }
@@ -58,5 +82,6 @@ export async function GET() {
     quality_rating:        wa.quality_rating        ?? 'GREEN',
     messaging_limit_tier:  wa.messaging_limit_tier  ?? 'TIER_1K',
     account_mode:          wa.account_mode          ?? 'LIVE',
+    billingIssue,
   })
 }
