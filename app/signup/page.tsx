@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import CustomSelect from '@/components/custom-select'
+import AuthMarketingPanel, { AuthMobileHeader } from '@/components/auth-marketing-panel'
 
 const TEAM_SIZES = [
   { value: 'just_me',  label: 'Just me' },
@@ -260,21 +261,17 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4 py-6 sm:py-10">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-5 sm:mb-8">
-          <Link href="/" className="inline-flex flex-col items-center group">
-            <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-2xl shadow-xl mb-2 sm:mb-3 group-hover:scale-105 transition">
-              <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8 text-[#25D366]" />
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white">Wapaci</h1>
-          </Link>
-          <p className="text-green-100 mt-1 text-sm">Grow on WhatsApp.</p>
-        </div>
+    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50">
+      <AuthMarketingPanel />
 
-        <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-6">Create your account</h2>
+      <div className="flex-1 flex flex-col">
+        <AuthMobileHeader />
+
+        <div className="flex-1 flex items-center justify-center p-4 py-8 sm:py-10 lg:p-12">
+        <div className="w-full max-w-md">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sm:p-8 -mt-10 lg:mt-0 relative z-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Create your account</h2>
+          <p className="text-slate-500 text-sm mb-6">Bring your next campaign to life on WhatsApp.</p>
 
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
@@ -408,6 +405,8 @@ export default function SignupPage() {
             Already have an account?{' '}
             <Link href="/login" className="text-[#25D366] font-medium hover:underline">Sign in</Link>
           </p>
+        </div>
+        </div>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getAppUrl } from '@/lib/get-app-url'
 import { MessageCircle, Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import AuthMarketingPanel, { AuthMobileHeader } from '@/components/auth-marketing-panel'
 
 type Mode = 'signin' | 'signup' | 'forgot'
 
@@ -349,21 +350,16 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex flex-col items-center group">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-xl mb-4 group-hover:scale-105 transition">
-              <MessageCircle className="w-9 h-9 text-[#25D366]" />
-            </div>
-            <h1 className="text-3xl font-bold text-white">Wapaci</h1>
-          </Link>
-          <p className="text-green-100 mt-1 text-sm">Grow on WhatsApp.</p>
-        </div>
+    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50">
+      <AuthMarketingPanel />
 
+      <div className="flex-1 flex flex-col">
+        <AuthMobileHeader />
+
+        <div className="flex-1 flex items-center justify-center p-4 py-8 lg:p-12">
+        <div className="w-full max-w-md">
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sm:p-8 -mt-10 lg:mt-0 relative z-10">
           {mode !== 'signin' && (
             <button
               onClick={() => { setMode('signin'); setOtpSent(false); setResetCode(''); reset() }}
@@ -522,9 +518,11 @@ function LoginForm() {
           )}
         </div>
 
-        <p className="text-center text-green-200 text-xs mt-6">
+        <p className="text-center text-slate-400 text-xs mt-6">
           Powered by WhatsApp Business API · Built for ecommerce brands
         </p>
+        </div>
+        </div>
       </div>
     </div>
   )
