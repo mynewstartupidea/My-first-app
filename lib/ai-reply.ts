@@ -27,6 +27,44 @@ function last10Digits(phone: string): string {
   return phone.replace(/\D/g, '').slice(-10)
 }
 
+// Tells WhatsApp to show the native "typing…" bubble and blue double-tick on
+// the customer's side — same signal a real person replying from the app
+// gives. Meta auto-dismisses it after 25s or once we actually send, so it
+// only ever needs to cover the generation + pacing delay below. Best-effort:
+// swallows its own errors so a hiccup here (bad token, etc.) never blocks
+// the actual reply.
+async function markReadWithTypingIndicator(service: ServiceClient, userId: string, messageId: string): Promise<void> {
+  try {
+    const { data: wa } = await service
+      .from('whatsapp_accounts')
+      .select('phone_number_id, access_token')
+      .eq('user_id', userId)
+      .maybeSingle()
+    const phoneNumberId = wa?.phone_number_id
+    const apiKey = process.env.META_SYSTEM_USER_ACCESS_TOKEN ?? wa?.access_token
+    if (!phoneNumberId || !apiKey) return
+    await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp', status: 'read', message_id: messageId,
+        typing_indicator: { type: 'text' },
+      }),
+    })
+  } catch (e) {
+    console.error('[AI reply] typing indicator failed (non-fatal):', e)
+  }
+}
+
+// An instant reply reads as an obvious bot. Loosely scaled by reply length
+// (reading + typing a longer message takes longer) and capped well under
+// the typing indicator's 25s auto-dismiss above.
+function humanPaceDelayMs(replyText: string): number {
+  const base = 2000 + Math.random() * 2500
+  const perChar = Math.min(replyText.length * 35, 5500)
+  return Math.round(base + perChar)
+}
+
 // Anthropic's Messages API requires strict role alternation (two consecutive
 // 'user' entries is a guaranteed 400) — but the inbound-history query below
 // always includes the message currently being replied to (it's already been
@@ -66,9 +104,9 @@ async function recordAiReplyFailure(service: ServiceClient, storeId: string, pho
 
 export async function maybeSendAIReply(
   service: ServiceClient,
-  params: { storeId: string; userId: string; phone: string; text: string },
+  params: { storeId: string; userId: string; phone: string; text: string; inboundMessageId?: string },
 ): Promise<void> {
-  const { storeId, userId, phone, text } = params
+  const { storeId, userId, phone, text, inboundMessageId } = params
   if (!text.trim()) return
 
   const { data: store } = await service
@@ -112,6 +150,10 @@ export async function maybeSendAIReply(
     return
   }
 
+  // Fire the "typing…" indicator now, before generation starts, so it's
+  // live for the full wait — not just the pacing delay tacked on at the end.
+  if (inboundMessageId) void markReadWithTypingIndicator(service, userId, inboundMessageId)
+
   const [{ data: outbound }, { data: inbound }] = await Promise.all([
     service.from('messages').select('message, created_at')
       .eq('store_id', storeId).eq('customer_phone', phone)
@@ -131,7 +173,11 @@ export async function maybeSendAIReply(
     .slice(-MAX_HISTORY_MESSAGES)
 
   const businessName = store.shop_name ?? 'this business'
-  const system = `You are answering WhatsApp messages on behalf of ${businessName}. Use ONLY the information below to answer — never invent prices, policies, or facts that aren't stated here. Keep replies short and natural, like a real WhatsApp message (1-3 sentences, plain text, no markdown, no headers, no bullet lists). If the answer isn't in the information below, say a team member will follow up shortly instead of guessing.
+  const system = `You are answering WhatsApp messages on behalf of ${businessName}. Use ONLY the information below to answer — never invent prices, policies, or facts that aren't stated here. Keep replies short and natural, like a real WhatsApp message (1-3 sentences, plain text, no markdown, no headers, no bullet lists).
+
+If the question is about ${businessName} (its products, services, pricing, policies, etc.) but the answer isn't in the information below, say a team member will follow up shortly instead of guessing.
+
+If the question has nothing to do with ${businessName} (general knowledge, recipes, unrelated topics), don't offer to follow up on it — that would wrongly imply someone will get back to them about it. Just briefly, politely say you're only able to help with questions about ${businessName}, and ask what they'd like to know.
 
 --- Business information ---
 ${knowledge}`
@@ -196,6 +242,8 @@ ${knowledge}`
     await recordAiReplyFailure(service, storeId, phone, `Request to ${provider === 'openai' ? 'OpenAI' : 'Anthropic'} failed: ${String(e)}`)
     return
   }
+
+  await new Promise(resolve => setTimeout(resolve, humanPaceDelayMs(replyText)))
 
   const result = await sendStoreWhatsAppText(service, {
     storeId, userId, phone, message: replyText, type: 'ai_reply',

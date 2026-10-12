@@ -2,8 +2,14 @@
 // Handles: incoming messages, delivery updates, read receipts
 
 export const dynamic = 'force-dynamic'
+// AI auto-reply now includes a deliberate human-pacing delay (lib/ai-reply.ts)
+// on top of the LLM call + WhatsApp send, dispatched via after() below so it
+// doesn't hold up Meta's webhook ack — but that background work still needs
+// more runway than the platform default to finish before the function is
+// torn down.
+export const maxDuration = 60
 import crypto from 'crypto'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { advanceQualifyingFlow } from '@/lib/qualifying-flow'
 import { maybeSendAIReply } from '@/lib/ai-reply'
@@ -354,12 +360,23 @@ export async function POST(request: Request) {
           // catch the final answer (status flips straight to 'completed' in
           // the same call that sends the closing message), so without this
           // both a closing message and an AI reply went out for one message.
+          //
+          // Dispatched via after() rather than awaited: it now deliberately
+          // paces itself (typing indicator + a human-length delay before
+          // sending, see lib/ai-reply.ts) on top of the LLM call itself, and
+          // Meta expects a webhook ack within a few seconds — holding the
+          // response open for all of that risked spurious redelivery
+          // retries on every single AI-replied message. after() lets Meta
+          // get its 200 immediately while this keeps running in the
+          // background; the existing message_id dedupe at the top of this
+          // handler already makes any such retry a safe no-op regardless.
           if (!handledByQualifyingFlow) {
-            try {
-              await maybeSendAIReply(supabase, { storeId: waAccount.store_id as string, userId: waAccount.user_id as string, phone: fromPhone, text: msgBody })
-            } catch (e) {
-              console.error('[Meta webhook] AI reply error:', e)
-            }
+            const storeId = waAccount.store_id as string
+            const replyUserId = waAccount.user_id as string
+            after(() =>
+              maybeSendAIReply(supabase, { storeId, userId: replyUserId, phone: fromPhone, text: msgBody, inboundMessageId: msg.id })
+                .catch(e => console.error('[Meta webhook] AI reply error:', e))
+            )
           }
         }
       }
