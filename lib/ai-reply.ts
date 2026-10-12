@@ -43,6 +43,21 @@ function mergeConsecutiveSameRole(
   return merged
 }
 
+// A failure here used to only ever reach a console.error — no row in any
+// table, no notification, nothing a merchant (or anyone debugging without
+// Vercel log access) could query to find out why AI auto-reply didn't fire.
+// The toggle could show "on" indefinitely while silently never having sent
+// a single reply, with literally zero trace anywhere. Writes a 'failed'
+// messages row (same table every other send path's failures land in) only
+// for genuine misconfiguration/errors — never for the two expected, correct
+// no-ops (feature off, mid-qualifying-flow) which aren't failures at all.
+async function recordAiReplyFailure(service: ServiceClient, storeId: string, phone: string, reason: string): Promise<void> {
+  await service.from('messages').insert({
+    store_id: storeId, customer_phone: phone, type: 'ai_reply',
+    message: '', status: 'failed', metadata: { delivery_error: { details: reason } },
+  }).then(() => null, () => null)
+}
+
 export async function maybeSendAIReply(
   service: ServiceClient,
   params: { storeId: string; userId: string; phone: string; text: string },
@@ -78,11 +93,15 @@ export async function maybeSendAIReply(
   // Nothing to ground a reply on — stay silent rather than let the model
   // improvise business facts. The toggle route already refuses to enable
   // this without content, but a merchant could clear it out afterward.
-  if (knowledge.length < MIN_KNOWLEDGE_LENGTH) return
+  if (knowledge.length < MIN_KNOWLEDGE_LENGTH) {
+    await recordAiReplyFailure(service, storeId, phone, 'Knowledge base is empty or too short — AI auto-reply has nothing to answer from.')
+    return
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     console.error('[AI reply] ANTHROPIC_API_KEY not set — skipping')
+    await recordAiReplyFailure(service, storeId, phone, 'ANTHROPIC_API_KEY is not configured on the server.')
     return
   }
 
@@ -128,13 +147,19 @@ ${knowledge}`
     })
     const data = await res.json() as { content?: { type: string; text?: string }[]; error?: { message: string } }
     if (!res.ok || data.error) {
-      console.error('[AI reply] Anthropic API error:', data.error?.message ?? res.status)
+      const reason = data.error?.message ?? `Anthropic API error (HTTP ${res.status})`
+      console.error('[AI reply] Anthropic API error:', reason)
+      await recordAiReplyFailure(service, storeId, phone, reason)
       return
     }
     replyText = data.content?.find(c => c.type === 'text')?.text?.trim() ?? ''
-    if (!replyText) return
+    if (!replyText) {
+      await recordAiReplyFailure(service, storeId, phone, 'Anthropic returned an empty reply.')
+      return
+    }
   } catch (e) {
     console.error('[AI reply] generation failed:', e)
+    await recordAiReplyFailure(service, storeId, phone, `Request to Anthropic failed: ${String(e)}`)
     return
   }
 
