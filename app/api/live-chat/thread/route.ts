@@ -45,15 +45,24 @@ export async function GET(request: Request) {
 
   const out = (msgsRes.data ?? [])
     .filter(m => normalizePhone(m.customer_phone) === target)
-    .map(m => ({
-      id: m.id, text: m.message, type: m.type, status: m.status,
-      direction: 'out' as const, created_at: m.created_at,
-    }))
+    .map(m => {
+      const deliveryError = (m.metadata as Record<string, unknown> | null)?.delivery_error as
+        { code?: number; title?: string; details?: string | null } | undefined
+      return {
+        id: m.id, text: m.message, type: m.type, status: m.status,
+        direction: 'out' as const, created_at: m.created_at,
+        // Meta's own reason this specific message failed to deliver (set by
+        // the status-update webhook, only present when status is 'failed')
+        // — without this a failed send was just an unexplained X icon.
+        errorDetail: deliveryError ? (deliveryError.details || deliveryError.title || null) : null,
+      }
+    })
   const inb = (inboundRes.data ?? [])
     .filter(m => normalizePhone(m.from_phone) === target)
     .map(m => ({
       id: m.id, text: m.body ?? `[${m.message_type ?? 'message'}]`, type: m.message_type ?? 'text',
       status: 'received', direction: 'in' as const, created_at: m.received_at,
+      errorDetail: null as string | null,
     }))
   const messages = [...out, ...inb].sort((a, b) => a.created_at.localeCompare(b.created_at))
 

@@ -368,11 +368,39 @@ export async function POST(request: Request) {
         console.log(`[Meta webhook] status update msgId=${status.id} status=${status.status} → ${newStatus ?? 'ignored'}`)
 
         if (newStatus && status.id) {
-          const { error: updateErr } = await supabase
-            .from('messages')
-            .update({ status: newStatus })
-            .eq('bsp_message_id', status.id)
-          if (updateErr) console.error('[Meta webhook] messages status update error:', updateErr.message)
+          // Meta's own reason a message failed (code/title/details) used to
+          // be discarded entirely — this status callback is the ONLY place
+          // that reason is ever delivered (the synchronous send can succeed,
+          // i.e. Meta accepted and queued it, and it still fails to actually
+          // reach the recipient afterward), so a merchant just saw an
+          // unexplained failed/X icon with no way to find out why.
+          const failureError = newStatus === 'failed' ? status.errors?.[0] : undefined
+          if (failureError) {
+            const { data: existing } = await supabase
+              .from('messages').select('metadata').eq('bsp_message_id', status.id).maybeSingle()
+            const meta = (existing?.metadata as Record<string, unknown> | null) ?? {}
+            const { error: updateErr } = await supabase
+              .from('messages')
+              .update({
+                status: newStatus,
+                metadata: {
+                  ...meta,
+                  delivery_error: {
+                    code: failureError.code,
+                    title: failureError.title,
+                    details: failureError.error_data?.details ?? failureError.message ?? null,
+                  },
+                },
+              })
+              .eq('bsp_message_id', status.id)
+            if (updateErr) console.error('[Meta webhook] messages status update error:', updateErr.message)
+          } else {
+            const { error: updateErr } = await supabase
+              .from('messages')
+              .update({ status: newStatus })
+              .eq('bsp_message_id', status.id)
+            if (updateErr) console.error('[Meta webhook] messages status update error:', updateErr.message)
+          }
         }
       }
     }
@@ -401,6 +429,7 @@ interface MetaWebhookPayload {
           id: string
           status: string
           recipient_id: string
+          errors?: { code: number; title: string; message?: string; error_data?: { details?: string } }[]
         }[]
       }
       field: string

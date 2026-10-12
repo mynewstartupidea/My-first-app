@@ -33,6 +33,7 @@ interface ChatMsg {
   status: string
   direction: 'in' | 'out'
   created_at: string
+  errorDetail?: string | null
 }
 
 interface Customer {
@@ -666,13 +667,22 @@ export default function LiveChatPage() {
                   )}>
                     <p className="text-slate-800 text-[13px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                   </div>
-                  <div className={cn('flex items-center gap-1.5 mt-1 px-1', msg.direction === 'in' ? 'justify-start' : 'justify-end')}>
+                  <div className={cn('flex items-center gap-1.5 mt-1 px-1', msg.direction === 'in' ? 'justify-start' : 'justify-end')}
+                    title={msg.status === 'failed' && msg.errorDetail ? msg.errorDetail : undefined}>
                     <span className="text-[10px] text-slate-400">{timeAgo(msg.created_at)}</span>
                     {msg.direction === 'out' && STATUS_ICON[msg.status]}
                     <span className="text-[9px] text-slate-300 bg-slate-100 px-1.5 rounded-full">
                       {msg.direction === 'in' ? 'Reply' : (TYPE_LABELS[msg.type] ?? msg.type)}
                     </span>
                   </div>
+                  {/* Meta's own reason this failed, set by the status-update
+                      webhook — previously a failed send was just an
+                      unexplained X icon with no way to find out why. */}
+                  {msg.status === 'failed' && msg.errorDetail && (
+                    <p className={cn('text-[10px] text-red-400 mt-0.5 px-1', msg.direction === 'in' ? 'text-left' : 'text-right')}>
+                      {msg.errorDetail}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
