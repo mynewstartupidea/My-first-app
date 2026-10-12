@@ -220,17 +220,20 @@ export default async function DashboardPage() {
     store ? service.from('analytics_daily').select('*').eq('store_id', store.id).gte('date', thirtyDaysAgo).order('date') : Promise.resolve({ data: [] }),
     store ? service.from('messages').select('id,type,status,revenue_attributed,created_at,customer_name,customer_phone,message').eq('store_id', store.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     store ? service.from('campaigns').select('id,name,status,sent_count,delivered_count,read_count,revenue_attributed,created_at').eq('store_id', store.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
-    // Deliberately NOT scoped to defaultPageId, unlike followupQuery/
-    // leadFormsRes below — this feeds the "Total Leads" KPI card plus Hot
-    // Leads/Response Rate/Conversion Rate/Lead Outcomes, and a manually-
-    // added lead (or one from CSV import, a website form, walk-in, referral)
-    // has no page_id at all. Scoping this to one connected Facebook page
-    // silently excluded every one of them — "Total Leads" showed 0 right
-    // after adding a lead by hand, with a real Facebook page connected.
-    // Same reasoning leadSourcesRes below already documents for the same
-    // class of query.
-    isEcommerce ? Promise.resolve({ data: [] })
-      : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId),
+    // Scoped to the currently-connected page PLUS page-less leads (manual
+    // add, CSV import, website form, walk-in, referral) — not every lead
+    // the account has ever had. An account whose Facebook profile has
+    // access to several genuinely different pages (an agency managing
+    // multiple clients, or someone who's reconnected to a different page
+    // over time) would otherwise show a blended "Total Leads" mixing
+    // unrelated businesses' leads together, which is the wrong default —
+    // see ALL_PAGES_ID's docstring in app/dashboard/leads/page.tsx. The
+    // page-less OR is still needed: a manually-added lead has no page_id at
+    // all, and excluding it entirely is the bug that started this (Total
+    // Leads showed 0 right after adding a lead by hand).
+    isEcommerce ? Promise.resolve({ data: [] }) : defaultPageId
+      ? service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).or(`page_id.eq.${defaultPageId},page_id.is.null`)
+      : service.from('leads').select('phone, created_at, lead_status, wa_status').eq('user_id', ownerId).is('page_id', null),
     isEcommerce ? Promise.resolve({ data: [] }) : defaultConnectionId
       ? service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).eq('connection_id', defaultConnectionId)
       : service.from('lead_form_automations').select('is_enabled').eq('user_id', ownerId).is('connection_id', null),

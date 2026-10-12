@@ -450,17 +450,36 @@ function AddLeadDropdown({ onAddManual, onImportCsv, compact }: { onAddManual: (
 // from the normal dashboard and from the "no pages connected yet" empty state,
 // since a fresh connect always lands here first (pages start pending, not active).
 
-function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confirmingPick, confirmPageSelection }: {
+// Loose heuristic, not a hard rule — Meta gives us no reliable "this number
+// belongs to this exact page" link to check against for a normal Cloud API
+// connection (confirmed directly against the Graph API: no such field comes
+// back on the WABA or phone number object). Page names and verified
+// business names legitimately differ sometimes (a DBA, a sub-brand), so
+// this only ever informs a dismissible warning, never blocks the connect.
+function looksLikeDifferentBusiness(pageName: string, verifiedName: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const a = norm(pageName), b = norm(verifiedName)
+  if (!a || !b) return false
+  if (a.includes(b) || b.includes(a)) return false
+  const wordsA = new Set(a.split(' ').filter(w => w.length > 2))
+  const wordsB = b.split(' ').filter(w => w.length > 2)
+  return !wordsB.some(w => wordsA.has(w))
+}
+
+function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confirmingPick, confirmPageSelection, verifiedWaName }: {
   pendingPages: Page[]
   pickedPageIds: Set<string>
   setPickedPageIds: (fn: (prev: Set<string>) => Set<string>) => void
   confirmingPick: boolean
   confirmPageSelection: (ids?: string[]) => void
+  verifiedWaName: string | null
 }) {
   const [search, setSearch] = useState('')
   const filtered = search.trim()
     ? pendingPages.filter(pg => pg.page_name.toLowerCase().includes(search.trim().toLowerCase()))
     : pendingPages
+  const pickedPage = pendingPages.find(pg => pickedPageIds.has(pg.page_id))
+  const mismatch = !!(pickedPage && verifiedWaName && looksLikeDifferentBusiness(pickedPage.page_name, verifiedWaName))
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
@@ -470,7 +489,7 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
           <h2 className="text-lg font-bold text-gray-900">Choose Facebook Pages</h2>
         </div>
         <p className="text-sm text-gray-500 mb-4">
-          We found {pendingPages.length} page{pendingPages.length !== 1 ? 's' : ''} you manage. Pick which ones should sync leads into Wapaci.
+          We found {pendingPages.length} page{pendingPages.length !== 1 ? 's' : ''} you manage. Choose the one that should sync leads into Wapaci.
         </p>
 
         <div className="relative mb-3">
@@ -483,32 +502,12 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
           />
         </div>
 
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-gray-400">{pickedPageIds.size} of {pendingPages.length} selected</span>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setPickedPageIds(prev => {
-                const next = new Set(prev)
-                filtered.forEach(pg => next.add(pg.page_id))
-                return next
-              })}
-              className="text-xs font-medium text-[#25D366] hover:underline"
-            >
-              Select all
-            </button>
-            <button
-              onClick={() => setPickedPageIds(prev => {
-                const next = new Set(prev)
-                filtered.forEach(pg => next.delete(pg.page_id))
-                return next
-              })}
-              className="text-xs font-medium text-gray-400 hover:text-gray-600 hover:underline"
-            >
-              Deselect all
-            </button>
-          </div>
-        </div>
-
+        {/* Single-select only — one Facebook page per WhatsApp number is the
+            correct model (Meta prohibits one WhatsApp Business Account
+            messaging on behalf of multiple businesses), so letting someone
+            check off several pages at once here made it too easy to connect
+            leads from different, unrelated businesses into one account in a
+            single click. */}
         <div className="max-h-72 overflow-y-auto space-y-1.5 mb-5">
           {filtered.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">No pages match &ldquo;{search}&rdquo;</p>
@@ -517,20 +516,27 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
             return (
               <label key={pg.page_id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 cursor-pointer">
                 <input
-                  type="checkbox"
+                  type="radio"
+                  name="fb-page-pick"
                   checked={checked}
-                  onChange={() => setPickedPageIds(prev => {
-                    const next = new Set(prev)
-                    if (checked) next.delete(pg.page_id); else next.add(pg.page_id)
-                    return next
-                  })}
-                  className="w-4 h-4 rounded border-gray-300 text-[#25D366] focus:ring-[#25D366]"
+                  onChange={() => setPickedPageIds(() => new Set([pg.page_id]))}
+                  className="w-4 h-4 border-gray-300 text-[#25D366] focus:ring-[#25D366]"
                 />
                 <span className="text-sm font-medium text-gray-800 truncate">{pg.page_name}</span>
               </label>
             )
           })}
         </div>
+        {mismatch && (
+          <div className="flex items-start gap-2.5 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              &ldquo;{pickedPage?.page_name}&rdquo; looks different from your verified WhatsApp business
+              (&ldquo;{verifiedWaName}&rdquo;). Meta doesn&apos;t allow one WhatsApp number to message leads for
+              more than one business — only continue if this is genuinely the same business under a different page name.
+            </p>
+          </div>
+        )}
         {confirmingPick && (
           <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5">
             <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
@@ -543,14 +549,14 @@ function PagePickerModal({ pendingPages, pickedPageIds, setPickedPageIds, confir
             disabled={confirmingPick}
             className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition"
           >
-            Skip all
+            Skip for now
           </button>
           <button
             onClick={() => confirmPageSelection()}
-            disabled={confirmingPick}
+            disabled={confirmingPick || pickedPageIds.size === 0}
             className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1aad54] disabled:opacity-60 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
           >
-            {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Fetching leads…</> : `Connect ${pickedPageIds.size || ''} page${pickedPageIds.size !== 1 ? 's' : ''}`}
+            {confirmingPick ? <><Loader2 className="w-4 h-4 animate-spin" /> Fetching leads…</> : 'Connect this page'}
           </button>
         </div>
       </div>
@@ -3358,6 +3364,17 @@ function LeadsContent() {
   const [pendingPages,   setPendingPages]   = useState<Page[]>([])
   const [pickedPageIds,  setPickedPageIds]  = useState<Set<string>>(new Set())
   const [confirmingPick, setConfirmingPick] = useState(false)
+  const [verifiedWaName, setVerifiedWaName] = useState<string | null>(null)
+
+  // Fetched once, right when the picker is about to show (not per-keystroke)
+  // — for PagePickerModal's business-mismatch warning.
+  useEffect(() => {
+    if (pendingPages.length === 0) return
+    fetch('/api/whatsapp/verified-name')
+      .then(r => r.json() as Promise<{ verifiedName?: string | null }>)
+      .then(d => setVerifiedWaName(d.verifiedName ?? null))
+      .catch(() => setVerifiedWaName(null))
+  }, [pendingPages.length])
   const [showActivate,   setShowActivate]   = useState(false)
   const [preActivateForm,setPreActivateForm]= useState<FBForm | null>(null)
   const [editingForm,    setEditingForm]    = useState<ActiveForm | null>(null)
@@ -3573,15 +3590,20 @@ function LeadsContent() {
 
       if (p.length > 0) {
         // Restore the previously selected page if it still exists; otherwise
-        // default to All Leads — not "first page in the list," which was an
-        // arbitrary pick that silently hid every other page's (and every
-        // manually-added) lead the moment the account had more than one
-        // connection, with no indication anything was being left out.
-        // ALL_PAGES_ID is always "valid" — it's not a real page, so it'd
-        // never appear in `p`, but that doesn't mean the cached selection is
-        // stale (also covers a page that WAS cached but got disconnected).
+        // default to the currently-connected page — not "All Leads." An
+        // account whose Facebook profile has access to several genuinely
+        // different businesses' pages (an agency managing multiple clients,
+        // or just someone who's reconnected to a different page over time)
+        // would otherwise land on a blended total mixing unrelated leads
+        // together by default, which is actively the wrong thing to show,
+        // not just unpolished — see ALL_PAGES_ID's docstring. "All Leads"
+        // stays available as something you deliberately pick, same as any
+        // other page in this same dropdown, just never the default.
+        // ALL_PAGES_ID is always "valid" if it WAS the deliberate last
+        // choice — it's not a real page, so it'd never appear in `p`, but
+        // that doesn't mean a cached explicit choice of it is stale.
         const savedPageIsValid = cachedPageId === ALL_PAGES_ID || (cachedPageId && p.some(pg => pg.page_id === cachedPageId))
-        const pageId = savedPageIsValid ? cachedPageId! : ALL_PAGES_ID
+        const pageId = savedPageIsValid ? cachedPageId! : p[0].page_id
         setSelectedPageId(pageId)
         try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
         if (pageId !== cachedPageId) {
@@ -3660,6 +3682,26 @@ function LeadsContent() {
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handlePageChange = async (page: Page) => {
+    // Switching to a genuinely different page (not the one already active,
+    // and not the first-ever connect) doesn't delete the previous page's
+    // leads — just means they stop being the default view. Surfacing that
+    // right here, once, is what stops someone discovering it as a confusing
+    // "where did my leads go" moment weeks later instead.
+    const prevPageId = selectedPageId
+    if (prevPageId && prevPageId !== ALL_PAGES_ID && prevPageId !== page.page_id) {
+      fetch(`/api/facebook/leads/stats?page_id=${prevPageId}`)
+        .then(r => r.json() as Promise<{ total?: number }>)
+        .then(d => {
+          if (d.total) {
+            setBanner({
+              type: 'success',
+              msg: `Switched to "${page.page_name}". Your ${d.total} lead${d.total !== 1 ? 's' : ''} from the previous page aren't deleted — find them under All Leads.`,
+            })
+          }
+        })
+        .catch(() => {})
+    }
+
     setSelectedPageId(page.page_id)
     setSelectedFormId('all')
     setCurrentPage(1)
@@ -4138,6 +4180,7 @@ function LeadsContent() {
           setPickedPageIds={setPickedPageIds}
           confirmingPick={confirmingPick}
           confirmPageSelection={confirmPageSelection}
+          verifiedWaName={verifiedWaName}
         />
       )}
       {showAddLead && (
@@ -4740,6 +4783,7 @@ function LeadsContent() {
           setPickedPageIds={setPickedPageIds}
           confirmingPick={confirmingPick}
           confirmPageSelection={confirmPageSelection}
+          verifiedWaName={verifiedWaName}
         />
       )}
     {showAddLead && (

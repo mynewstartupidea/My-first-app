@@ -98,6 +98,46 @@ export async function GET(request: Request) {
   return NextResponse.json({ pages, pending })
 }
 
+// Cancels any still-pending (not yet sent) Lead Ad Response jobs for leads
+// from the page(s) being disconnected — without this, a message already
+// queued in the brief window before a disconnect would still go out
+// afterward, which is exactly the kind of cross-page/cross-business send
+// that shouldn't happen. Pending lead_ad jobs are always a small set (only
+// genuinely new leads ever get one queued, never a historical backlog), so
+// this fetches them all for the owner's store(s) and cross-references
+// against leads.page_id in JS, rather than trying to filter a JSONB path
+// against what could be a large lead-id list.
+async function cancelPendingLeadAdJobsForPages(
+  service: ReturnType<typeof createServiceClient>, ownerId: string, pageIds: string[],
+): Promise<void> {
+  if (!pageIds.length) return
+  const { data: stores } = await service.from('stores').select('id').eq('user_id', ownerId)
+  const storeIds = (stores ?? []).map(s => s.id as string)
+  if (!storeIds.length) return
+
+  const { data: jobs } = await service.from('automation_jobs')
+    .select('id, context')
+    .in('store_id', storeIds)
+    .eq('type', 'lead_ad')
+    .eq('status', 'pending')
+  const pending = (jobs ?? [])
+    .map(j => ({ id: j.id as string, leadId: (j.context as Record<string, unknown> | null)?.lead_id as string | undefined }))
+    .filter((j): j is { id: string; leadId: string } => !!j.leadId)
+  if (!pending.length) return
+
+  const { data: leads } = await service.from('leads').select('id, page_id').in('id', pending.map(j => j.leadId))
+  const leadToPage = new Map((leads ?? []).map(l => [l.id as string, l.page_id as string | null]))
+  const pageIdSet = new Set(pageIds)
+  const jobIdsToCancel = pending.filter(j => {
+    const pid = leadToPage.get(j.leadId)
+    return pid && pageIdSet.has(pid)
+  }).map(j => j.id)
+
+  if (jobIdsToCancel.length) {
+    await service.from('automation_jobs').update({ status: 'cancelled' }).in('id', jobIdsToCancel)
+  }
+}
+
 export async function DELETE(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -124,6 +164,8 @@ export async function DELETE(request: Request) {
   const body = await request.json() as { pageId?: string; all?: boolean }
 
   if (body.all) {
+    const { data: conns } = await service.from('facebook_connections').select('page_id').eq('user_id', ownerId)
+    await cancelPendingLeadAdJobsForPages(service, ownerId, (conns ?? []).map(c => c.page_id as string))
     await service.from('facebook_connections').delete().eq('user_id', ownerId)
     await service.from('lead_form_automations').delete().eq('user_id', ownerId)
   } else if (body.pageId) {
@@ -134,6 +176,7 @@ export async function DELETE(request: Request) {
       .eq('page_id', body.pageId)
       .maybeSingle()
     if (conn) {
+      await cancelPendingLeadAdJobsForPages(service, ownerId, [body.pageId])
       await service.from('facebook_connections').delete().eq('id', conn.id)
       await service.from('lead_form_automations').delete().eq('connection_id', conn.id)
     }
