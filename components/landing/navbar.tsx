@@ -5,6 +5,14 @@ import Link from 'next/link'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const NAV_LINKS = [
+  { href: '#features', label: 'Features' },
+  { href: '#how-it-works', label: 'How it works' },
+  { href: '#use-cases', label: 'Use Cases' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '#faq', label: 'FAQ' },
+]
+
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
@@ -14,6 +22,25 @@ export default function Navbar() {
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Plain <a href="#hash"> anchors relied on the browser's native hash-scroll,
+  // which never accounted for this header being position:fixed — the target
+  // section's own heading landed hidden right underneath it, especially
+  // noticeable scrolling UP to an earlier section (Use Cases) after FAQ,
+  // where the browser's default jump is already instant/unanimated and the
+  // user had no scroll motion to even confirm something happened. Explicit
+  // scroll with a header-height offset, same pattern already used for the
+  // pricing section's own scroll-back-to-self behavior (components/landing/
+  // pricing.tsx's scrollToPricing).
+  function scrollToSection(id: string, e: React.MouseEvent) {
+    e.preventDefault()
+    setOpen(false)
+    const el = document.getElementById(id)
+    if (!el) return
+    const top = el.getBoundingClientRect().top + window.scrollY - 80
+    window.scrollTo({ top, behavior: 'smooth' })
+    window.history.replaceState(null, '', `#${id}`)
+  }
 
   return (
     <header className={cn(
@@ -29,19 +56,13 @@ export default function Navbar() {
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
-          {[
-            { href: '#features', label: 'Features' },
-            { href: '#how-it-works', label: 'How it works' },
-            { href: '#use-cases', label: 'Use Cases' },
-            { href: '/pricing', label: 'Pricing' },
-            { href: '#faq', label: 'FAQ' },
-          ].map(({ href, label }) => (
+          {NAV_LINKS.map(({ href, label }) => (
             href.startsWith('/') ? (
               <Link key={href} href={href} className="text-slate-400 hover:text-white text-sm font-medium transition">
                 {label}
               </Link>
             ) : (
-              <a key={href} href={href} className="text-slate-400 hover:text-white text-sm font-medium transition">
+              <a key={href} href={href} onClick={e => scrollToSection(href.slice(1), e)} className="text-slate-400 hover:text-white text-sm font-medium transition">
                 {label}
               </a>
             )
@@ -73,19 +94,13 @@ export default function Navbar() {
       {/* Mobile menu */}
       {open && (
         <div className="md:hidden bg-[#0a0f1a]/95 backdrop-blur-xl border-t border-white/5 px-5 py-4 space-y-3">
-          {[
-            { href: '#features', label: 'Features' },
-            { href: '#how-it-works', label: 'How it works' },
-            { href: '#use-cases', label: 'Use Cases' },
-            { href: '/pricing', label: 'Pricing' },
-            { href: '#faq', label: 'FAQ' },
-          ].map(({ href, label }) => (
+          {NAV_LINKS.map(({ href, label }) => (
             href.startsWith('/') ? (
               <Link key={href} href={href} onClick={() => setOpen(false)} className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition">
                 {label}
               </Link>
             ) : (
-              <a key={href} href={href} onClick={() => setOpen(false)} className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition">
+              <a key={href} href={href} onClick={e => scrollToSection(href.slice(1), e)} className="block text-slate-300 hover:text-white text-sm font-medium py-1 transition">
                 {label}
               </a>
             )

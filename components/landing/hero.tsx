@@ -192,6 +192,16 @@ export default function Hero() {
             </Link>
             <a
               href="#how-it-works"
+              onClick={e => {
+                // Same fix as the navbar's own links (components/landing/
+                // navbar.tsx) — a plain anchor's native hash-scroll never
+                // accounted for the fixed header, landing the target
+                // section's heading right underneath it.
+                e.preventDefault()
+                const el = document.getElementById('how-it-works')
+                if (!el) return
+                window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' })
+              }}
               className="inline-flex items-center justify-center gap-2 text-slate-300 hover:text-white border border-white/10 hover:border-[#25D366]/40 px-8 py-4 rounded-2xl text-lg transition-all font-semibold bg-white/5 hover:bg-white/8 hover:scale-[1.02] active:scale-[0.98]"
             >
               See how it works
