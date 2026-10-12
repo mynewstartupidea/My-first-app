@@ -349,10 +349,12 @@ export default function SignupPage() {
             {/* A long, undifferentiated field-by-field scroll is the main
                 thing that makes this form feel longer than it is on mobile —
                 a visual break here splits it into "about your business"
-                (above) and "your login" (below) instead of one flat list. */}
+                (above) and "account details" (below) instead of one flat
+                list. "Your login" read wrong here — nothing exists to log
+                into yet, this is where the email/password get created. */}
             <div className="flex items-center gap-3 pt-1">
               <div className="h-px flex-1 bg-slate-100" />
-              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Your login</span>
+              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Account details</span>
               <div className="h-px flex-1 bg-slate-100" />
             </div>
 
