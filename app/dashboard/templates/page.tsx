@@ -362,6 +362,15 @@ function TemplateModal({
   const [body, setBody]         = useState(initial?.body ?? '')
   const [category, setCategory] = useState(initial?.category ?? 'custom')
 
+  // Meta rejects any template whose body starts or ends with a {{variable}}
+  // (no literal text to anchor against) — catch it here instead of letting
+  // the merchant find out only after Meta's generic rejection post-submit.
+  const trimmedBody = body.trim()
+  const startsWithVariable = /^\{\{\s*[\w.]+\s*\}\}/.test(trimmedBody)
+  const endsWithVariable   = /\{\{\s*[\w.]+\s*\}\}$/.test(trimmedBody)
+  const invalidVariablePlacement = startsWithVariable || endsWithVariable
+  const canSave = !!name.trim() && !!trimmedBody && !invalidVariablePlacement
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4 animate-overlay-in">
       <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] sm:max-h-[92vh] overflow-y-auto animate-sheet-up sm:animate-none pb-[env(safe-area-inset-bottom)] sm:pb-0">
@@ -411,14 +420,19 @@ function TemplateModal({
               placeholder="Hi {{name}}! ..."
               className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none font-mono"
             />
+            {invalidVariablePlacement && (
+              <p className="text-xs text-red-500 mt-1.5">
+                Message can&apos;t start or end with a variable like <code className="bg-red-50 px-1 rounded">{'{{name}}'}</code> — add some fixed text before/after it, or Meta will reject this template.
+              </p>
+            )}
           </div>
         </div>
 
         <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition">Cancel</button>
           <button
-            onClick={() => { if (name.trim() && body.trim()) onSave(name.trim(), body.trim(), category) }}
-            disabled={!name.trim() || !body.trim()}
+            onClick={() => { if (canSave) onSave(name.trim(), trimmedBody, category) }}
+            disabled={!canSave}
             className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition"
           >
             <Save className="w-4 h-4" /> Save Template
