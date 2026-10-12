@@ -11,9 +11,15 @@ import { sendStoreWhatsAppText } from '@/lib/send-store-message'
 type ServiceClient = ReturnType<typeof createServiceClient>
 
 // Fast + cheap — grounded, short-form WhatsApp replies are simple lookups
-// against the knowledge base, not open-ended reasoning, so Haiku is the right
-// cost/latency tradeoff for a feature that runs on every inbound message.
-const MODEL = 'claude-haiku-4-5-20251001'
+// against the knowledge base, not open-ended reasoning, so a small non-
+// reasoning model is the right cost/latency tradeoff for a feature that runs
+// on every inbound message. Prefer OpenAI when a key is configured (checked
+// live: gpt-4o-mini replies instantly with zero reasoning-token overhead;
+// gpt-5-mini is a reasoning model and silently returned an EMPTY reply after
+// burning its whole token budget on hidden reasoning — wrong fit here) and
+// fall back to Anthropic so either key alone is enough to enable the feature.
+const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
+const OPENAI_MODEL = 'gpt-4o-mini'
 const MAX_HISTORY_MESSAGES = 12
 const MIN_KNOWLEDGE_LENGTH = 20
 
@@ -98,10 +104,11 @@ export async function maybeSendAIReply(
     return
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    console.error('[AI reply] ANTHROPIC_API_KEY not set — skipping')
-    await recordAiReplyFailure(service, storeId, phone, 'ANTHROPIC_API_KEY is not configured on the server.')
+  const openaiKey    = process.env.OPENAI_API_KEY
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  if (!openaiKey && !anthropicKey) {
+    console.error('[AI reply] no AI provider key set — skipping')
+    await recordAiReplyFailure(service, storeId, phone, 'No AI provider is configured on the server (missing OPENAI_API_KEY or ANTHROPIC_API_KEY).')
     return
   }
 
@@ -129,37 +136,64 @@ export async function maybeSendAIReply(
 --- Business information ---
 ${knowledge}`
 
+  const mergedTurns = mergeConsecutiveSameRole([...turns.map(t => ({ role: t.role, content: t.content })), { role: 'user', content: text }])
+  const provider = openaiKey ? 'openai' : 'anthropic'
+
   let replyText: string
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 300,
-        system,
-        messages: mergeConsecutiveSameRole([...turns.map(t => ({ role: t.role, content: t.content })), { role: 'user', content: text }]),
-      }),
-    })
-    const data = await res.json() as { content?: { type: string; text?: string }[]; error?: { message: string } }
-    if (!res.ok || data.error) {
-      const reason = data.error?.message ?? `Anthropic API error (HTTP ${res.status})`
-      console.error('[AI reply] Anthropic API error:', reason)
-      await recordAiReplyFailure(service, storeId, phone, reason)
-      return
-    }
-    replyText = data.content?.find(c => c.type === 'text')?.text?.trim() ?? ''
-    if (!replyText) {
-      await recordAiReplyFailure(service, storeId, phone, 'Anthropic returned an empty reply.')
-      return
+    if (provider === 'openai') {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          max_tokens: 300,
+          messages: [{ role: 'system', content: system }, ...mergedTurns],
+        }),
+      })
+      const data = await res.json() as { choices?: { message?: { content?: string } }[]; error?: { message: string } }
+      if (!res.ok || data.error) {
+        const reason = data.error?.message ?? `OpenAI API error (HTTP ${res.status})`
+        console.error('[AI reply] OpenAI API error:', reason)
+        await recordAiReplyFailure(service, storeId, phone, reason)
+        return
+      }
+      replyText = data.choices?.[0]?.message?.content?.trim() ?? ''
+      if (!replyText) {
+        await recordAiReplyFailure(service, storeId, phone, 'OpenAI returned an empty reply.')
+        return
+      }
+    } else {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': anthropicKey as string,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 300,
+          system,
+          messages: mergedTurns,
+        }),
+      })
+      const data = await res.json() as { content?: { type: string; text?: string }[]; error?: { message: string } }
+      if (!res.ok || data.error) {
+        const reason = data.error?.message ?? `Anthropic API error (HTTP ${res.status})`
+        console.error('[AI reply] Anthropic API error:', reason)
+        await recordAiReplyFailure(service, storeId, phone, reason)
+        return
+      }
+      replyText = data.content?.find(c => c.type === 'text')?.text?.trim() ?? ''
+      if (!replyText) {
+        await recordAiReplyFailure(service, storeId, phone, 'Anthropic returned an empty reply.')
+        return
+      }
     }
   } catch (e) {
     console.error('[AI reply] generation failed:', e)
-    await recordAiReplyFailure(service, storeId, phone, `Request to Anthropic failed: ${String(e)}`)
+    await recordAiReplyFailure(service, storeId, phone, `Request to ${provider === 'openai' ? 'OpenAI' : 'Anthropic'} failed: ${String(e)}`)
     return
   }
 
