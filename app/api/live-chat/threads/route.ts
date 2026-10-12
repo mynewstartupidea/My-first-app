@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { normalizePhone } from '@/lib/whatsapp'
+import { friendlyInboundBody } from '@/lib/inbound-message-label'
 
 // Backs the Live Chat thread list — previously loaded via direct client-side
 // queries against stores/messages/inbound_messages, all blocked by RLS
@@ -13,6 +14,10 @@ import { normalizePhone } from '@/lib/whatsapp'
 interface Thread {
   phone: string; name: string | null; lastMsg: string; lastTime: string
   count: number; status: string; unread: boolean; type: string; tag: string | null
+  // Never shown to the client — tracks whether this contact has ever sent/
+  // received a real message, vs. only ever showing up via a call-attempt
+  // ping (type 'unsupported'). Pure-ping "contacts" get filtered out below.
+  hasRealActivity: boolean
 }
 
 export async function GET() {
@@ -59,10 +64,11 @@ export async function GET() {
         phone, name: m.customer_name,
         lastMsg: m.message, lastTime: m.created_at,
         count: 1, status: m.status, unread: m.status === 'sent',
-        type: m.type, tag: null,
+        type: m.type, tag: null, hasRealActivity: true,
       })
     } else {
       ex.count++
+      ex.hasRealActivity = true
       // Messages are scanned newest-first, so the thread's name would
       // otherwise permanently lock onto whichever message happened to be
       // most recent — a manual reply, AI reply, or lead-qualifying message
@@ -80,16 +86,22 @@ export async function GET() {
   for (const m of inbound ?? []) {
     const phone = normalizePhone(m.from_phone)
     const ex = map.get(phone)
-    const body = m.body ?? `[${m.message_type ?? 'message'}]`
+    const body = friendlyInboundBody(m.message_type, m.body ?? `[${m.message_type ?? 'message'}]`)
+    // A call-attempt ping is real signal for an existing contact (their
+    // latest activity), but shouldn't by itself be enough to conjure a new
+    // "conversation" out of a number nothing was ever actually exchanged
+    // with — see hasRealActivity filter below.
+    const isReal = m.message_type !== 'unsupported'
     if (!ex) {
       map.set(phone, {
         phone, name: null,
         lastMsg: body, lastTime: m.received_at,
         count: 1, status: 'received', unread: true,
-        type: m.message_type ?? 'text', tag: null,
+        type: m.message_type ?? 'text', tag: null, hasRealActivity: isReal,
       })
     } else {
       ex.count++
+      if (isReal) ex.hasRealActivity = true
       if (m.received_at > ex.lastTime) {
         ex.lastMsg = body; ex.lastTime = m.received_at
         ex.status = 'received'; ex.type = m.message_type ?? 'text'
@@ -100,6 +112,7 @@ export async function GET() {
 
   const tagByPhone = new Map((tagRows ?? []).map(r => [normalizePhone(r.phone), r.lead_status as string]))
   const threads = Array.from(map.values())
+    .filter(t => t.hasRealActivity)
     .map(t => ({ ...t, tag: tagByPhone.get(t.phone) ?? null }))
     .sort((a, b) => b.lastTime.localeCompare(a.lastTime))
 

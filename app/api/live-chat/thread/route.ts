@@ -4,6 +4,7 @@ import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
 import { pickPreferredStore } from '@/lib/store-selection'
 import { getUserRole } from '@/lib/get-user-role'
 import { normalizePhone } from '@/lib/whatsapp'
+import { friendlyInboundBody } from '@/lib/inbound-message-label'
 
 // GET /api/live-chat/thread?phone=+91xxx — full message history + customer
 // record for one conversation. See app/api/live-chat/threads/route.ts for
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
   const inb = (inboundRes.data ?? [])
     .filter(m => normalizePhone(m.from_phone) === target)
     .map(m => ({
-      id: m.id, text: m.body ?? `[${m.message_type ?? 'message'}]`, type: m.message_type ?? 'text',
+      id: m.id, text: friendlyInboundBody(m.message_type, m.body ?? `[${m.message_type ?? 'message'}]`), type: m.message_type ?? 'text',
       status: 'received', direction: 'in' as const, created_at: m.received_at,
       errorDetail: null as string | null,
     }))

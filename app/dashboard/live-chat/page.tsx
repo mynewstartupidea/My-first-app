@@ -65,6 +65,7 @@ const TYPE_LABELS: Record<string, string> = {
   post_purchase_upsell: 'Upsell', win_back: 'Win-back',
   review_request: 'Review', broadcast: 'Campaign',
   lead_ad: 'Lead Form', whatsapp_business_app: 'Sent from phone',
+  unsupported: 'Call attempt',
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
