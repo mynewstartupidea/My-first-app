@@ -14,6 +14,22 @@ type LiveType = 'abandoned_cart' | 'cod_verification' | 'order_confirmation' | '
   | 'win_back' | 'repeat_purchase' | 'replenishment_reminder' | 'vip_milestone'
   | 'welcome_series_1' | 'welcome_series_2' | 'cross_sell'
 
+// Grouping for the Shopify Automations section — a flat 13-card list read
+// as a single undifferentiated wall on both desktop and mobile once the 7
+// lifecycle automations shipped alongside the original 6. Split by what
+// actually triggers each one: a single order's own lifecycle (fires once
+// per order, tied to that order's events) vs. a customer's lifecycle across
+// their whole relationship with the store (fires based on their history,
+// not any one order).
+const ORDER_LIFECYCLE_TYPES: LiveType[] = [
+  'abandoned_cart', 'cod_verification', 'order_confirmation', 'shipping_update',
+  'post_purchase_upsell', 'review_request', 'cross_sell',
+]
+const CUSTOMER_LIFECYCLE_TYPES: LiveType[] = [
+  'welcome_series_1', 'welcome_series_2', 'repeat_purchase', 'replenishment_reminder',
+  'vip_milestone', 'win_back',
+]
+
 interface Automation {
   id: string
   store_id: string
@@ -855,13 +871,34 @@ export default function AutomationsPage() {
             />
           </div>
 
-          {/* Live automations */}
+          {/* Live automations — split into two groups instead of one flat
+              13-card list, which read as an undifferentiated wall on both
+              desktop and mobile once the lifecycle automations shipped. */}
           <div className="mb-6">
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
               <span className="w-2 h-2 bg-emerald-500 rounded-full" /> Shopify Automations
             </h2>
+
+            <h3 className="text-xs font-semibold text-slate-500 mb-1">Per-order</h3>
+            <p className="text-[11px] text-slate-400 mb-3">Fire from one order's own events — confirmation, shipping, recovery.</p>
+            <div className="space-y-3 mb-5">
+              {ORDER_LIFECYCLE_TYPES.map(type => (
+                <AutomationCard
+                  key={type}
+                  type={type}
+                  meta={LIVE_TYPES[type]}
+                  automation={automations.find(a => a.type === type) ?? null}
+                  onSave={handleSave}
+                  whatsappConnected={whatsappConnected}
+                  onNeedsWhatsapp={() => setShowWaPopup(true)}
+                />
+              ))}
+            </div>
+
+            <h3 className="text-xs font-semibold text-slate-500 mb-1">Per-customer</h3>
+            <p className="text-[11px] text-slate-400 mb-3">Fire from a customer's history across every order — win-back, loyalty, reorder timing.</p>
             <div className="space-y-3">
-              {(Object.keys(LIVE_TYPES) as LiveType[]).map(type => (
+              {CUSTOMER_LIFECYCLE_TYPES.map(type => (
                 <AutomationCard
                   key={type}
                   type={type}
