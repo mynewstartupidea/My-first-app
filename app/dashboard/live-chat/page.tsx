@@ -293,7 +293,7 @@ export default function LiveChatPage() {
     const token = ++loadThreadTokenRef.current
     if (!opts.silent) setLoadingThread(true)
     try {
-      const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(phone)}`)
+      const res = await fetch(`/api/live-chat/thread?phone=${encodeURIComponent(phone)}${storeId ? `&storeId=${encodeURIComponent(storeId)}` : ''}`)
       const data = res.ok ? await res.json() as { messages: ChatMsg[]; customer: Customer | null } : { messages: [], customer: null }
       if (loadThreadTokenRef.current !== token) return // superseded by a newer call
       if (!res.ok) {
@@ -343,14 +343,18 @@ export default function LiveChatPage() {
   // Live Chat has no realtime subscription — Supabase RLS on messages/
   // inbound_messages has no team-member carve-out (see threads/route.ts),
   // so a direct client-side postgres_changes subscription would silently
-  // see nothing for anyone but the store owner. Short background polling is
-  // what actually keeps this feeling like a live chat instead of a page
-  // that needs a manual refresh every time a reply comes in. Paused while
-  // the tab isn't visible so it doesn't run forever in a background tab.
+  // see nothing for anyone but the store owner, and a real push transport
+  // (broadcast relay, SSE) is a bigger architecture change than this pass —
+  // not shipping that blind with no way to verify it end-to-end. Short
+  // background polling is what actually keeps this feeling like a live
+  // chat instead of a page that needs a manual refresh every time a reply
+  // comes in; tightened from 4s/2.5s so an inbound reply shows up sooner.
+  // Paused while the tab isn't visible so it doesn't run forever in a
+  // background tab.
   useEffect(() => {
     const id = setInterval(() => {
       if (document.visibilityState === 'visible') loadThreads({ silent: true })
-    }, 4000)
+    }, 2500)
     return () => clearInterval(id)
   }, [loadThreads])
 
@@ -363,7 +367,7 @@ export default function LiveChatPage() {
       // new message yet, wiping the optimistic bubble until the next tick
       // picked it back up (the "message disappears for 2s" bug).
       if (document.visibilityState === 'visible' && !sendInFlightRef.current) loadThread(selected, { silent: true })
-    }, 2500)
+    }, 1200)
     return () => clearInterval(id)
   }, [selected, loadThread])
 
@@ -401,7 +405,7 @@ export default function LiveChatPage() {
       const res = await fetch('/api/live-chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, message: text }),
+        body: JSON.stringify({ phone, message: text, storeId }),
       })
       if (res.ok) {
         await loadThread(phone, { silent: true })

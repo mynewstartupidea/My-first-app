@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { sendStoreWhatsAppText } from '@/lib/send-store-message'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
-import { pickPreferredStore } from '@/lib/store-selection'
+import { resolveStoreFast } from '@/lib/store-selection'
 
 // Sends a freeform WhatsApp reply from Live Chat. Previously the reply box
 // called /api/whatsapp/test, which is a fixed "send yourself the hello_world
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json().catch(() => ({})) as { phone?: string; message?: string }
+  const body = await request.json().catch(() => ({})) as { phone?: string; message?: string; storeId?: string }
   const phone   = (body.phone ?? '').trim()
   const message = (body.message ?? '').trim()
   if (!phone || !message) return NextResponse.json({ error: 'phone and message are required' }, { status: 400 })
@@ -24,18 +24,15 @@ export async function POST(request: Request) {
   // — the raw user.id lookup this used to do always found zero rows for any
   // teammate, so only the org owner could actually send a reply from here;
   // everyone else saw "No store connected" despite WhatsApp being fully
-  // connected for the org. Also switched to the same pickPreferredStore
-  // selection every other Live Chat/Contacts route uses, so this can't pick
-  // a different store than the one the thread list/detail views are scoped
-  // to (which would make a sent reply "vanish" from the conversation).
+  // connected for the org. resolveStoreFast still falls back to the same
+  // full pickPreferredStore selection every other Live Chat/Contacts route
+  // uses when no (or an invalid) storeId hint is given, so this can't pick a
+  // different store than the one the thread list/detail views are scoped to
+  // (which would make a sent reply "vanish" from the conversation) — the
+  // hint just skips the extra round trip on the hot path of every send,
+  // since the client already knows its own storeId by the time it sends.
   const ownerId = await resolveOwnerUserId(service, user.id)
-  const { data: stores } = await service
-    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at')
-    .eq('user_id', ownerId).eq('is_active', true)
-    .order('connected_at', { ascending: false, nullsFirst: false })
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .limit(10)
-  const store = pickPreferredStore(stores)
+  const store = await resolveStoreFast(service, ownerId, body.storeId ?? null)
   if (!store) return NextResponse.json({ error: 'No store connected' }, { status: 400 })
 
   const result = await sendStoreWhatsAppText(service, {

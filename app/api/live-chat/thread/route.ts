@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
-import { pickPreferredStore } from '@/lib/store-selection'
+import { resolveStoreFast } from '@/lib/store-selection'
 import { getUserRole } from '@/lib/get-user-role'
 import { normalizePhone, last10Digits } from '@/lib/whatsapp'
 import { friendlyInboundBody } from '@/lib/inbound-message-label'
 
-// GET /api/live-chat/thread?phone=+91xxx — full message history + customer
-// record for one conversation. See app/api/live-chat/threads/route.ts for
-// why this needed to move off direct client-side queries.
+// GET /api/live-chat/thread?phone=+91xxx&storeId=... — full message history
+// + customer record for one conversation. See app/api/live-chat/threads/
+// route.ts for why this needed to move off direct client-side queries.
+// storeId is an optional hint (the thread list already resolved it moments
+// earlier) — resolveStoreFast verifies it still belongs to this owner
+// before trusting it, falling back to the full resolution otherwise.
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,18 +19,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const phone = searchParams.get('phone')
+  const storeIdHint = searchParams.get('storeId')
   if (!phone) return NextResponse.json({ error: 'phone is required' }, { status: 400 })
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
-
-  const { data: stores } = await service
-    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at')
-    .eq('user_id', ownerId).eq('is_active', true)
-    .order('connected_at', { ascending: false, nullsFirst: false })
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .limit(10)
-  const store = pickPreferredStore(stores)
+  const store = await resolveStoreFast(service, ownerId, storeIdHint)
   if (!store) return NextResponse.json({ messages: [], customer: null })
 
   // Matched by normalized phone, not an exact DB-level string filter —
@@ -102,14 +99,7 @@ export async function DELETE(request: Request) {
 
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
-
-  const { data: stores } = await service
-    .from('stores').select('id, shopify_domain, connected_at, updated_at, created_at')
-    .eq('user_id', ownerId).eq('is_active', true)
-    .order('connected_at', { ascending: false, nullsFirst: false })
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .limit(10)
-  const store = pickPreferredStore(stores)
+  const store = await resolveStoreFast(service, ownerId, null)
   if (!store) return NextResponse.json({ error: 'No store found' }, { status: 404 })
 
   // Same normalized-match reasoning as the GET handler above — an exact
