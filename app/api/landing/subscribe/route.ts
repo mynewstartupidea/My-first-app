@@ -18,6 +18,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PLANS: Record<string, { amountRupees: number; planKey: string; name: string }> = {
   lp_leads:     { amountRupees: 1999, planKey: 'lp_leads_1999_monthly',     name: 'Wapaci — Lead Response Plan (Monthly)' },
   lp_ecommerce: { amountRupees: 1999, planKey: 'lp_ecommerce_1999_monthly', name: 'Wapaci — Ecommerce Plan (Monthly)' },
+  // Homepage serves both segments (unlike the single-industry lp/* pages),
+  // so it uses the same flat price already proven on both of those rather
+  // than inventing a new figure — same reasoning as reusing real stats
+  // instead of new ones elsewhere on the site.
+  homepage:     { amountRupees: 1999, planKey: 'homepage_1999_monthly',     name: 'Wapaci — Homepage Plan (Monthly)' },
 }
 
 export async function POST(request: Request) {
