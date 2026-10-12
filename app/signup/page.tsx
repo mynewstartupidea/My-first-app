@@ -113,7 +113,11 @@ export default function SignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!businessType) { setError('Please select what best describes your business.'); return }
-    if (!teamSize) { setError('Please select your team size.'); return }
+    // team_size is informational only (shown on the admin customer list,
+    // app/admin/page.tsx — already null-safe there) — nothing in onboarding,
+    // billing or feature defaults reads it, so it's not worth making
+    // everyone pick one before they can even see the product, especially on
+    // a long mobile form.
     const digits = phone.replace(/\D/g, '')
     if (digits.length < 10) { setError('Enter a valid phone number with at least 10 digits.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
@@ -337,9 +341,19 @@ export default function SignupPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Team size</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Team size <span className="text-slate-400 font-normal">(optional)</span></label>
                 <CustomSelect value={teamSize} onChange={setTeamSize} options={TEAM_SIZES} buttonClassName="text-sm" />
               </div>
+            </div>
+
+            {/* A long, undifferentiated field-by-field scroll is the main
+                thing that makes this form feel longer than it is on mobile —
+                a visual break here splits it into "about your business"
+                (above) and "your login" (below) instead of one flat list. */}
+            <div className="flex items-center gap-3 pt-1">
+              <div className="h-px flex-1 bg-slate-100" />
+              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Your login</span>
+              <div className="h-px flex-1 bg-slate-100" />
             </div>
 
             {/* Email */}

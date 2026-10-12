@@ -588,7 +588,7 @@ export default function AdminPage() {
                                 </div>
                               </div>
                               <div className="mt-3 flex items-center gap-3 flex-wrap">
-                                <p className="text-slate-500 text-[10px]">Team size: {u.team_size ?? '—'} · Company: {u.company_name ?? '—'} · Joined: {fmtDate(u.signed_up_at)}</p>
+                                <p className="text-slate-500 text-[10px]">Team size: {u.team_size || '—'} · Company: {u.company_name ?? '—'} · Joined: {fmtDate(u.signed_up_at)}</p>
                               </div>
                             </td>
                           </tr>
