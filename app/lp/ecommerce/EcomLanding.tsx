@@ -23,9 +23,7 @@ function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-4 bg-[#030812]/80 backdrop-blur-md border-b border-white/5">
       <Link href="/" className="flex items-center gap-2.5 group">
-        <div className="w-8 h-8 bg-[#25D366] rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20 group-hover:scale-105 transition">
-          <MessageCircle className="w-4 h-4 text-white" />
-        </div>
+        <img src="/logo-square.svg" alt="Wapaci" className="w-8 h-8 rounded-xl shadow-lg shadow-green-500/20 group-hover:scale-105 transition" />
         <span className="text-white font-bold text-lg">Wapaci</span>
       </Link>
       <a href="#get-started" className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-lg shadow-green-500/30 hover:scale-[1.03] active:scale-[0.98]">

@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Zap,
   FileText, BarChart2, Code2, Sparkles,
-  Settings, LogOut, MessageCircle, Store,
+  Settings, LogOut, Store,
   ChevronRight, LifeBuoy, Plug, UserPlus, ShoppingBag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -99,9 +99,7 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner', v
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/[0.06] flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-[#25D366] rounded-lg flex items-center justify-center flex-shrink-0">
-            <MessageCircle size={17} className="text-white" />
-          </div>
+          <img src="/logo-square.svg" alt="Wapaci" className="w-8 h-8 rounded-lg flex-shrink-0" />
           <div>
             <span className="text-white font-bold text-base leading-none tracking-tight">Wapaci</span>
             <p className="text-slate-500 text-[9px] mt-0.5 tracking-widest uppercase">WhatsApp Revenue</p>

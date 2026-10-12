@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Shield, Loader2, AlertCircle, MessageCircle, Lock, Mail } from 'lucide-react'
+import { Shield, Loader2, AlertCircle, Lock, Mail } from 'lucide-react'
 import { Suspense } from 'react'
 
 function AdminLoginInner() {
@@ -53,9 +53,7 @@ function AdminLoginInner() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-[#25D366] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/20">
-            <MessageCircle className="w-7 h-7 text-white" />
-          </div>
+          <img src="/logo-square.svg" alt="Wapaci" className="w-14 h-14 rounded-2xl mx-auto mb-4 shadow-lg shadow-green-500/20" />
           <h1 className="text-white font-bold text-2xl">Wapaci Admin</h1>
           <p className="text-slate-500 text-sm mt-1">Restricted access — authorised personnel only</p>
         </div>

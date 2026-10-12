@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { MessageCircle, Check, Loader2, Star, Zap, Building2 } from 'lucide-react'
+import { Check, Loader2, Star, Zap, Building2 } from 'lucide-react'
 import { SHOPIFY_PLANS, TRIAL_DAYS, TRIAL_MESSAGES } from '@/lib/shopify-billing'
 import Link from 'next/link'
 
@@ -50,9 +50,7 @@ function PricingContent() {
       {/* Header */}
       <div className="text-center mb-10">
         <Link href="/" className="inline-flex items-center gap-2 mb-6">
-          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg">
-            <MessageCircle className="w-6 h-6 text-[#25D366]" />
-          </div>
+          <img src="/logo-square.svg" alt="Wapaci" className="w-10 h-10 rounded-xl shadow-lg" />
           <span className="text-white text-xl font-bold">Wapaci</span>
         </Link>
         <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">

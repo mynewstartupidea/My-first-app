@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAppUrl } from '@/lib/get-app-url'
-import { MessageCircle, Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import AuthMarketingPanel, { AuthMobileHeader } from '@/components/auth-marketing-panel'
 
@@ -290,9 +290,7 @@ function LoginForm() {
       <div className="min-h-screen bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-xl mb-4">
-              <MessageCircle className="w-9 h-9 text-[#25D366]" />
-            </div>
+            <img src="/logo-square.svg" alt="Wapaci" className="w-16 h-16 rounded-2xl shadow-xl mb-4 mx-auto" />
             <h1 className="text-3xl font-bold text-white">Wapaci</h1>
           </div>
 

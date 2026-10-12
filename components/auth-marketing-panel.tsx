@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, ShoppingCart, Zap, Package, BarChart3 } from 'lucide-react'
+import { ShoppingCart, Zap, Package, BarChart3 } from 'lucide-react'
 
 // Real numbers already live on the homepage (components/landing/social-proof.tsx,
 // components/landing/hero.tsx) — reused here rather than inventing new ones,
@@ -41,9 +41,7 @@ export default function AuthMarketingPanel() {
           taller than the content itself. */}
       <div className="relative z-10">
         <Link href="/" className="inline-flex items-center gap-2.5 group">
-          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition flex-shrink-0">
-            <MessageCircle className="w-6 h-6 text-[#25D366]" />
-          </div>
+          <img src="/logo-square.svg" alt="Wapaci" className="w-10 h-10 rounded-xl shadow-lg group-hover:scale-105 transition flex-shrink-0" />
           <span className="text-white font-bold text-xl">Wapaci</span>
         </Link>
 
@@ -93,9 +91,7 @@ export function AuthMobileHeader() {
     <div className="lg:hidden bg-gradient-to-br from-[#075E54] via-[#128C7E] to-[#25D366] px-6 pt-8 pb-9 text-center rounded-b-[2rem] relative overflow-hidden">
       <div className="absolute -top-16 -right-16 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
       <Link href="/" className="relative z-10 inline-flex items-center gap-2">
-        <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-          <MessageCircle className="w-5 h-5 text-[#25D366]" />
-        </div>
+        <img src="/logo-square.svg" alt="Wapaci" className="w-9 h-9 rounded-lg flex-shrink-0" />
         <span className="text-white font-bold text-lg">Wapaci</span>
       </Link>
       <p className="relative z-10 text-green-100/80 text-xs mt-2">340+ businesses growing on WhatsApp</p>

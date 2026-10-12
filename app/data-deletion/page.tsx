@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { MessageCircle } from 'lucide-react'
 
 export const metadata = {
   title: 'Data Deletion – Wapaci',
@@ -11,9 +10,7 @@ function NavBar() {
     <header className="bg-[#0a0f1a]/90 backdrop-blur-xl border-b border-white/5">
       <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 bg-[#25D366] rounded-xl flex items-center justify-center shadow-lg shadow-green-500/30 group-hover:scale-105 transition">
-            <MessageCircle className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo-square.svg" alt="Wapaci" className="w-9 h-9 rounded-xl shadow-lg shadow-green-500/30 group-hover:scale-105 transition" />
           <span className="text-white font-bold text-xl tracking-tight">Wapaci</span>
         </Link>
         <Link

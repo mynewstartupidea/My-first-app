@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  MessageCircle, Loader2, AlertCircle, ArrowRight, CheckCircle2,
+  Loader2, AlertCircle, ArrowRight, CheckCircle2,
 } from 'lucide-react'
 import Link from 'next/link'
 import CustomSelect from '@/components/custom-select'

@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { MessageCircle } from 'lucide-react'
 
 export default function Footer() {
   return (
@@ -9,9 +8,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="md:col-span-2">
             <Link href="/" className="flex items-center gap-2.5 mb-3 group w-fit">
-              <div className="w-9 h-9 bg-[#25D366] rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20 group-hover:scale-105 transition">
-                <MessageCircle className="w-5 h-5 text-white" />
-              </div>
+              <img src="/logo-square.svg" alt="Wapaci" className="w-9 h-9 rounded-xl shadow-lg shadow-green-500/20 group-hover:scale-105 transition" />
               <span className="text-white font-bold text-xl">Wapaci</span>
             </Link>
             <p className="text-slate-500 text-sm max-w-xs leading-relaxed">
