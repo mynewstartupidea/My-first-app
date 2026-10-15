@@ -3365,6 +3365,17 @@ function LeadsContent() {
   const [pickedPageIds,  setPickedPageIds]  = useState<Set<string>>(new Set())
   const [confirmingPick, setConfirmingPick] = useState(false)
   const [verifiedWaName, setVerifiedWaName] = useState<string | null>(null)
+  // Only relevant once the account already has an active page (the other
+  // PagePickerModal render site, inside the "no page connected yet" empty
+  // state, has no such gate — pendingPages existing there is reason enough
+  // on its own). Set true only right after the merchant actually went
+  // through Connect/Reconnect Facebook (fb=connected|choose_pages below) —
+  // without it, ANY leftover pending row (one they already dismissed, or
+  // Facebook simply granting access to more of their pages over time) force-
+  // popped this modal on every single visit to this page, even though
+  // picking a second page isn't something the single-page-per-WhatsApp-
+  // number model even allows them to do.
+  const [justReconnectedFacebook, setJustReconnectedFacebook] = useState(false)
 
   // Fetched once, right when the picker is about to show (not per-keystroke)
   // — for PagePickerModal's business-mismatch warning.
@@ -3438,7 +3449,19 @@ function LeadsContent() {
     try { sessionStorage.setItem('_wpl_pages', JSON.stringify(p)) } catch {}
     const pend = (d.pending ?? []).map(x => ({ ...x, store_id: null }))
     setPendingPages(pend)
-    setPickedPageIds(new Set(pend.map(x => x.page_id)))
+    // Was pre-selecting EVERY pending page at once — PagePickerModal is a
+    // single-select radio group (name="fb-page-pick"), so a native radio
+    // group with multiple inputs all given checked=true collapses to
+    // whichever one the browser happens to render last as "checked", with
+    // no relation to what the merchant actually wants. Worse: if someone
+    // clicked "Connect this page" without first clicking a specific radio
+    // (reasonably assuming the pre-checked one WAS their selection),
+    // pickedPageIds was still the full set underneath, submitting every
+    // pending page as "selected" at once — exactly what the single-select
+    // UI exists to prevent. Starting empty forces an explicit click, which
+    // already correctly narrows to one id (see the radio's onChange below),
+    // and keeps "Connect this page" correctly disabled until they do.
+    setPickedPageIds(new Set())
     return p
   }, [])
 
@@ -3565,8 +3588,10 @@ function LeadsContent() {
       if (fb === 'connected') {
         const n = searchParams.get('pages') ?? '0'
         setBanner({ type: 'success', msg: `${n} Facebook page${+n !== 1 ? 's' : ''} connected` })
+        setJustReconnectedFacebook(true)
         router.replace('/dashboard/leads')
       } else if (fb === 'choose_pages') {
+        setJustReconnectedFacebook(true)
         router.replace('/dashboard/leads')
       } else if (fb === 'denied') {
         setBanner({ type: 'error', msg: 'Facebook connection was cancelled.' })
@@ -4776,7 +4801,7 @@ function LeadsContent() {
         from the true viewport top — on a long scrolled page, opening the call-log
         sheet would show its middle/bottom instead of its header until you scrolled
         the page itself back up to reveal it. */}
-    {pendingPages.length > 0 && (
+    {pendingPages.length > 0 && justReconnectedFacebook && (
         <PagePickerModal
           pendingPages={pendingPages}
           pickedPageIds={pickedPageIds}
