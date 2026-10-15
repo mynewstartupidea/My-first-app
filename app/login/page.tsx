@@ -7,6 +7,7 @@ import { getAppUrl } from '@/lib/get-app-url'
 import { Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import AuthMarketingPanel, { AuthMobileHeader } from '@/components/auth-marketing-panel'
+import PasswordInput from '@/components/password-input'
 
 type Mode = 'signin' | 'signup' | 'forgot'
 
@@ -308,8 +309,7 @@ function LoginForm() {
             <form onSubmit={handleSetPassword} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">New password</label>
-                <input
-                  type="password"
+                <PasswordInput
                   required
                   minLength={6}
                   value={newPassword}
@@ -321,8 +321,7 @@ function LoginForm() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm password</label>
-                <input
-                  type="password"
+                <PasswordInput
                   required
                   minLength={6}
                   value={confirmPassword}
@@ -405,8 +404,7 @@ function LoginForm() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">New password</label>
-                <input
-                  type="password"
+                <PasswordInput
                   required
                   minLength={6}
                   value={newPassword}
@@ -417,8 +415,7 @@ function LoginForm() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm password</label>
-                <input
-                  type="password"
+                <PasswordInput
                   required
                   minLength={6}
                   value={confirmPassword}
@@ -462,8 +459,7 @@ function LoginForm() {
               {mode !== 'forgot' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     required
                     minLength={6}
                     value={password}

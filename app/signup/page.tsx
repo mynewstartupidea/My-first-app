@@ -9,6 +9,7 @@ import {
 import Link from 'next/link'
 import CustomSelect from '@/components/custom-select'
 import AuthMarketingPanel, { AuthMobileHeader } from '@/components/auth-marketing-panel'
+import PasswordInput from '@/components/password-input'
 
 const TEAM_SIZES = [
   { value: 'just_me',  label: 'Just me' },
@@ -374,9 +375,8 @@ export default function SignupPage() {
             {/* Password */}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
-              <input
+              <PasswordInput
                 required
-                type="password"
                 minLength={6}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
