@@ -248,11 +248,22 @@ export default async function DashboardPage() {
       : service.from('automation_jobs').select('customer_phone, sent_at')
           .eq('store_id', store.id).eq('type', 'lead_ad').eq('status', 'sent')
           .gte('sent_at', thirtyDaysAgo).order('sent_at', { ascending: true }),
-    // Lead Sources breakdown is deliberately NOT page-scoped like leadStats
-    // above — non-Facebook sources (walk-in, referral, channel partner,
-    // landing page) have no page_id at all, so filtering by defaultPageId
-    // would silently exclude every one of them and always show 100% Facebook.
-    isEcommerce ? Promise.resolve({ data: [] }) : service.from('leads').select('source').eq('user_id', ownerId),
+    // Was deliberately NOT page-scoped like leadStats above, on the
+    // reasoning that non-Facebook sources (walk-in, referral, channel
+    // partner, landing page) have no page_id and would be silently
+    // excluded by filtering on defaultPageId. That's only true for a plain
+    // .eq('page_id', defaultPageId) — the same .or(page_id.eq.X,
+    // page_id.is.null) pattern leadStats already uses correctly includes
+    // every page-less lead (every non-Facebook source) while only
+    // excluding Facebook leads tied to a DIFFERENT, no-longer-connected
+    // page. Verified live: one real account had 469 total here vs 20 on
+    // Total Leads — 449 of those were sitting under two Facebook pages
+    // that aren't the active connection anymore (stale from before the
+    // single-page-per-WhatsApp-number restriction), not an inflated count
+    // of real current leads.
+    isEcommerce ? Promise.resolve({ data: [] }) : defaultPageId
+      ? service.from('leads').select('source').eq('user_id', ownerId).or(`page_id.eq.${defaultPageId},page_id.is.null`)
+      : service.from('leads').select('source').eq('user_id', ownerId).is('page_id', null),
 
     // Ecommerce-only — same queries already proven correct on /dashboard/shopify
     // (shopify_orders/shopify_abandoned_checkouts get written by the webhook
@@ -382,8 +393,10 @@ export default async function DashboardPage() {
     .filter(o => o.count > 0)
 
   // Lead Sources — which channel actually brings leads in, across every
-  // source (Facebook, landing page, walk-in, referral, channel partner), not
-  // just the Facebook-page-scoped totals above.
+  // source (Facebook, landing page, walk-in, referral, channel partner).
+  // Scoped the same way Total Leads is (see leadSourcesRes above) — this
+  // used to be unscoped and could include Facebook leads from pages that
+  // aren't the current connection anymore.
   const SOURCE_META: Record<string, { label: string; color: string; dot: string }> = {
     facebook_lead_ad: { label: 'Facebook',        color: 'bg-blue-500',   dot: 'bg-blue-500' },
     landing_page:      { label: 'Landing Page',    color: 'bg-purple-500', dot: 'bg-purple-500' },
