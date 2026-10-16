@@ -212,20 +212,27 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
   // was on, completely disconnected from the merchant's configured
   // discount_value and from any code that actually exists in their Shopify
   // store — a customer offered "25% off with SAVE10" for a code that either
-  // doesn't exist or is a different percentage. No Shopify discount/price-
-  // rule API integration exists in this codebase yet to create a real one,
-  // so until that's built, don't promise a code that isn't real.
+  // doesn't exist or is a different percentage. Now only real: discount_code
+  // is a code the merchant has actually created in their own Shopify store
+  // (Settings → Discounts), and rather than ask the customer to type it in —
+  // friction, and typos silently lose the discount — it's appended as
+  // Shopify's own ?discount= query param, which Shopify auto-applies the
+  // moment the customer lands on checkout. One click, discount already on.
+  const discountCode = auto.discount_code?.trim() && auto.discount_enabled ? auto.discount_code.trim() : ''
+  const cartUrl = discountCode && checkoutUrl
+    ? `${checkoutUrl}${checkoutUrl.includes('?') ? '&' : '?'}discount=${encodeURIComponent(discountCode)}`
+    : checkoutUrl
   const vars: Record<string, string> = {
     name:           firstName,
     shop_name:      store.shop_name ?? 'our store',
-    cart_url:       checkoutUrl,
-    discount_code:  '',
+    cart_url:       cartUrl,
+    discount_code:  discountCode,
     discount_value: String(auto.discount_value ?? 10),
     // '' is falsy to renderTemplate's {{#discount}}...{{/discount}} check —
     // a template using that section to wrap its discount-code mention now
     // correctly omits the whole thing instead of printing it with a blank
     // code, instead of leaking raw {{#discount}} markup as before.
-    discount:       '',
+    discount:       discountCode,
   }
 
   const message = renderTemplate(auto.template, vars)
@@ -263,7 +270,7 @@ async function handleCheckout(supabase: ReturnType<typeof createServiceClient>, 
       // Stored as a string (not the raw JSON number) so the .contains()
       // dedup check above — which always compares against String(id) —
       // actually matches it; JSONB containment is type-sensitive.
-      context:        { checkout_id: String(checkout.id), line_items: lineItems.length, checkout_url: checkoutUrl, ...waTemplateFields(auto, auto.template, vars) },
+      context:        { checkout_id: String(checkout.id), line_items: lineItems.length, checkout_url: cartUrl, ...waTemplateFields(auto, auto.template, vars) },
       status:         'pending',
       scheduled_at:   scheduledAt,
     })

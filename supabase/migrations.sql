@@ -1300,3 +1300,14 @@ CREATE INDEX IF NOT EXISTS messages_store_phone_last10_idx ON messages(store_id,
 ALTER TABLE inbound_messages ADD COLUMN IF NOT EXISTS from_phone_last10 TEXT
   GENERATED ALWAYS AS (right(regexp_replace(from_phone, '\D', '', 'g'), 10)) STORED;
 CREATE INDEX IF NOT EXISTS inbound_messages_store_phone_last10_idx ON inbound_messages(store_id, from_phone_last10);
+
+-- Abandoned Cart Recovery's "Include discount code" checkbox + % input
+-- already existed but were never actually wired to anything real — no
+-- discount_code column existed to hold the merchant's real Shopify
+-- discount code, so nothing was ever sent to a customer regardless of the
+-- toggle. Storing the code here lets the webhook handler append
+-- ?discount=<code> to the real Shopify checkout recovery URL, which
+-- Shopify auto-applies at checkout — the customer gets the discount the
+-- moment they tap the link, no code to type, no separate Meta template
+-- variable/re-approval needed since the message text itself is unchanged.
+ALTER TABLE automations ADD COLUMN IF NOT EXISTS discount_code TEXT;

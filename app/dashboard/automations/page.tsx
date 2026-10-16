@@ -39,6 +39,7 @@ interface Automation {
   template: string
   discount_enabled: boolean
   discount_value: number
+  discount_code: string | null
 }
 
 const LIVE_TYPES: Record<LiveType, {
@@ -206,6 +207,7 @@ function AutomationCard({
   const [template, setTemplate]           = useState(automation?.template ?? meta.defaultTemplate)
   const [discountEnabled, setDiscountEnabled] = useState(automation?.discount_enabled ?? false)
   const [discountValue, setDiscountValue] = useState(automation?.discount_value ?? 10)
+  const [discountCode, setDiscountCode]   = useState(automation?.discount_code ?? '')
   const [saving, setSaving]               = useState(false)
   const [saved, setSaved]                 = useState(false)
 
@@ -220,15 +222,16 @@ function AutomationCard({
     setTemplate(automation?.template ?? meta.defaultTemplate)
     setDiscountEnabled(automation?.discount_enabled ?? false)
     setDiscountValue(automation?.discount_value ?? 10)
+    setDiscountCode(automation?.discount_code ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [automation?.is_enabled, automation?.delay_minutes, automation?.template, automation?.discount_enabled, automation?.discount_value])
+  }, [automation?.is_enabled, automation?.delay_minutes, automation?.template, automation?.discount_enabled, automation?.discount_value, automation?.discount_code])
 
   async function handleToggle() {
     if (!displayEnabled && !whatsappConnected) { onNeedsWhatsapp(); return }
     const newEnabled = !enabled
     setEnabled(newEnabled)
     setSaving(true)
-    await onSave({ type, is_enabled: newEnabled, delay_minutes: delay, template, discount_enabled: discountEnabled, discount_value: discountValue })
+    await onSave({ type, is_enabled: newEnabled, delay_minutes: delay, template, discount_enabled: discountEnabled, discount_value: discountValue, discount_code: discountCode })
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -236,7 +239,7 @@ function AutomationCard({
 
   async function save() {
     setSaving(true)
-    await onSave({ type, is_enabled: enabled, delay_minutes: delay, template, discount_enabled: discountEnabled, discount_value: discountValue })
+    await onSave({ type, is_enabled: enabled, delay_minutes: delay, template, discount_enabled: discountEnabled, discount_value: discountValue, discount_code: discountCode })
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -310,10 +313,20 @@ function AutomationCard({
                 Include discount code
               </label>
               {discountEnabled && (
-                <div className="flex items-center gap-2 mt-1">
-                  <input type="number" value={discountValue} min={1} max={100} onChange={e => setDiscountValue(Number(e.target.value))}
-                    className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
-                  <span className="text-sm text-slate-500">% off</span>
+                <div className="space-y-2 mt-1">
+                  <div className="flex items-center gap-2">
+                    <input type="number" value={discountValue} min={1} max={100} onChange={e => setDiscountValue(Number(e.target.value))}
+                      className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
+                    <span className="text-sm text-slate-500">% off</span>
+                  </div>
+                  <div>
+                    <input type="text" value={discountCode} placeholder="e.g. SAVE10"
+                      onChange={e => setDiscountCode(e.target.value.toUpperCase())}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono uppercase" />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Must already exist in your Shopify admin (Discounts). We append it to the recovery link so it&apos;s applied automatically the moment they tap it — nothing for the customer to type.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
