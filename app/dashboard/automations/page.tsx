@@ -263,6 +263,14 @@ function AutomationCard({
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Live
               </span>
             )}
+            {/* Visible without expanding the card — the field itself is a
+                couple of clicks deep, so anyone who's configured a code
+                should be able to confirm that at a glance from the list. */}
+            {type === 'abandoned_cart' && discountEnabled && discountCode && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">
+                <Tag size={10} /> {discountCode}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5 truncate">{meta.description}</p>
           <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
@@ -291,6 +299,36 @@ function AutomationCard({
       {/* Expanded config */}
       {expanded && (
         <div className="border-t border-slate-100 p-5 space-y-4">
+          {/* Discount — shown first and always visible once expanded (not
+              gated behind a separate checkbox reveal) since this is the
+              setting most directly tied to actually driving a sale. */}
+          {type === 'abandoned_cart' && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <Tag size={13} className="text-amber-600" /> Discount code
+                </label>
+                <button type="button" onClick={() => setDiscountEnabled(v => !v)}
+                  className={cn('relative h-5 w-9 rounded-full transition-colors flex-shrink-0', discountEnabled ? 'bg-[#25D366]' : 'bg-slate-200')}>
+                  <span className={cn('absolute top-1 h-3 w-3 rounded-full bg-white shadow transition-all', discountEnabled ? 'left-5' : 'left-1')} />
+                </button>
+              </div>
+              <div className={cn('space-y-2 mt-3', !discountEnabled && 'opacity-50 pointer-events-none')}>
+                <div className="flex items-center gap-2">
+                  <input type="number" value={discountValue} min={1} max={100} onChange={e => setDiscountValue(Number(e.target.value))}
+                    className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono bg-white" />
+                  <span className="text-sm text-slate-500">% off</span>
+                </div>
+                <input type="text" value={discountCode} placeholder="e.g. SAVE10"
+                  onChange={e => setDiscountCode(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono uppercase bg-white" />
+                <p className="text-[11px] text-slate-500">
+                  Must already exist in your Shopify admin (Discounts). We append it to the recovery link so it&apos;s applied automatically the moment they tap it — nothing for the customer to type.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Delay */}
           {meta.defaultDelay > 0 && (
             <div>
@@ -301,34 +339,6 @@ function AutomationCard({
                 <span className="text-sm text-slate-500">minutes</span>
                 <span className="text-xs text-slate-400">({delay >= 60 ? `${Math.round(delay / 60)}h` : `${delay}m`} after trigger)</span>
               </div>
-            </div>
-          )}
-
-          {/* Discount */}
-          {type === 'abandoned_cart' && (
-            <div>
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 cursor-pointer">
-                <input type="checkbox" checked={discountEnabled} onChange={e => setDiscountEnabled(e.target.checked)}
-                  className="rounded border-slate-300 text-[#25D366] focus:ring-[#25D366]" />
-                Include discount code
-              </label>
-              {discountEnabled && (
-                <div className="space-y-2 mt-1">
-                  <div className="flex items-center gap-2">
-                    <input type="number" value={discountValue} min={1} max={100} onChange={e => setDiscountValue(Number(e.target.value))}
-                      className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono" />
-                    <span className="text-sm text-slate-500">% off</span>
-                  </div>
-                  <div>
-                    <input type="text" value={discountCode} placeholder="e.g. SAVE10"
-                      onChange={e => setDiscountCode(e.target.value.toUpperCase())}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 font-mono uppercase" />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Must already exist in your Shopify admin (Discounts). We append it to the recovery link so it&apos;s applied automatically the moment they tap it — nothing for the customer to type.
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
