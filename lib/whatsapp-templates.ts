@@ -107,7 +107,14 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     category:    'MARKETING',
     type:        'ecommerce',
     description: 'Abandoned cart recovery — nudge a customer back to checkout',
-    body:        'Hi {{1}}! 👋 You left something in your cart at {{2}}. Your items are waiting — complete your purchase here: {{3}}',
+    // Meta rejects a body ending right on a variable with nothing after it
+    // ("Variables can't be at the start or end of the template" —
+    // error_subcode 2388299, confirmed live) — this used to end on {{3}},
+    // so it was never actually approved despite being in this list for
+    // weeks. Now matches bodyPreview's trailing sentence, which also fixes
+    // a pre-existing mismatch where the real delivered message (built from
+    // this field) didn't match what the dashboard previewed to merchants.
+    body:        'Hi {{1}}! 👋 You left something in your cart at {{2}}.\n\nYour items are waiting! Complete your purchase here:\n{{3}}\n\nHurry — items may sell out!',
     bodyPreview: 'Hi {{name}}! 👋 You left something in your cart at {{shop_name}}.\n\nYour items are waiting! Complete your purchase here:\n{{cart_url}}\n\nHurry — items may sell out!',
     vars:        ['name', 'shop_name', 'cart_url'],
     example:     [['John', "Priya's Boutique", 'yourstore.com/cart/abc123']],
@@ -129,7 +136,9 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     category:    'UTILITY',
     type:        'ecommerce',
     description: 'Order confirmation — instant WhatsApp receipt when an order is placed',
-    body:        'Hi {{1}}! 🎉 Your order #{{2}} is confirmed at {{3}}. We will notify you once it ships. Track your order: {{4}}',
+    // Same trailing-variable rejection as abandoned_cart above — this ended
+    // on {{4}} with nothing after it, so it was never actually approved.
+    body:        'Hi {{1}}! 🎉 Your order #{{2}} is confirmed at {{3}}.\n\nWe\'ll send you shipping details soon. Track your order:\n{{4}}\n\nThank you for shopping with us!',
     bodyPreview: 'Hi {{name}}! 🎉 Your order #{{order_number}} is confirmed at {{shop_name}}.\n\nWe\'ll send you shipping details soon. Track your order:\n{{order_url}}\n\nThank you for shopping with us!',
     vars:        ['name', 'order_number', 'shop_name', 'order_url'],
     example:     [['John', '1234', "Priya's Boutique", 'yourstore.com/orders/1234']],
@@ -140,7 +149,9 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     category:    'UTILITY',
     type:        'ecommerce',
     description: 'Shipping update — notify with tracking once an order is fulfilled',
-    body:        'Hi {{1}}! 📦 Your order #{{2}} from {{3}} has been shipped! Track it here: {{4}}',
+    // Same trailing-variable rejection as abandoned_cart above — this ended
+    // on {{4}} with nothing after it, so it was never actually approved.
+    body:        'Hi {{1}}! 📦 Your order #{{2}} from {{3}} has been shipped!\n\nTrack your delivery:\n{{4}}\n\nExpected delivery in 3–5 business days.',
     bodyPreview: 'Hi {{name}}! 📦 Your order #{{order_number}} from {{shop_name}} has been shipped!\n\nTrack your delivery:\n{{tracking_url}}\n\nExpected delivery in 3–5 business days.',
     vars:        ['name', 'order_number', 'shop_name', 'tracking_url'],
     example:     [['John', '1234', "Priya's Boutique", 'track.link/xyz']],
