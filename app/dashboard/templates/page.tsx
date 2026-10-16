@@ -559,9 +559,9 @@ export default function TemplatesPage() {
   const [updatingMeta, setUpdatingMeta]         = useState(false)
   const [submittingId, setSubmittingId]         = useState<string | null>(null)
 
-  const showToast = (msg: string, ok = true) => {
+  const showToast = (msg: string, ok = true, durationMs = 4000) => {
     setToast({ msg, ok })
-    setTimeout(() => setToast(null), 4000)
+    setTimeout(() => setToast(null), durationMs)
   }
 
   // Via api/templates (resolves to the org owner) rather than querying
@@ -693,13 +693,31 @@ export default function TemplatesPage() {
       const r = await fetch('/api/whatsapp/templates', { method: 'POST' })
       const d = await r.json() as { results?: { name: string; status: string }[]; error?: string }
       if (d.error) { showToast(d.error, false); return }
-      const failed     = d.results?.filter(x => x.status === 'failed') ?? []
+      const results     = d.results ?? []
+      const failed       = results.filter(x => x.status === 'failed')
       // Meta's own delete hadn't finished propagating yet for this template
       // when the re-submit ran — not a real failure, and not a WhatsApp
       // connection problem. Clicking Update on Meta again shortly resolves it.
-      const retryLater = d.results?.filter(x => x.status === 'retry_later') ?? []
+      const retryLater   = results.filter(x => x.status === 'retry_later')
+      const succeeded     = results.length - failed.length - retryLater.length
       if (failed.length) {
-        showToast(`${failed.length} template(s) failed to update. Check WhatsApp connection.`, false)
+        // This used to read "N template(s) failed to update. Check WhatsApp
+        // connection." — wrong and alarming on two counts: a handful of
+        // genuine per-template rejections from Meta (e.g. a template whose
+        // body text contains a link, which Meta's review commonly blocks)
+        // has nothing to do with the WhatsApp connection, and updateStarterTemplates
+        // runs every template in parallel, so "N failed" with no success
+        // count read as if the whole update — including the merchant's
+        // already-approved, currently-working templates — had broken.
+        // Those are never touched by someone else's failure; say so plainly,
+        // name exactly which ones need a look, and give it enough time on
+        // screen to actually be read instead of vanishing in 4s.
+        const names = failed.map(f => f.name.replace(/^wapaci_/, '').replace(/_/g, ' ')).join(', ')
+        showToast(
+          `${succeeded ? `${succeeded} template(s) updated. ` : ''}${failed.length} couldn't be submitted and need a look: ${names}. Your other templates are untouched and still working — contact support@wapaci.com for these.`,
+          false,
+          9000,
+        )
       } else if (retryLater.length) {
         showToast(`${retryLater.length} template(s) are still finishing a previous update on Meta's side — try again in a minute.`, false)
       } else {
