@@ -109,6 +109,37 @@ export async function POST(request: Request) {
       .limit(10)
     const existing = pickPreferredStore(existingStores)
 
+    // stores.shopify_domain has a unique constraint with no RLS/ownership
+    // scoping — a disconnected store (is_active: false) from a past test,
+    // a different account, or even an earlier failed attempt by this same
+    // merchant keeps permanently holding that domain forever unless
+    // something explicitly releases it. Confirmed live: a store from an
+    // unrelated account, disconnected back in June, still blocked a brand
+    // new connection attempt to the exact same domain with an opaque
+    // "could not save your store" error — the real cause (a Postgres
+    // unique-constraint violation) was never surfaced.
+    const { data: domainHolder } = await service
+      .from('stores').select('id, user_id, is_active')
+      .eq('shopify_domain', shop)
+      .neq('id', existing?.id ?? '00000000-0000-0000-0000-000000000000')
+      .maybeSingle()
+    if (domainHolder) {
+      if (domainHolder.is_active) {
+        throw new ShopifyConnectionError(
+          'SHOPIFY_API_ERROR',
+          `${shop} is already connected to a different Wapaci account. Disconnect it there first, or contact support@wapaci.com if that's unexpected.`,
+        )
+      }
+      // Stale/disconnected — release its claim on this domain so the real
+      // connection below can take it. The row itself is left alone
+      // otherwise; it's an inactive store, not being deleted here.
+      const { error: releaseErr } = await service.from('stores').update({ shopify_domain: null }).eq('id', domainHolder.id)
+      if (releaseErr) {
+        console.error('[shopify/custom-app/connect] failed to release stale domain holder:', releaseErr.message)
+        throw new ShopifyConnectionError('SHOPIFY_API_ERROR', "Couldn't connect this store — please try again or contact support@wapaci.com.")
+      }
+    }
+
     let storeId: string
     if (existing) {
       const { data, error } = await service.from('stores').update(payload).eq('id', existing.id).select('id').single()
