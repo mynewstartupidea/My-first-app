@@ -118,12 +118,21 @@ export async function POST(request: Request) {
     // new connection attempt to the exact same domain with an opaque
     // "could not save your store" error — the real cause (a Postgres
     // unique-constraint violation) was never surfaced.
-    const { data: domainHolder } = await service
-      .from('stores').select('id, user_id, is_active')
-      .eq('shopify_domain', shop)
-      .neq('id', existing?.id ?? '00000000-0000-0000-0000-000000000000')
-      .maybeSingle()
-    if (domainHolder) {
+    //
+    // This check-then-release-then-write isn't atomic, so two connect
+    // requests for the exact same domain within milliseconds of each other
+    // could both pass the check before either writes. That's fine — the
+    // real unique constraint still catches it at the write below, and
+    // releaseStaleDomainHolder() is re-run with fresh data on that specific
+    // conflict so the retry sees who actually won and behaves correctly
+    // either way, instead of silently racing.
+    async function releaseStaleDomainHolder(excludeId: string | undefined) {
+      const { data: domainHolder } = await service
+        .from('stores').select('id, user_id, is_active')
+        .eq('shopify_domain', shop)
+        .neq('id', excludeId ?? '00000000-0000-0000-0000-000000000000')
+        .maybeSingle()
+      if (!domainHolder) return
       if (domainHolder.is_active) {
         throw new ShopifyConnectionError(
           'SHOPIFY_API_ERROR',
@@ -139,23 +148,29 @@ export async function POST(request: Request) {
         throw new ShopifyConnectionError('SHOPIFY_API_ERROR', "Couldn't connect this store — please try again or contact support@wapaci.com.")
       }
     }
+    await releaseStaleDomainHolder(existing?.id)
 
-    let storeId: string
-    if (existing) {
-      const { data, error } = await service.from('stores').update(payload).eq('id', existing.id).select('id').single()
+    async function writeStore(attempt: number): Promise<string> {
+      const { data, error } = existing
+        ? await service.from('stores').update(payload).eq('id', existing.id).select('id').single()
+        : await service.from('stores').insert({ user_id: ownerId, ...payload }).select('id').single()
       if (error || !data) {
-        console.error('[shopify/custom-app/connect] store update failed:', error?.message)
+        // 23505 on shopify_domain here means the pre-check above lost a
+        // genuine race to another request. Re-check who holds the domain
+        // now (fresh read) and retry exactly once — if that other request
+        // was for a different, still-active account, this correctly surfaces
+        // the "already connected elsewhere" message instead of retrying
+        // blindly; if it was stale, the retry proceeds normally.
+        if (error?.code === '23505' && error.message.includes('shopify_domain') && attempt === 0) {
+          await releaseStaleDomainHolder(existing?.id)
+          return writeStore(attempt + 1)
+        }
+        console.error('[shopify/custom-app/connect] store save failed:', error?.message)
         throw new ShopifyConnectionError('SHOPIFY_API_ERROR', 'Connected to Shopify, but could not save your store. Please try again.')
       }
-      storeId = data.id
-    } else {
-      const { data, error } = await service.from('stores').insert({ user_id: ownerId, ...payload }).select('id').single()
-      if (error || !data) {
-        console.error('[shopify/custom-app/connect] store insert failed:', error?.message)
-        throw new ShopifyConnectionError('SHOPIFY_API_ERROR', 'Connected to Shopify, but could not save your store. Please try again.')
-      }
-      storeId = data.id
+      return data.id
     }
+    const storeId = await writeStore(0)
 
     // 5. Kick off initial customer sync — fire-and-forget, same pattern as
     // the OAuth callback route. Small/fast enough (paginated, capped at 4
