@@ -166,13 +166,18 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof ShopifyConnectionError) {
       // INVALID_CREDENTIALS / SHOP_NOT_PERMITTED / MISSING_SCOPE messages are
-      // already written for a merchant to read. TOKEN_REQUEST_FAILED and
-      // SHOPIFY_API_ERROR can carry a raw fetch/HTTP error from lib/shopify-
-      // custom-app.ts (e.g. "GraphQL request failed: TypeError: fetch failed")
-      // — log the real detail for debugging, but never show that to the user.
+      // already written for a merchant to read. SHOPIFY_API_ERROR can carry a
+      // raw fetch/HTTP error (e.g. "GraphQL request failed: TypeError: fetch
+      // failed") — not shown verbatim. TOKEN_REQUEST_FAILED's message is
+      // either Shopify's own OAuth error_description (standard, safe —
+      // feedback about credentials the merchant just typed in themselves,
+      // not a secret) or a network-reachability message if the request
+      // never got a response at all — both are genuinely useful for
+      // self-diagnosing a setup error. Previously fully generic, which made
+      // "why is this failing" impossible to answer without server logs.
       console.error('[shopify/custom-app/connect]', err.code, err.message)
       const safeMessage =
-        err.code === 'TOKEN_REQUEST_FAILED' ? "Couldn't get an access token from Shopify. Double-check the client ID and secret from your custom app, then try again." :
+        err.code === 'TOKEN_REQUEST_FAILED' ? `Couldn't get an access token from Shopify: ${err.message}. Double-check the client ID/secret, and make sure the app is actually installed on this store (Shopify dev dashboard → your app → Install app).` :
         err.code === 'SHOPIFY_API_ERROR'    ? err.message.startsWith('Connected to Shopify')
           ? err.message
           : "Couldn't verify the connection with Shopify. Please try again." :

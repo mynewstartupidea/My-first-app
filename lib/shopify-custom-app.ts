@@ -81,7 +81,19 @@ export async function requestAccessToken(
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new ShopifyConnectionError('TOKEN_REQUEST_FAILED', `Shopify returned ${res.status}: ${body}`)
+    // Shopify's OAuth error responses are standard {error, error_description}
+    // JSON (e.g. "application_cannot_be_found" when the client id doesn't
+    // match, or a message about the app not being installed on this shop
+    // yet) — this is feedback about credentials the merchant just typed in
+    // themselves, not sensitive, and was previously discarded entirely in
+    // favor of a fully generic "couldn't get a token" message with no way
+    // to self-diagnose which of several real causes it was.
+    let reason = body
+    try {
+      const parsed = JSON.parse(body) as { error?: string; error_description?: string }
+      reason = parsed.error_description || parsed.error || body
+    } catch { /* not JSON — fall through to the raw body */ }
+    throw new ShopifyConnectionError('TOKEN_REQUEST_FAILED', reason || `Shopify returned HTTP ${res.status}`)
   }
 
   const data = await res.json() as TokenResponse
