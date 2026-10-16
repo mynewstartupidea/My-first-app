@@ -276,7 +276,10 @@ export default function LiveChatPage() {
     } catch {
       if (loadThreadsTokenRef.current === token && !opts.silent) showToast("Couldn't load your conversations — check your connection and try again.", false)
     } finally {
-      if (loadThreadsTokenRef.current === token && !opts.silent) setLoading(false)
+      // Same "latest call wins, regardless of silent" fix as loadThread
+      // below — a silent background poll finishing before the initial
+      // non-silent load could otherwise leave the spinner stuck forever.
+      if (loadThreadsTokenRef.current === token) setLoading(false)
     }
   }, [showToast])
 
@@ -333,7 +336,19 @@ export default function LiveChatPage() {
     } catch {
       if (loadThreadTokenRef.current === token && !opts.silent) showToast("Couldn't load this conversation — check your connection and try again.", false)
     } finally {
-      if (loadThreadTokenRef.current === token && !opts.silent) setLoadingThread(false)
+      // Clearing the spinner is gated on "am I the latest call" only, not
+      // "!opts.silent" too — the background poll (every 1.2s) can easily
+      // start, and finish, before the initial non-silent open-conversation
+      // fetch does (that one does auth + owner + store resolution first,
+      // often pushing it past 1.2s). When that happens the initial call sees
+      // itself superseded and (with the old `&& !opts.silent` condition)
+      // never clears setLoadingThread(true) — and the poll that superseded
+      // it is silent, so it never would have cleared it either. Spinner then
+      // stayed stuck forever even though fresh data had already loaded.
+      // Any call that's still the most recent one when it finishes should
+      // turn the spinner off, since by definition current-or-newer data is
+      // now on screen either way.
+      if (loadThreadTokenRef.current === token) setLoadingThread(false)
     }
   }, [storeId, showToast])
 
