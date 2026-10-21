@@ -64,32 +64,37 @@ export async function syncFacebookPageLeads(
       .in('id', stale.map(f => f.id))
   }
 
-  // If no forms found at all, fetch from Facebook and register them now
-  if (!forms.length) {
-    const fbForms = await getLeadForms(pageId, liveConn.page_access_token as string, liveToken)
-    if (fbForms.length) {
-      const { data: existingForms } = await service
-        .from('lead_form_automations')
-        .select('form_id')
-        .eq('user_id', ownerId)
-      const existingIds = new Set((existingForms ?? []).map(f => f.form_id as string))
+  // Always re-check Facebook for forms not yet registered — this used to
+  // only run when the page had ZERO tracked forms at all ("if
+  // (!forms.length)"), so a page with even one existing form never
+  // discovered any form created afterward, no matter how many times someone
+  // clicked Refresh. A brand-new lead form's submissions still reached
+  // `leads` via the realtime webhook (that path saves by page_id alone,
+  // independent of form tracking), but the form itself — and any chance of
+  // WhatsApp automation on it — stayed invisible here forever.
+  const fbForms = await getLeadForms(pageId, liveConn.page_access_token as string, liveToken)
+  if (fbForms.length) {
+    const { data: existingForms } = await service
+      .from('lead_form_automations')
+      .select('form_id')
+      .eq('user_id', ownerId)
+    const existingIds = new Set((existingForms ?? []).map(f => f.form_id as string))
 
-      const newRows = fbForms
-        .filter(f => !existingIds.has(f.id))
-        .map(f => ({
-          user_id:          ownerId,
-          store_id:         liveConn.store_id ?? null,
-          connection_id:    liveConnId,
-          form_id:          f.id,
-          form_name:        f.name,
-          message_template: '',
-          is_enabled:       false,
-          updated_at:       new Date().toISOString(),
-        }))
+    const newRows = fbForms
+      .filter(f => !existingIds.has(f.id))
+      .map(f => ({
+        user_id:          ownerId,
+        store_id:         liveConn.store_id ?? null,
+        connection_id:    liveConnId,
+        form_id:          f.id,
+        form_name:        f.name,
+        message_template: '',
+        is_enabled:       false,
+        updated_at:       new Date().toISOString(),
+      }))
 
-      if (newRows.length) {
-        await service.from('lead_form_automations').insert(newRows)
-      }
+    if (newRows.length) {
+      await service.from('lead_form_automations').insert(newRows)
 
       const { data: allAfterInsert } = await service
         .from('lead_form_automations')
