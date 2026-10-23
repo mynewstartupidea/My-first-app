@@ -42,6 +42,22 @@ export async function GET() {
     return NextResponse.json({ error: "Couldn't load your contacts right now. Please refresh the page." }, { status: 500 })
   }
 
-  console.log(`[contacts/list] store=${store.id} contacts=${contacts?.length ?? 0}`)
-  return NextResponse.json({ contacts: contacts ?? [], store })
+  // The list above is intentionally capped at 500 for display/search — but
+  // the page's "Total contacts"/"Opted in"/"Opted out" stat chips used to be
+  // derived from that same capped array, so a store with more than 500
+  // customers (the Dashboard's own "Reachable on WhatsApp" KPI does a real,
+  // unbounded count) silently showed a wrong, truncated total with no
+  // indication anything was cut off. These are real counts, independent of
+  // the 500-row cap above.
+  const [{ count: total }, { count: optedIn }, { count: optedOut }] = await Promise.all([
+    service.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id),
+    service.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id).eq('whatsapp_opt_in', true),
+    service.from('customers').select('id', { count: 'exact', head: true }).eq('store_id', store.id).eq('whatsapp_opt_in', false),
+  ])
+
+  console.log(`[contacts/list] store=${store.id} contacts=${contacts?.length ?? 0} total=${total ?? 0}`)
+  return NextResponse.json({
+    contacts: contacts ?? [], store,
+    counts: { total: total ?? 0, optedIn: optedIn ?? 0, optedOut: optedOut ?? 0 },
+  })
 }

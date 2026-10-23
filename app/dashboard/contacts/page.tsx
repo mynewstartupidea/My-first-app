@@ -409,6 +409,11 @@ export default function ContactsPage() {
   const [showBroadcast, setShowBroadcast] = useState(false)
   const [messagingContact, setMessagingContact] = useState<Contact | null>(null)
   const [banner, setBanner]             = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  // Real, unbounded counts from the API — separate from `contacts` itself,
+  // which is intentionally capped at 500 rows for display/search. Stats
+  // used to be derived from that capped array, so a store with more than
+  // 500 customers silently showed a wrong, truncated "Total contacts".
+  const [realCounts, setRealCounts] = useState<{ total: number; optedIn: number; optedOut: number } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -418,8 +423,9 @@ export default function ContactsPage() {
         fetch('/api/campaigns'),
       ])
       if (contactsRes.ok) {
-        const data = await contactsRes.json() as { contacts: Contact[] }
+        const data = await contactsRes.json() as { contacts: Contact[]; counts?: { total: number; optedIn: number; optedOut: number } }
         setContacts(data.contacts ?? [])
+        setRealCounts(data.counts ?? null)
       } else {
         // Previously left contacts untouched with no feedback at all on
         // failure — on first load that showed an empty "No contacts yet"
@@ -443,17 +449,17 @@ export default function ContactsPage() {
   useEffect(() => { load() }, [load])
 
   const stats = useMemo(() => {
-    const optedIn   = contacts.filter(c => c.whatsapp_opt_in).length
+    const optedIn   = realCounts?.optedIn ?? contacts.filter(c => c.whatsapp_opt_in).length
     const sent      = campaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0)
     const completed = campaigns.filter(c => c.status === 'completed').length
-    return { total: contacts.length, optedIn, sent, completed }
-  }, [contacts, campaigns])
+    return { total: realCounts?.total ?? contacts.length, optedIn, sent, completed }
+  }, [contacts, campaigns, realCounts])
 
   const tabCounts = useMemo(() => ({
-    all:       contacts.length,
-    'opted-in':  contacts.filter(c => c.whatsapp_opt_in).length,
-    'opted-out': contacts.filter(c => !c.whatsapp_opt_in).length,
-  }), [contacts])
+    all:         realCounts?.total ?? contacts.length,
+    'opted-in':  realCounts?.optedIn ?? contacts.filter(c => c.whatsapp_opt_in).length,
+    'opted-out': realCounts?.optedOut ?? contacts.filter(c => !c.whatsapp_opt_in).length,
+  }), [contacts, realCounts])
 
   const displayed = useMemo(() => {
     let list = contacts
