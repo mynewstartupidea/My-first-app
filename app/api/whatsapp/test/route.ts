@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveOwnerUserId } from '@/lib/resolve-owner-user-id'
+import { getUserRole } from '@/lib/get-user-role'
 import { STARTER_TEMPLATES, getTemplateStatuses } from '@/lib/whatsapp-templates'
 import { extractTemplateParams } from '@/lib/utils'
 
@@ -11,6 +12,16 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Owner/admin only — this sends a real WhatsApp message against the org's
+  // connected number and spends its paid message quota, same tier as every
+  // other WhatsApp-sending action (see app/api/test/send-message/route.ts).
+  // This route had no role check at all, reachable directly by any
+  // authenticated team member regardless of their actual nav access.
+  const role = await getUserRole(user.id, user.email ?? '')
+  if (role !== 'owner' && role !== 'admin') {
+    return NextResponse.json({ error: 'Only the account owner or an admin can send a test message.' }, { status: 403 })
+  }
 
   const body  = await request.json().catch(() => ({})) as { phone?: string; message?: string }
   const rawPhone = (body.phone ?? '').replace(/\s/g, '')

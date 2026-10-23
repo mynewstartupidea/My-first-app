@@ -189,8 +189,16 @@ export default async function DashboardPage() {
       ]
       const peopleIds = people.map(p => p.user_id)
 
+      // Same page-scoping bug already fixed below for leadStats/leadSources
+      // (an unscoped query silently pulls in leads from any previously-
+      // disconnected Facebook page) was still present here — Team Activity's
+      // per-rep assigned/converted counts could disagree with, or exceed,
+      // the Lead Outcomes numbers shown just below on the same dashboard.
+      const activityLeadsQuery = defaultPageId
+        ? service.from('leads').select('assigned_to, lead_status').eq('user_id', ownerId).or(`page_id.eq.${defaultPageId},page_id.is.null`)
+        : service.from('leads').select('assigned_to, lead_status').eq('user_id', ownerId).is('page_id', null)
       const [{ data: activityLeads }, { data: callLogs }] = await Promise.all([
-        service.from('leads').select('assigned_to, lead_status').eq('user_id', ownerId),
+        activityLeadsQuery,
         service.from('call_logs').select('called_by, created_at').in('called_by', peopleIds),
       ])
 

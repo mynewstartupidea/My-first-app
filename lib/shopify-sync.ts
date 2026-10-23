@@ -465,10 +465,22 @@ export async function syncAbandonedCheckoutsPage(shop: string, token: string, st
     const abandonedAt = c.created_at ? new Date(String(c.created_at)).getTime() : 0
     const isRecent = abandonedAt > 0 && Date.now() - abandonedAt < ABANDONED_MESSAGE_MAX_AGE_MS
     if (auto && phone && !c.completed_at && isRecent) {
+      // The real-time webhook (app/api/shopify/webhooks/route.ts) stores
+      // this same id as context.checkout_id: String(checkout.id) — a
+      // string. This query used to compare against the raw c.id (a plain
+      // JSON number from Shopify's REST response, same as every other
+      // Shopify id field in this file), and Postgres JSONB containment
+      // (`.contains()`) is type-sensitive: {"checkout_id":"123"} never
+      // matches {"checkout_id":123}. Since this sync re-runs on a ~5min
+      // cadence for every open checkout, it could never see the job the
+      // webhook had already created for the same checkout and inserted a
+      // second, duplicate "you left something in your cart" message almost
+      // every time — confirmed live-reasoned against the exact string the
+      // webhook writes.
       const { data: existingJob } = await service
         .from('automation_jobs').select('id')
         .eq('store_id', storeId).eq('type', 'abandoned_cart')
-        .contains('context', { checkout_id: c.id })
+        .contains('context', { checkout_id: String(c.id) })
         .limit(1).maybeSingle()
 
       if (!existingJob) {
@@ -485,7 +497,7 @@ export async function syncAbandonedCheckoutsPage(shop: string, token: string, st
         await service.from('automation_jobs').insert({
           store_id: storeId, automation_id: auto.id, type: 'abandoned_cart',
           customer_phone: normalizedPhone || phone, customer_name: firstName, message,
-          context: { checkout_id: c.id, checkout_url: c.abandoned_checkout_url ?? '' },
+          context: { checkout_id: String(c.id), checkout_url: c.abandoned_checkout_url ?? '' },
           status: 'pending',
           scheduled_at: new Date(Date.now() + auto.delay_minutes * 60 * 1000).toISOString(),
         })
