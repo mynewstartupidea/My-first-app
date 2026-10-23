@@ -73,6 +73,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false }, { status: 500 })
   }
 
+  // The idempotency row above is inserted BEFORE any actual mutation below
+  // — necessarily, since it's what makes a true duplicate delivery a cheap
+  // no-op. But that means if a mutation below fails and this handler
+  // returns 500 so Razorpay retries (exactly what several comments in this
+  // file say is the point), the retry's idempotency insert hits the SAME
+  // conflict and short-circuits to "duplicate, already handled" at line 68
+  // — without ever actually retrying the mutation that failed. The one real
+  // attempt already failed, and the retry Razorpay sends specifically to
+  // recover from that is silently defeated by the guard meant to protect
+  // against a different failure mode. Compensate by deleting this
+  // invocation's idempotency row before any 500 return below, so a genuine
+  // Razorpay retry can actually re-process the event instead of being
+  // masked as a duplicate.
+  const releaseIdempotencyKey = () =>
+    service.from('razorpay_webhook_events').delete().eq('idempotency_key', idempotencyKey)
+      .then(({ error: delErr }) => {
+        if (delErr) console.error('[billing/razorpay-webhook] failed to release idempotency key for retry:', delErr.message)
+      })
+
   const updates: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() }
   if (entity?.current_start) updates.current_period_start = new Date(entity.current_start * 1000).toISOString()
   if (entity?.current_end)   updates.current_period_end   = new Date(entity.current_end * 1000).toISOString()
@@ -87,6 +106,7 @@ export async function POST(request: Request) {
     // success response, so a transient DB error on a real charge event used
     // to permanently lose that event: the merchant paid, but plan/quota
     // never updated, with no record anywhere that anything went wrong.
+    await releaseIdempotencyKey()
     return NextResponse.json({ ok: false }, { status: 500 })
   }
 
@@ -142,6 +162,7 @@ export async function POST(request: Request) {
 
     if (promoteErr) {
       console.error('[billing/razorpay-webhook] promotion update failed:', promoteErr.message)
+      await releaseIdempotencyKey()
       return NextResponse.json({ ok: false }, { status: 500 })
     }
 
