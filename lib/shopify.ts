@@ -259,16 +259,36 @@ export async function syncShopifyCustomers(
         shopify_customer_id: String(c.id),
         name:                [c.first_name, c.last_name].filter(Boolean).join(' ') || null,
         email:               c.email ?? null,
-        whatsapp_opt_in:     true,
+        // whatsapp_opt_in deliberately NOT included — see comment below.
         total_orders:        c.orders_count ?? 0,
         total_spent:         parseFloat(c.total_spent ?? '0'),
       })
     }
 
     if (toUpsert.length > 0) {
+      // ignoreDuplicates: true (ON CONFLICT DO NOTHING) meant a customer who
+      // already existed was NEVER updated by a later sync — name/email/
+      // total_orders/total_spent stayed frozen at whatever they were on
+      // first insert, even though this fetches fresh data from Shopify
+      // every single run. Switching straight to ignoreDuplicates: false
+      // without changing anything else would fix that staleness but create
+      // a worse bug: whatsapp_opt_in: true was in every row here
+      // unconditionally, so a customer who genuinely opted out (set to
+      // false by app/api/cron/campaign-send/route.ts on a STOP reply) would
+      // have that silently reset to true on the next sync — re-enabling
+      // messaging to someone who explicitly opted out.
+      // PostgREST's upsert only references columns present in the payload
+      // in its ON CONFLICT DO UPDATE SET — a column left out of the row
+      // object entirely is untouched on conflict, and still gets its table
+      // DEFAULT (true) on a genuine insert. Omitting whatsapp_opt_in above
+      // gets both right at once: refreshed data for existing customers,
+      // the correct default for new ones, opt-outs never overwritten.
+      // Verified live against the real customers table before relying on
+      // this: an opted-out test row stayed opted-out through this exact
+      // upsert shape, and a brand-new row still defaulted to opted-in.
       const { error } = await supabase
         .from('customers')
-        .upsert(toUpsert, { onConflict: 'store_id,phone', ignoreDuplicates: true })
+        .upsert(toUpsert, { onConflict: 'store_id,phone' })
       if (error) console.error('[syncShopifyCustomers] upsert error:', error.message)
       else synced += toUpsert.length
     }
