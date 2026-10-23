@@ -138,9 +138,28 @@ export async function GET(request: Request) {
       quotaOk = !!allowed
     }
     if (!quotaOk) {
+      // This used to mark the job permanently 'failed' on the very first
+      // quota hit — but unlike every other failure path in this file (the
+      // Meta-error branch below), nothing anywhere ever reads back a
+      // 'failed' job to retry it. A quota limit is routinely a same-day,
+      // temporary condition (merchant sees the notification below and
+      // upgrades, or the monthly reset lands) — a customer whose message
+      // was queued during that window would otherwise just never receive
+      // it, permanently, with no error visible anywhere beyond a DB column
+      // no UI reads. Requeue it instead, same retry_count field the normal
+      // failure path already uses, at a 1-hour interval (quota resolution
+      // is an hours/days-scale event, not the 5-minute transient-API-error
+      // scale the other retry path is tuned for) for up to 48 attempts
+      // (~2 days) before finally giving up — matching the existing
+      // "bounded retries, then permanently failed" shape used elsewhere in
+      // this file rather than retrying forever.
+      const quotaRetryCount = (job.retry_count ?? 0) + 1
+      const quotaPermanentlyFailed = quotaRetryCount >= 48
       await supabase.from('automation_jobs').update({
-        status: 'failed',
+        status:        quotaPermanentlyFailed ? 'failed' : 'pending',
+        retry_count:   quotaRetryCount,
         error_message: 'Monthly message limit reached.',
+        ...(quotaPermanentlyFailed ? {} : { scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() }),
       }).eq('id', job.id)
       failed++
 
