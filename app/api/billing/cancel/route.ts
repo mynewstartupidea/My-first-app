@@ -29,7 +29,9 @@ export async function POST(request: Request) {
   const ownerId = await resolveOwnerUserId(service, user.id)
 
   const { data: billing } = await service
-    .from('billing').select('razorpay_subscription_id, status').eq('user_id', ownerId).maybeSingle()
+    .from('billing')
+    .select('razorpay_subscription_id, status, pending_razorpay_subscription_id')
+    .eq('user_id', ownerId).maybeSingle()
 
   if (!billing?.razorpay_subscription_id || billing.status !== 'active') {
     return NextResponse.json({ error: 'No active subscription to cancel.' }, { status: 400 })
@@ -42,12 +44,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Could not cancel with Razorpay. Please try again or contact support.' }, { status: 500 })
   }
 
+  // This used to leave pending_razorpay_subscription_id (and its sibling
+  // pending_* fields) untouched: an upgrade clicked, then abandoned before
+  // completing checkout, then the account cancelled here, left a real
+  // Razorpay subscription still sitting in an uncompleted state with
+  // nothing in this app aware it should be stopped. If that abandoned
+  // checkout was ever finished later (reopened link, a saved card retry),
+  // the webhook's pending-row promotion logic would reactivate the account
+  // with no new consent at that moment — silently reversing an explicit
+  // cancellation. Cancel it at Razorpay too (best-effort — a failure here
+  // shouldn't block the cancellation the merchant actually asked for) and
+  // clear the pending fields so the webhook has nothing left to promote.
+  if (billing.pending_razorpay_subscription_id) {
+    try {
+      await cancelRazorpaySubscription(billing.pending_razorpay_subscription_id)
+    } catch (e) {
+      console.error('[billing/cancel] pending-subscription Razorpay cancel failed:', e)
+    }
+  }
+
   // Razorpay's subscription.cancelled webhook will also fire and set
   // status='cancelled' — set it here too so the UI reflects the change
   // immediately instead of waiting on webhook delivery.
   await service.from('billing').update({
     status: 'cancelled',
     cancelled_at: new Date().toISOString(),
+    pending_razorpay_subscription_id: null,
+    pending_plan_name: null,
+    pending_messages_limit: null,
+    previous_razorpay_subscription_id: null,
     updated_at: new Date().toISOString(),
   }).eq('user_id', ownerId)
 
