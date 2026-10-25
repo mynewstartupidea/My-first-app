@@ -385,8 +385,12 @@ function ViewDropdown({ activeView, selectedFormId, total, followupUrgentCount, 
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition ${sel ? 'font-semibold' : 'text-gray-600'}`}
                 style={sel ? { color: c.text, background: c.bg } : {}}>
                 <span className="flex items-center gap-2 min-w-0">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+                  {/* Filled = automation on, hollow = tracked but not active
+                      yet — same cue as the desktop tab bar. */}
+                  <span className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={form.is_enabled ? { background: c.dot } : { background: '#fff', border: '1.5px solid #d1d5db' }} />
                   <span className="truncate">{form.form_name}</span>
+                  {!form.is_enabled && <span className="text-[10px] text-gray-400 flex-shrink-0">(no automation)</span>}
                 </span>
                 <span className="text-xs text-gray-400 flex-shrink-0">{form.lead_count}</span>
               </button>
@@ -4584,8 +4588,14 @@ function LeadsContent() {
                 onClick={() => handleTabChange(form.form_id)}
                 className={`flex-shrink-0 flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${sel ? '' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                 style={sel ? { borderBottomColor: c.dot, color: c.text } : {}}
+                title={form.is_enabled ? undefined : 'WhatsApp automation not turned on for this form yet'}
               >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+                {/* Filled = automation on, hollow = tracked but not active
+                    yet — now that every form shows here (not just enabled
+                    ones), this is the only cue distinguishing them, so it
+                    needs to carry real meaning rather than just decoration. */}
+                <span className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={form.is_enabled ? { background: c.dot } : { background: '#fff', border: '1.5px solid #d1d5db' }} />
                 <span className="max-w-[140px] truncate">{form.form_name}</span>
                 <span className="px-1.5 py-0.5 rounded-full text-xs font-medium"
                   style={sel ? { background: c.bg, color: c.text } : { background: '#f9fafb', color: '#9ca3af' }}>
