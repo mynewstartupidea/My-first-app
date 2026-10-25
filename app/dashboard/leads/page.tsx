@@ -4399,7 +4399,7 @@ function LeadsContent() {
             selectedFormId={selectedFormId}
             total={total}
             followupUrgentCount={followupUrgentCount}
-            enabledForms={enabledForms}
+            enabledForms={activeForms}
             hideFormsTab={selectedPageId === ALL_PAGES_ID}
             onSelectAll={() => handleTabChange('all')}
             onToggleFollowups={goToFollowups}
@@ -4568,8 +4568,15 @@ function LeadsContent() {
             )}
           </button>
 
-          {/* Per-form tabs — only show forms the user has enabled WhatsApp for */}
-          {enabledForms.map(form => {
+          {/* Per-form tabs — every tracked form, not just ones with WhatsApp
+              automation turned on. This used to be enabledForms, so a form
+              with real leads but no automation yet had no way to be
+              filtered to at all — not from here, and not from the "All
+              forms" dropdown either (same prop, same bug). Filtering by
+              form_id works the same regardless of automation status; only
+              the "X with WhatsApp" summary label above still counts the
+              enabled subset specifically. */}
+          {activeForms.map(form => {
             const c = getColor(form.color_index)
             const sel = selectedFormId === form.form_id && activeView !== 'followups'
             return (
