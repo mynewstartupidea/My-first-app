@@ -3767,6 +3767,12 @@ function LeadsContent() {
   // No Facebook sync call here (unlike handlePageChange) — there's no
   // single page to sync against.
   const handleSelectAllPages = async () => {
+    // Clearing sourceFilter too (not just the page) is what makes this
+    // genuinely "every lead" — without it, a source chip left selected from
+    // an earlier click (e.g. "Landing Page") silently stayed in effect, so
+    // "All Leads" didn't actually show everything, just everything from
+    // that one leftover source.
+    setSourceFilter(null)
     setSelectedPageId(ALL_PAGES_ID)
     setSelectedFormId('all')
     setCurrentPage(1)
@@ -3775,7 +3781,7 @@ function LeadsContent() {
     setActiveForms([])
     setLoadingLeads(true)
     try { sessionStorage.setItem('_wpl_pid', ALL_PAGES_ID) } catch {}
-    await Promise.all([fetchLeads('all', ALL_PAGES_ID, 1, perPage, ''), fetchStats(ALL_PAGES_ID)])
+    await Promise.all([fetchLeads('all', ALL_PAGES_ID, 1, perPage, '', 'default', null), fetchStats(ALL_PAGES_ID, null)])
     setLoadingLeads(false)
   }
 
@@ -4363,15 +4369,27 @@ function LeadsContent() {
 
       {/* Source filter — orthogonal to the Page dropdown above: Facebook stays
           page/form-scoped as it always has, any other source bypasses that
-          entirely and filters by source across every one of the user's leads. */}
+          entirely and filters by source across every one of the user's leads.
+          "All" is its own case, not just "Facebook with no page selected" —
+          it has to clear BOTH the page scoping and the source filter at once,
+          which is why it's a dedicated handler rather than another entry in
+          the options list below. */}
       {!isRep && (
         <div className="hidden md:flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={handleSelectAllPages}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full border transition ${
+              sourceFilter === null && selectedPageId === ALL_PAGES_ID ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-500 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            All
+          </button>
           {[{ value: null, label: 'Facebook' }, ...Object.entries(SOURCE_META).filter(([k]) => k !== 'facebook_lead_ad').map(([k, m]) => ({ value: k, label: m.label }))].map(opt => (
             <button
               key={opt.value ?? 'facebook'}
               onClick={() => handleSourceFilterChange(opt.value)}
               className={`text-xs font-medium px-2.5 py-1 rounded-full border transition ${
-                sourceFilter === opt.value ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-500 border-gray-200 hover:border-gray-300'
+                sourceFilter === opt.value && !(opt.value === null && selectedPageId === ALL_PAGES_ID) ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-500 border-gray-200 hover:border-gray-300'
               }`}
             >
               {opt.label}
