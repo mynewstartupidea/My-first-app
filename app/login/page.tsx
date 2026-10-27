@@ -47,7 +47,13 @@ function LoginForm() {
 
   function safeReturnTo() {
     const target = returnTo ?? '/dashboard'
-    return target.startsWith('/') ? target : '/dashboard'
+    // '//evil.com' passes a bare startsWith('/') check (it IS a string
+    // starting with '/') but browsers resolve a protocol-relative URL like
+    // that as a full cross-origin navigation — window.location.href =
+    // '//evil.com' below would send someone straight to an attacker's site
+    // right after they type their real password in. A single '/' is safe
+    // (same-origin path); '//' or '/\' is not.
+    return target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\') ? target : '/dashboard'
   }
 
   function reset() { setError(''); setSuccess(''); setPassword('') }
@@ -192,7 +198,7 @@ function LoginForm() {
       // consistent with it: Supabase's own signUp() so a confirmation code
       // actually gets sent (requiring one is a deliberate anti-fake-signup
       // gate), not an immediately-confirmed account.
-      const { error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({ email, password })
       setLoading(false)
       if (error) {
         setError(
@@ -200,6 +206,16 @@ function LoginForm() {
             ? "We couldn't send your confirmation email right now. Please try again in a few minutes, or contact support@wapaci.com if this keeps happening."
             : error.message
         )
+        return
+      }
+      // Same anti-enumeration gap already fixed in app/signup/page.tsx:
+      // Supabase returns error:null (no error, no email sent) for an
+      // already-registered email, signalled only by an empty identities
+      // array on the returned user — this branch is currently unreachable
+      // through the UI (nothing ever calls setMode('signup')), but fixing it
+      // defensively so it isn't a live landmine if that ever changes.
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        setError('An account with this email already exists. Please sign in instead.')
         return
       }
       setSuccess('Account created! Check your email to confirm your address, then sign in.')
