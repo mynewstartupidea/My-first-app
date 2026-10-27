@@ -10,6 +10,7 @@ import Link from 'next/link'
 import CustomSelect from '@/components/custom-select'
 import AuthMarketingPanel, { AuthMobileHeader } from '@/components/auth-marketing-panel'
 import PasswordInput from '@/components/password-input'
+import { getUtmParams } from '@/lib/utils'
 
 const TEAM_SIZES = [
   { value: 'just_me',  label: 'Just me' },
@@ -135,6 +136,19 @@ export default function SignupPage() {
           phone:         phone.trim(),
           team_size:     teamSize,
           business_type: businessType,
+          // This page is where EVERY signup that doesn't go through a
+          // landing page's own inline form (app/lp/leads, app/lp/ecommerce)
+          // ends up — including the 4 vertical pages (restaurant/real-estate/
+          // gym/coaching) whose "Start free" CTA links here with a UTM-tagged
+          // query string, and plain homepage/organic traffic. None of that
+          // was ever read here before — it was only used by Meta's own pixel
+          // attribution (invisible from inside this app's own admin), so
+          // there was no way to tell a Facebook-ad signup from a direct one,
+          // or which landing page it came from, anywhere in /admin. Stored in
+          // user_metadata (not a DB write) so it's captured reliably
+          // regardless of session/RLS timing — same reasoning full_name and
+          // company_name above already rely on.
+          ...getUtmParams(),
         },
       },
     })

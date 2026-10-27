@@ -50,6 +50,19 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-900/40 text-red-400',
   past_due:  'bg-amber-900/40 text-amber-400',
 }
+// 'lp_leads'/'lp_ecommerce' = paid through that landing page's own inline
+// form (app/lp/leads, app/lp/ecommerce — reliable, server-captured at lead
+// submission). 'homepage' = came through /signup with SOME UTM on the link
+// (could be the real homepage, or one of the 4 vertical landing pages
+// whose "Start free" CTA routes there — utm_campaign below usually says
+// which). 'direct' = no attribution data captured anywhere — organic,
+// typed the URL, or a bookmark.
+const SOURCE_LABELS: Record<string, string> = {
+  lp_leads:     'Landing: Leads',
+  lp_ecommerce: 'Landing: Ecommerce',
+  homepage:     'Signup form',
+  direct:       'Direct / organic',
+}
 
 interface AdminUser {
   id: string
@@ -77,6 +90,12 @@ interface AdminUser {
   shopify_subscription_id: string | null
   next_billing_date: string | null
   cancelled_at: string | null
+  source: string
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_term: string | null
+  utm_content: string | null
 }
 
 interface Stats {
@@ -608,6 +627,16 @@ export default function AdminPage() {
                                     <button onClick={() => copy(u.shopify_subscription_id!)} className="text-[10px] text-slate-500 hover:text-white flex items-center gap-1 mt-1 font-mono">
                                       {u.shopify_subscription_id.slice(0, 24)}… <Copy className="w-2.5 h-2.5" />
                                     </button>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1"><Tag className="w-3 h-3" /> Source</p>
+                                  <p className="text-white">{SOURCE_LABELS[u.source] ?? u.source}</p>
+                                  {(u.utm_content || u.utm_campaign || u.utm_source) && (
+                                    <p className="text-slate-400 text-xs truncate max-w-[180px]"
+                                      title={[u.utm_source, u.utm_medium, u.utm_campaign, u.utm_content, u.utm_term].filter(Boolean).join(' · ')}>
+                                      Ad: {u.utm_content || u.utm_campaign || u.utm_source}
+                                    </p>
                                   )}
                                 </div>
                               </div>

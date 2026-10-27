@@ -16,6 +16,8 @@ export async function GET() {
   const authUsers: {
     id: string; email: string; created_at: string; email_confirmed_at: string | null
     meta_phone: string | null; meta_full_name: string | null; meta_company: string | null
+    meta_utm_source: string | null; meta_utm_medium: string | null; meta_utm_campaign: string | null
+    meta_utm_term: string | null; meta_utm_content: string | null
   }[] = []
   let page = 1
   while (true) {
@@ -40,6 +42,15 @@ export async function GET() {
         meta_phone:         meta.phone        ?? null,
         meta_full_name:     meta.full_name    ?? null,
         meta_company:       meta.company_name ?? null,
+        // Only ever set for someone who signed up through /signup (the
+        // landing-page-conversion path below has its own, more reliable
+        // source instead) — captured from whatever UTM query string was on
+        // the link they clicked (app/signup/page.tsx's getUtmParams() call).
+        meta_utm_source:    meta.utm_source   ?? null,
+        meta_utm_medium:    meta.utm_medium   ?? null,
+        meta_utm_campaign:  meta.utm_campaign ?? null,
+        meta_utm_term:      meta.utm_term     ?? null,
+        meta_utm_content:   meta.utm_content  ?? null,
       })
     }
     if (data.users.length < 1000) break
@@ -54,6 +65,7 @@ export async function GET() {
     { data: messages },
     { data: billingRows },
     { count: orgCount },
+    { data: convertedLeads },
   ] = await Promise.all([
     service.from('user_profiles').select('*'),
     service.from('stores').select('id,user_id,shopify_domain,shop_name,plan,is_active,created_at,whatsapp_bsp,whatsapp_number'),
@@ -61,6 +73,11 @@ export async function GET() {
     service.from('messages').select('store_id,created_at').gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     service.from('billing').select('user_id,plan_name,status,billing_provider,amount_paise,messages_used,messages_limit,next_billing_date,cancelled_at,shopify_subscription_id'),
     service.from('organizations').select('id', { count: 'exact', head: true }),
+    // Richer and more reliable than the auth user_metadata UTM fields above
+    // for anyone who came through /lp/leads or /lp/ecommerce — captured
+    // server-side at lead-submission time (app/api/landing/subscribe), not
+    // dependent on what made it into the auth signup call.
+    service.from('landing_leads').select('converted_user_id,source,utm_source,utm_medium,utm_campaign,utm_term,utm_content').not('converted_user_id', 'is', null),
   ])
 
   // ── Lookups ───────────────────────────────────────────────────────────────
@@ -77,6 +94,12 @@ export async function GET() {
   const billingByUser: Record<string, BillingRow> = {}
   for (const b of (billingRows ?? []) as BillingRow[]) { if (b.user_id) billingByUser[b.user_id] = b }
 
+  type LeadAttribution = { source: string; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; utm_term: string | null; utm_content: string | null }
+  const leadAttrByUser: Record<string, LeadAttribution> = {}
+  for (const l of (convertedLeads ?? []) as (LeadAttribution & { converted_user_id: string })[]) {
+    leadAttrByUser[l.converted_user_id] = l
+  }
+
   const autoCountByStore: Record<string, number> = {}
   for (const a of automations ?? []) if (a.is_enabled) autoCountByStore[a.store_id] = (autoCountByStore[a.store_id] ?? 0) + 1
 
@@ -88,7 +111,31 @@ export async function GET() {
     const p       = profileById[au.id]
     const store   = storeByUser[au.id]
     const billing = billingByUser[au.id]
+    // Prefer the landing_leads attribution (richer, server-captured at the
+    // moment they submitted the lead form) over what made it into the
+    // signup's own user_metadata; fall back to "direct" only when NEITHER
+    // path captured anything — no UTM on the link they used, and they
+    // didn't come through a landing page's payment form at all.
+    const leadAttr = leadAttrByUser[au.id]
+    const attribution = leadAttr ? {
+      source:       leadAttr.source,
+      utm_source:   leadAttr.utm_source,
+      utm_medium:   leadAttr.utm_medium,
+      utm_campaign: leadAttr.utm_campaign,
+      utm_term:     leadAttr.utm_term,
+      utm_content:  leadAttr.utm_content,
+    } : (au.meta_utm_source || au.meta_utm_medium || au.meta_utm_campaign || au.meta_utm_content) ? {
+      source:       'homepage',
+      utm_source:   au.meta_utm_source,
+      utm_medium:   au.meta_utm_medium,
+      utm_campaign: au.meta_utm_campaign,
+      utm_term:     au.meta_utm_term,
+      utm_content:  au.meta_utm_content,
+    } : {
+      source: 'direct', utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null,
+    }
     return {
+      ...attribution,
       id:                    au.id,
       email:                 au.email,
       email_confirmed:       !!au.email_confirmed_at,
