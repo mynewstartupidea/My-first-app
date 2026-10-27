@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   const { data: existing } = await service
     .from('billing')
-    .select('razorpay_subscription_id, status, pending_razorpay_subscription_id')
+    .select('razorpay_subscription_id, status, pending_razorpay_subscription_id, previous_razorpay_subscription_id')
     .eq('user_id', ownerId).maybeSingle()
 
   // A second upgrade click before the first's webhook arrives (double-click,
@@ -59,6 +59,23 @@ export async function POST(request: Request) {
   if (existing?.pending_razorpay_subscription_id) {
     try { await cancelRazorpaySubscription(existing.pending_razorpay_subscription_id) }
     catch (e) { console.error('[billing/razorpay/create] failed to cancel superseded pending subscription:', e) }
+  }
+
+  // Same loss, one step further back: the webhook's own promotion flow
+  // (app/api/billing/razorpay-webhook/route.ts) deliberately LEAVES a
+  // subscription in previous_razorpay_subscription_id when its own
+  // cancel-the-old-one call fails, specifically so it isn't lost — "left for
+  // retry." But nothing ever retried it, and the upsert below used to
+  // overwrite that column unconditionally with whatever's active right now.
+  // A second upgrade before that retry ever happens meant the FIRST old
+  // subscription vanished from every row in this app while still live and
+  // still charging the customer's card every month, forever, with no code
+  // path left anywhere that could find or cancel it. Finish that earlier
+  // cancellation now, before this upsert would otherwise erase the only
+  // remaining record of it.
+  if (existing?.previous_razorpay_subscription_id) {
+    try { await cancelRazorpaySubscription(existing.previous_razorpay_subscription_id) }
+    catch (e) { console.error('[billing/razorpay/create] failed to cancel carried-over previous subscription:', e) }
   }
 
   const planId = await getOrCreateLandingPlan(service, {

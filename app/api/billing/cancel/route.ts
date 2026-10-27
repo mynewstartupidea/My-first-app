@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   const { data: billing } = await service
     .from('billing')
-    .select('razorpay_subscription_id, status, pending_razorpay_subscription_id')
+    .select('razorpay_subscription_id, status, pending_razorpay_subscription_id, previous_razorpay_subscription_id')
     .eq('user_id', ownerId).maybeSingle()
 
   if (!billing?.razorpay_subscription_id || billing.status !== 'active') {
@@ -60,6 +60,23 @@ export async function POST(request: Request) {
       await cancelRazorpaySubscription(billing.pending_razorpay_subscription_id)
     } catch (e) {
       console.error('[billing/cancel] pending-subscription Razorpay cancel failed:', e)
+    }
+  }
+
+  // Same reasoning as the pending-subscription cancel just above, for the
+  // OTHER column that can carry a live, still-charging subscription: the
+  // webhook's plan-change promotion logic deliberately leaves a subscription
+  // id in previous_razorpay_subscription_id when its own cancel-the-old-one
+  // call fails, "left for retry." The update below used to just null this
+  // column out as part of cancelling — if it held an uncancelled real
+  // subscription, that subscription kept billing the customer's card every
+  // month after they explicitly cancelled, with no record of it left
+  // anywhere in the app the moment this null landed.
+  if (billing.previous_razorpay_subscription_id) {
+    try {
+      await cancelRazorpaySubscription(billing.previous_razorpay_subscription_id)
+    } catch (e) {
+      console.error('[billing/cancel] previous-subscription Razorpay cancel failed:', e)
     }
   }
 
