@@ -1220,8 +1220,20 @@ function SettingsInner() {
   )
 
   const currentLeadPlan = LEAD_PLANS.find(p => p.id === billing?.plan_name)
-  const planLabel    = currentLeadPlan?.name ?? (billing?.plan_name === 'trial' || !billing ? 'Trial' : billing.plan_name)
-  const planPrice    = currentLeadPlan ? `${currentLeadPlan.price}/mo` : null
+  // The landing-page signup flow (app/api/landing/complete-signup/route.ts)
+  // writes plan_name as 'lp_leads_1999_monthly'/'lp_ecommerce_1999_monthly'
+  // — a real, flat-rate plan, but deliberately not one of LEAD_PLANS' 4
+  // upgrade tiers (it isn't a step on that ladder, and adding it there would
+  // wrongly offer it as an upgrade/downgrade target in the comparison grid
+  // below). Without this, those customers saw the raw internal plan_name
+  // string here instead of a real name, and no price at all.
+  const LANDING_PLAN_LABELS: Record<string, { name: string; price: string }> = {
+    lp_leads_1999_monthly:     { name: 'Lead Response', price: '₹1,999' },
+    lp_ecommerce_1999_monthly: { name: 'Ecommerce',      price: '₹1,999' },
+  }
+  const landingPlan  = billing?.plan_name ? LANDING_PLAN_LABELS[billing.plan_name] : undefined
+  const planLabel    = currentLeadPlan?.name ?? landingPlan?.name ?? (billing?.plan_name === 'trial' || !billing ? 'Trial' : billing.plan_name)
+  const planPrice    = currentLeadPlan ? `${currentLeadPlan.price}/mo` : landingPlan ? `${landingPlan.price}/mo` : null
   const statusMeta   = STATUS_META[billing?.status ?? 'trialing'] ?? STATUS_META.trialing
   const usagePct     = billing ? Math.min(100, Math.round((billing.messages_used / billing.messages_limit) * 100)) : 0
 

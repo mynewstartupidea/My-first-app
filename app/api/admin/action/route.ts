@@ -46,6 +46,16 @@ export async function POST(request: Request) {
 
   if (action === 'change_plan') {
     if (!plan) return NextResponse.json({ error: 'plan required' }, { status: 400 })
+    // This is an admin-only, UI-dropdown-driven action today (not reachable
+    // by a non-admin), so there was no live exploit here — but writing
+    // whatever string the request body contains straight to billing.plan_name
+    // with no allowlist meant a typo'd plan id would silently fall through
+    // PLAN_LIMITS[plan] ?? 500 to the trial limit while still being saved as
+    // an unrecognized plan name everywhere else in the app (admin revenue
+    // grouping, Settings → Billing's plan display) reads it from.
+    if (!(plan in PLAN_LIMITS)) {
+      return NextResponse.json({ error: `Unknown plan "${plan}" — must be one of: ${Object.keys(PLAN_LIMITS).join(', ')}` }, { status: 400 })
+    }
 
     const { error: billingErr } = await service.from('billing').upsert({
       user_id,
