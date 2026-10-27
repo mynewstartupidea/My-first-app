@@ -671,6 +671,32 @@ function scheduleAdAudio(audioCtx: AudioContext, master: GainNode, adId: number)
       whooshFx(audioCtx, master, now + 24.2); hit(audioCtx, master, now + 25.3, 'green')
       cashFx(audioCtx, master, now + 27.2); cashFx(audioCtx, master, now + 29.1)
       break
+    case 26: // Built For Speed — continuous driving energy throughout, not sparse stabs
+      pad(audioCtx, master, [98, 147, 196, 294], 'sawtooth', .02, 1.2, 28.5)
+      arpNote(audioCtx, master, [294, 349, 440, 523, 587], 150, 'square', .024, 1.2)
+      // S1 (0–7s): a tense, driving pulse under the "6 hours and counting" build
+      hit(audioCtx, master, now + .3, 'red')
+      ticker(audioCtx, master, now + 3, 16, .25) // the hour counter ticking up
+      // S2 (6–24s) is the hero scene — music stays dense and energetic the whole way through
+      whooshFx(audioCtx, master, now + 6.1); hit(audioCtx, master, now + 6.3, 'blue')
+      ticker(audioCtx, master, now + 7.2, 6, .16)
+      hit(audioCtx, master, now + 9.3, 'blue') // status badge flips to "WhatsApp sent"
+      cashFx(audioCtx, master, now + 9.4)
+      waPing(audioCtx, master, now + 10.3); waPing(audioCtx, master, now + 10.6) // the real message lands
+      ticker(audioCtx, master, now + 11.4, 7, .15)
+      hit(audioCtx, master, now + 13.6, 'green') // Live Chat notification toast
+      whooshFx(audioCtx, master, now + 13.8)
+      ticker(audioCtx, master, now + 15, 8, .14)
+      hit(audioCtx, master, now + 17.8, 'blue')
+      ticker(audioCtx, master, now + 19, 9, .13)
+      hit(audioCtx, master, now + 21.5, 'green')
+      // S3 (23–30s): triumphant, full-energy close
+      whooshFx(audioCtx, master, now + 23); hit(audioCtx, master, now + 23.3, 'green')
+      cashFx(audioCtx, master, now + 23.6); cashFx(audioCtx, master, now + 25.2)
+      hit(audioCtx, master, now + 26.8, 'green')
+      ticker(audioCtx, master, now + 27.5, 8, .11)
+      cashFx(audioCtx, master, now + 29)
+      break
     default:
       pad(audioCtx, master, [131, 165, 196, 262], 'triangle', .018)
   }
@@ -2082,6 +2108,119 @@ function renderAd25(ctx: CanvasRenderingContext2D, t: number) {
   }
 }
 
+/* Ad 26 — Built For Speed (lead-gen, real-platform device-frame mockup) */
+function renderAd26(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(37,211,102,.022)')
+  glow(ctx, W / 2, 380, 650, '37,211,102', .07 * cl(t / 2))
+
+  // S1: The generic, slow way — minimal, so it doesn't compete with S2's hero mockup. 0–7s
+  if (t < 7) {
+    const f = t < .7 ? pr(t, 0, .7) : t > 6 ? 1 - pr(t, 6, 7) : 1
+    txt(ctx, 'A lead just submitted your form.', W / 2, 310, { size: 34, color: '#e2e8f0', weight: '700', alpha: f * pr(t, 0, 1) })
+    txt(ctx, 'Name. Phone number. Submit.', W / 2, 356, { size: 22, color: '#64748b', weight: '400', alpha: f * pr(t, .6, 1.6) })
+
+    const cardX = W / 2 - 230, cardY = 440, cardW = 460, cardH = 110
+    ctx.globalAlpha = f * pr(t, 1.8, 2.8)
+    rr(ctx, cardX, cardY, cardW, cardH, 16, 'rgba(255,255,255,.04)', 'rgba(255,255,255,.1)')
+    txt(ctx, 'Priya S.', cardX + 28, cardY + 38, { size: 22, color: '#cbd5e1', weight: '700', align: 'left', alpha: f * pr(t, 1.8, 2.8) })
+    txt(ctx, 'New lead', cardX + 28, cardY + 70, { size: 15, color: '#64748b', weight: '400', align: 'left', alpha: f * pr(t, 1.8, 2.8) })
+    rr(ctx, cardX + cardW - 150, cardY + 34, 122, 36, 18, 'rgba(100,116,139,.18)')
+    txt(ctx, 'Not contacted', cardX + cardW - 89, cardY + 52, { size: 13, color: '#94a3b8', weight: '700', alpha: f * pr(t, 1.8, 2.8) })
+    ctx.globalAlpha = 1
+
+    const hrs = Math.min(6, Math.floor(pr(t, 2.5, 5.5) * 6))
+    ctx.globalAlpha = f * pr(t, 3, 4)
+    txt(ctx, `${hrs}h and counting…`, W / 2, 610, { size: 24, color: '#ef4444', weight: '700', alpha: f * pr(t, 3, 4) })
+    ctx.globalAlpha = 1
+  }
+
+  // S2: Inside Wapaci — the real dashboard, lighting up. 6–24s
+  if (t >= 6 && t < 24) {
+    const lt = t - 6, f = lt < 1 ? pr(lt, 0, 1) : lt > 16.5 ? 1 - pr(lt, 16.5, 17.5) : 1
+    glow(ctx, W / 2, 480, 700, '37,211,102', .1 * f)
+
+    const fx = 90, fy = 185, fw = 900, fh = 600, sw = 170
+    ctx.globalAlpha = f * pr(lt, 0, 1.2)
+    rr(ctx, fx, fy, fw, fh, 20, '#ffffff', 'rgba(255,255,255,.08)', 2)
+    rr(ctx, fx, fy, sw, fh, 20, '#0a0f1e')
+    rr(ctx, fx + sw - 20, fy, 20, fh, 0, '#0a0f1e') // square off the sidebar's inner edge
+    const navItems = ['Dashboard', 'Live Chat', 'Contacts', 'Leads', 'Automations']
+    navItems.forEach((label, i) => {
+      const ny = fy + 50 + i * 68
+      const active = label === 'Leads'
+      if (active) { rr(ctx, fx, ny - 22, sw, 46, 0, 'rgba(37,211,102,.14)') }
+      ctx.fillStyle = active ? '#25D366' : '#475569'
+      rr(ctx, fx + 22, ny - 8, 16, 16, 4, active ? '#25D366' : 'rgba(255,255,255,.12)')
+      txt(ctx, label, fx + 52, ny, { size: 14, color: active ? '#fff' : '#64748b', weight: active ? '700' : '500', align: 'left', alpha: f * pr(lt, 0, 1.2) })
+    })
+    txt(ctx, 'Lead Ads', fx + sw + 34, fy + 56, { size: 26, color: '#0f172a', weight: '800', align: 'left', alpha: f * pr(lt, 0, 1.2) })
+    txt(ctx, '1 page connected', fx + sw + 34, fy + 86, { size: 14, color: '#94a3b8', weight: '400', align: 'left', alpha: f * pr(lt, 0, 1.2) })
+    ctx.globalAlpha = 1
+
+    // The lead row — status flips from "Not messaged" to "WhatsApp sent" mid-scene
+    const rowX = fx + sw + 34, rowY = fy + 130, rowW = fw - sw - 68, rowH = 110
+    ctx.globalAlpha = f * pr(lt, .8, 1.8)
+    rr(ctx, rowX, rowY, rowW, rowH, 14, '#f8fafc', '#e2e8f0')
+    txt(ctx, 'Priya Sharma', rowX + 24, rowY + 40, { size: 20, color: '#0f172a', weight: '700', align: 'left', alpha: f * pr(lt, .8, 1.8) })
+    txt(ctx, '98•• •• ••21 · Looking for office', rowX + 24, rowY + 70, { size: 14, color: '#64748b', weight: '400', align: 'left', alpha: f * pr(lt, .8, 1.8) })
+    ctx.globalAlpha = 1
+
+    const flipped = pr(lt, 3.2, 3.6)
+    if (flipped < 1) {
+      ctx.globalAlpha = f * pr(lt, .8, 1.8) * (1 - flipped)
+      rr(ctx, rowX + rowW - 190, rowY + 37, 160, 36, 18, '#f1f5f9')
+      txt(ctx, 'Not messaged', rowX + rowW - 110, rowY + 55, { size: 13, color: '#94a3b8', weight: '700', alpha: f * pr(lt, .8, 1.8) * (1 - flipped) })
+    }
+    if (flipped > 0) {
+      ctx.globalAlpha = f * flipped
+      rr(ctx, rowX + rowW - 190, rowY + 37, 160, 36, 18, '#dcfce7')
+      txt(ctx, 'WhatsApp sent ✓', rowX + rowW - 110, rowY + 55, { size: 13, color: '#16a34a', weight: '800', alpha: f * flipped })
+      if (flipped < 1) burst(ctx, rowX + rowW - 110, rowY + 55, lt - 3.2, .5, '#25D366', 14)
+      ctx.globalAlpha = 1
+    }
+
+    // The actual WhatsApp message, appearing right as the badge flips. Sits
+    // above the notification toast below (not the same spot — this used to
+    // overlap it directly since both were drawn at y=840 with no fade-out
+    // on this one, so for ~5s both were stacked on top of each other).
+    const bp = pr(lt, 4.2, 5)
+    if (bp > 0) {
+      ctx.globalAlpha = f * bp
+      const bx = W / 2 - 300, by = 805, bw = 600
+      const lines = ['Hi Priya! 👋 Thanks for your interest — our team will call you shortly.']
+      rr(ctx, bx, by, bw, 86, 18, '#005c4b')
+      txt(ctx, lines[0], bx + 24, by + 44, { size: 17, align: 'left', color: '#e9edef', alpha: f * bp })
+      txt(ctx, '✓✓ Sent automatically, in 10 seconds', bx + 24, by + 72, { size: 12, align: 'left', color: '#8fa89b', alpha: f * bp })
+      ctx.globalAlpha = 1
+    }
+
+    // The follow-through — sales team sees it land, live. Below the WhatsApp
+    // bubble above, not on top of it.
+    const tp = pr(lt, 7.5, 8.3)
+    if (tp > 0 && lt < 12.5) {
+      ctx.globalAlpha = f * tp
+      const tx = W / 2 - 260, ty = 950, tw = 520
+      rr(ctx, tx, ty, tw, 86, 18, 'rgba(56,189,248,.12)', 'rgba(56,189,248,.5)', 2)
+      txt(ctx, '🔔 Live Chat — Priya is engaged', tx + 24, ty + 38, { size: 18, align: 'left', color: '#38bdf8', weight: '800', alpha: f * tp })
+      txt(ctx, 'Sales team notified — call while it’s warm.', tx + 24, ty + 66, { size: 14, align: 'left', color: '#94a3b8', alpha: f * tp })
+      ctx.globalAlpha = 1
+    }
+  }
+
+  // S3: CTA — tagline. 23–30s
+  if (t >= 23) {
+    const lt = t - 23, f = lt < 1.3 ? pr(lt, 0, 1.3) : 1
+    glow(ctx, W / 2, H / 2, 650, '37,211,102', .2 * f)
+    txt(ctx, 'Built For Speed.', W / 2, 400, { size: 62, color: '#fff', weight: '900', alpha: f })
+    txt(ctx, 'The CRM that replies before you do.', W / 2, 480, { size: 24, color: '#94a3b8', weight: '400', alpha: f * pr(lt, .5, 1.5) })
+    ctx.globalAlpha = f * pr(lt, .7, 1.7)
+    rr(ctx, W / 2 - 210, 560, 420, 82, 41, '#25D366')
+    ctx.globalAlpha = 1
+    txt(ctx, 'See it live, free →', W / 2, 601, { size: 27, color: '#03130a', weight: '900', alpha: f * pr(lt, .7, 1.7) })
+    txt(ctx, 'wapaci.com', W / 2, 700, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1.2, 2.2) })
+  }
+}
+
 const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => void> = {
   1: renderAd1, 2: renderAd2, 3: renderAd3,
   4: renderAd4, 5: renderAd5, 6: renderAd6, 7: renderAd7,
@@ -2090,6 +2229,7 @@ const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => vo
   16: renderAd16, 17: renderAd17, 18: renderAd18, 19: renderAd19,
   20: renderAd20, 21: renderAd21, 22: renderAd22,
   23: renderAd23, 24: renderAd24, 25: renderAd25,
+  26: renderAd26,
 }
 
 /* ─── Ad definitions ──────────────────────────────────────────────── */
@@ -2996,6 +3136,52 @@ Try Wapakee free — wapaki dot com.`,
 
 [excited] Try Wapakee free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, cinematic and warm, family-film trailer energy without being childish, soft emotional opening to bright triumphant close, expert ad voice`,
+  },
+  {
+    id: 26, filename: 'wapaci-built-for-speed',
+    title: 'Built For Speed — Inside the Platform',
+    tag: 'Lead Gen', tagColor: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+    accent: '#25D366',
+    defaultScript: `Right now, somewhere, a lead is filling out your form.
+
+Name. Phone number. Submit.
+
+And then... nothing happens. For six hours.
+
+Because that's how most CRMs work. A lead lands in a spreadsheet. Someone checks it eventually.
+
+We built Wapaci differently.
+
+The second that form is submitted — right inside your dashboard — Wapaci fires a WhatsApp message. Automatically.
+
+"Hi Priya, thanks for reaching out! We'll call you in a few minutes."
+
+Your sales rep sees it too. Instantly. Right there in Live Chat.
+
+They're not cold-calling a stranger anymore.
+
+They're following up... on a conversation that already started.
+
+That's the whole idea behind Wapaci.
+
+Not just another lead form. A system that actually responds — the moment it matters.
+
+See it yourself. Free. At wapaci dot com.`,
+    voiceDir: 'grounded and conversational, like a founder explaining their own product to a friend — not a hyped ad voice, confident and specific, warm without being salesy, understated confidence on the close',
+    expertScript: `[neutral] A lead just filled out your form. Name, phone, submit.
+
+[dry] And then... nothing. For six hours.
+
+[neutral] We built Wapaci differently.
+
+[happy] The second that form lands, Wapaci fires a WhatsApp. Automatically.
+
+[excited] Your sales rep sees it instantly, right in Live Chat.
+
+[warm] They're not cold-calling. They're following up on a conversation that already started.
+
+[confident] See it yourself, free. Wapaci dot com.`,
+    expertVoiceDir: `28 year old Indian female, grounded and conversational like a founder explaining their own product, understated confidence rather than hype, warm and specific, quietly confident close, expert ad voice`,
   },
 ]
 
