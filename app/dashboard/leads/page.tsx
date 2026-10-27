@@ -3673,16 +3673,23 @@ function LeadsContent() {
       .catch(() => {})
   }, [selectedPageId, pagesLoaded, pages.length])
 
-  // Orphaned-leads count — only meaningful in "All Leads" mode (in any
-  // single-page view, every visible lead already belongs to a connected
-  // page by definition) and only something an owner/admin can act on.
+  // Orphaned-leads count — used to only load in "All Leads" mode, which was
+  // buried behind a dropdown menu before (and still takes an explicit click
+  // even now that it has its own chip) — a merchant could go indefinitely
+  // without ever landing on that exact view while stale leads from a
+  // disconnected page quietly piled up with zero visibility. Confirmed live
+  // on a real account: 449 leads accumulated this way, unnoticed, before
+  // anyone landed on "All Leads" and saw them. Now checked regardless of
+  // which view is active, so a new account sees this early instead of after
+  // it's grown into hundreds. Still owner/admin only — matches the DELETE
+  // route's own role gate.
   useEffect(() => {
-    if (selectedPageId !== ALL_PAGES_ID || !canManageOrg) { setOrphanedCount(null); return }
+    if (!canManageOrg) { setOrphanedCount(null); return }
     fetch('/api/facebook/leads/orphaned')
       .then(r => r.json() as Promise<{ count?: number }>)
       .then(d => setOrphanedCount(d.count ?? 0))
       .catch(() => {})
-  }, [selectedPageId, canManageOrg])
+  }, [canManageOrg])
 
   const handleDeleteOrphanedLeads = async () => {
     if (deleteOrphansConfirmText !== 'DELETE') return // belt-and-suspenders — button is already disabled until this matches
@@ -4477,15 +4484,19 @@ function LeadsContent() {
       </div>
       )}
 
-      {/* Orphaned-leads notice — only in "All Leads" mode, only for
-          owner/admin (matches the DELETE route's own role gate). Disconnecting
-          a page never deletes its leads (same convention every CRM follows —
-          the integration is just the sync pipe, not data ownership), so this
-          is the one deliberate, explicit way to actually clear them out. */}
-      {selectedPageId === ALL_PAGES_ID && canManageOrg && !!orphanedCount && (
+      {/* Orphaned-leads notice — shown regardless of which view is active
+          (used to only appear in "All Leads" mode — a view nothing forced
+          anyone to ever visit — so stale leads from a disconnected page
+          could pile up for months with zero visibility; confirmed live on
+          a real account at 449 before anyone noticed), owner/admin only
+          (matches the DELETE route's own role gate). Disconnecting a page
+          never deletes its leads (same convention every CRM follows — the
+          integration is just the sync pipe, not data ownership), so this is
+          the one deliberate, explicit way to actually clear them out. */}
+      {canManageOrg && !!orphanedCount && (
         <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
           <span className="text-amber-800">
-            <span className="font-semibold tabular-nums">{orphanedCount}</span> of these leads are from Facebook pages that aren&apos;t connected anymore.
+            <span className="font-semibold tabular-nums">{orphanedCount}</span> lead{orphanedCount === 1 ? ' is' : 's are'} from Facebook pages that aren&apos;t connected anymore.
           </span>
           <button
             onClick={() => { setDeleteOrphansConfirmText(''); setConfirmDeleteOrphans(true) }}
