@@ -54,9 +54,21 @@ export async function GET(request: Request) {
     ? chargeId
     : `gid://shopify/AppSubscription/${chargeId}`
 
-  // Verify subscription status with Shopify
-  const query = `{ node(id: ${JSON.stringify(gid)}) { ... on AppSubscription { id status } } }`
+  // Verify subscription status AND price with Shopify. `sig` only binds
+  // (shop, planId) from the return URL — it says nothing about `charge_id`,
+  // which a merchant can freely edit on an already-signed return URL to
+  // point at any other subscription on their own shop (trivially obtained:
+  // just call POST /api/shopify/billing/create once for any plan). Checking
+  // only `status` here used to mean a swapped charge_id for a real, ACTIVE,
+  // currently-cheaper subscription would pass, and this route would then
+  // grant whatever `planId` the URL claimed — e.g. real Starter-price
+  // subscription confirmed, Enterprise limits written to `billing`. The
+  // fetched subscription's own price must match the claimed plan's price
+  // before anything is written.
+  const query = `{ node(id: ${JSON.stringify(gid)}) { ... on AppSubscription { id status lineItems { plan { pricingDetails { ... on AppRecurringPricing { price { amount currencyCode } } } } } } } }`
   let status: string | undefined
+  let chargedAmount: number | undefined
+  let chargedCurrency: string | undefined
   try {
     const verifyRes = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
       method: 'POST',
@@ -71,9 +83,15 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${APP_URL}/shopify/pricing?shop=${encodeURIComponent(shop)}&declined=1`)
     }
     const verifyData = await verifyRes.json() as {
-      data?: { node?: { id: string; status: string } }
+      data?: { node?: {
+        id: string; status: string
+        lineItems?: { plan?: { pricingDetails?: { price?: { amount?: string; currencyCode?: string } } } }[]
+      } }
     }
     status = verifyData.data?.node?.status
+    const price = verifyData.data?.node?.lineItems?.[0]?.plan?.pricingDetails?.price
+    chargedAmount   = price?.amount !== undefined ? parseFloat(price.amount) : undefined
+    chargedCurrency = price?.currencyCode
   } catch (err) {
     console.error('[billing/callback] Shopify verify request failed:', err)
     return NextResponse.redirect(`${APP_URL}/shopify/pricing?shop=${encodeURIComponent(shop)}&declined=1`)
@@ -82,6 +100,11 @@ export async function GET(request: Request) {
   // PENDING = in trial, ACTIVE = charged, DECLINED = user cancelled
   if (status === 'DECLINED' || !status) {
     return NextResponse.redirect(`${APP_URL}/shopify/pricing?shop=${encodeURIComponent(shop)}&declined=1`)
+  }
+
+  if (chargedAmount !== plan.price || chargedCurrency !== 'USD') {
+    console.error(`[billing/callback] price mismatch: charge_id=${chargeId} claimed plan=${planId} ($${plan.price}) but Shopify shows $${chargedAmount} ${chargedCurrency}`)
+    return NextResponse.redirect(`${APP_URL}/dashboard?billing=failed`)
   }
 
   const dbStatus = status === 'ACTIVE' ? 'active' : 'trialing'
