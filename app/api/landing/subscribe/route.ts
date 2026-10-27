@@ -70,7 +70,29 @@ export async function POST(request: Request) {
   // email already exists, log in instead," with no account created to show
   // for the money they'd just paid. Stopping it here means the Razorpay
   // popup never even opens for an email that already has an account.
-  const { data: existingAccount } = await service.from('user_profiles').select('id').eq('email', email).maybeSingle()
+  //
+  // Checking user_profiles alone isn't enough — confirmed live, several real
+  // auth.users accounts (including the admin's own) have no user_profiles
+  // row at all, so that check silently missed them and let a real duplicate
+  // through. auth.users is the actual source of truth for "does this email
+  // have an account," and Supabase's Admin API has no direct get-by-email
+  // lookup — paginating listUsers (same pattern app/api/admin/users/route.ts
+  // already uses) is the reliable way to check it. Fine at today's user
+  // count; would need a real index-backed lookup if that grows large enough
+  // for this to matter.
+  let existingAccount = false
+  {
+    let page = 1
+    outer: while (true) {
+      const { data, error } = await service.auth.admin.listUsers({ page, perPage: 1000 })
+      if (error || !data?.users?.length) break
+      for (const u of data.users) {
+        if ((u.email ?? '').toLowerCase() === email) { existingAccount = true; break outer }
+      }
+      if (data.users.length < 1000) break
+      page++
+    }
+  }
   if (existingAccount) {
     return NextResponse.json({
       error: 'already_registered',
