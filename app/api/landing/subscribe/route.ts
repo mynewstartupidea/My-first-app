@@ -15,15 +15,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // the visitor saw and signed up for, instead of every landing page silently
 // billing under the first one's "Lead Response Plan" name regardless of
 // which page they actually came from.
-// TEMP — testing the pay→account flow with a real ₹1 charge. planKey is
-// what getOrCreateLandingPlan (lib/razorpay.ts) caches Razorpay Plans by —
-// it looks up by this key BEFORE ever looking at amountRupees, so changing
-// just the price here without also changing the key would silently reuse
-// the real cached ₹1999 Plan instead of creating a genuine ₹1 one. Revert
-// both the amount AND the key back together after testing.
 const PLANS: Record<string, { amountRupees: number; planKey: string; name: string }> = {
-  lp_leads:     { amountRupees: 50, planKey: 'lp_leads_50_test_monthly',     name: 'Wapaci — Lead Response Plan TEST (Monthly)' },
-  lp_ecommerce: { amountRupees: 50, planKey: 'lp_ecommerce_50_test_monthly', name: 'Wapaci — Ecommerce Plan TEST (Monthly)' },
+  lp_leads:     { amountRupees: 1999, planKey: 'lp_leads_1999_monthly',     name: 'Wapaci — Lead Response Plan (Monthly)' },
+  lp_ecommerce: { amountRupees: 1999, planKey: 'lp_ecommerce_1999_monthly', name: 'Wapaci — Ecommerce Plan (Monthly)' },
   // Homepage serves both segments (unlike the single-industry lp/* pages),
   // so it uses the same flat price already proven on both of those rather
   // than inventing a new figure — same reasoning as reusing real stats
