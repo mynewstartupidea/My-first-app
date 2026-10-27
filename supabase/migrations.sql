@@ -538,6 +538,14 @@ ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_campaign TEXT;
 ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_term TEXT;
 ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_content TEXT;
 
+-- Marks which lead actually became a real account, via
+-- app/api/landing/complete-signup/route.ts. This is the route's own
+-- idempotency key: scoped to one specific lead row (never looked up by
+-- email), so a double-click/retry on the SAME submission can short-circuit
+-- safely without ever needing to look up — or touch — a different,
+-- unrelated existing account by email address.
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS converted_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
 -- Caches Plan IDs created via Razorpay's API (table already existed, unused
 -- until now) so a redeploy or cold start doesn't create a duplicate Plan in
 -- the Razorpay dashboard every time — lib/razorpay.ts looks here first.
@@ -888,6 +896,16 @@ CREATE TABLE IF NOT EXISTS campaign_recipients (
   UNIQUE (campaign_id, customer_id)
 );
 CREATE INDEX IF NOT EXISTS campaign_recipients_pending_idx ON campaign_recipients(campaign_id, status);
+
+-- A row claimed into 'sending' (app/api/cron/campaign-send/route.ts) had no
+-- way to be reclaimed if the function was killed mid-send (Vercel's 60s
+-- ceiling, OOM) rather than throwing a catchable error — it stayed 'sending'
+-- forever, invisible to the main query (which only looks at 'pending'), and
+-- the owning campaign never flipped to 'completed' since its own count query
+-- treats 'sending' as still-pending. Same stuck-row class already fixed for
+-- automation_jobs and shopify_sync_jobs; this table was the one left behind
+-- with no updated_at column to even check a cutoff against.
+ALTER TABLE campaign_recipients ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 ALTER TABLE campaign_recipients ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "campaign_recipients_own" ON campaign_recipients FOR ALL
