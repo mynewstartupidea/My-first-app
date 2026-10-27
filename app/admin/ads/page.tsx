@@ -671,6 +671,30 @@ function scheduleAdAudio(audioCtx: AudioContext, master: GainNode, adId: number)
       whooshFx(audioCtx, master, now + 24.2); hit(audioCtx, master, now + 25.3, 'green')
       cashFx(audioCtx, master, now + 27.2); cashFx(audioCtx, master, now + 29.1)
       break
+    case 26: // The 47-Hour Lead — urgent build to confident resolve
+      pad(audioCtx, master, [98, 123, 147, 196], 'sawtooth', .013, 1.8, 28.5)
+      arpNote(audioCtx, master, [196, 233, 294, 349], 340, 'triangle', .018, 4)
+      hit(audioCtx, master, now + .35, 'red')
+      ticker(audioCtx, master, now + 5.3, 7, .14) // the "47 hours" cards counting up
+      whooshFx(audioCtx, master, now + 8.1); hit(audioCtx, master, now + 8.3, 'blue')
+      waPing(audioCtx, master, now + 10.1) // the WhatsApp bubble lands
+      hit(audioCtx, master, now + 12.6, 'blue') // call-notification card pops
+      cashFx(audioCtx, master, now + 15.2); hit(audioCtx, master, now + 15.4, 'green')
+      whooshFx(audioCtx, master, now + 22); hit(audioCtx, master, now + 22.8, 'green')
+      cashFx(audioCtx, master, now + 24.5); ticker(audioCtx, master, now + 27, 6, .12)
+      break
+    case 27: // Already Gone — playful competitive race, full energy
+      pad(audioCtx, master, [110, 147, 165, 220], 'sawtooth', .014, 1.4, 28)
+      arpNote(audioCtx, master, [220, 262, 330, 392, 440], 160, 'square', .017, 5.5)
+      hit(audioCtx, master, now + .3, 'orange') // "ding, a new lead"
+      hit(audioCtx, master, now + 1.9, 'red') // competitor's phone buzzes
+      ticker(audioCtx, master, now + 6.3, 14, .11) // competitor's slow crawling bar
+      whooshFx(audioCtx, master, now + 7.1); waPing(audioCtx, master, now + 7.3) // your bar rockets, instant WhatsApp
+      hit(audioCtx, master, now + 8.5, 'green')
+      cashFx(audioCtx, master, now + 15); hit(audioCtx, master, now + 15.2, 'green') // "you already won"
+      whooshFx(audioCtx, master, now + 18.8); hit(audioCtx, master, now + 19.6, 'green')
+      cashFx(audioCtx, master, now + 24.2); cashFx(audioCtx, master, now + 27.4)
+      break
     default:
       pad(audioCtx, master, [131, 165, 196, 262], 'triangle', .018)
   }
@@ -2082,6 +2106,144 @@ function renderAd25(ctx: CanvasRenderingContext2D, t: number) {
   }
 }
 
+/* Ad 26 — The 47-Hour Lead (lead-gen, speed-to-lead) */
+function renderAd26(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#060b14'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(56,189,248,.025)')
+  glow(ctx, W / 2, 300, 600, '239,68,68', .08 * cl(t / 2))
+
+  // S1: Problem 0–9s
+  if (t < 9) {
+    const f = t < .8 ? pr(t, 0, .8) : t > 8 ? 1 - pr(t, 8, 9) : 1
+    ctx.globalAlpha = f * pr(t, .1, .8)
+    rr(ctx, W / 2 - 230, 230, 460, 56, 28, 'rgba(239,68,68,.13)', 'rgba(239,68,68,.45)')
+    ctx.beginPath(); ctx.arc(W / 2 - 173, 258, 8, 0, Math.PI * 2); ctx.fillStyle = '#ef4444'; ctx.fill()
+    txt(ctx, 'A LEAD JUST CAME IN', W / 2 + 18, 258, { size: 18, color: '#ef4444', weight: '800', alpha: f * pr(t, .1, .8) })
+    ctx.globalAlpha = 1
+    txt(ctx, '47 HRS', W / 2, 450, { size: Math.round(150 * pr(t, .3, 1.3)), color: '#ef4444', weight: '900', alpha: f * pr(t, .3, 1.3) })
+    txt(ctx, 'average time sales teams take', W / 2, 555, { size: 25, color: '#94a3b8', weight: '400', alpha: f * pr(t, 1.5, 2.5) })
+    txt(ctx, 'to actually call a new lead', W / 2, 592, { size: 25, color: '#94a3b8', weight: '400', alpha: f * pr(t, 1.7, 2.7) })
+    txt(ctx, 'By then, they already bought from someone else.', W / 2, 665, { size: 22, color: '#64748b', weight: '500', alpha: f * pr(t, 3.2, 4.4) })
+    const cards = [{ v: '68%', l: 'Leads never called back' }, { v: '₹0', l: 'Follow-up sent' }, { v: 'Gone', l: 'to a competitor' }]
+    cards.forEach((c, i) => {
+      const cx = 180 + i * 280, cfa = f * pr(t, 5.2, 6.4)
+      ctx.globalAlpha = cfa
+      rr(ctx, cx, 735, 250, 110, 16, 'rgba(239,68,68,.07)', 'rgba(239,68,68,.22)')
+      txt(ctx, c.v, cx + 125, 777, { size: 34, color: '#ef4444', weight: '900', alpha: cfa })
+      txt(ctx, c.l, cx + 125, 815, { size: 14, color: '#64748b', weight: '500', alpha: cfa })
+    })
+    ctx.globalAlpha = 1
+  }
+
+  // S2: Solution 8–23s
+  if (t >= 8 && t < 23) {
+    const lt = t - 8, f = lt < 1 ? pr(lt, 0, 1) : lt > 13 ? 1 - pr(lt, 13, 14.5) : 1
+    glow(ctx, W / 2, 250, 550, '37,211,102', .1 * f)
+    txt(ctx, 'Wapaci replies in 10 seconds.', W / 2, 220, { size: 31, color: '#25D366', weight: '800', alpha: f * pr(lt, 0, 1) })
+    txt(ctx, 'And notifies your sales team — instantly.', W / 2, 262, { size: 23, color: '#94a3b8', weight: '400', alpha: f * pr(lt, .4, 1.4) })
+
+    // Auto-WhatsApp bubble to the lead
+    const bp = pr(lt, 2, 2.8)
+    if (bp > 0) {
+      ctx.globalAlpha = f * bp
+      const bx = W / 2 - 390, by = 330, bw = 410
+      const lines = ['Hi Priya! 👋 Thanks for your interest', 'in Aihly Realty. Our team will call', 'you in the next few minutes!']
+      const bh = 30 + lines.length * 26
+      rr(ctx, bx, by, bw, bh, 18, '#005c4b')
+      lines.forEach((l, i) => txt(ctx, l, bx + 16, by + 28 + i * 26, { size: 16, align: 'left', color: '#e9edef', alpha: f * bp }))
+      txt(ctx, '10:04 AM ✓✓', bx + bw - 16, by + bh - 4, { size: 11, color: '#8fa89b', align: 'right', alpha: f * bp * .8 })
+      ctx.globalAlpha = 1
+    }
+
+    // Sales-rep call notification card
+    const cp = pr(lt, 4.5, 5.3)
+    if (cp > 0) {
+      ctx.globalAlpha = f * cp
+      const cx2 = W / 2 - 190, cy2 = 555, cw = 380, ch = 150
+      rr(ctx, cx2, cy2, cw, ch, 20, 'rgba(56,189,248,.1)', 'rgba(56,189,248,.5)', 2)
+      txt(ctx, '📞', cx2 + 65, cy2 + 75, { size: 42, alpha: f * cp })
+      txt(ctx, 'Call Priya now', cx2 + 235, cy2 + 55, { size: 22, color: '#38bdf8', weight: '800', align: 'left', alpha: f * cp })
+      txt(ctx, 'She just engaged — strike now', cx2 + 235, cy2 + 90, { size: 15, color: '#94a3b8', align: 'left', alpha: f * cp })
+      ctx.globalAlpha = 1
+    }
+
+    txt(ctx, 'Instant WhatsApp. Instant call. Zero cold leads.', W / 2, 835, { size: 23, color: '#25D366', weight: '700', alpha: f * pr(lt, 7, 8.5) })
+  }
+
+  // S3: CTA 22–30s
+  if (t >= 22) {
+    const lt = t - 22, f = lt < 1.5 ? pr(lt, 0, 1.5) : 1
+    glow(ctx, W / 2, H / 2, 650, '56,189,248', .18 * f)
+    txt(ctx, 'Reply in Seconds,', W / 2, 365, { size: 56, color: '#fff', weight: '900', alpha: f })
+    txt(ctx, 'Not Hours.', W / 2, 433, { size: 56, color: '#38bdf8', weight: '900', alpha: f })
+    txt(ctx, 'Instant WhatsApp automation for lead-gen businesses.', W / 2, 512, { size: 23, color: '#94a3b8', weight: '400', alpha: f * pr(lt, .5, 1.5) })
+    ctx.globalAlpha = f * pr(lt, .7, 1.7)
+    rr(ctx, W / 2 - 200, 592, 400, 82, 41, '#25D366')
+    ctx.globalAlpha = 1
+    txt(ctx, 'Start Free →', W / 2, 633, { size: 28, color: '#03130a', weight: '900', alpha: f * pr(lt, .7, 1.7) })
+    txt(ctx, 'wapaci.com', W / 2, 732, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1.2, 2.2) })
+  }
+}
+
+/* Ad 27 — Already Gone (lead-gen, competitor race) */
+function renderAd27(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#07090f'; ctx.fillRect(0, 0, W, H); grid(ctx, 'rgba(37,211,102,.022)')
+  glow(ctx, 250, 250, 550, '239,68,68', .07 * cl(t / 2))
+  glow(ctx, 830, 850, 550, '37,211,102', .08 * cl(t / 2))
+
+  // S1: Setup 0–6s
+  if (t < 6) {
+    const f = t < .6 ? pr(t, 0, .6) : t > 5 ? 1 - pr(t, 5, 6) : 1
+    txt(ctx, 'Ding. A new lead.', W / 2, 400, { size: 54, weight: '800', alpha: f * pr(t, 0, .9) })
+    txt(ctx, 'Nice. But your competitor’s', W / 2, 490, { size: 34, color: '#94a3b8', weight: '400', alpha: f * pr(t, .7, 1.7) })
+    txt(ctx, 'phone just buzzed too.', W / 2, 536, { size: 34, color: '#94a3b8', weight: '400', alpha: f * pr(t, 1, 2) })
+    txt(ctx, "It's a race. Most businesses don't even know they're in it.", W / 2, 630, { size: 20, color: '#64748b', weight: '500', alpha: f * pr(t, 2.6, 3.8) })
+  }
+
+  // S2: The race 5.5–19s
+  if (t >= 5.5 && t < 19) {
+    const lt = t - 5.5, f = lt < .7 ? pr(lt, 0, .7) : lt > 11.8 ? 1 - pr(lt, 11.8, 12.5) : 1
+    txt(ctx, 'Time to first reply', W / 2, 240, { size: 26, color: '#334155', weight: '800', alpha: f * pr(lt, 0, 1) })
+
+    const lanes = [
+      { label: 'Other businesses', sub: 'still checking email…', pct: .22, color: '#ef4444', tD: .8, dur: 7 },
+      { label: 'You, with Wapaci', sub: 'WhatsApp sent in 10 seconds', pct: 1, color: '#25D366', tD: 1.6, dur: 1.2 },
+    ]
+    const barMaxW = 760, barH = 64, gap = 54, startY = 330
+    lanes.forEach((ln, i) => {
+      const lp = pr(lt, ln.tD, ln.tD + ln.dur)
+      const by = startY + i * (barH + gap)
+      ctx.globalAlpha = f * Math.min(1, pr(lt, ln.tD, ln.tD + .6) * 2)
+      txt(ctx, ln.label, W / 2 - barMaxW / 2, by - 24, { size: 20, weight: '700', align: 'left', alpha: f * Math.min(1, pr(lt, ln.tD, ln.tD + .6) * 2) })
+      rr(ctx, W / 2 - barMaxW / 2, by, barMaxW, barH, 14, 'rgba(255,255,255,.04)', 'rgba(255,255,255,.1)')
+      const w = barMaxW * ln.pct * lp
+      if (w > 2) rr(ctx, W / 2 - barMaxW / 2, by, w, barH, 14, ln.color + '40', ln.color + 'a0', 2)
+      txt(ctx, ln.sub, W / 2 - barMaxW / 2, by + barH + 26, { size: 16, color: ln.color, weight: '600', align: 'left', alpha: f * lp })
+      ctx.globalAlpha = 1
+    })
+
+    const wp = pr(lt, 9.5, 10.3)
+    if (wp > 0) {
+      ctx.globalAlpha = f * wp
+      txt(ctx, '🏆 You already won.', W / 2, 760, { size: 32, color: '#25D366', weight: '900', alpha: f * wp })
+      ctx.globalAlpha = 1
+    }
+  }
+
+  // S3: CTA 18.5–30s
+  if (t >= 18.5) {
+    const lt = t - 18.5, f = lt < 1.2 ? pr(lt, 0, 1.2) : 1
+    glow(ctx, W / 2, H / 2, 650, '37,211,102', .2 * f)
+    txt(ctx, "Don't Just Respond Fast.", W / 2, 400, { size: 44, color: '#fff', weight: '900', alpha: f })
+    txt(ctx, 'Win.', W / 2, 470, { size: 70, color: '#25D366', weight: '900', alpha: f })
+    txt(ctx, 'Wapaci sends the WhatsApp before your competitor finishes reading the email.', W / 2, 560, { size: 20, color: '#94a3b8', weight: '400', alpha: f * pr(lt, .5, 1.5) })
+    ctx.globalAlpha = f * pr(lt, .7, 1.7)
+    rr(ctx, W / 2 - 200, 630, 400, 82, 41, '#25D366')
+    ctx.globalAlpha = 1
+    txt(ctx, 'Try Wapaci Free →', W / 2, 671, { size: 28, color: '#03130a', weight: '900', alpha: f * pr(lt, .7, 1.7) })
+    txt(ctx, 'wapaci.com', W / 2, 770, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1.2, 2.2) })
+  }
+}
+
 const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => void> = {
   1: renderAd1, 2: renderAd2, 3: renderAd3,
   4: renderAd4, 5: renderAd5, 6: renderAd6, 7: renderAd7,
@@ -2090,6 +2252,7 @@ const RENDERERS: Record<number, (ctx: CanvasRenderingContext2D, t: number) => vo
   16: renderAd16, 17: renderAd17, 18: renderAd18, 19: renderAd19,
   20: renderAd20, 21: renderAd21, 22: renderAd22,
   23: renderAd23, 24: renderAd24, 25: renderAd25,
+  26: renderAd26, 27: renderAd27,
 }
 
 /* ─── Ad definitions ──────────────────────────────────────────────── */
@@ -2996,6 +3159,94 @@ Try Wapakee free — wapaki dot com.`,
 
 [excited] Try Wapakee free. Wapaki dot com.`,
     expertVoiceDir: `28 year old Indian female, cinematic and warm, family-film trailer energy without being childish, soft emotional opening to bright triumphant close, expert ad voice`,
+  },
+  {
+    id: 26, filename: 'wapaci-47-hour-lead',
+    title: 'The 47-Hour Lead — Speed to Lead',
+    tag: 'Lead Gen', tagColor: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+    accent: '#38bdf8',
+    defaultScript: `Someone just filled out your lead form.
+
+They're interested. Right now.
+
+But your team... won't call them for forty-seven hours.
+
+That's the average. Forty. Seven. Hours.
+
+By then? They've already bought from someone else.
+
+Someone who replied in seconds.
+
+Wapakee changes that.
+
+The moment a lead comes in — Wapakee sends them a WhatsApp message. Instantly.
+
+And your sales team? They get notified immediately too.
+
+They call while the lead is still warm. Still interested. Still ready.
+
+No more cold callbacks. No more forty-seven hours.
+
+Just... instant conversations. Instant calls. Instant results.
+
+Try Wapakee free today — wapaki dot com!`,
+    voiceDir: 'confident and urgent opening building real stakes around the missed window, slight disbelief on the "forty-seven hours" stat, shift to energetic and reassuring when revealing the solution, crisp motivating close',
+    expertScript: `[neutral] Someone just filled out your lead form.
+
+[serious] Your team won't call them for forty-seven hours.
+
+[sad] By then, they've bought from someone else.
+
+[excited] Wapakee sends a WhatsApp instantly. Your sales team gets notified too.
+
+[happy] They call while the lead is still warm.
+
+[excited] No more cold callbacks. Try Wapakee free. Wapaki dot com.`,
+    expertVoiceDir: `28 year old Indian female, confident and sharp, urgent build around the missed-window stat, warm reassurance revealing the fix, energetic motivating close, expert ad voice`,
+  },
+  {
+    id: 27, filename: 'wapaci-already-gone',
+    title: 'Already Gone — Competitor Race',
+    tag: 'Lead Gen', tagColor: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+    accent: '#25D366',
+    defaultScript: `Ding. A new lead.
+
+Nice! But wait —
+
+Your competitor's phone... just buzzed too.
+
+Same lead. Submitted to five businesses at once.
+
+It's a race now. And most businesses don't even know they're racing.
+
+Wapakee does.
+
+The instant that lead form is submitted — Wapakee fires off a WhatsApp message. In seconds.
+
+While your competitors are still checking their email...
+
+Your lead already has a warm, personal WhatsApp from you.
+
+And your sales rep already has their number pulled up. Ready to call.
+
+You didn't just respond fast.
+
+You won.
+
+Try Wapakee free — wapaki dot com!`,
+    voiceDir: 'fast, punchy, slightly playful competitive energy, quick staccato delivery on the race metaphor, confident victorious close',
+    expertScript: `[excited] Ding. A new lead!
+
+[neutral] Your competitor's phone just buzzed too.
+
+[serious] Same lead. Five businesses. One race.
+
+[excited] Wapakee fires a WhatsApp in seconds.
+
+[happy] Your rep is already calling. You already won.
+
+[excited] Try Wapakee free. Wapaki dot com.`,
+    expertVoiceDir: `28 year old Indian female, fast and playful competitive energy, punchy staccato on the race metaphor, triumphant victorious close, expert ad voice`,
   },
 ]
 
