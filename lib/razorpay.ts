@@ -63,10 +63,23 @@ export async function getOrCreateLandingPlan(
 
 // Razorpay's Subscriptions API requires total_count (billing cycles before
 // the subscription auto-completes) — there's no "forever" option. 1200
-// monthly cycles (100 years) is the documented convention Razorpay itself
-// suggests for an open-ended subscription; it just needs to outlast any real
-// customer relationship.
-const INDEFINITE_TOTAL_COUNT = 1200
+// monthly cycles (100 years) is a commonly-cited convention for an
+// open-ended subscription, but it's the actual, confirmed root cause of a
+// real production outage: every UPI AutoPay mandate attempt on the real
+// landing-page checkout AND the in-app billing-upgrade flow (both call
+// createRazorpaySubscription with no explicit totalCount, so both hit this
+// same default) failed inside the customer's UPI app — across multiple
+// apps, multiple amounts (₹1/₹50/₹1,999) — while completely unrelated to
+// price. Live-tested directly against this Razorpay account (not a docs
+// guess): total_count: 1200 fails every time; 12 and 120 both succeed
+// (real UPI AutoPay mandate authorized). 120 (10 years) is used here —
+// comfortably longer than almost any real subscription relationship, and
+// nowhere near whatever this account's actual NPCI/mandate ceiling is.
+// When a subscription actually approaches its 120th cycle, it needs a
+// renewal (a fresh mandate) before then — correctly, this is a problem for
+// ~2036, not now, but it's a real one: nothing currently creates a
+// replacement subscription automatically.
+const INDEFINITE_TOTAL_COUNT = 120
 
 export async function createRazorpaySubscription(params: {
   planId: string

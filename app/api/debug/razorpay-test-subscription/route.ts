@@ -9,7 +9,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getOrCreateLandingPlan, createRazorpaySubscription } from '@/lib/razorpay'
+import { getOrCreateLandingPlan, createRazorpaySubscription, cancelRazorpaySubscription } from '@/lib/razorpay'
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -39,6 +39,27 @@ export async function GET(request: Request) {
     })
 
     return NextResponse.json({ ok: true, months, planId, subscriptionId, shortUrl })
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
+}
+
+// Two of these test subscriptions had their UPI AutoPay mandate genuinely
+// authorized (that's what confirmed the root cause) — left alone, each is a
+// real, live, auto-charging ₹50/month subscription. Cancel-only, by id, no
+// other side effects.
+export async function DELETE(request: Request) {
+  const authHeader = request.headers.get('authorization')
+  const secret = process.env.CRON_SECRET
+  if (!secret || authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const subscriptionId = new URL(request.url).searchParams.get('id')
+  if (!subscriptionId) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+  try {
+    await cancelRazorpaySubscription(subscriptionId)
+    return NextResponse.json({ ok: true, cancelled: subscriptionId })
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
