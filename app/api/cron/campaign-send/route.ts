@@ -24,6 +24,19 @@ export async function GET(request: Request) {
   const service = createServiceClient()
   const tickStart = Date.now()
 
+  // A row claimed into 'sending' below had no reclaim at all — if this
+  // function was killed mid-send (Vercel's 60s ceiling, an OOM) rather than
+  // throwing a catchable error, the row stayed 'sending' forever: invisible
+  // to the pending-recipients query further down, and the campaign-complete
+  // check at the bottom of this file treats 'sending' as still-pending, so
+  // the whole campaign silently never flips to 'completed' either. Same fix
+  // already applied to automation_jobs/shopify_sync_jobs's own 'processing'
+  // state. 10 minutes is generous enough to never reclaim a row still
+  // genuinely mid-send.
+  const stuckRecipientCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  await service.from('campaign_recipients').update({ status: 'pending', updated_at: new Date().toISOString() })
+    .eq('status', 'sending').lt('updated_at', stuckRecipientCutoff)
+
   // A campaign saved with status='scheduled' and a future scheduled_at had
   // nothing that ever auto-launched it — app/api/campaigns/route.ts lets it
   // be created, but only a human manually clicking Send later actually
@@ -88,7 +101,7 @@ export async function GET(request: Request) {
     const store = campaign ? storeMap.get(campaign.store_id) : null
     if (!campaign || !store) {
       await service.from('campaign_recipients')
-        .update({ status: 'failed', error_message: 'Campaign or store no longer exists' })
+        .update({ status: 'failed', error_message: 'Campaign or store no longer exists', updated_at: new Date().toISOString() })
         .eq('id', recipient.id).eq('status', 'pending')
       continue
     }
@@ -96,7 +109,7 @@ export async function GET(request: Request) {
     // Atomic claim — guards against two overlapping cron ticks double-sending
     const { data: claimed } = await service
       .from('campaign_recipients')
-      .update({ status: 'sending' })
+      .update({ status: 'sending', updated_at: new Date().toISOString() })
       .eq('id', recipient.id).eq('status', 'pending')
       .select('id')
     if (!claimed || claimed.length === 0) continue
@@ -171,7 +184,7 @@ export async function GET(request: Request) {
       sent++
       await Promise.all([
         service.from('campaign_recipients').update({
-          status: 'sent', bsp_message_id: result.messageId, sent_at: new Date().toISOString(),
+          status: 'sent', bsp_message_id: result.messageId, sent_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         }).eq('id', recipient.id),
         service.from('messages').insert({
           store_id: store.id, customer_phone: recipient.phone, customer_name: recipient.name,
@@ -202,10 +215,10 @@ export async function GET(request: Request) {
       await Promise.all([
         isRetryable && attempts < MAX_ATTEMPTS
           ? service.from('campaign_recipients').update({
-              status: 'pending', attempts, error_message: result.error ?? 'Unknown error',
+              status: 'pending', attempts, error_message: result.error ?? 'Unknown error', updated_at: new Date().toISOString(),
             }).eq('id', recipient.id)
           : service.from('campaign_recipients').update({
-              status: 'failed', attempts, error_message: result.error ?? 'Unknown error',
+              status: 'failed', attempts, error_message: result.error ?? 'Unknown error', updated_at: new Date().toISOString(),
             }).eq('id', recipient.id),
         notReachable
           ? service.from('customers').update({ whatsapp_opt_in: false }).eq('id', recipient.customer_id)

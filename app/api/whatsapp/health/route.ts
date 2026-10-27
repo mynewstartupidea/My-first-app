@@ -48,8 +48,21 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(20)
     billingIssue = (recentFailure ?? []).some(m => {
-      const details = (m.metadata as Record<string, unknown> | null)?.delivery_error as { details?: string } | undefined
-      return details?.details?.toLowerCase().includes('payment method')
+      const metadata = m.metadata as Record<string, unknown> | null
+      // Two different code paths write a failed message's reason in two
+      // different shapes: the async webhook status-callback (app/api/meta/
+      // webhook/route.ts) nests it under delivery_error.details for a
+      // message Meta had already accepted and later failed to deliver, but
+      // the actual 131042 "payment method needs attention" case — the one
+      // this check exists for — is returned SYNCHRONOUSLY in the send
+      // response itself (never queued, never gets a delivery callback at
+      // all) and is written as a flat top-level `error` string by
+      // app/api/cron/route.ts instead. Checking only the nested shape meant
+      // this flag could essentially never go true from the one real-world
+      // trigger it's named after.
+      const deliveryDetails = (metadata?.delivery_error as { details?: string } | undefined)?.details
+      const syncError = metadata?.error as string | undefined
+      return [deliveryDetails, syncError].some(s => s?.toLowerCase().includes('payment method'))
     })
   }
 
