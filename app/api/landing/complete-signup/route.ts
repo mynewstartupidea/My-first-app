@@ -129,7 +129,7 @@ export async function POST(request: Request) {
   // 'trialing' for someone who actually already paid.
   // TEMP — must match app/api/landing/subscribe/route.ts's PLANS keys
   // exactly while that's on the ₹1 test pricing; revert together.
-  const planKey = lead.source === 'lp_ecommerce' ? 'lp_ecommerce_1_test_monthly' : 'lp_leads_1_test_monthly'
+  const planKey = lead.source === 'lp_ecommerce' ? 'lp_ecommerce_50_test_monthly' : 'lp_leads_50_test_monthly'
   const { data: planRow } = await service.from('razorpay_plans').select('plan_id').eq('plan_name', planKey).maybeSingle()
   const { error: billingErr } = await service.from('billing').upsert({
     user_id:                  userId,
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
     billing_provider:         'razorpay',
     razorpay_subscription_id: lead.razorpay_subscription_id,
     razorpay_plan_id:         planRow?.plan_id ?? null,
-    amount_paise:             100, // TEMP — ₹1 test price, revert to 199900 after
+    amount_paise:             5000, // TEMP — ₹50 test price, revert to 199900 after
     // Both landing pages' copy promises "Unlimited leads & follow-ups" —
     // 999_999_999 is this codebase's existing unlimited sentinel (same value
     // Enterprise uses, and what components/sidebar.tsx already checks

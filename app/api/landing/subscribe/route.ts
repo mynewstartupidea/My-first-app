@@ -22,8 +22,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // the real cached ₹1999 Plan instead of creating a genuine ₹1 one. Revert
 // both the amount AND the key back together after testing.
 const PLANS: Record<string, { amountRupees: number; planKey: string; name: string }> = {
-  lp_leads:     { amountRupees: 1, planKey: 'lp_leads_1_test_monthly',     name: 'Wapaci — Lead Response Plan TEST (Monthly)' },
-  lp_ecommerce: { amountRupees: 1, planKey: 'lp_ecommerce_1_test_monthly', name: 'Wapaci — Ecommerce Plan TEST (Monthly)' },
+  lp_leads:     { amountRupees: 50, planKey: 'lp_leads_50_test_monthly',     name: 'Wapaci — Lead Response Plan TEST (Monthly)' },
+  lp_ecommerce: { amountRupees: 50, planKey: 'lp_ecommerce_50_test_monthly', name: 'Wapaci — Ecommerce Plan TEST (Monthly)' },
   // Homepage serves both segments (unlike the single-industry lp/* pages),
   // so it uses the same flat price already proven on both of those rather
   // than inventing a new figure — same reasoning as reusing real stats
@@ -51,11 +51,32 @@ export async function POST(request: Request) {
     utm_content:  body.utm_content?.trim() || null,
   }
 
-  if (!name)  return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-  if (!phone) return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
-  if (!email || !EMAIL_RE.test(email)) return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
+  // Every error response below returns `error`, but both landing pages'
+  // handleSubmit only ever reads `data.message` to show the visitor
+  // anything — `data.message` was always undefined for every one of these,
+  // so a missing name, an invalid email, or a failed DB insert all silently
+  // fell through to the generic "Something went wrong" text with no way to
+  // tell which one actually happened. Every return below now sets both.
+  if (!name)  return NextResponse.json({ error: 'Name is required', message: 'Please enter your name.' }, { status: 400 })
+  if (!phone) return NextResponse.json({ error: 'Phone number is required', message: 'Please enter a phone number.' }, { status: 400 })
+  if (!email || !EMAIL_RE.test(email)) return NextResponse.json({ error: 'Valid email is required', message: 'Please enter a valid email address.' }, { status: 400 })
 
   const service = createServiceClient()
+
+  // Check for an existing Wapaci account on this email BEFORE creating
+  // anything — this used to only get caught much later, at
+  // /api/landing/complete-signup, AFTER a real Razorpay charge had already
+  // gone through: the visitor would pay, then be told "an account with this
+  // email already exists, log in instead," with no account created to show
+  // for the money they'd just paid. Stopping it here means the Razorpay
+  // popup never even opens for an email that already has an account.
+  const { data: existingAccount } = await service.from('user_profiles').select('id').eq('email', email).maybeSingle()
+  if (existingAccount) {
+    return NextResponse.json({
+      error: 'already_registered',
+      message: 'An account with this email already exists — please log in instead.',
+    }, { status: 409 })
+  }
 
   let { data: lead, error: insertErr } = await service
     .from('landing_leads')
@@ -77,7 +98,7 @@ export async function POST(request: Request) {
 
   if (insertErr || !lead) {
     console.error('[landing/subscribe] insert error:', insertErr)
-    return NextResponse.json({ error: 'Could not save your details — please try again' }, { status: 500 })
+    return NextResponse.json({ error: 'Could not save your details', message: 'Could not save your details — please try again.' }, { status: 500 })
   }
 
   // From here on, the lead row already exists — a Razorpay failure is

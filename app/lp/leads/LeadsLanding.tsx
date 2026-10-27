@@ -14,7 +14,7 @@ import { getUtmParams } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/password-input'
 
-const PRICE = 1 // TEMP — testing the pay→account flow with a real ₹1 charge; revert to 1999 after
+const PRICE = 50 // TEMP — testing the pay→account flow with a real ₹50 charge; revert to 1999 after
 
 declare global {
   interface Window {
@@ -280,7 +280,7 @@ function GetStarted() {
       key: data.keyId,
       subscription_id: data.subscriptionId,
       name: 'Wapaci',
-      description: 'Lead Response Plan — ₹1/month (TEST)',
+      description: 'Lead Response Plan — ₹50/month (TEST)',
       prefill: data.prefill,
       theme: { color: '#25D366' },
       handler: () => { setStep('set_password'); scrollToGetStarted() },
@@ -410,7 +410,14 @@ function GetStarted() {
                 <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
 
-                {error && <p className="text-red-400 text-xs">{error}</p>}
+                {error && (
+                  <p className="text-red-400 text-xs">
+                    {error}
+                    {error.startsWith('An account with this email') && (
+                      <> <Link href="/login" className="underline font-semibold">Log in →</Link></>
+                    )}
+                  </p>
+                )}
 
                 <button type="submit" disabled={step === 'submitting'}
                   className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
