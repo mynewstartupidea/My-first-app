@@ -22,25 +22,36 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // actual store name and plan.
   const service = createServiceClient()
   const ownerId = await resolveOwnerUserId(service, user.id)
-  const { data: storeRows } = await service
-    .from('stores')
-    .select('shop_name, plan, shopify_domain, visible_sections')
-    .eq('user_id', ownerId)
-    .eq('is_active', true)
-    .order('connected_at', { ascending: false, nullsFirst: false })
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .limit(10)
+  const [{ data: storeRows }, { data: wa }] = await Promise.all([
+    service
+      .from('stores')
+      .select('shop_name, plan, shopify_domain, visible_sections')
+      .eq('user_id', ownerId)
+      .eq('is_active', true)
+      .order('connected_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(10),
+    // The sidebar's "Set up WhatsApp" CTA used to be gated on storeName
+    // alone — a lead-gen-only merchant with WhatsApp genuinely connected
+    // but no Shopify store (stores row never created) saw "Set up
+    // WhatsApp" forever, as if nothing were connected, with no way for
+    // that to ever go away.
+    service.from('whatsapp_accounts').select('display_phone_number').eq('user_id', ownerId).eq('status', 'connected').maybeSingle(),
+  ])
   const store = pickPreferredStore(storeRows)
 
-  const displayName = store?.shop_name ?? null
-  const role        = await getUserRole(user.id, user.email ?? '')
+  const displayName       = store?.shop_name ?? null
+  const whatsappConnected = !!wa
+  const whatsappNumber    = wa?.display_phone_number ?? null
+  const role               = await getUserRole(user.id, user.email ?? '')
 
   return (
     <div className="flex min-h-screen bg-[#f1f5f9]">
       <InstallPromptInitializer />
       <RouteProgress />
       {/* Desktop sidebar — hidden on mobile */}
-      <Sidebar storeName={displayName} plan={store?.plan} role={role} visibleSections={store?.visible_sections ?? null} />
+      <Sidebar storeName={displayName} plan={store?.plan} role={role} visibleSections={store?.visible_sections ?? null}
+        whatsappConnected={whatsappConnected} whatsappNumber={whatsappNumber} />
 
       {/* Main content — no left margin on mobile, sidebar margin on desktop.
           min-w-0 is load-bearing: without it, a flex item refuses to shrink below its

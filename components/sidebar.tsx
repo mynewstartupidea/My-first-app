@@ -45,6 +45,8 @@ interface SidebarProps {
   plan?: string
   role?: UserRole
   visibleSections?: string[] | null
+  whatsappConnected?: boolean
+  whatsappNumber?: string | null
 }
 
 interface BillingUsage {
@@ -53,7 +55,7 @@ interface BillingUsage {
   messages_remaining: number
 }
 
-export default function Sidebar({ storeName, plan = 'starter', role = 'owner', visibleSections = null }: SidebarProps) {
+export default function Sidebar({ storeName, plan = 'starter', role = 'owner', visibleSections = null, whatsappConnected = false, whatsappNumber = null }: SidebarProps) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
@@ -162,14 +164,19 @@ export default function Sidebar({ storeName, plan = 'starter', role = 'owner', v
           </div>
         )}
 
-        {storeName ? (
+        {/* This used to key off storeName alone — a lead-gen-only merchant
+            with WhatsApp genuinely connected but no Shopify store (no
+            stores row ever created) saw "Set up WhatsApp" forever, as if
+            nothing were connected. Falls back to the connected number when
+            there's no store name to show instead. */}
+        {(storeName || whatsappConnected) ? (
           <div className="px-3 py-2.5 rounded-lg bg-white/[0.04]">
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 bg-[#25D366]/20 rounded-md flex items-center justify-center flex-shrink-0">
                 <Store size={12} className="text-[#25D366]" />
               </div>
               <div className="overflow-hidden flex-1 min-w-0">
-                <p className="text-white text-[11px] font-medium truncate">{storeName}</p>
+                <p className="text-white text-[11px] font-medium truncate">{storeName ?? whatsappNumber ?? 'WhatsApp Connected'}</p>
                 <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded capitalize', badge.cls)}>
                   {badge.label}
                 </span>
