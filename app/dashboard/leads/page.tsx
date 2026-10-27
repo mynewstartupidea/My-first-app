@@ -3809,19 +3809,36 @@ function LeadsContent() {
 
   const handleSourceFilterChange = async (source: string | null) => {
     const token = ++viewChangeTokenRef.current
+    // "Facebook" (source: null) is page-scoped by definition — but
+    // ALL_PAGES_ID isn't a real page, so if the page scope was left on
+    // "All" (from clicking the All chip, or landing here via a cached
+    // selection), clicking Facebook changed only sourceFilter while
+    // selectedPageId stayed ALL_PAGES_ID. The fetch and the chip highlight
+    // both key off selectedPageId too, so the result was identical to
+    // "All" in every visible way — the Facebook chip never looked selected
+    // and the list never actually changed. Falls back to the first
+    // connected page, same default used on first load, whenever that
+    // happens.
+    const resolvedPageId = source === null && selectedPageId === ALL_PAGES_ID
+      ? (pages[0]?.page_id ?? null)
+      : selectedPageId
+    if (resolvedPageId !== selectedPageId) {
+      setSelectedPageId(resolvedPageId)
+      try { if (resolvedPageId) sessionStorage.setItem('_wpl_pid', resolvedPageId) } catch {}
+    }
     setSourceFilter(source)
     setSelectedFormId('all')
     setActiveView('leads')
     setCurrentPage(1)
     setLeadSearch('')
     setLeads([])
-    if (!selectedPageId && !source) return
+    if (!resolvedPageId && !source) return
     setLoadingLeads(true)
     // Pass explicitly — sourceFilterRef hasn't synced from the state update
     // above yet at this point in the same tick.
     await Promise.all([
-      fetchLeads('all', selectedPageId ?? '', 1, perPage, '', 'default', source),
-      fetchStats(selectedPageId ?? '', source),
+      fetchLeads('all', resolvedPageId ?? '', 1, perPage, '', 'default', source),
+      fetchStats(resolvedPageId ?? '', source),
     ])
     if (viewChangeTokenRef.current === token) setLoadingLeads(false)
   }
