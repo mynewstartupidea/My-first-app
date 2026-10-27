@@ -153,6 +153,20 @@ export default function SignupPage() {
       return
     }
 
+    // Supabase deliberately does NOT return an error for an email that
+    // already has an account — that would let anyone probe which emails are
+    // registered. Instead it silently no-ops: error is null, no confirmation
+    // email is sent, and the only signal is a user object with an empty
+    // identities array (and a decoy id, not the real account's). Without
+    // this check, the form fell through to "Check your inbox!" for an
+    // account that already exists, with no code ever sent and the existing
+    // account/password completely untouched.
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      setError('An account with this email already exists. Please log in instead.')
+      setLoading(false)
+      return
+    }
+
     // This is the actual conversion point for every landing page that funnels
     // through /signup rather than its own embedded form (coaching/gym/
     // real-estate/restaurant all just link here with a UTM-tagged CTA — see
@@ -280,7 +294,13 @@ export default function SignupPage() {
 
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>
+                {error}
+                {error.startsWith('An account with this email') && (
+                  <> <Link href="/login" className="underline font-semibold">Log in →</Link></>
+                )}
+              </span>
             </div>
           )}
 
