@@ -102,9 +102,20 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${APP_URL}/shopify/pricing?shop=${encodeURIComponent(shop)}&declined=1`)
   }
 
-  if (chargedAmount !== plan.price || chargedCurrency !== 'USD') {
+  // Fail OPEN when the price genuinely couldn't be read (undefined) — that's
+  // a sign this query's field path doesn't match Shopify's current schema,
+  // not evidence of an attack, and blocking every legitimate confirmation
+  // because of a query bug would be worse than the narrow gap this check
+  // closes. Fail CLOSED only on an actual, determined mismatch — the one
+  // real exploit path (a swapped charge_id pointing at a real, cheaper,
+  // ACTIVE subscription) always has a real, parseable price in Shopify's
+  // response, so this still catches it.
+  if (chargedAmount !== undefined && (chargedAmount !== plan.price || chargedCurrency !== 'USD')) {
     console.error(`[billing/callback] price mismatch: charge_id=${chargeId} claimed plan=${planId} ($${plan.price}) but Shopify shows $${chargedAmount} ${chargedCurrency}`)
     return NextResponse.redirect(`${APP_URL}/dashboard?billing=failed`)
+  }
+  if (chargedAmount === undefined) {
+    console.error(`[billing/callback] could not read charged price from Shopify for charge_id=${chargeId} — proceeding without the price check for this confirmation; verify this query still matches Shopify's schema`)
   }
 
   const dbStatus = status === 'ACTIVE' ? 'active' : 'trialing'

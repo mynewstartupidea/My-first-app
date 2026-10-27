@@ -336,12 +336,25 @@ function GetStarted() {
     setStep('creating_account')
 
     try {
-      const res  = await fetch('/api/landing/complete-signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId, password }),
-      })
-      const data = await res.json().catch(() => ({})) as { email?: string; error?: string }
+      // The server verifies payment directly with Razorpay rather than
+      // trusting anything client-supplied — right, but it means a brief
+      // propagation gap between "checkout handler fired client-side" and
+      // "Razorpay's own GET /subscriptions reflects that" would otherwise
+      // show someone who genuinely just paid a confusing "not confirmed yet"
+      // error. A couple of short, bounded retries absorbs that without
+      // weakening the check itself — still asking Razorpay for real.
+      let res!: Response
+      let data!: { email?: string; error?: string }
+      for (let attempt = 0; attempt < 3; attempt++) {
+        res  = await fetch('/api/landing/complete-signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leadId, password }),
+        })
+        data = await res.json().catch(() => ({})) as { email?: string; error?: string }
+        if (res.ok || res.status !== 402 || attempt === 2) break
+        await new Promise(r => setTimeout(r, 1500))
+      }
 
       if (!res.ok) {
         setPwError(data.error ?? 'Could not create your account — please try again.')
