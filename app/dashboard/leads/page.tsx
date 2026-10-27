@@ -3431,6 +3431,19 @@ function LeadsContent() {
   const sourceFilterRef = useRef<string | null>(null)
   useEffect(() => { sourceFilterRef.current = sourceFilter }, [sourceFilter])
 
+  // Same pattern, for sort: `sort` isn't just an ordering, it's also a real
+  // filter server-side (sort=followup_due restricts to due/overdue leads —
+  // see app/api/facebook/leads/route.ts), and sortBy is set from a URL param
+  // when landing here from the dashboard's "Follow-ups due" widget. Of 14
+  // fetchLeads call sites in this file, only the search-debounce effect used
+  // to pass sortBy through — every other one (pagination, Refresh, switching
+  // tabs/pages, page-size change, the very first load when there's no cached
+  // page) silently defaulted back to 'default', dropping the follow-up
+  // filter the instant a rep did anything else on the page after landing on
+  // that link.
+  const sortByRef = useRef<'default' | 'followup_due'>('default')
+  useEffect(() => { sortByRef.current = sortBy }, [sortBy])
+
   // Request-sequencing tokens — rapidly switching filters (e.g. Facebook →
   // Manual → Facebook) fires overlapping requests with no guaranteed order of
   // arrival. Without this, a slower response for an earlier click can land
@@ -3507,7 +3520,7 @@ function LeadsContent() {
     page = 1,
     pPerPage = 50,
     search = '',
-    sort = 'default',
+    sort: 'default' | 'followup_due' = sortByRef.current,
     // Defaults to whatever the source-filter pills are currently set to, so
     // every existing call site picks this up automatically without having to
     // thread a new argument through each one — see sourceFilterRef below.
@@ -3636,7 +3649,15 @@ function LeadsContent() {
         setSelectedPageId(pageId)
         try { sessionStorage.setItem('_wpl_pid', pageId) } catch {}
         if (pageId !== cachedPageId) {
-          await Promise.all([fetchActiveForms(pageId), fetchLeads('all', pageId), fetchStats(pageId)])
+          // Passed explicitly, not left to fetchLeads' sortByRef-based
+          // default — same reason the cached-page branch above does too:
+          // setSortBy('followup_due') at the top of this effect only
+          // schedules a state update, and the ref that mirrors it into
+          // sortByRef.current only syncs on the NEXT render via its own
+          // useEffect, which hasn't happened yet this far into the same
+          // synchronous init() call. Reading sortParam directly (already
+          // correct at this point) is what actually works on first load.
+          await Promise.all([fetchActiveForms(pageId), fetchLeads('all', pageId, 1, 50, '', sortParam === 'followup_due' ? 'followup_due' : 'default'), fetchStats(pageId)])
         }
       } else {
         // No Facebook pages connected — the empty-state screen below still
@@ -3787,6 +3808,12 @@ function LeadsContent() {
     setLeads([])
     setActiveForms([])
     setLoadingLeads(true)
+    // This call explicitly forces sort='default' below — without also
+    // resetting the STATE, sortBy stayed 'followup_due' while the actual
+    // displayed list was unsorted/unfiltered, so every later call site that
+    // reads sortByRef.current (now the default for every omitted `sort`
+    // argument) would silently reapply a filter the view no longer reflects.
+    setSortBy('default')
     try { sessionStorage.setItem('_wpl_pid', ALL_PAGES_ID) } catch {}
     await Promise.all([fetchLeads('all', ALL_PAGES_ID, 1, perPage, '', 'default', null), fetchStats(ALL_PAGES_ID, null)])
     setLoadingLeads(false)
@@ -3832,6 +3859,11 @@ function LeadsContent() {
     setCurrentPage(1)
     setLeadSearch('')
     setLeads([])
+    // Same reasoning as handleSelectAllPages — this call explicitly forces
+    // sort='default' below, so the state needs to match or a later call
+    // site reading sortByRef.current would silently reapply a filter this
+    // view no longer reflects.
+    setSortBy('default')
     if (!resolvedPageId && !source) return
     setLoadingLeads(true)
     // Pass explicitly — sourceFilterRef hasn't synced from the state update
