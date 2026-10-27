@@ -527,6 +527,17 @@ ALTER TABLE landing_leads ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS landing_leads_created_idx ON landing_leads(created_at DESC);
 CREATE INDEX IF NOT EXISTS landing_leads_subscription_idx ON landing_leads(razorpay_subscription_id) WHERE razorpay_subscription_id IS NOT NULL;
 
+-- UTM capture from ad click-throughs (Meta Ads Manager's "URL Parameters"
+-- field, e.g. utm_content={{ad.name}}) — read client-side off the landing
+-- page's own URL at submit time (lib/utils.ts's getUtmParams) so the admin
+-- Landing Page Leads view can show which ad/campaign actually produced each
+-- lead, not just which lp/* page.
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_source TEXT;
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_medium TEXT;
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_campaign TEXT;
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_term TEXT;
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS utm_content TEXT;
+
 -- Caches Plan IDs created via Razorpay's API (table already existed, unused
 -- until now) so a redeploy or cold start doesn't create a duplicate Plan in
 -- the Razorpay dashboard every time — lib/razorpay.ts looks here first.

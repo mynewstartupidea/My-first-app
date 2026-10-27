@@ -5,6 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Reads the 5 standard UTM params off the current URL at submit time (not
+// on mount) — client-only, call from inside a browser event handler. Meta's
+// Ads Manager "URL Parameters" field is what actually appends these to the
+// landing page link (e.g. utm_content={{ad.name}}), so this is how a lead
+// submission knows which ad/campaign it came from.
+export function getUtmParams(): { utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; utm_term: string | null; utm_content: string | null } {
+  const p = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+  return {
+    utm_source:   p.get('utm_source'),
+    utm_medium:   p.get('utm_medium'),
+    utm_campaign: p.get('utm_campaign'),
+    utm_term:     p.get('utm_term'),
+    utm_content:  p.get('utm_content'),
+  }
+}
+
 export function formatCurrency(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

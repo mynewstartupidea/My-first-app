@@ -28,6 +28,8 @@ const PLANS: Record<string, { amountRupees: number; planKey: string; name: strin
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as {
     name?: string; company?: string; phone?: string; email?: string; source?: string
+    utm_source?: string | null; utm_medium?: string | null; utm_campaign?: string | null
+    utm_term?: string | null; utm_content?: string | null
   }
   const name    = (body.name ?? '').trim()
   const company = (body.company ?? '').trim()
@@ -35,6 +37,13 @@ export async function POST(request: Request) {
   const email   = (body.email ?? '').trim().toLowerCase()
   const source  = (body.source ?? 'lp_leads').trim()
   const plan    = PLANS[source] ?? PLANS.lp_leads
+  const utm = {
+    utm_source:   body.utm_source?.trim() || null,
+    utm_medium:   body.utm_medium?.trim() || null,
+    utm_campaign: body.utm_campaign?.trim() || null,
+    utm_term:     body.utm_term?.trim() || null,
+    utm_content:  body.utm_content?.trim() || null,
+  }
 
   if (!name)  return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   if (!phone) return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
@@ -42,11 +51,23 @@ export async function POST(request: Request) {
 
   const service = createServiceClient()
 
-  const { data: lead, error: insertErr } = await service
+  let { data: lead, error: insertErr } = await service
     .from('landing_leads')
-    .insert({ name, company_name: company || null, phone, email, source, payment_status: 'pending' })
+    .insert({ name, company_name: company || null, phone, email, source, payment_status: 'pending', ...utm })
     .select('id')
     .single()
+
+  // The utm_* columns are added by a migration that may not have run yet on
+  // every environment — never let a missing column break lead capture
+  // itself, just drop the UTM data and save the lead without it.
+  if (insertErr?.code === '42703') {
+    console.error('[landing/subscribe] utm_* columns missing, retrying without them:', insertErr.message)
+    ;({ data: lead, error: insertErr } = await service
+      .from('landing_leads')
+      .insert({ name, company_name: company || null, phone, email, source, payment_status: 'pending' })
+      .select('id')
+      .single())
+  }
 
   if (insertErr || !lead) {
     console.error('[landing/subscribe] insert error:', insertErr)

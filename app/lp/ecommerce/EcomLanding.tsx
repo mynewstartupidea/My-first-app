@@ -10,6 +10,9 @@ import {
 } from 'lucide-react'
 import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
+import { getUtmParams } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import PasswordInput from '@/components/password-input'
 
 const PRICE = 1999
 
@@ -227,7 +230,8 @@ function Testimonials() {
   )
 }
 
-type FormStep = 'form' | 'submitting' | 'checkout_pending' | 'saved_no_checkout' | 'paid'
+type FormStep = 'form' | 'submitting' | 'checkout_pending' | 'saved_no_checkout'
+  | 'set_password' | 'creating_account' | 'entering_app'
 
 // Razorpay's checkout modal locks body scroll while open and doesn't always
 // restore the original scroll position on close — dismissing (or completing)
@@ -252,6 +256,11 @@ function GetStarted() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [razorpayReady, setRazorpayReady] = useState(false)
+  const [leadId, setLeadId] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwError, setPwError] = useState('')
+  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -272,7 +281,7 @@ function GetStarted() {
       res = await fetch('/api/landing/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, company: website, phone, email, source: 'lp_ecommerce' }),
+        body: JSON.stringify({ name, company: website, phone, email, source: 'lp_ecommerce', ...getUtmParams() }),
       })
       data = await res.json()
     } catch {
@@ -291,6 +300,7 @@ function GetStarted() {
     // the leads landing page (app/lp/leads/LeadsLanding.tsx): fire Lead here,
     // once per real submission, not gated on completing Razorpay checkout.
     window.fbq?.('track', 'Lead')
+    if (data.leadId) setLeadId(data.leadId)
 
     if (data.error === 'saved_no_checkout') {
       setStep('saved_no_checkout')
@@ -311,11 +321,51 @@ function GetStarted() {
       description: 'Ecommerce Plan — ₹1,999/month',
       prefill: data.prefill,
       theme: { color: '#25D366' },
-      handler: () => { setStep('paid'); scrollToGetStarted() },
+      handler: () => { setStep('set_password'); scrollToGetStarted() },
       modal: { ondismiss: () => { setStep('checkout_pending'); scrollToGetStarted() } },
     })
     rzp.open()
     setStep('checkout_pending')
+  }
+
+  async function handleCreateAccount(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    if (password.length < 6) { setPwError('Password must be at least 6 characters.'); return }
+    if (password !== confirmPassword) { setPwError("Passwords don't match."); return }
+    setStep('creating_account')
+
+    try {
+      const res  = await fetch('/api/landing/complete-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, password }),
+      })
+      const data = await res.json().catch(() => ({})) as { email?: string; error?: string }
+
+      if (!res.ok) {
+        setPwError(data.error ?? 'Could not create your account — please try again.')
+        setStep('set_password')
+        return
+      }
+
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: data.email ?? email, password })
+      if (signInErr) {
+        setPwError('Your account was created, but automatic sign-in failed — please log in manually.')
+        setStep('set_password')
+        return
+      }
+
+      await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
+      setStep('entering_app')
+      // Full navigation (not router.push) keeps this branded loading state on
+      // screen for the entire handoff — same reasoning as app/signup/page.tsx's
+      // identical enteringApp screen.
+      window.location.href = '/dashboard'
+    } catch {
+      setPwError("Couldn't reach the server — check your connection and try again.")
+      setStep('set_password')
+    }
   }
 
   return (
@@ -324,12 +374,31 @@ function GetStarted() {
       <div className="max-w-md mx-auto">
         <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-8">
 
-          {step === 'paid' ? (
-            <div className="text-center py-6">
-              <CheckCircle2 className="w-12 h-12 text-[#25D366] mx-auto mb-4" />
-              <h3 className="text-white font-bold text-xl mb-2">You&apos;re all set!</h3>
-              <p className="text-slate-400 text-sm">Our team will reach out shortly to connect your Shopify store.</p>
+          {step === 'entering_app' || step === 'creating_account' ? (
+            <div className="text-center py-10">
+              <Loader2 className="w-8 h-8 animate-spin text-[#25D366] mx-auto mb-4" />
+              <h3 className="text-white font-bold text-xl mb-2">Setting up your account…</h3>
+              <p className="text-slate-400 text-sm">This only takes a moment.</p>
             </div>
+          ) : step === 'set_password' ? (
+            <>
+              <div className="text-center mb-6">
+                <CheckCircle2 className="w-10 h-10 text-[#25D366] mx-auto mb-3" />
+                <h3 className="text-white font-bold text-xl mb-1">Payment received!</h3>
+                <p className="text-slate-400 text-sm">Create a password to access your dashboard — <span className="text-slate-300">{email}</span></p>
+              </div>
+              <form onSubmit={handleCreateAccount} className="space-y-3">
+                <PasswordInput required autoFocus autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Create a password"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
+                <PasswordInput required autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm password"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
+                {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
+                <button type="submit"
+                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
+                  Create account &amp; continue <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            </>
           ) : step === 'saved_no_checkout' || step === 'checkout_pending' ? (
             <div className="text-center py-6">
               <Clock className="w-12 h-12 text-amber-400 mx-auto mb-4" />

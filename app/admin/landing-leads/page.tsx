@@ -20,6 +20,11 @@ interface LandingLead {
   payment_status: 'pending' | 'authenticated' | 'active' | 'failed' | 'cancelled'
   razorpay_subscription_id: string | null
   created_at: string
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_term: string | null
+  utm_content: string | null
 }
 
 const STATUS_META: Record<LandingLead['payment_status'], { label: string; cls: string; icon: typeof Clock }> = {
@@ -142,6 +147,17 @@ export default function LandingLeadsPage() {
                     {lead.company_name && (
                       <p className="text-slate-400 text-xs flex items-center gap-1 mt-0.5">
                         <Building2 className="w-3 h-3" /> {lead.company_name}
+                      </p>
+                    )}
+                    {/* Meta's convention is utm_content={{ad.name}}, but whichever
+                        UTM field actually carries the ad/campaign name shows here —
+                        falls back through content → campaign → source so this
+                        still shows something useful regardless of which field the
+                        Ads Manager URL Parameters were set up to use. */}
+                    {(lead.utm_content || lead.utm_campaign || lead.utm_source) && (
+                      <p className="text-[#25D366]/80 text-[11px] font-medium mt-0.5 truncate max-w-[220px]"
+                        title={[lead.utm_source, lead.utm_medium, lead.utm_campaign, lead.utm_content, lead.utm_term].filter(Boolean).join(' · ')}>
+                        Ad: {lead.utm_content || lead.utm_campaign || lead.utm_source}
                       </p>
                     )}
                   </div>
