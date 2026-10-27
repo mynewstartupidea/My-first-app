@@ -43,6 +43,16 @@ const TIME_BUDGET_MS = 50_000 // leaves ~10s margin under maxDuration=60
 // the next tick or two, not left stale indefinitely.
 const RESYNC_INTERVAL_MS = 5 * 60 * 1000
 
+// `orders` gets its own, much longer interval than abandoned_checkouts:
+// ORDERS_QUERY (lib/shopify-sync.ts) has no "since" filter wired in — every
+// run of this job re-pages the FULL order history from page 1, not just
+// what's new. On a 5-minute cadence that's a genuinely expensive, repeated
+// full re-scan for any store with a non-trivial order history, and this
+// project already treats hammering a connected external API as something to
+// actively avoid. Once a day is enough to catch phone-less orders (the gap
+// this exists for) without that cost.
+const ORDERS_RESYNC_INTERVAL_MS = 24 * 60 * 60 * 1000
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -66,7 +76,8 @@ export async function GET(request: Request) {
   await service.from('shopify_sync_jobs').update({ status: 'pending', updated_at: new Date().toISOString() })
     .eq('status', 'processing').lt('updated_at', stuckCutoff)
 
-  await requeueStaleAbandonedCheckoutSync(service)
+  await requeueStaleResourceSync(service, 'abandoned_checkouts', RESYNC_INTERVAL_MS)
+  await requeueStaleResourceSync(service, 'orders', ORDERS_RESYNC_INTERVAL_MS)
 
   const { data: jobs } = await service
     .from('shopify_sync_jobs')
@@ -195,7 +206,17 @@ export async function GET(request: Request) {
   return NextResponse.json({ ok: true, processed, completed, failed, pages: totalPages })
 }
 
-async function requeueStaleAbandonedCheckoutSync(service: ReturnType<typeof createServiceClient>) {
+// Originally abandoned_checkouts-only. Generalized to also cover `orders`:
+// orders/create and orders/fulfilled both skip the shopify_orders mirror
+// entirely for an order with no phone anywhere on it (correctly — there's
+// no WhatsApp automation to trigger), but that meant those orders were also
+// permanently invisible to the Store page's order count/revenue totals,
+// since the ONLY other path that writes that mirror was the one-time
+// backfill job at connect time (sync-all/the OAuth callback) — nothing ever
+// re-synced `orders` afterward the way abandoned_checkouts already did here.
+// A guest/email-only checkout placed after that one-time backfill completed
+// had no way back into the dashboard's numbers short of a manual "Sync Now."
+async function requeueStaleResourceSync(service: ReturnType<typeof createServiceClient>, resource: 'abandoned_checkouts' | 'orders', intervalMs: number) {
   const { data: stores } = await service
     .from('stores')
     .select('id')
@@ -203,13 +224,13 @@ async function requeueStaleAbandonedCheckoutSync(service: ReturnType<typeof crea
     .eq('is_active', true)
   if (!stores?.length) return
 
-  // One query for the most recent abandoned_checkouts job per store, rather
+  // One query for the most recent job per store for this resource, rather
   // than a query per store — fine to loop in JS from here since this runs
   // against however many stores are actually connected, not per recipient.
   const { data: recentJobs } = await service
     .from('shopify_sync_jobs')
     .select('store_id, status, updated_at')
-    .eq('resource', 'abandoned_checkouts')
+    .eq('resource', resource)
     .in('store_id', stores.map(s => s.id))
     .order('updated_at', { ascending: false })
   const latestByStore = new Map<string, { status: string; updated_at: string }>()
@@ -217,7 +238,7 @@ async function requeueStaleAbandonedCheckoutSync(service: ReturnType<typeof crea
     if (!latestByStore.has(j.store_id)) latestByStore.set(j.store_id, j)
   }
 
-  const cutoff = Date.now() - RESYNC_INTERVAL_MS
+  const cutoff = Date.now() - intervalMs
   const toEnqueue = stores
     .filter(s => {
       const latest = latestByStore.get(s.id)
@@ -225,7 +246,7 @@ async function requeueStaleAbandonedCheckoutSync(service: ReturnType<typeof crea
       if (latest.status === 'pending' || latest.status === 'processing') return false // already in flight
       return new Date(latest.updated_at).getTime() < cutoff
     })
-    .map(s => ({ store_id: s.id, resource: 'abandoned_checkouts' as const, status: 'pending' as const }))
+    .map(s => ({ store_id: s.id, resource, status: 'pending' as const }))
 
   if (toEnqueue.length) {
     await service.from('shopify_sync_jobs').insert(toEnqueue)

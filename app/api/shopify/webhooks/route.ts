@@ -68,11 +68,20 @@ export async function POST(request: Request) {
   // webhooks with their OWN client secret (set when the merchant created
   // their app), not the single shared SHOPIFY_API_SECRET the legacy OAuth
   // flow uses, so we need to know which kind of store this is first.
+  //
+  // Deliberately NOT filtered on is_active=true here (it used to be, and
+  // that made shop/redact completely unreachable): Shopify's GDPR
+  // customers/data_request, customers/redact, and shop/redact webhooks are
+  // the mechanism this app's App Store listing commits to for data erasure,
+  // and shop/redact specifically is delivered 48h+ AFTER app/uninstalled
+  // already flips is_active to false — by definition, every single
+  // shop/redact delivery would have matched zero rows and silently no-opped
+  // before reaching the switch below. The is_active check that order/
+  // checkout processing still needs lives further down instead.
   const { data: store } = await supabase
     .from('stores')
-    .select('id, whatsapp_bsp, whatsapp_api_key, shop_name, shopify_connection_type, shopify_client_secret_enc')
+    .select('id, whatsapp_bsp, whatsapp_api_key, shop_name, shopify_connection_type, shopify_client_secret_enc, is_active')
     .eq('shopify_domain', shopDomain)
-    .eq('is_active', true)
     .maybeSingle()
 
   if (!store) return NextResponse.json({ ok: true })
@@ -86,6 +95,14 @@ export async function POST(request: Request) {
   }
 
   const payload = JSON.parse(body)
+
+  // Order/checkout processing (automations, revenue mirror) only makes sense
+  // for a currently-connected store — GDPR and uninstall topics above this
+  // point are the ones that must still run on an already-deactivated store.
+  const LIVE_CONNECTION_TOPICS = new Set(['checkouts/create', 'checkouts/update', 'orders/create', 'orders/fulfilled', 'orders/updated'])
+  if (!store.is_active && LIVE_CONNECTION_TOPICS.has(topic)) {
+    return NextResponse.json({ ok: true })
+  }
 
   try {
     switch (topic) {
@@ -331,12 +348,22 @@ async function attributeRevenue(
 
 async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient>, store: { id: string; shop_name: string | null }, order: Record<string, unknown>) {
   const rawPhone = String(order.phone ?? (order.shipping_address as Record<string, unknown>)?.phone ?? '')
-  if (!rawPhone.replace(/\D/g, '')) return
+  // This used to return here entirely for any order with no phone anywhere
+  // on it (guest/email-only checkout, common on stores that don't require
+  // phone at checkout) — which skipped not just the WhatsApp automations
+  // below (correctly, nothing to message) but ALSO the shopify_orders/
+  // shopify_order_line_items mirror at the bottom of this function, which
+  // is what the Store page's order count/revenue totals read from. Those
+  // orders were invisible to the dashboard in real time, with no periodic
+  // re-sync to ever pick them up afterward (only the one-time initial
+  // backfill touches the `orders` resource). `phone` is now nullable so the
+  // mirror can still run; every WhatsApp/customer-record block below is
+  // individually gated on `phone` being present instead.
   const countryCode = String(
     (order.shipping_address as Record<string, unknown>)?.country_code ??
     (order.billing_address  as Record<string, unknown>)?.country_code ?? ''
   ).toUpperCase()
-  const phone = customerToE164(rawPhone, countryCode)
+  const phone = rawPhone.replace(/\D/g, '') ? customerToE164(rawPhone, countryCode) : null
 
   // financial_status: 'pending' used to be treated as COD on its own — but
   // that's also the normal, transient status for plenty of non-COD gateways
@@ -351,53 +378,55 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
   const orderNumber  = String(order.order_number ?? order.name ?? '')
   const totalPrice   = String(order.total_price ?? '0')
 
-  // Cancel pending abandoned cart jobs (customer checked out)
-  await supabase
-    .from('automation_jobs')
-    .update({ status: 'cancelled' })
-    .eq('store_id', store.id)
-    .eq('customer_phone', phone)
-    .eq('type', 'abandoned_cart')
-    .eq('status', 'pending')
+  if (phone) {
+    // Cancel pending abandoned cart jobs (customer checked out)
+    await supabase
+      .from('automation_jobs')
+      .update({ status: 'cancelled' })
+      .eq('store_id', store.id)
+      .eq('customer_phone', phone)
+      .eq('type', 'abandoned_cart')
+      .eq('status', 'pending')
 
-  // Order confirmation
-  const { data: confirmAuto } = await supabase
-    .from('automations').select('*')
-    .eq('store_id', store.id).eq('type', 'order_confirmation').eq('is_enabled', true).maybeSingle()
-
-  if (confirmAuto && !(await automationJobExists(supabase, store.id, 'order_confirmation', order.id))) {
-    const confirmVars = {
-      name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
-      order_url: String(order.order_status_url ?? ''),
-    }
-    const msg = renderTemplate(confirmAuto.template, confirmVars)
-    await supabase.from('automation_jobs').insert({
-      store_id: store.id, automation_id: confirmAuto.id, type: 'order_confirmation',
-      customer_phone: phone, customer_name: firstName, message: msg,
-      // Store order_id as string so JSONB @> queries match at query time
-      context: { order_id: String(order.id), order_number: orderNumber, ...waTemplateFields(confirmAuto, confirmAuto.template, confirmVars) },
-      status: 'pending', scheduled_at: new Date().toISOString(),
-    })
-  }
-
-  // COD verification
-  if (isCOD) {
-    const { data: codAuto } = await supabase
+    // Order confirmation
+    const { data: confirmAuto } = await supabase
       .from('automations').select('*')
-      .eq('store_id', store.id).eq('type', 'cod_verification').eq('is_enabled', true).maybeSingle()
+      .eq('store_id', store.id).eq('type', 'order_confirmation').eq('is_enabled', true).maybeSingle()
 
-    if (codAuto && !(await automationJobExists(supabase, store.id, 'cod_verification', order.id))) {
-      const codVars = {
-        name: firstName, order_number: orderNumber, amount: totalPrice, shop_name: store.shop_name ?? 'our store',
+    if (confirmAuto && !(await automationJobExists(supabase, store.id, 'order_confirmation', order.id))) {
+      const confirmVars = {
+        name: firstName, order_number: orderNumber, shop_name: store.shop_name ?? 'our store',
+        order_url: String(order.order_status_url ?? ''),
       }
-      const msg = renderTemplate(codAuto.template, codVars)
-      const scheduledAt = new Date(Date.now() + codAuto.delay_minutes * 60 * 1000).toISOString()
+      const msg = renderTemplate(confirmAuto.template, confirmVars)
       await supabase.from('automation_jobs').insert({
-        store_id: store.id, automation_id: codAuto.id, type: 'cod_verification',
+        store_id: store.id, automation_id: confirmAuto.id, type: 'order_confirmation',
         customer_phone: phone, customer_name: firstName, message: msg,
-        context: { order_id: String(order.id), order_number: orderNumber, total_price: totalPrice, ...waTemplateFields(codAuto, codAuto.template, codVars) },
-        status: 'pending', scheduled_at: scheduledAt,
+        // Store order_id as string so JSONB @> queries match at query time
+        context: { order_id: String(order.id), order_number: orderNumber, ...waTemplateFields(confirmAuto, confirmAuto.template, confirmVars) },
+        status: 'pending', scheduled_at: new Date().toISOString(),
       })
+    }
+
+    // COD verification
+    if (isCOD) {
+      const { data: codAuto } = await supabase
+        .from('automations').select('*')
+        .eq('store_id', store.id).eq('type', 'cod_verification').eq('is_enabled', true).maybeSingle()
+
+      if (codAuto && !(await automationJobExists(supabase, store.id, 'cod_verification', order.id))) {
+        const codVars = {
+          name: firstName, order_number: orderNumber, amount: totalPrice, shop_name: store.shop_name ?? 'our store',
+        }
+        const msg = renderTemplate(codAuto.template, codVars)
+        const scheduledAt = new Date(Date.now() + codAuto.delay_minutes * 60 * 1000).toISOString()
+        await supabase.from('automation_jobs').insert({
+          store_id: store.id, automation_id: codAuto.id, type: 'cod_verification',
+          customer_phone: phone, customer_name: firstName, message: msg,
+          context: { order_id: String(order.id), order_number: orderNumber, total_price: totalPrice, ...waTemplateFields(codAuto, codAuto.template, codVars) },
+          status: 'pending', scheduled_at: scheduledAt,
+        })
+      }
     }
   }
 
@@ -414,14 +443,18 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
   const { data: existingOrder } = await supabase
     .from('shopify_orders').select('id').eq('store_id', store.id).eq('shopify_order_id', shopifyOrderGid).maybeSingle()
 
-  // Revenue attribution — attribute order value to last WhatsApp message within 24h
+  // Revenue attribution — attribute order value to last WhatsApp message
+  // within 24h. Meaningless without a phone (there's no WhatsApp
+  // conversation to attribute to), and customers.phone is NOT NULL
+  // (supabase/schema.sql) — a customer record genuinely can't exist for a
+  // phone-less order, so customerRow correctly stays null below for these.
   const orderValue = parseFloat(String(order.total_price ?? '0'))
-  if (orderValue > 0 && !existingOrder) {
+  if (phone && orderValue > 0 && !existingOrder) {
     await attributeRevenue(supabase, store.id, phone, orderValue, order.id).catch(() => null)
   }
 
   let customerRow: { id: string } | null = null
-  if (!existingOrder) {
+  if (phone && !existingOrder) {
     const { data: customerId } = await supabase.rpc('increment_customer_order_stats', {
       p_store_id: store.id,
       p_phone: phone,
@@ -430,7 +463,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
       p_order_value: orderValue,
     })
     customerRow = customerId ? { id: customerId as string } : null
-  } else {
+  } else if (phone) {
     // Order already counted — still need the customer id to keep
     // shopify_orders.customer_id correct on a replayed webhook, just without
     // incrementing anything again.
@@ -443,7 +476,7 @@ async function handleOrderCreate(supabase: ReturnType<typeof createServiceClient
   // trigger, different delay" shape as post_purchase_upsell/review_request
   // below, just off orders/create instead of orders/fulfilled — no new
   // Shopify webhook subscription needed.
-  if (!existingOrder && customerRow) {
+  if (phone && !existingOrder && customerRow) {
     const { data: custCheck } = await supabase.from('customers').select('total_orders').eq('id', customerRow.id).maybeSingle()
     if (custCheck?.total_orders === 1) {
       for (const [type, defaultDelay] of [['welcome_series_1', 0], ['welcome_series_2', 2880]] as const) {
@@ -688,16 +721,28 @@ async function handleOrderUpdated(supabase: ReturnType<typeof createServiceClien
   }
 
   // Keep the shopify_orders mirror current too — same GID format the
-  // periodic sync and handleOrderCreate both use as the upsert key, so this
-  // updates the same row instead of creating a stray one.
-  await supabase.from('shopify_orders').update({
+  // periodic sync and handleOrderCreate both use as the upsert key.
+  //
+  // This was a plain conditional .update(), which silently matches zero
+  // rows — dropped, not retried, result never checked — when orders/updated
+  // is delivered before orders/create has created the row at all. Shopify's
+  // webhook delivery is "at least once" with no ordering guarantee, so that
+  // isn't a rare race. upsert() instead means an out-of-order delivery still
+  // leaves a row behind with whatever this payload knows; Postgres's
+  // ON CONFLICT DO UPDATE only touches the columns listed here, so
+  // handleOrderCreate's own later upsert still fills in everything else
+  // (customer, line items, totals) without this call ever having to know
+  // about those fields.
+  await supabase.from('shopify_orders').upsert({
+    store_id: store.id,
+    shopify_order_id: toGid('Order', order.id),
     financial_status: financialStatus || null,
     fulfillment_status: fulfillmentStatus || null,
     total_refunded: order.total_refunded ? parseFloat(String(order.total_refunded)) : undefined,
     cancelled_at: order.cancelled_at ?? null,
     shopify_updated_at: order.updated_at ?? now,
     updated_at: now,
-  }).eq('store_id', store.id).eq('shopify_order_id', toGid('Order', order.id))
+  }, { onConflict: 'store_id,shopify_order_id' })
 }
 
 // win_back/repeat_purchase have no trigger implementation anywhere in this
