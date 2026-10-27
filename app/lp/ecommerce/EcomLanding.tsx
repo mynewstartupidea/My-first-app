@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/password-input'
 
 const PRICE = 1999
+const ORIGINAL_PRICE = 4999
 
 declare global {
   interface Window {
@@ -426,8 +427,11 @@ function GetStarted() {
             <>
               <div className="text-center mb-6">
                 <p className="text-[#25D366] text-xs font-bold tracking-widest uppercase mb-2">Get started</p>
-                <h3 className="text-white font-extrabold text-2xl mb-1">₹{PRICE.toLocaleString('en-IN')}<span className="text-slate-400 text-base font-medium">/month</span></h3>
-                <p className="text-slate-500 text-xs">Cancel anytime, no long-term contract</p>
+                <div className="flex items-end justify-center gap-2.5 flex-wrap">
+                  <span className="text-slate-500 text-xl font-semibold line-through decoration-slate-600">₹{ORIGINAL_PRICE.toLocaleString('en-IN')}</span>
+                  <h3 className="text-white font-extrabold text-4xl leading-none">₹{PRICE.toLocaleString('en-IN')}<span className="text-slate-400 text-base font-medium">/month</span></h3>
+                </div>
+                <p className="text-slate-500 text-xs mt-1.5">Cancel anytime, no long-term contract</p>
               </div>
 
               <ul className="space-y-2 mb-6">
