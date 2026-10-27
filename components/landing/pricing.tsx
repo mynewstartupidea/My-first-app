@@ -3,7 +3,11 @@
 import { motion, useInView } from 'framer-motion'
 import { useRef, useState } from 'react'
 import Script from 'next/script'
+import Link from 'next/link'
 import { CheckCircle2, ArrowRight, Loader2, Clock } from 'lucide-react'
+import { getUtmParams } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import PasswordInput from '@/components/password-input'
 
 const PRICE = 1999
 
@@ -13,7 +17,8 @@ declare global {
   }
 }
 
-type FormStep = 'form' | 'submitting' | 'checkout_pending' | 'saved_no_checkout' | 'paid'
+type FormStep = 'form' | 'submitting' | 'checkout_pending' | 'saved_no_checkout'
+  | 'set_password' | 'creating_account' | 'entering_app'
 
 // Razorpay's checkout modal doesn't always restore scroll position on
 // close/complete — without this, dismissing it can leave the page scrolled
@@ -46,6 +51,11 @@ export default function Pricing() {
   const [email, setEmail]   = useState('')
   const [error, setError]   = useState('')
   const [razorpayReady, setRazorpayReady] = useState(false)
+  const [leadId, setLeadId] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwError, setPwError] = useState('')
+  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -67,7 +77,7 @@ export default function Pricing() {
       res = await fetch('/api/landing/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, company, phone, email, source: 'homepage' }),
+        body: JSON.stringify({ name, company, phone, email, source: 'homepage', ...getUtmParams() }),
       })
       data = await res.json()
     } catch {
@@ -85,6 +95,7 @@ export default function Pricing() {
     // Saved as soon as the request succeeds, not gated on completing
     // Razorpay checkout — same reasoning as the /lp/* pages this reuses.
     window.fbq?.('track', 'Lead')
+    if (data.leadId) setLeadId(data.leadId)
 
     if (data.error === 'saved_no_checkout') {
       setStep('saved_no_checkout')
@@ -103,11 +114,64 @@ export default function Pricing() {
       description: `Wapaci Plan — ₹${PRICE}/month`,
       prefill: data.prefill,
       theme: { color: '#25D366' },
-      handler: () => { setStep('paid'); scrollToPricing() },
+      handler: () => { setStep('set_password'); scrollToPricing() },
       modal: { ondismiss: () => { setStep('checkout_pending'); scrollToPricing() } },
     })
     rzp.open()
     setStep('checkout_pending')
+  }
+
+  async function handleCreateAccount(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    if (password.length < 6) { setPwError('Password must be at least 6 characters.'); return }
+    if (password !== confirmPassword) { setPwError("Passwords don't match."); return }
+    setStep('creating_account')
+
+    try {
+      // The server verifies payment directly with Razorpay rather than
+      // trusting anything client-supplied — right, but it means a brief
+      // propagation gap between "checkout handler fired client-side" and
+      // "Razorpay's own GET /subscriptions reflects that" would otherwise
+      // show someone who genuinely just paid a confusing "not confirmed yet"
+      // error. A couple of short, bounded retries absorbs that without
+      // weakening the check itself — still asking Razorpay for real.
+      let res!: Response
+      let data!: { email?: string; error?: string }
+      for (let attempt = 0; attempt < 3; attempt++) {
+        res  = await fetch('/api/landing/complete-signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leadId, password }),
+        })
+        data = await res.json().catch(() => ({})) as { email?: string; error?: string }
+        if (res.ok || res.status !== 402 || attempt === 2) break
+        await new Promise(r => setTimeout(r, 1500))
+      }
+
+      if (!res.ok) {
+        setPwError(data.error ?? 'Could not create your account — please try again.')
+        setStep('set_password')
+        return
+      }
+
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: data.email ?? email, password })
+      if (signInErr) {
+        setPwError('Your account was created, but automatic sign-in failed — please log in manually.')
+        setStep('set_password')
+        return
+      }
+
+      await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
+      setStep('entering_app')
+      // Full navigation (not router.push) keeps this branded loading state on
+      // screen for the entire handoff — same reasoning as app/signup/page.tsx's
+      // identical enteringApp screen.
+      window.location.href = '/dashboard'
+    } catch {
+      setPwError("Couldn't reach the server — check your connection and try again.")
+      setStep('set_password')
+    }
   }
 
   return (
@@ -135,12 +199,31 @@ export default function Pricing() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="bg-white/[0.03] border border-white/10 rounded-3xl p-8"
         >
-          {step === 'paid' ? (
-            <div className="text-center py-6">
-              <CheckCircle2 className="w-12 h-12 text-[#25D366] mx-auto mb-4" />
-              <h3 className="text-white font-bold text-xl mb-2">You&apos;re all set!</h3>
-              <p className="text-slate-400 text-sm">Our team will reach out shortly to get you connected.</p>
+          {step === 'entering_app' ? (
+            <div className="text-center py-10">
+              <Loader2 className="w-8 h-8 animate-spin text-[#25D366] mx-auto mb-4" />
+              <h3 className="text-white font-bold text-xl mb-2">Setting up your account…</h3>
+              <p className="text-slate-400 text-sm">This only takes a moment.</p>
             </div>
+          ) : step === 'set_password' || step === 'creating_account' ? (
+            <>
+              <div className="text-center mb-6">
+                <CheckCircle2 className="w-10 h-10 text-[#25D366] mx-auto mb-3" />
+                <h3 className="text-white font-bold text-xl mb-1">Payment received!</h3>
+                <p className="text-slate-400 text-sm">Create a password to access your dashboard — <span className="text-slate-300">{email}</span></p>
+              </div>
+              <form onSubmit={handleCreateAccount} className="space-y-3">
+                <PasswordInput required autoFocus autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Create a password"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
+                <PasswordInput required autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm password"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
+                {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
+                <button type="submit" disabled={step === 'creating_account'}
+                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
+                  {step === 'creating_account' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Create account &amp; continue <ArrowRight className="w-4 h-4" /></>}
+                </button>
+              </form>
+            </>
           ) : step === 'saved_no_checkout' || step === 'checkout_pending' ? (
             <div className="text-center py-6">
               <Clock className="w-12 h-12 text-amber-400 mx-auto mb-4" />
@@ -178,7 +261,14 @@ export default function Pricing() {
                 <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
 
-                {error && <p className="text-red-400 text-xs">{error}</p>}
+                {error && (
+                  <p className="text-red-400 text-xs">
+                    {error}
+                    {error.startsWith('An account with this email') && (
+                      <> <Link href="/login" className="underline font-semibold">Log in →</Link></>
+                    )}
+                  </p>
+                )}
 
                 <button type="submit" disabled={step === 'submitting'}
                   className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">

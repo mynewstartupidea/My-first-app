@@ -127,7 +127,16 @@ export async function POST(request: Request) {
   // id on their next billing cycle. status comes from the Razorpay check
   // above, not landing_leads.payment_status, so it's never stuck at
   // 'trialing' for someone who actually already paid.
-  const planKey = lead.source === 'lp_ecommerce' ? 'lp_ecommerce_1999_monthly' : 'lp_leads_1999_monthly'
+  // Matches app/api/landing/subscribe/route.ts's PLANS keys exactly — that
+  // map has a THIRD entry ('homepage', since components/landing/pricing.tsx
+  // reuses this same backend) that this ternary didn't account for at all;
+  // a homepage conversion would have been mislabeled under the lp_leads
+  // plan key (wrong razorpay_plan_id lookup, wrong billing.plan_name) even
+  // though its real Razorpay subscription was created correctly under its
+  // own 'homepage_1999_monthly' plan.
+  const planKey = lead.source === 'lp_ecommerce' ? 'lp_ecommerce_1999_monthly'
+    : lead.source === 'homepage' ? 'homepage_1999_monthly'
+    : 'lp_leads_1999_monthly'
   const { data: planRow } = await service.from('razorpay_plans').select('plan_id').eq('plan_name', planKey).maybeSingle()
   const { error: billingErr } = await service.from('billing').upsert({
     user_id:                  userId,
