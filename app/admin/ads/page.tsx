@@ -2216,7 +2216,7 @@ function renderAd26(ctx: CanvasRenderingContext2D, t: number) {
     ctx.globalAlpha = f * pr(lt, .7, 1.7)
     rr(ctx, W / 2 - 210, 560, 420, 82, 41, '#25D366')
     ctx.globalAlpha = 1
-    txt(ctx, 'See it live, free →', W / 2, 601, { size: 27, color: '#03130a', weight: '900', alpha: f * pr(lt, .7, 1.7) })
+    txt(ctx, 'Start Today →', W / 2, 601, { size: 27, color: '#03130a', weight: '900', alpha: f * pr(lt, .7, 1.7) })
     txt(ctx, 'wapaci.com', W / 2, 700, { size: 24, color: '#475569', weight: '400', alpha: f * pr(lt, 1.2, 2.2) })
   }
 }
@@ -3166,7 +3166,7 @@ That's the whole idea behind Wapaci.
 
 Not just another lead form. A system that actually responds — the moment it matters.
 
-See it yourself. Free. At wapaci dot com.`,
+See it yourself — at wapaci dot com.`,
     voiceDir: 'grounded and conversational, like a founder explaining their own product to a friend — not a hyped ad voice, confident and specific, warm without being salesy, understated confidence on the close',
     expertScript: `[neutral] A lead just filled out your form. Name, phone, submit.
 
@@ -3180,7 +3180,7 @@ See it yourself. Free. At wapaci dot com.`,
 
 [warm] They're not cold-calling. They're following up on a conversation that already started.
 
-[confident] See it yourself, free. Wapaci dot com.`,
+[confident] See it yourself. Wapaci dot com.`,
     expertVoiceDir: `28 year old Indian female, grounded and conversational like a founder explaining their own product, understated confidence rather than hype, warm and specific, quietly confident close, expert ad voice`,
   },
 ]
