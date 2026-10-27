@@ -14,7 +14,7 @@ import { getUtmParams } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/password-input'
 
-const PRICE = 1999
+const PRICE = 1 // TEMP — testing the pay→account flow with a real ₹1 charge; revert to 1999 after
 
 declare global {
   interface Window {
@@ -318,7 +318,7 @@ function GetStarted() {
       key: data.keyId,
       subscription_id: data.subscriptionId,
       name: 'Wapaci',
-      description: 'Ecommerce Plan — ₹1,999/month',
+      description: 'Ecommerce Plan — ₹1/month (TEST)',
       prefill: data.prefill,
       theme: { color: '#25D366' },
       handler: () => { setStep('set_password'); scrollToGetStarted() },
