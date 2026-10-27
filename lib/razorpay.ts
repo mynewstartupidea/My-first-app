@@ -85,6 +85,23 @@ export async function cancelRazorpaySubscription(subscriptionId: string): Promis
   await rzFetch(`/subscriptions/${subscriptionId}/cancel`, { cancel_at_cycle_end: 0 })
 }
 
+// Reads a subscription's status directly from Razorpay rather than trusting
+// a webhook-mirrored column — used by app/api/landing/complete-signup/route.ts,
+// where landing_leads.payment_status is written by a separately-delivered
+// webhook that can lag behind the client-side checkout-success callback by
+// more than this flow is willing to wait, and where trusting any
+// client-supplied or DB-cached status at all would let someone call that
+// route with an unpaid lead's id and get a free account.
+export async function getRazorpaySubscriptionStatus(subscriptionId: string): Promise<string> {
+  const res  = await fetch(`${BASE}/subscriptions/${subscriptionId}`, {
+    headers: { Authorization: authHeader() },
+  })
+  const data = await res.json() as { status?: string; error?: { description?: string } }
+  if (!res.ok) throw new Error(data.error?.description ?? `Razorpay subscription fetch failed (HTTP ${res.status})`)
+  if (!data.status) throw new Error('Razorpay subscription fetch returned no status')
+  return data.status
+}
+
 // Verifies the X-Razorpay-Signature header on an incoming webhook against
 // RAZORPAY_WEBHOOK_SECRET (set when the webhook is registered in the
 // Razorpay dashboard — see app/api/landing/razorpay-webhook/route.ts).

@@ -336,13 +336,13 @@ function GetStarted() {
       <div className="max-w-md mx-auto">
         <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-8">
 
-          {step === 'entering_app' || step === 'creating_account' ? (
+          {step === 'entering_app' ? (
             <div className="text-center py-10">
               <Loader2 className="w-8 h-8 animate-spin text-[#25D366] mx-auto mb-4" />
               <h3 className="text-white font-bold text-xl mb-2">Setting up your account…</h3>
               <p className="text-slate-400 text-sm">This only takes a moment.</p>
             </div>
-          ) : step === 'set_password' ? (
+          ) : step === 'set_password' || step === 'creating_account' ? (
             <>
               <div className="text-center mb-6">
                 <CheckCircle2 className="w-10 h-10 text-[#25D366] mx-auto mb-3" />
@@ -355,9 +355,9 @@ function GetStarted() {
                 <PasswordInput required autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm password"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
                 {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
-                <button type="submit"
-                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
-                  Create account &amp; continue <ArrowRight className="w-4 h-4" />
+                <button type="submit" disabled={step === 'creating_account'}
+                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
+                  {step === 'creating_account' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Create account &amp; continue <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </form>
             </>
