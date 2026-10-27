@@ -28,7 +28,7 @@ async function rzFetch<T>(path: string, body: Record<string, unknown>): Promise<
 }
 
 interface RazorpayPlan { id: string }
-interface RazorpaySubscription { id: string }
+interface RazorpaySubscription { id: string; short_url?: string }
 
 // Finds the cached Plan for this exact price/period, or creates it once via
 // Razorpay's API and caches the returned plan_id — so a Vercel cold start (or
@@ -71,14 +71,15 @@ const INDEFINITE_TOTAL_COUNT = 1200
 export async function createRazorpaySubscription(params: {
   planId: string
   notes?: Record<string, string>
-}): Promise<{ subscriptionId: string }> {
+  totalCount?: number
+}): Promise<{ subscriptionId: string; shortUrl?: string }> {
   const sub = await rzFetch<RazorpaySubscription>('/subscriptions', {
     plan_id: params.planId,
     customer_notify: 1,
-    total_count: INDEFINITE_TOTAL_COUNT,
+    total_count: params.totalCount ?? INDEFINITE_TOTAL_COUNT,
     notes: params.notes ?? {},
   })
-  return { subscriptionId: sub.id }
+  return { subscriptionId: sub.id, shortUrl: sub.short_url }
 }
 
 export async function cancelRazorpaySubscription(subscriptionId: string): Promise<void> {
