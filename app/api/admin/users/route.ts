@@ -106,6 +106,7 @@ export async function GET() {
       messages_30d:          store ? (msgCountByStore[store.id] ?? 0) : 0,
       billing_plan:          billing?.plan_name ?? null,
       billing_status:        billing?.status ?? null,
+      billing_provider:      billing?.billing_provider ?? null,
       billing_amount:        billing?.amount_paise ?? 0,
       messages_used:         billing?.messages_used ?? 0,
       messages_limit:        billing?.messages_limit ?? 0,
@@ -117,13 +118,26 @@ export async function GET() {
   }).sort((a, b) => new Date(b.signed_up_at).getTime() - new Date(a.signed_up_at).getTime())
 
   // ── Stats ─────────────────────────────────────────────────────────────────
+  // Shopify App Store subscriptions are genuinely billed in USD (Shopify's
+  // own Billing API, see lib/shopify-billing.ts — these prices are its
+  // actual source of truth, not a guess); the homepage/landing-page flow
+  // bills in INR via Razorpay (billing.amount_paise, real paise from the
+  // actual charge). These used to be summed into one "mrr_inr" number with
+  // no conversion — $29 (Shopify) + ₹7,999 (Razorpay) became "36,028" with
+  // no unit, displayed with a single $ sign that was wrong for most of it.
+  // Kept as two honest, separate totals instead of one blended, meaningless
+  // number — there is no single correct exchange rate to collapse them
+  // into on the fly, and silently picking one would just trade one wrong
+  // number for a different wrong number.
   const SHOPIFY_PLAN_USD: Record<string, number> = { starter: 29, growth: 49, scale: 99, enterprise: 299 }
   const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const activeSubs = (billingRows ?? []).filter((b: { status: string | null }) => b.status === 'active' || b.status === 'trialing')
-  const mrr        = activeSubs.reduce((s: number, b: { billing_provider: string | null; plan_name: string | null; amount_paise: number }) => {
-    if (b.billing_provider === 'shopify') return s + (SHOPIFY_PLAN_USD[b.plan_name ?? ''] ?? 0)
-    return s + (b.amount_paise ?? 0) / 100
-  }, 0)
+  const mrrInr = activeSubs
+    .filter((b: { billing_provider: string | null }) => b.billing_provider !== 'shopify')
+    .reduce((s: number, b: { amount_paise: number }) => s + (b.amount_paise ?? 0) / 100, 0)
+  const mrrUsd = activeSubs
+    .filter((b: { billing_provider: string | null }) => b.billing_provider === 'shopify')
+    .reduce((s: number, b: { plan_name: string | null }) => s + (SHOPIFY_PLAN_USD[b.plan_name ?? ''] ?? 0), 0)
 
   const stats = {
     total_signups:        users.length,
@@ -132,7 +146,8 @@ export async function GET() {
     stores_connected:     users.filter(u => u.store_domain).length,
     total_messages_30d:   users.reduce((a, u) => a + u.messages_30d, 0),
     active_subscriptions: activeSubs.length,
-    mrr_inr:              mrr,
+    mrr_inr:              mrrInr,
+    mrr_usd:              mrrUsd,
     organizations:        orgCount ?? 0,
   }
 

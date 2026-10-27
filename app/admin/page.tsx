@@ -15,7 +15,28 @@ import {
 import { cn } from '@/lib/utils'
 import CustomSelect from '@/components/custom-select'
 
-const PLAN_PRICES: Record<string, number> = { starter: 29, growth: 49, scale: 99, enterprise: 299 }
+// Only accurate for Shopify App Store subscriptions (billing_provider ===
+// 'shopify') — Shopify's own Billing API genuinely charges in USD at these
+// exact prices (lib/shopify-billing.ts is the real source of truth). Used
+// to be applied to every user regardless of provider, which silently
+// returned $0 for any real Razorpay subscriber (billing_plan values like
+// 'pro' or 'trial' don't match any key here) — hiding real revenue instead
+// of showing it. See userRevenue() below for the provider-aware version.
+const SHOPIFY_PLAN_USD: Record<string, number> = { starter: 29, growth: 49, scale: 99, enterprise: 299 }
+
+// The real monthly revenue for one user, in whichever currency they're
+// actually billed in — Razorpay users (the vast majority; the homepage/
+// landing-page flow) have a real amount_paise from their actual charge,
+// converted to rupees; Shopify App Store users are looked up from Shopify's
+// own real USD pricing. Never a guess, never silently $0/₹0 for a real
+// paying customer.
+function userRevenue(u: AdminUser): { amount: number; symbol: '₹' | '$' } {
+  if (u.billing_provider === 'shopify') {
+    return { amount: SHOPIFY_PLAN_USD[u.billing_plan ?? ''] ?? 0, symbol: '$' }
+  }
+  return { amount: Math.round((u.billing_amount ?? 0) / 100), symbol: '₹' }
+}
+
 const PLAN_COLORS: Record<string, string> = {
   trial:      'bg-slate-700 text-slate-300',
   starter:    'bg-blue-900/50 text-blue-300',
@@ -48,6 +69,7 @@ interface AdminUser {
   messages_30d: number
   billing_plan: string | null
   billing_status: string | null
+  billing_provider: string | null
   billing_amount: number
   messages_used: number
   messages_limit: number
@@ -65,6 +87,7 @@ interface Stats {
   total_messages_30d: number
   active_subscriptions: number
   mrr_inr: number
+  mrr_usd: number
   organizations: number
 }
 
@@ -251,6 +274,7 @@ export default function AdminPage() {
   )
 
   const arr = (stats?.mrr_inr ?? 0) * 12
+  const arrUsd = (stats?.mrr_usd ?? 0) * 12
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-white">
@@ -310,7 +334,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Monthly Revenue (MRR)', value: `$${stats.mrr_inr.toLocaleString()}`, icon: DollarSign,    color: 'text-green-400',  bg: 'bg-green-500/10',  sub: `ARR $${arr.toLocaleString()}` },
+                { label: 'Monthly Revenue (MRR)', value: `₹${stats.mrr_inr.toLocaleString()}`, icon: DollarSign,    color: 'text-green-400',  bg: 'bg-green-500/10',  sub: `ARR ₹${arr.toLocaleString()}${stats.mrr_usd ? ` · +$${stats.mrr_usd.toLocaleString()} Shopify` : ''}` },
                 { label: 'Active Subscribers',    value: String(stats.active_subscriptions),           icon: Crown,         color: 'text-amber-400',  bg: 'bg-amber-500/10',  sub: `of ${stats.total_signups} total users` },
                 { label: 'Total Signups',          value: String(stats.total_signups),                 icon: Users,         color: 'text-blue-400',   bg: 'bg-blue-500/10',   sub: `+${stats.new_this_week} this week` },
                 { label: 'Email Confirmed',        value: String(stats.email_confirmed),               icon: CheckCheck,    color: 'text-[#25D366]',  bg: 'bg-[#25D366]/10',  sub: `${stats.total_signups - stats.email_confirmed} unconfirmed` },
@@ -577,7 +601,7 @@ export default function AdminPage() {
                                 </div>
                                 <div>
                                   <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1"><CreditCard className="w-3 h-3" /> Billing</p>
-                                  <p className="text-white">${PLAN_PRICES[u.billing_plan ?? ''] ?? 0}/mo</p>
+                                  <p className="text-white">{userRevenue(u).symbol}{userRevenue(u).amount.toLocaleString()}/mo</p>
                                   {u.next_billing_date && <p className="text-slate-400 text-xs">Next: {fmtDate(u.next_billing_date)}</p>}
                                   {u.cancelled_at && <p className="text-red-400 text-xs">Cancelled: {fmtDate(u.cancelled_at)}</p>}
                                   {u.shopify_subscription_id && (
@@ -608,15 +632,36 @@ export default function AdminPage() {
             <div className="bg-white/3 border border-white/8 rounded-2xl p-6">
               <h3 className="text-slate-400 text-sm font-medium mb-4 flex items-center gap-2"><DollarSign className="w-4 h-4" /> Revenue by Plan</h3>
               <div className="space-y-4">
-                {['starter', 'growth', 'scale', 'enterprise'].map(plan => {
-                  const count = users.filter(u => u.billing_plan === plan && (u.billing_status === 'active' || u.billing_status === 'trialing')).length
-                  const rev   = count * (PLAN_PRICES[plan] ?? 0)
-                  const pct   = stats.mrr_inr ? Math.round((rev / stats.mrr_inr) * 100) : 0
+                {/* Used to be a hardcoded ['starter','growth','scale','enterprise']
+                    list priced from a fixed USD table applied to every user
+                    regardless of provider — real billing_plan values (e.g.
+                    'trial', 'pro' from the actual Razorpay plans in use) never
+                    matched any of those four names, so this silently showed
+                    ₹0/$0 for 100% of real paying customers. Now derives the
+                    real plan names actually present and sums real revenue per
+                    plan via userRevenue() (provider-aware: real amount_paise
+                    for Razorpay, Shopify's real USD pricing for Shopify). The
+                    % bar compares against the matching-currency MRR total
+                    only — there's no sound way to show "% of MRR" across two
+                    different currencies in one bar. */}
+                {Object.entries(
+                  users
+                    .filter(u => u.billing_status === 'active' || u.billing_status === 'trialing')
+                    .reduce<Record<string, { count: number; amount: number; symbol: '₹' | '$' }>>((acc, u) => {
+                      const plan = u.billing_plan ?? 'unknown'
+                      const { amount, symbol } = userRevenue(u)
+                      const existing = acc[plan] ?? { count: 0, amount: 0, symbol }
+                      acc[plan] = { count: existing.count + 1, amount: existing.amount + amount, symbol }
+                      return acc
+                    }, {})
+                ).map(([plan, { count, amount, symbol }]) => {
+                  const base = symbol === '$' ? stats.mrr_usd : stats.mrr_inr
+                  const pct  = base ? Math.round((amount / base) * 100) : 0
                   return (
                     <div key={plan}>
                       <div className="flex items-center justify-between text-sm mb-1.5">
                         <span className="capitalize text-white font-medium">{plan}</span>
-                        <span className="text-slate-400">${rev.toLocaleString()} · {count} users</span>
+                        <span className="text-slate-400">{symbol}{amount.toLocaleString()} · {count} user{count === 1 ? '' : 's'}</span>
                       </div>
                       <div className="w-full bg-white/5 rounded-full h-2">
                         <div className="h-2 rounded-full bg-[#25D366]" style={{ width: `${pct}%` }} />
@@ -627,9 +672,9 @@ export default function AdminPage() {
               </div>
               <div className="mt-6 pt-4 border-t border-white/8 space-y-2">
                 {[
-                  { label: 'MRR', val: `$${stats.mrr_inr.toLocaleString()}` },
-                  { label: 'ARR', val: `$${arr.toLocaleString()}` },
-                  { label: 'Avg revenue / subscriber', val: `$${stats.active_subscriptions ? Math.round(stats.mrr_inr / stats.active_subscriptions) : 0}` },
+                  { label: 'MRR', val: `₹${stats.mrr_inr.toLocaleString()}${stats.mrr_usd ? ` + $${stats.mrr_usd.toLocaleString()}` : ''}` },
+                  { label: 'ARR', val: `₹${arr.toLocaleString()}${arrUsd ? ` + $${arrUsd.toLocaleString()}` : ''}` },
+                  { label: 'Avg revenue / subscriber', val: `₹${stats.active_subscriptions ? Math.round(stats.mrr_inr / stats.active_subscriptions) : 0}` },
                 ].map(r => (
                   <div key={r.label} className="flex justify-between text-sm">
                     <span className="text-slate-400">{r.label}</span>
@@ -705,7 +750,7 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td className="py-2.5">
-                          <span className="text-green-400 font-bold">${PLAN_PRICES[u.billing_plan ?? ''] ?? 0}</span>
+                          <span className="text-green-400 font-bold">{userRevenue(u).symbol}{userRevenue(u).amount.toLocaleString()}</span>
                         </td>
                         <td className="py-2.5">
                           <span className={cn('text-[10px] px-2 py-0.5 rounded-full capitalize', STATUS_COLORS[u.billing_status ?? ''] ?? 'bg-slate-700 text-slate-400')}>
