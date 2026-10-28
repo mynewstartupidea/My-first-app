@@ -269,8 +269,12 @@ function GetStarted() {
     setError('')
     setWebsiteError('')
 
+    if (!website.trim()) {
+      setWebsiteError('Please enter your website.')
+      return
+    }
     if (!isValidWebsiteInput(website)) {
-      setWebsiteError("That doesn't look like a website — enter your store's URL, or leave it blank.")
+      setWebsiteError("That doesn't look like a website — enter your store's URL.")
       return
     }
 
@@ -459,7 +463,7 @@ function GetStarted() {
                 <input required value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
                 <div>
-                  <input inputMode="url" autoComplete="url" value={website}
+                  <input required inputMode="url" autoComplete="url" value={website}
                     onChange={e => { setWebsite(e.target.value); setWebsiteError('') }} placeholder="Your website"
                     className={cn(
                       'w-full px-4 py-3 bg-white/5 border rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 transition',

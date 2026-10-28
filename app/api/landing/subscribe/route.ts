@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getOrCreateLandingPlan, createRazorpaySubscription } from '@/lib/razorpay'
 import { sendMetaCapiEvent } from '@/lib/meta-capi'
+import { isValidWebsiteInput } from '@/lib/utils'
 
 // Public — no auth. Submitted by anonymous visitors on the marketing landing
 // pages (app/lp/*). The lead is saved BEFORE Razorpay is touched, so if plan/
@@ -59,6 +60,16 @@ export async function POST(request: Request) {
   if (!name)  return NextResponse.json({ error: 'Name is required', message: 'Please enter your name.' }, { status: 400 })
   if (!phone) return NextResponse.json({ error: 'Phone number is required', message: 'Please enter a phone number.' }, { status: 400 })
   if (!email || !EMAIL_RE.test(email)) return NextResponse.json({ error: 'Valid email is required', message: 'Please enter a valid email address.' }, { status: 400 })
+  // Only the ecommerce landing page asks for this as a website (the other
+  // sources' equivalent field is "Business name" — a different question,
+  // still optional). Required specifically here because leads kept typing
+  // their own phone/email into it instead, which the client form now also
+  // blocks — this is the same check enforced server-side so a direct POST
+  // to this endpoint can't skip it.
+  if (source === 'lp_ecommerce') {
+    if (!company) return NextResponse.json({ error: 'Website is required', message: 'Please enter your website.' }, { status: 400 })
+    if (!isValidWebsiteInput(company)) return NextResponse.json({ error: 'Invalid website', message: "That doesn't look like a website — enter your store's URL." }, { status: 400 })
+  }
 
   const service = createServiceClient()
 
