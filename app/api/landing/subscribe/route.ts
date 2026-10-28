@@ -60,15 +60,15 @@ export async function POST(request: Request) {
   if (!name)  return NextResponse.json({ error: 'Name is required', message: 'Please enter your name.' }, { status: 400 })
   if (!phone) return NextResponse.json({ error: 'Phone number is required', message: 'Please enter a phone number.' }, { status: 400 })
   if (!email || !EMAIL_RE.test(email)) return NextResponse.json({ error: 'Valid email is required', message: 'Please enter a valid email address.' }, { status: 400 })
-  // Only the ecommerce landing page asks for this as a website (the other
-  // sources' equivalent field is "Business name" — a different question,
-  // still optional). Required specifically here because leads kept typing
-  // their own phone/email into it instead, which the client form now also
-  // blocks — this is the same check enforced server-side so a direct POST
-  // to this endpoint can't skip it.
-  if (source === 'lp_ecommerce') {
+  // lp_ecommerce and lp_leads both ask for this as a website (homepage's
+  // equivalent field is still "Company / Store" — a different, optional
+  // question). Required on both because real leads kept typing their own
+  // phone/email into it instead, which the client form now also blocks —
+  // this is the same check enforced server-side so a direct POST to this
+  // endpoint can't skip it.
+  if (source === 'lp_ecommerce' || source === 'lp_leads') {
     if (!company) return NextResponse.json({ error: 'Website is required', message: 'Please enter your website.' }, { status: 400 })
-    if (!isValidWebsiteInput(company)) return NextResponse.json({ error: 'Invalid website', message: "That doesn't look like a website — enter your store's URL." }, { status: 400 })
+    if (!isValidWebsiteInput(company)) return NextResponse.json({ error: 'Invalid website', message: "That doesn't look like a website — enter your website URL." }, { status: 400 })
   }
 
   const service = createServiceClient()
