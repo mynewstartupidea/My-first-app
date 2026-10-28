@@ -188,7 +188,7 @@ export default function Hero() {
               href="/signup"
               className="group inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-8 py-4 rounded-2xl text-lg transition-all shadow-2xl shadow-green-500/40 hover:shadow-green-500/70 hover:scale-[1.04] active:scale-[0.97]"
             >
-              Start for free
+              Get Started
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <a
@@ -206,7 +206,7 @@ export default function Hero() {
             transition={{ duration: 0.6, delay: 0.9 }}
             className="mt-4 text-slate-600 text-sm"
           >
-            No credit card required · Free account
+            No credit card required to sign up
           </motion.p>
         </div>
 

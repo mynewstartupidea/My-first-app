@@ -65,7 +65,7 @@ export default function Navbar() {
             href="/signup"
             className="text-sm font-semibold bg-[#25D366] hover:bg-[#1db954] text-white px-4 py-2 rounded-xl transition shadow-lg shadow-green-500/20"
           >
-            Get started free
+            Get Started
           </Link>
         </div>
 
@@ -99,7 +99,7 @@ export default function Navbar() {
               Sign in
             </Link>
             <Link href="/signup" className="text-sm font-semibold bg-[#25D366] text-white px-4 py-2 rounded-xl text-center">
-              Get started free
+              Get Started
             </Link>
           </div>
         </div>

@@ -79,10 +79,10 @@ export default function CtaSection() {
             href="/signup"
             className="group relative inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1db954] text-white font-bold px-8 py-4 rounded-2xl text-lg transition-all duration-200 shadow-2xl shadow-green-500/40 hover:shadow-green-500/60 hover:scale-[1.03] active:scale-[0.98]"
           >
-            Start for free
+            Get Started
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-150" />
           </Link>
-          <p className="text-slate-500 text-sm">No credit card required · Free account</p>
+          <p className="text-slate-500 text-sm">No credit card required to sign up</p>
         </motion.div>
 
         {/* Trust badges */}

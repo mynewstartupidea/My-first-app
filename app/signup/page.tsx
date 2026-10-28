@@ -139,7 +139,7 @@ export default function SignupPage() {
           // This page is where EVERY signup that doesn't go through a
           // landing page's own inline form (app/lp/leads, app/lp/ecommerce)
           // ends up — including the 4 vertical pages (restaurant/real-estate/
-          // gym/coaching) whose "Start free" CTA links here with a UTM-tagged
+          // gym/coaching) whose "Get Started" CTA links here with a UTM-tagged
           // query string, and plain homepage/organic traffic. None of that
           // was ever read here before — it was only used by Meta's own pixel
           // attribution (invisible from inside this app's own admin), so
