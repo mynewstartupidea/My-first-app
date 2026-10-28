@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
-import { getUtmParams, getFacebookCookies } from '@/lib/utils'
+import { cn, getUtmParams, getFacebookCookies, isValidWebsiteInput } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/password-input'
 
@@ -253,6 +253,7 @@ function GetStarted() {
   const [step, setStep] = useState<FormStep>('form')
   const [name, setName] = useState('')
   const [website, setWebsite] = useState('')
+  const [websiteError, setWebsiteError] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
@@ -266,6 +267,13 @@ function GetStarted() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setWebsiteError('')
+
+    if (!isValidWebsiteInput(website)) {
+      setWebsiteError("That doesn't look like a website — enter your store's URL, or leave it blank.")
+      return
+    }
+
     setStep('submitting')
 
     // No try/catch here previously — a network failure or non-JSON error
@@ -450,8 +458,15 @@ function GetStarted() {
               <form onSubmit={handleSubmit} className="space-y-3">
                 <input required value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
-                <input inputMode="url" autoComplete="url" value={website} onChange={e => setWebsite(e.target.value)} placeholder="Website"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
+                <div>
+                  <input inputMode="url" autoComplete="url" value={website}
+                    onChange={e => { setWebsite(e.target.value); setWebsiteError('') }} placeholder="Your website"
+                    className={cn(
+                      'w-full px-4 py-3 bg-white/5 border rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 transition',
+                      websiteError ? 'border-red-500/50 focus:ring-red-500/30' : 'border-white/10 focus:ring-[#25D366]/40',
+                    )} />
+                  {websiteError && <p className="text-red-400 text-xs mt-1.5">{websiteError}</p>}
+                </div>
                 <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
                 <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"

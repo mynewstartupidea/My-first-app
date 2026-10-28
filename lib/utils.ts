@@ -21,6 +21,21 @@ export function getUtmParams(): { utm_source: string | null; utm_medium: string 
   }
 }
 
+// Used to reject obviously-not-a-website input (a phone number, an email,
+// random text) in the ecommerce landing page's optional "Your website"
+// field before it ever reaches the server — people were typing their own
+// phone/email into it, which then showed up meaninglessly in admin.
+// Deliberately permissive about the actual URL shape (no scheme required,
+// any TLD) since the bar here is just "looks like a domain," not full RFC
+// validation — a real store URL should always clear this easily.
+export function isValidWebsiteInput(raw: string): boolean {
+  const v = raw.trim()
+  if (!v) return true // optional field — empty is fine
+  if (/@/.test(v)) return false // looks like an email
+  if (/^[+\d\s()-]+$/.test(v)) return false // looks like a phone number
+  return /^(https?:\/\/)?(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(v)
+}
+
 // Meta's pixel sets _fbp itself on every visit; _fbc only exists if the
 // visitor arrived via an ad click (fbclid in the URL) — reading these at
 // submit time is what lets the server-side Conversions API event match the
