@@ -445,7 +445,7 @@ function GetStarted() {
               <form onSubmit={handleSubmit} className="space-y-3">
                 <input required value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
-                <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="Website"
+                <input inputMode="url" autoComplete="url" value={website} onChange={e => setWebsite(e.target.value)} placeholder="Website"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
                 <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
