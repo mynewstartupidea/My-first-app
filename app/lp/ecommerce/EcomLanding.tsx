@@ -252,7 +252,7 @@ function scrollToGetStarted() {
 function GetStarted() {
   const [step, setStep] = useState<FormStep>('form')
   const [name, setName] = useState('')
-  const [company, setCompany] = useState('')
+  const [website, setWebsite] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
@@ -282,7 +282,7 @@ function GetStarted() {
       res = await fetch('/api/landing/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, company, phone, email, source: 'lp_ecommerce', ...getUtmParams() }),
+        body: JSON.stringify({ name, company: website, phone, email, source: 'lp_ecommerce', ...getUtmParams() }),
       })
       data = await res.json()
     } catch {
@@ -445,7 +445,7 @@ function GetStarted() {
               <form onSubmit={handleSubmit} className="space-y-3">
                 <input required value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
-                <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Business name"
+                <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="Website"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
                 <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />

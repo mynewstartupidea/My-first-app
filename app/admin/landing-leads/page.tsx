@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Loader2, RefreshCw, Search, Phone, Mail, Building2,
+  ArrowLeft, Loader2, RefreshCw, Search, Phone, Mail, Building2, Globe,
   Copy, CheckCircle2, Clock, XCircle, Ban, ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -40,6 +40,22 @@ function fmtDate(d: string) {
 }
 
 function copy(text: string) { navigator.clipboard.writeText(text).catch(() => null) }
+
+// The ecommerce landing page's "company_name" field is actually a website
+// URL (its form asks "Website", not "Business name" — other sources ask for
+// an actual business name). People type it without a scheme, so a bare
+// href would resolve relative to this admin page instead of navigating out.
+function toHref(url: string) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`
+}
+
+// The "Website" field is free text, so it sometimes holds something that
+// isn't a URL at all (e.g. a lead who typed their phone number into it by
+// mistake) — only linkify what's actually dotted-domain-shaped, otherwise
+// show it plainly rather than building a broken https:// link out of it.
+function isLikelyUrl(s: string) {
+  return /\./.test(s) && !/^[+\d\s()-]+$/.test(s)
+}
 
 export default function LandingLeadsPage() {
   const router = useRouter()
@@ -145,9 +161,22 @@ export default function LandingLeadsPage() {
                   <div className="min-w-[180px] flex-1">
                     <p className="text-white font-semibold text-sm">{lead.name}</p>
                     {lead.company_name && (
-                      <p className="text-slate-400 text-xs flex items-center gap-1 mt-0.5">
-                        <Building2 className="w-3 h-3" /> {lead.company_name}
-                      </p>
+                      lead.source === 'lp_ecommerce' ? (
+                        isLikelyUrl(lead.company_name) ? (
+                          <a href={toHref(lead.company_name)} target="_blank" rel="noreferrer"
+                            className="text-slate-400 hover:text-[#25D366] text-xs flex items-center gap-1 mt-0.5 transition truncate max-w-[220px]">
+                            <Globe className="w-3 h-3 flex-shrink-0" /> {lead.company_name}
+                          </a>
+                        ) : (
+                          <p className="text-slate-400 text-xs flex items-center gap-1 mt-0.5">
+                            <Globe className="w-3 h-3 flex-shrink-0" /> {lead.company_name}
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-slate-400 text-xs flex items-center gap-1 mt-0.5">
+                          <Building2 className="w-3 h-3" /> {lead.company_name}
+                        </p>
+                      )
                     )}
                     {/* Meta's convention is utm_content={{ad.name}}, but whichever
                         UTM field actually carries the ad/campaign name shows here —
