@@ -21,6 +21,17 @@ export function getUtmParams(): { utm_source: string | null; utm_medium: string 
   }
 }
 
+// Meta's pixel sets _fbp itself on every visit; _fbc only exists if the
+// visitor arrived via an ad click (fbclid in the URL) — reading these at
+// submit time is what lets the server-side Conversions API event match the
+// same browsing session Meta already knows about, instead of relying on
+// hashed email/phone alone for a much weaker match.
+export function getFacebookCookies(): { fbp: string | null; fbc: string | null } {
+  if (typeof document === 'undefined') return { fbp: null, fbc: null }
+  const read = (name: string) => document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]+)`))?.[1] ?? null
+  return { fbp: read('_fbp'), fbc: read('_fbc') }
+}
+
 export function formatCurrency(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

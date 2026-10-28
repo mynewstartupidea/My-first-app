@@ -2,8 +2,9 @@
 
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
+import { FB_PIXEL_ID } from '@/lib/meta-pixel-id'
 
-export const FB_PIXEL_ID = '1482890805828892'
+export { FB_PIXEL_ID }
 
 declare global {
   interface Window {

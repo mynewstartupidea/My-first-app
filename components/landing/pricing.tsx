@@ -5,7 +5,7 @@ import { useRef, useState } from 'react'
 import Script from 'next/script'
 import Link from 'next/link'
 import { CheckCircle2, ArrowRight, Loader2, Clock } from 'lucide-react'
-import { getUtmParams } from '@/lib/utils'
+import { getUtmParams, getFacebookCookies } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/password-input'
 
@@ -74,11 +74,13 @@ export default function Pricing() {
       prefill?: { name: string; email: string; contact: string }
       error?: string; message?: string
     }
+    const fbEventId = crypto.randomUUID()
+    const { fbp, fbc } = getFacebookCookies()
     try {
       res = await fetch('/api/landing/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, company, phone, email, source: 'homepage', ...getUtmParams() }),
+        body: JSON.stringify({ name, company, phone, email, source: 'homepage', ...getUtmParams(), fbp, fbc, fbEventId }),
       })
       data = await res.json()
     } catch {
@@ -95,7 +97,9 @@ export default function Pricing() {
 
     // Saved as soon as the request succeeds, not gated on completing
     // Razorpay checkout — same reasoning as the /lp/* pages this reuses.
-    window.fbq?.('track', 'Lead')
+    // Same eventID as the server-side Conversions API call in
+    // /api/landing/subscribe so Meta dedupes the two into one event.
+    window.fbq?.('track', 'Lead', {}, { eventID: fbEventId })
     if (data.leadId) setLeadId(data.leadId)
 
     if (data.error === 'saved_no_checkout') {

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
-import { getUtmParams } from '@/lib/utils'
+import { getUtmParams, getFacebookCookies } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/password-input'
 
@@ -278,11 +278,13 @@ function GetStarted() {
       prefill?: { name: string; email: string; contact: string }
       error?: string; message?: string
     }
+    const fbEventId = crypto.randomUUID()
+    const { fbp, fbc } = getFacebookCookies()
     try {
       res = await fetch('/api/landing/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, company: website, phone, email, source: 'lp_ecommerce', ...getUtmParams() }),
+        body: JSON.stringify({ name, company: website, phone, email, source: 'lp_ecommerce', ...getUtmParams(), fbp, fbc, fbEventId }),
       })
       data = await res.json()
     } catch {
@@ -300,7 +302,10 @@ function GetStarted() {
     // Saved server-side as soon as the request succeeds — same reasoning as
     // the leads landing page (app/lp/leads/LeadsLanding.tsx): fire Lead here,
     // once per real submission, not gated on completing Razorpay checkout.
-    window.fbq?.('track', 'Lead')
+    // Same eventID as the server-side Conversions API call in
+    // /api/landing/subscribe so Meta dedupes the two into one event instead
+    // of double-counting this single submission.
+    window.fbq?.('track', 'Lead', {}, { eventID: fbEventId })
     if (data.leadId) setLeadId(data.leadId)
 
     if (data.error === 'saved_no_checkout') {

@@ -1340,3 +1340,17 @@ CREATE INDEX IF NOT EXISTS inbound_messages_store_phone_last10_idx ON inbound_me
 -- moment they tap the link, no code to type, no separate Meta template
 -- variable/re-approval needed since the message text itself is unchanged.
 ALTER TABLE automations ADD COLUMN IF NOT EXISTS discount_code TEXT;
+
+-- Meta Conversions API lead-quality feedback loop: fbp/fbc captured at
+-- submit time (client cookies, read once and persisted — by the time a
+-- Razorpay webhook confirms payment, days later, there's no browser session
+-- left to read them from) and fb_lead_event_id (dedupes the server-side
+-- CAPI 'Lead' event against the client pixel's own fbq('track','Lead') for
+-- the same submission). fb_qualified_event_sent_at guards the 'Subscribe'
+-- event fired on payment confirmation against firing again on every
+-- recurring monthly charge webhook — this is a one-time "became a real
+-- subscriber" signal to Meta, not a per-charge one.
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fbp TEXT;
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fbc TEXT;
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fb_lead_event_id TEXT;
+ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fb_qualified_event_sent_at TIMESTAMPTZ;

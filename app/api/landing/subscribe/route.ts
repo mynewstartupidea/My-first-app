@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getOrCreateLandingPlan, createRazorpaySubscription } from '@/lib/razorpay'
+import { sendMetaCapiEvent } from '@/lib/meta-capi'
 
 // Public — no auth. Submitted by anonymous visitors on the marketing landing
 // pages (app/lp/*). The lead is saved BEFORE Razorpay is touched, so if plan/
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
     name?: string; company?: string; phone?: string; email?: string; source?: string
     utm_source?: string | null; utm_medium?: string | null; utm_campaign?: string | null
     utm_term?: string | null; utm_content?: string | null
+    fbp?: string | null; fbc?: string | null; fbEventId?: string | null
   }
   const name    = (body.name ?? '').trim()
   const company = (body.company ?? '').trim()
@@ -44,6 +46,9 @@ export async function POST(request: Request) {
     utm_term:     body.utm_term?.trim() || null,
     utm_content:  body.utm_content?.trim() || null,
   }
+  const fbp = body.fbp?.trim() || null
+  const fbc = body.fbc?.trim() || null
+  const fbEventId = body.fbEventId?.trim() || null
 
   // Every error response below returns `error`, but both landing pages'
   // handleSubmit only ever reads `data.message` to show the visitor
@@ -96,15 +101,15 @@ export async function POST(request: Request) {
 
   let { data: lead, error: insertErr } = await service
     .from('landing_leads')
-    .insert({ name, company_name: company || null, phone, email, source, payment_status: 'pending', ...utm })
+    .insert({ name, company_name: company || null, phone, email, source, payment_status: 'pending', ...utm, fbp, fbc, fb_lead_event_id: fbEventId })
     .select('id')
     .single()
 
-  // The utm_* columns are added by a migration that may not have run yet on
-  // every environment — never let a missing column break lead capture
-  // itself, just drop the UTM data and save the lead without it.
+  // The utm_*/fb* columns are added by migrations that may not have run yet
+  // on every environment — never let a missing column break lead capture
+  // itself, just drop the extra data and save the lead without it.
   if (insertErr?.code === '42703') {
-    console.error('[landing/subscribe] utm_* columns missing, retrying without them:', insertErr.message)
+    console.error('[landing/subscribe] utm_*/fb* columns missing, retrying without them:', insertErr.message)
     ;({ data: lead, error: insertErr } = await service
       .from('landing_leads')
       .insert({ name, company_name: company || null, phone, email, source, payment_status: 'pending' })
@@ -116,6 +121,18 @@ export async function POST(request: Request) {
     console.error('[landing/subscribe] insert error:', insertErr)
     return NextResponse.json({ error: 'Could not save your details', message: 'Could not save your details — please try again.' }, { status: 500 })
   }
+
+  // Best-effort — the server-side half of the Meta lead-quality feedback
+  // loop. Deduped against the client pixel's own fbq('track','Lead') call
+  // via the shared fbEventId. Never blocks lead capture or checkout.
+  void sendMetaCapiEvent({
+    eventName: 'Lead',
+    eventId: fbEventId ?? undefined,
+    eventSourceUrl: request.headers.get('referer') ?? 'https://www.wapaci.com',
+    email, phone, fbp, fbc,
+    clientIp: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+    userAgent: request.headers.get('user-agent'),
+  })
 
   // From here on, the lead row already exists — a Razorpay failure is
   // reported to the visitor but never loses the contact details above.
