@@ -91,7 +91,14 @@ export async function POST(request: Request) {
   // change (website, about, etc.), with the misleading "check the website"
   // error below. Omit it entirely when unset, same treatment as `about`.
   if (body.vertical     !== undefined && body.vertical.trim()) payload.vertical = body.vertical
-  if (body.website      !== undefined) payload.websites    = body.website.trim() ? [body.website.trim()] : []
+  // Meta requires a full URI with scheme here — "wapaci.com" is rejected
+  // with "(#100) Param websites[0] is not a valid URI" even though it's a
+  // perfectly normal thing to type into a "Website" field with no hint that
+  // a scheme is required. Default to https:// when the merchant left it off.
+  if (body.website !== undefined) {
+    const trimmed = body.website.trim()
+    payload.websites = trimmed ? [/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`] : []
+  }
 
   const res = await fetch(`https://graph.facebook.com/v21.0/${creds.phoneNumberId}/whatsapp_business_profile`, {
     method: 'POST',

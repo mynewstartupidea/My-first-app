@@ -798,6 +798,14 @@ function SettingsInner() {
       if (data.ok) {
         showToast('Profile photo updated! It can take a few minutes to show up on WhatsApp.')
         setWaPhotoFile(null)
+        // Meta's own CDN can take a few minutes to serve the new image at a
+        // fetched profile_picture_url, so refetching from GET right now would
+        // likely just show the old photo again. The local blob preview IS
+        // the uploaded image, so keep using it as profile_picture_url until
+        // the next real page load — otherwise the read-only view (which
+        // renders waProfile.profile_picture_url, never waPhotoPreview) falls
+        // straight back to the stale photo from whenever the page first loaded.
+        setWaProfile(prev => (prev ? { ...prev, profile_picture_url: waPhotoPreview ?? prev.profile_picture_url } : prev))
       } else {
         showToast(data.error ?? "Couldn't update your profile photo. Please try again.", false)
       }
