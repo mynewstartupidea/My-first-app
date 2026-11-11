@@ -1354,16 +1354,3 @@ ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fbp TEXT;
 ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fbc TEXT;
 ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fb_lead_event_id TEXT;
 ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS fb_qualified_event_sent_at TIMESTAMPTZ;
-
--- ─── /lp/funding — a qualification-only lead form, no payment involved ────────
--- Unlike every other lp/* source, this one never touches Razorpay — it's a
--- Meta-Lead-Ad-style qualification funnel (9 multiple-choice/short-answer
--- questions), so payment_status just stays at its 'pending' default forever
--- for this source and is ignored by the admin UI for it. `website` is its own
--- column (not reusing company_name) since this form collects both a startup
--- name AND a separate website field, unlike lp_ecommerce/lp_leads where
--- company_name IS the website. `answers` is generic JSONB (not one column
--- per question) so future qualification forms can reuse this same table
--- without another migration every time a question list changes.
-ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS website TEXT;
-ALTER TABLE landing_leads ADD COLUMN IF NOT EXISTS answers JSONB;
