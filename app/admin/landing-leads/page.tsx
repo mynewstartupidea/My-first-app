@@ -5,15 +5,17 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Loader2, RefreshCw, Search, Phone, Mail, Building2, Globe,
-  Copy, CheckCircle2, Clock, XCircle, Ban, ExternalLink,
+  Copy, CheckCircle2, Clock, XCircle, Ban, ExternalLink, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import CustomSelect from '@/components/custom-select'
+import { FUNDING_QUESTIONS, FUNDING_DESCRIPTION_QUESTION } from '@/lib/funding-lead-questions'
 
 interface LandingLead {
   id: string
   name: string
   company_name: string | null
+  website: string | null
   phone: string
   email: string
   source: string
@@ -25,7 +27,14 @@ interface LandingLead {
   utm_campaign: string | null
   utm_term: string | null
   utm_content: string | null
+  answers: Record<string, string> | null
 }
+
+// /lp/funding never goes through Razorpay, so payment_status just sits at
+// its 'pending' default forever for this source — showing "Not paid yet"
+// on a free qualification form reads like something is broken. Everything
+// else still uses STATUS_META as-is.
+const FUNDING_SOURCE = 'lp_funding'
 
 const STATUS_META: Record<LandingLead['payment_status'], { label: string; cls: string; icon: typeof Clock }> = {
   pending:       { label: 'Not paid yet',  cls: 'bg-slate-700/50 text-slate-300',   icon: Clock },
@@ -65,6 +74,7 @@ export default function LandingLeadsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | LandingLead['payment_status']>('all')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -154,10 +164,13 @@ export default function LandingLeadsPage() {
         ) : (
           <div className="space-y-2">
             {filtered.map(lead => {
+              const isFunding = lead.source === FUNDING_SOURCE
               const meta = STATUS_META[lead.payment_status]
               const Icon = meta.icon
+              const isExpanded = expandedId === lead.id
               return (
-                <div key={lead.id} className="bg-white/[0.03] border border-white/8 rounded-2xl px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+                <div key={lead.id} className="bg-white/[0.03] border border-white/8 rounded-2xl px-5 py-4">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div className="min-w-[180px] flex-1">
                     <p className="text-white font-semibold text-sm">{lead.name}</p>
                     {lead.company_name && (
@@ -177,6 +190,12 @@ export default function LandingLeadsPage() {
                           <Building2 className="w-3 h-3" /> {lead.company_name}
                         </p>
                       )
+                    )}
+                    {isFunding && lead.website && (
+                      <a href={toHref(lead.website)} target="_blank" rel="noreferrer"
+                        className="text-slate-400 hover:text-[#25D366] text-xs flex items-center gap-1 mt-0.5 transition truncate max-w-[220px]">
+                        <Globe className="w-3 h-3 flex-shrink-0" /> {lead.website}
+                      </a>
                     )}
                     {/* Meta's convention is utm_content={{ad.name}}, but whichever
                         UTM field actually carries the ad/campaign name shows here —
@@ -205,9 +224,15 @@ export default function LandingLeadsPage() {
                     {copiedId === lead.id + '-email' ? <CheckCircle2 className="w-3 h-3 text-[#25D366]" /> : <Copy className="w-3 h-3 opacity-40" />}
                   </button>
 
-                  <span className={cn('flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0', meta.cls)}>
-                    <Icon className="w-3 h-3" /> {meta.label}
-                  </span>
+                  {isFunding ? (
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 bg-blue-900/40 text-blue-300">
+                      <Clock className="w-3 h-3" /> New application
+                    </span>
+                  ) : (
+                    <span className={cn('flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0', meta.cls)}>
+                      <Icon className="w-3 h-3" /> {meta.label}
+                    </span>
+                  )}
 
                   <span className="text-slate-500 text-xs flex-shrink-0">{fmtDate(lead.created_at)}</span>
 
@@ -222,10 +247,36 @@ export default function LandingLeadsPage() {
                     </a>
                   )}
 
+                  {isFunding && lead.answers && (
+                    <button onClick={() => setExpandedId(isExpanded ? null : lead.id)}
+                      className="flex items-center gap-1 flex-shrink-0 text-xs font-semibold text-slate-300 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition">
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      Answers
+                    </button>
+                  )}
+
                   <a href={`tel:${lead.phone}`}
                     className="flex-shrink-0 text-xs font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 px-3 py-1.5 rounded-lg transition">
                     Call
                   </a>
+                </div>
+
+                {isFunding && isExpanded && lead.answers && (
+                  <div className="mt-4 pt-4 border-t border-white/8 grid sm:grid-cols-2 gap-x-6 gap-y-3">
+                    {FUNDING_QUESTIONS.map(q => (
+                      <div key={q.key}>
+                        <p className="text-slate-500 text-xs mb-0.5">{q.question}</p>
+                        <p className="text-slate-200 text-sm">{lead.answers?.[q.key] ?? '—'}</p>
+                      </div>
+                    ))}
+                    {lead.answers.description && (
+                      <div className="sm:col-span-2">
+                        <p className="text-slate-500 text-xs mb-0.5">{FUNDING_DESCRIPTION_QUESTION}</p>
+                        <p className="text-slate-200 text-sm whitespace-pre-wrap">{lead.answers.description}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 </div>
               )
             })}

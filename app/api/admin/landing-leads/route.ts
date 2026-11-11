@@ -13,13 +13,13 @@ export async function GET() {
   const service = createServiceClient()
   let { data: leads, error } = await service
     .from('landing_leads')
-    .select('id, name, company_name, phone, email, source, payment_status, razorpay_subscription_id, created_at, utm_source, utm_medium, utm_campaign, utm_term, utm_content')
+    .select('id, name, company_name, website, phone, email, source, payment_status, razorpay_subscription_id, created_at, utm_source, utm_medium, utm_campaign, utm_term, utm_content, answers')
     .order('created_at', { ascending: false })
     .limit(1000)
 
   // Same migration-not-run-yet fallback as /api/landing/subscribe — don't
-  // let the whole admin view break just because the utm_* columns aren't
-  // there yet in this environment.
+  // let the whole admin view break just because the utm_*/website/answers
+  // columns aren't there yet in this environment.
   if (error?.code === '42703') {
     const fallback = await service
       .from('landing_leads')
@@ -28,7 +28,7 @@ export async function GET() {
       .limit(1000)
     error = fallback.error
     leads = fallback.data?.map(l => ({
-      ...l, utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null,
+      ...l, website: null, utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null, answers: null,
     })) ?? null
   }
 
