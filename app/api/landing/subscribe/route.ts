@@ -1,31 +1,20 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getOrCreateLandingPlan, createRazorpaySubscription } from '@/lib/razorpay'
 import { sendMetaCapiEvent } from '@/lib/meta-capi'
 import { isValidWebsiteInput } from '@/lib/utils'
 
 // Public — no auth. Submitted by anonymous visitors on the marketing landing
-// pages (app/lp/*). The lead is saved BEFORE Razorpay is touched, so if plan/
-// subscription creation fails, or the visitor abandons Razorpay Checkout, the
-// row still exists for the sales team to call and close manually.
+// pages (app/lp/*) and the homepage. Pure lead capture — no price is shown
+// anywhere on the marketing site and no checkout happens here; every
+// successful submission just saves the lead for a human to call and close
+// manually. Previously created a Razorpay Plan + Subscription per submission
+// and only fell back to this "saved" response if that failed — removed
+// entirely per instruction to stop showing price and selling self-serve from
+// these pages. (Self-serve signup/payment still exists separately at
+// /signup, untouched by this.)
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-// Keyed by the landing page's own `source` value — each lp/* page posts its
-// own source, so the Razorpay plan/charge description actually matches what
-// the visitor saw and signed up for, instead of every landing page silently
-// billing under the first one's "Lead Response Plan" name regardless of
-// which page they actually came from.
-const PLANS: Record<string, { amountRupees: number; planKey: string; name: string }> = {
-  lp_leads:     { amountRupees: 1999, planKey: 'lp_leads_1999_monthly',     name: 'Wapaci — Lead Response Plan (Monthly)' },
-  lp_ecommerce: { amountRupees: 1999, planKey: 'lp_ecommerce_1999_monthly', name: 'Wapaci — Ecommerce Plan (Monthly)' },
-  // Homepage serves both segments (unlike the single-industry lp/* pages),
-  // so it uses the same flat price already proven on both of those rather
-  // than inventing a new figure — same reasoning as reusing real stats
-  // instead of new ones elsewhere on the site.
-  homepage:     { amountRupees: 1999, planKey: 'homepage_1999_monthly',     name: 'Wapaci — Homepage Plan (Monthly)' },
-}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as {
@@ -39,7 +28,6 @@ export async function POST(request: Request) {
   const phone   = (body.phone ?? '').trim()
   const email   = (body.email ?? '').trim().toLowerCase()
   const source  = (body.source ?? 'lp_leads').trim()
-  const plan    = PLANS[source] ?? PLANS.lp_leads
   const utm = {
     utm_source:   body.utm_source?.trim() || null,
     utm_medium:   body.utm_medium?.trim() || null,
@@ -73,13 +61,9 @@ export async function POST(request: Request) {
 
   const service = createServiceClient()
 
-  // Check for an existing Wapaci account on this email BEFORE creating
-  // anything — this used to only get caught much later, at
-  // /api/landing/complete-signup, AFTER a real Razorpay charge had already
-  // gone through: the visitor would pay, then be told "an account with this
-  // email already exists, log in instead," with no account created to show
-  // for the money they'd just paid. Stopping it here means the Razorpay
-  // popup never even opens for an email that already has an account.
+  // Check for an existing Wapaci account on this email — an existing
+  // customer resubmitting this form should be told to log in rather than
+  // being treated (and called) as a brand-new lead.
   //
   // Checking user_profiles alone isn't enough — confirmed live, several real
   // auth.users accounts (including the admin's own) have no user_profiles
@@ -145,29 +129,8 @@ export async function POST(request: Request) {
     userAgent: request.headers.get('user-agent'),
   })
 
-  // From here on, the lead row already exists — a Razorpay failure is
-  // reported to the visitor but never loses the contact details above.
-  try {
-    const planId = await getOrCreateLandingPlan(service, plan)
-    const { subscriptionId } = await createRazorpaySubscription({
-      planId,
-      notes: { landing_lead_id: lead.id, source },
-    })
-
-    await service.from('landing_leads').update({ razorpay_subscription_id: subscriptionId }).eq('id', lead.id)
-
-    return NextResponse.json({
-      leadId: lead.id,
-      subscriptionId,
-      keyId: process.env.RAZORPAY_KEY_ID,
-      prefill: { name, email, contact: phone },
-    })
-  } catch (e) {
-    console.error('[landing/subscribe] Razorpay error:', e)
-    return NextResponse.json({
-      leadId: lead.id,
-      error: 'saved_no_checkout',
-      message: "We've saved your details — our team will reach out shortly to complete your subscription.",
-    }, { status: 200 })
-  }
+  return NextResponse.json({
+    leadId: lead.id,
+    message: "We've saved your details — our team will call you shortly to get you set up.",
+  })
 }

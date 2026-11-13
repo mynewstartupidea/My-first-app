@@ -8,7 +8,6 @@ import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
 
 const UTM = '/signup?utm_source=facebook&utm_campaign=realestate-lp'
-const PRICE = 1999
 
 function useCountUp(target: number, inView: boolean, duration = 1.8) {
   const [val, setVal] = useState(0)
@@ -298,7 +297,7 @@ function TheMath() {
           <div className="grid md:grid-cols-3 gap-6 text-center mb-8">
             <div><p className="text-slate-500 text-sm mb-2">Leads lost to slow response</p><p className="text-4xl font-extrabold text-red-400">60%</p><p className="text-slate-600 text-xs mt-1">of inquiries go cold</p></div>
             <div><p className="text-slate-500 text-sm mb-2">Wapaci response time</p><p className="text-4xl font-extrabold text-[#25D366]">&lt;30 sec</p><p className="text-slate-600 text-xs mt-1">every single inquiry</p></div>
-            <div><p className="text-slate-500 text-sm mb-2">Wapaci costs</p><p className="text-4xl font-extrabold text-white">₹{PRICE.toLocaleString('en-IN')}</p><p className="text-slate-600 text-xs mt-1">per month, flat</p></div>
+            <div><p className="text-slate-500 text-sm mb-2">Wapaci setup time</p><p className="text-4xl font-extrabold text-white">10 min</p><p className="text-slate-600 text-xs mt-1">no dev needed</p></div>
           </div>
           <div className="border-t border-white/5 pt-8 text-center space-y-2">
             <p className="text-slate-300 text-base md:text-lg">If you get <span className="text-white font-bold">50 leads/month</span> and convert just <span className="text-white font-bold">1 extra unit</span> from faster follow-up...</p>

@@ -10,9 +10,11 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { verifyRazorpayWebhookSignature } from '@/lib/razorpay'
 import { sendMetaCapiEvent } from '@/lib/meta-capi'
 
-// Matches the real price in app/api/landing/subscribe/route.ts's PLANS —
-// used only as the value signal on the 'Subscribe' Meta event, not for
-// anything billing-related.
+// The flat price these leads used to be sold at before self-serve checkout
+// was removed from the landing pages (app/api/landing/subscribe no longer
+// creates new subscriptions) — this webhook still exists for subscriptions
+// created under that old flow, and this constant is only the value signal
+// on the 'Subscribe' Meta event, not anything billing-related.
 const SUBSCRIPTION_VALUE_INR = 1999
 
 interface RazorpayWebhookPayload {

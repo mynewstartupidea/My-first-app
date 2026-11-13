@@ -3,7 +3,7 @@ import EcomLanding from './EcomLanding'
 
 export const metadata: Metadata = {
   title: 'WhatsApp Cart Recovery for Shopify Stores — Wapaci',
-  description: 'Automatically recover abandoned carts, confirm COD orders, and send shipping updates on WhatsApp. Connects to Shopify in minutes. ₹1,999/month.',
+  description: 'Automatically recover abandoned carts, confirm COD orders, and send shipping updates on WhatsApp. Connects to Shopify in minutes.',
   robots: { index: false, follow: false },
 }
 

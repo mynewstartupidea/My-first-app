@@ -3,25 +3,13 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import Link from 'next/link'
-import Script from 'next/script'
 import {
-  MessageCircle, ArrowRight, CheckCircle2, Zap, Users, Calendar,
-  Clock, Star, Check, Loader2, Inbox,
+  MessageCircle, ArrowRight, Zap, Users, Calendar,
+  Star, Check, Loader2, Inbox, PhoneCall,
 } from 'lucide-react'
 import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
 import { cn, getUtmParams, getFacebookCookies, isValidWebsiteInput } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
-import PasswordInput from '@/components/password-input'
-
-const PRICE = 1999
-const ORIGINAL_PRICE = 4999
-
-declare global {
-  interface Window {
-    Razorpay: new (options: Record<string, unknown>) => { open: () => void }
-  }
-}
 
 function Header() {
   return (
@@ -73,7 +61,7 @@ function Hero() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.6 }} className="flex flex-wrap gap-5">
-            {['₹1,999/month', 'Official WhatsApp API', '10-minute setup'].map(t => (
+            {['Official WhatsApp API', '10-minute setup', 'No long-term contract'].map(t => (
               <span key={t} className="flex items-center gap-1.5 text-slate-500 text-sm">
                 <Check className="w-3.5 h-3.5 text-[#25D366]" />{t}
               </span>
@@ -190,23 +178,7 @@ function Testimonials() {
   )
 }
 
-type FormStep = 'form' | 'submitting' | 'checkout_pending' | 'saved_no_checkout'
-  | 'set_password' | 'creating_account' | 'entering_app'
-
-// Razorpay's checkout modal locks body scroll while open and doesn't always
-// restore the original scroll position on close — dismissing (or completing)
-// it could leave the page scrolled to the top, right back at the Hero's own
-// "Get started" button, making it look like the submission never happened
-// even though the lead was already saved and this section has updated to
-// show that. Closing the modal doesn't re-render anything here (the section
-// below already shows the right state via `step`), so this only needs to
-// physically scroll back to it — the small delay gives Razorpay's own
-// cleanup/animation a moment to finish first so it can't override this.
-function scrollToGetStarted() {
-  setTimeout(() => {
-    document.getElementById('get-started')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, 150)
-}
+type FormStep = 'form' | 'submitting' | 'saved'
 
 function GetStarted() {
   const [step, setStep] = useState<FormStep>('form')
@@ -216,12 +188,6 @@ function GetStarted() {
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
-  const [razorpayReady, setRazorpayReady] = useState(false)
-  const [leadId, setLeadId] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [pwError, setPwError] = useState('')
-  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -244,11 +210,7 @@ function GetStarted() {
     // forever (button disabled, spinner, no error, no way to retry short of
     // reloading).
     let res: Response
-    let data: {
-      leadId?: string; subscriptionId?: string; keyId?: string
-      prefill?: { name: string; email: string; contact: string }
-      error?: string; message?: string
-    }
+    let data: { leadId?: string; error?: string; message?: string }
     const fbEventId = crypto.randomUUID()
     const { fbp, fbc } = getFacebookCookies()
     try {
@@ -270,146 +232,31 @@ function GetStarted() {
       return
     }
 
-    // The lead is saved server-side as soon as the request succeeds —
-    // /api/landing/subscribe writes to landing_leads BEFORE it ever touches
-    // Razorpay, so it's already saved here regardless of whether checkout
-    // opens, gets dismissed, or completes below. Firing Lead here (not on
-    // payment success) counts it once per real form submission, matching
-    // what "form submission is done" actually means on this page. Same
-    // eventID as the server-side Conversions API call in
-    // /api/landing/subscribe so Meta dedupes the two into one event.
+    // The lead is saved server-side as soon as the request succeeds. No
+    // checkout, no account creation — a human calls to close this, so the
+    // only outcome of a successful submit is "saved." Firing Lead here
+    // counts it once per real form submission.
     window.fbq?.('track', 'Lead', {}, { eventID: fbEventId })
-    if (data.leadId) setLeadId(data.leadId)
-
-    if (data.error === 'saved_no_checkout') {
-      setStep('saved_no_checkout')
-      return
-    }
-
-    if (!data.subscriptionId || !data.keyId || !razorpayReady || !window.Razorpay) {
-      // Details are already saved server-side at this point even though
-      // checkout couldn't open — same safe fallback as a Razorpay-side failure.
-      setStep('saved_no_checkout')
-      return
-    }
-
-    const rzp = new window.Razorpay({
-      key: data.keyId,
-      subscription_id: data.subscriptionId,
-      name: 'Wapaci',
-      description: 'Lead Response Plan — ₹1,999/month',
-      prefill: data.prefill,
-      theme: { color: '#25D366' },
-      handler: () => { setStep('set_password'); scrollToGetStarted() },
-      modal: { ondismiss: () => { setStep('checkout_pending'); scrollToGetStarted() } },
-    })
-    rzp.open()
-    setStep('checkout_pending')
-  }
-
-  async function handleCreateAccount(e: React.FormEvent) {
-    e.preventDefault()
-    setPwError('')
-    if (password.length < 6) { setPwError('Password must be at least 6 characters.'); return }
-    if (password !== confirmPassword) { setPwError("Passwords don't match."); return }
-    setStep('creating_account')
-
-    try {
-      // The server verifies payment directly with Razorpay rather than
-      // trusting anything client-supplied — right, but it means a brief
-      // propagation gap between "checkout handler fired client-side" and
-      // "Razorpay's own GET /subscriptions reflects that" would otherwise
-      // show someone who genuinely just paid a confusing "not confirmed yet"
-      // error. A couple of short, bounded retries absorbs that without
-      // weakening the check itself — still asking Razorpay for real.
-      let res!: Response
-      let data!: { email?: string; error?: string }
-      for (let attempt = 0; attempt < 3; attempt++) {
-        res  = await fetch('/api/landing/complete-signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ leadId, password }),
-        })
-        data = await res.json().catch(() => ({})) as { email?: string; error?: string }
-        if (res.ok || res.status !== 402 || attempt === 2) break
-        await new Promise(r => setTimeout(r, 1500))
-      }
-
-      if (!res.ok) {
-        setPwError(data.error ?? 'Could not create your account — please try again.')
-        setStep('set_password')
-        return
-      }
-
-      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: data.email ?? email, password })
-      if (signInErr) {
-        setPwError('Your account was created, but automatic sign-in failed — please log in manually.')
-        setStep('set_password')
-        return
-      }
-
-      await fetch('/api/auth/post-login', { method: 'POST' }).catch(() => {})
-      setStep('entering_app')
-      // Full navigation (not router.push) keeps this branded loading state on
-      // screen for the entire handoff — same reasoning as app/signup/page.tsx's
-      // identical enteringApp screen.
-      window.location.href = '/dashboard'
-    } catch {
-      setPwError("Couldn't reach the server — check your connection and try again.")
-      setStep('set_password')
-    }
+    setStep('saved')
   }
 
   return (
     <section id="get-started" className="relative py-24 px-5">
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" onLoad={() => setRazorpayReady(true)} />
       <div className="max-w-md mx-auto">
         <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-8">
 
-          {step === 'entering_app' ? (
-            <div className="text-center py-10">
-              <Loader2 className="w-8 h-8 animate-spin text-[#25D366] mx-auto mb-4" />
-              <h3 className="text-white font-bold text-xl mb-2">Setting up your account…</h3>
-              <p className="text-slate-400 text-sm">This only takes a moment.</p>
-            </div>
-          ) : step === 'set_password' || step === 'creating_account' ? (
-            <>
-              <div className="text-center mb-6">
-                <CheckCircle2 className="w-10 h-10 text-[#25D366] mx-auto mb-3" />
-                <h3 className="text-white font-bold text-xl mb-1">Payment received!</h3>
-                <p className="text-slate-400 text-sm">Create a password to access your dashboard — <span className="text-slate-300">{email}</span></p>
-              </div>
-              <form onSubmit={handleCreateAccount} className="space-y-3">
-                <PasswordInput required autoFocus autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Create a password"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
-                <PasswordInput required autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm password"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-base placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40" />
-                {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
-                <button type="submit" disabled={step === 'creating_account'}
-                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1db954] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-[0.98]">
-                  {step === 'creating_account' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Create account &amp; continue <ArrowRight className="w-4 h-4" /></>}
-                </button>
-              </form>
-            </>
-          ) : step === 'saved_no_checkout' || step === 'checkout_pending' ? (
+          {step === 'saved' ? (
             <div className="text-center py-6">
-              <Clock className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-              <h3 className="text-white font-bold text-xl mb-2">We&apos;ve saved your details</h3>
-              <p className="text-slate-400 text-sm">
-                {step === 'checkout_pending'
-                  ? "Didn't finish payment? No problem — our team will call you shortly to complete your subscription."
-                  : "Our team will reach out shortly to complete your subscription."}
-              </p>
+              <PhoneCall className="w-12 h-12 text-[#25D366] mx-auto mb-4" />
+              <h3 className="text-white font-bold text-xl mb-2">Thanks — we&apos;ve got your details</h3>
+              <p className="text-slate-400 text-sm">Our team will call you shortly to get you set up.</p>
             </div>
           ) : (
             <>
               <div className="text-center mb-6">
                 <p className="text-[#25D366] text-xs font-bold tracking-widest uppercase mb-2">Get started</p>
-                <div className="flex items-end justify-center gap-2.5 flex-wrap">
-                  <span className="text-slate-500 text-xl font-semibold line-through decoration-slate-600">₹{ORIGINAL_PRICE.toLocaleString('en-IN')}</span>
-                  <h3 className="text-white font-extrabold text-4xl leading-none">₹{PRICE.toLocaleString('en-IN')}<span className="text-slate-400 text-base font-medium">/month</span></h3>
-                </div>
-                <p className="text-slate-500 text-xs mt-1.5">Cancel anytime, no long-term contract</p>
+                <h3 className="text-white font-bold text-xl">Tell us about your business</h3>
+                <p className="text-slate-500 text-xs mt-1.5">Our team will call you to set things up.</p>
               </div>
 
               <ul className="space-y-2 mb-6">
@@ -451,7 +298,7 @@ function GetStarted() {
                   {step === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Get Started <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </form>
-              <p className="text-slate-600 text-[11px] text-center mt-4">Secure payment via Razorpay. Billed every 30 days.</p>
+              <p className="text-slate-600 text-[11px] text-center mt-4">No payment required — our team will call you to set things up.</p>
             </>
           )}
         </div>

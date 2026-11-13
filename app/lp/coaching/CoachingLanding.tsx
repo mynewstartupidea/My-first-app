@@ -8,7 +8,6 @@ import AuroraBg from '@/components/landing/aurora-bg'
 import ScrollProgress from '@/components/landing/scroll-progress'
 
 const UTM = '/signup?utm_source=facebook&utm_campaign=coaching-lp'
-const PRICE = 1999
 
 function useCountUp(target: number, inView: boolean, duration = 1.8) {
   const [val, setVal] = useState(0)
@@ -290,7 +289,7 @@ function TheMath() {
           <div className="grid md:grid-cols-3 gap-6 text-center mb-8">
             <div><p className="text-slate-500 text-sm mb-2">Industry demo show-up rate</p><p className="text-4xl font-extrabold text-red-400">35%</p><p className="text-slate-600 text-xs mt-1">without reminders</p></div>
             <div><p className="text-slate-500 text-sm mb-2">Show-up rate with Wapaci</p><p className="text-4xl font-extrabold text-[#25D366]">78%</p><p className="text-slate-600 text-xs mt-1">WhatsApp reminders work</p></div>
-            <div><p className="text-slate-500 text-sm mb-2">Wapaci costs</p><p className="text-4xl font-extrabold text-white">₹{PRICE.toLocaleString('en-IN')}</p><p className="text-slate-600 text-xs mt-1">per month, flat</p></div>
+            <div><p className="text-slate-500 text-sm mb-2">Wapaci setup time</p><p className="text-4xl font-extrabold text-white">10 min</p><p className="text-slate-600 text-xs mt-1">no dev needed</p></div>
           </div>
           <div className="border-t border-white/5 pt-8 text-center space-y-2">
             <p className="text-slate-300 text-base md:text-lg">200 demo registrations. At 35% show-up = <span className="text-red-400 font-bold">70 students</span> in the room.</p>

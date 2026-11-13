@@ -16,7 +16,7 @@ const faqs = [
   },
   {
     q: 'How much does Wapaci cost?',
-    a: '₹1,999/month, billed monthly — no setup fees, cancel anytime. External services you connect (WhatsApp/Meta, your ecommerce platform) may charge their own fees separately.',
+    a: "Fill out the form below and our team will call you to go over pricing for your business. External services you connect (WhatsApp/Meta, your ecommerce platform) may charge their own fees separately.",
   },
   {
     q: 'Which platforms and tools does Wapaci integrate with?',
